@@ -1,14 +1,18 @@
 {
   "expo": {
-    "name": "UREGOD",
-    "slug": "uregod",
+    "name": "UGEROD",
+    "slug": "UGEROD",
     "version": "1.0.0",
-    "scheme": "uregod",
+    "scheme": "ugerod",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ugosansh.UGEROD",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +27,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
-    ]
+      "expo-secure-store",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5e9107ba-e927-4805-98eb-8cfebe81310a"
+      }
+    }
   }
 }
