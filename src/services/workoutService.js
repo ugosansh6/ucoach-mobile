@@ -277,6 +277,88 @@ function normalizeStatus(status) {
     : 'completed';
 }
 
+function normalizeSessionBlockKey(blockKey) {
+  if (blockKey === 'warmup') {
+    return 'warm_up';
+  }
+
+  return blockKey ?? null;
+}
+
+async function resolveSessionExerciseInstances(
+  sessionId,
+  exercises
+) {
+  const { data, error } = await supabase
+    .from('workout_session_exercises')
+    .select('id, exercise_id, block_key, position')
+    .eq('session_id', sessionId)
+    .order('position', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = data ?? [];
+  const usedIds = new Set();
+
+  return exercises.map((exercise) => {
+    const knownInstanceId =
+      exercise.sessionExerciseId ??
+      exercise.session_exercise_id ??
+      null;
+
+    const expectedBlockKey =
+      normalizeSessionBlockKey(
+        exercise.blockKey ?? exercise.block
+      );
+
+    let match = null;
+
+    if (knownInstanceId) {
+      match = rows.find(
+        (row) =>
+          row.id === knownInstanceId &&
+          row.exercise_id === exercise.id &&
+          !usedIds.has(row.id)
+      );
+    }
+
+    if (!match && expectedBlockKey) {
+      match = rows.find(
+        (row) =>
+          row.exercise_id === exercise.id &&
+          row.block_key === expectedBlockKey &&
+          !usedIds.has(row.id)
+      );
+    }
+
+    // Fallback conservateur pour les anciennes séances qui n'avaient pas encore
+    // blockKey côté front. Le Set garantit qu'une instance ne peut pas être
+    // réutilisée deux fois, même si le même exercise_id existe plusieurs fois.
+    if (!match) {
+      match = rows.find(
+        (row) =>
+          row.exercise_id === exercise.id &&
+          !usedIds.has(row.id)
+      );
+    }
+
+    if (!match) {
+      throw new Error(
+        `Impossible de résoudre l'instance de séance pour ${exercise.id}.`
+      );
+    }
+
+    usedIds.add(match.id);
+
+    return {
+      ...exercise,
+      sessionExerciseId: match.id,
+    };
+  });
+}
+
 export async function swapWorkoutExercise({
   sessionId,
   currentExerciseId,
@@ -350,15 +432,21 @@ export async function completeWorkoutSession({
     );
   }
 
-  const sessionExercises = Array.isArray(exercises)
+  const rawSessionExercises = Array.isArray(exercises)
     ? exercises.filter((exercise) => exercise?.id)
     : [];
 
-  if (sessionExercises.length === 0) {
+  if (rawSessionExercises.length === 0) {
     throw new Error(
       "Impossible d'enregistrer la séance : aucun exercice disponible."
     );
   }
+
+  const sessionExercises =
+    await resolveSessionExerciseInstances(
+      sessionId,
+      rawSessionExercises
+    );
 
   const exerciseIds = [
     ...new Set(
@@ -409,6 +497,8 @@ export async function completeWorkoutSession({
       null;
 
     return {
+      session_exercise_id:
+        exercise.sessionExerciseId,
       exercise_id: exercise.id,
       status,
 
@@ -454,7 +544,7 @@ export async function completeWorkoutSession({
 
   const { data, error } =
     await supabase.functions.invoke(
-      'hyper-api',
+      'hyper-api-instance',
       {
         body: {
           session_id: sessionId,
