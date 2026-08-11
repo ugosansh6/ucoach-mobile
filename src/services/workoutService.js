@@ -189,7 +189,7 @@ export async function generateWorkoutSession(preparation) {
 
   const { data, error } =
     await supabase.functions.invoke(
-      'bright-handler',
+      'coach-handler',
       {
         body: payload,
       }
