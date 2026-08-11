@@ -1,7 +1,6 @@
-// hyper-api-instance-v1 — exact workout_session_exercises bridge for Phase B2.6.4
-// Keeps hyper-api-v3.0 as the legacy progression/athletic-profile engine while
-// guaranteeing that every internal observation is attached to the exact session
-// exercise instance, including duplicate exercise IDs across blocks.
+// hyper-api-instance-v2-b27 — exact instance bridge + controlled Performance Engine activation
+// Keeps hyper-api-v3.0 legacy progression in parallel while applying the B2.7 live
+// per-exercise capability loop and protocol-level capability when protocol actuals exist.
 
 // @ts-ignore -- import URL resolved by Deno/Supabase Edge Runtime
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -148,10 +147,6 @@ serve(async (req: Request) => {
       }
     }
 
-    // Compatibility bridge: hyper-api-v3.0 currently accepts exercise_id only.
-    // The database trigger extracts this marker BEFORE the log is persisted,
-    // assigns the exact workout_session_exercises.id, copies the correct planned
-    // prescription and removes the marker from notes.
     const legacyExercises = body.exercises.map((item) => {
       const marker = `[[UGEROD_INSTANCE:${item.session_exercise_id}]]`;
       const userNotes = item.notes?.trim();
@@ -204,10 +199,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // hyper-api-v3.0 updates workout_session_exercises by exercise_id. That is
-    // harmless for unique IDs but imprecise when an exercise is repeated. Restore
-    // the exact per-instance actuals after the legacy engine has completed its
-    // progression, training-load and athletic-profile work.
     const now = new Date().toISOString();
 
     for (const item of body.exercises) {
@@ -236,11 +227,95 @@ serve(async (req: Request) => {
       }
     }
 
+    let liveCapability: any = {
+      status: "NOT_RUN",
+      version: "b2.7-live-runtime-1",
+    };
+
+    try {
+      const { data: capabilityData, error: capabilityError } =
+        await supabase.rpc("run_capability_live_session", {
+          p_session_id: body.session_id,
+          p_engine_policy_key: "b2.7-live-default",
+          p_quality_policy_key: "b2.6-adapter-draft-1",
+        });
+
+      if (capabilityError) {
+        throw new Error(capabilityError.message);
+      }
+
+      liveCapability = {
+        status: "OK",
+        ...(capabilityData ?? {}),
+      };
+    } catch (capabilityError) {
+      const message =
+        capabilityError instanceof Error
+          ? capabilityError.message
+          : "Unknown B2.7 live capability error";
+
+      liveCapability = {
+        status: "ERROR_NON_BLOCKING",
+        version: "b2.7-live-runtime-1",
+        error: message,
+      };
+
+      await supabase.from("capability_live_run_errors").insert({
+        user_id: user.id,
+        session_id: body.session_id,
+        error_text: `exercise_capability: ${message}`,
+      });
+    }
+
+    let protocolCapability: any = {
+      status: "NOT_RUN",
+      version: "b2.7-protocol-runtime-1",
+    };
+
+    try {
+      const { data: protocolData, error: protocolError } =
+        await supabase.rpc("apply_session_protocol_observation", {
+          p_session_id: body.session_id,
+          p_policy_key: "b2.7-live-default",
+        });
+
+      if (protocolError) {
+        throw new Error(protocolError.message);
+      }
+
+      protocolCapability = protocolData ?? {
+        status: "SKIPPED",
+        reason: "NO_PROTOCOL_RESULT",
+      };
+    } catch (protocolError) {
+      const message =
+        protocolError instanceof Error
+          ? protocolError.message
+          : "Unknown B2.7 protocol capability error";
+
+      protocolCapability = {
+        status: "ERROR_NON_BLOCKING",
+        version: "b2.7-protocol-runtime-1",
+        error: message,
+      };
+
+      await supabase.from("capability_live_run_errors").insert({
+        user_id: user.id,
+        session_id: body.session_id,
+        error_text: `protocol_capability: ${message}`,
+      });
+    }
+
     return json({
       ...legacyData,
-      version: "hyper-api-instance-v1",
+      version: "hyper-api-instance-v2-b27",
       legacy_version: legacyData.version ?? "hyper-api-v3.0",
       exact_instance_count: body.exercises.length,
+      performance_engine: {
+        mode: "legacy_plus_live_plus_shadow",
+        exercise_capability: liveCapability,
+        protocol_capability: protocolCapability,
+      },
     });
   } catch (error) {
     return json(
