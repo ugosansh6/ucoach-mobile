@@ -9,7 +9,7 @@
 - No numeric load is invented without confirmed capability + inventory information
 - Backend tests are executed in Supabase; app tests are reserved for interface-facing behavior and the final A→F pass
 
-## Phase A — DATA foundations — CLOSED / PASS
+## Phase A — DATA foundations — CLOSED / PASS WITH TWO FOLLOW-UP GAPS
 
 Current catalog state:
 - 157 exercises total
@@ -18,6 +18,7 @@ Current catalog state:
 - explicit warm-up roles: mobility / activation / movement prep / pulse raiser
 - pain hard-gate coverage for all current preparation UI zones
 - equipment quantity semantics, load semantics, body-zone safety, muscles and local-fatigue metadata
+- 109 WOD exercises with no missing critical catalogue metadata
 
 Important invariants:
 - pain executes before scoring/solver
@@ -25,25 +26,78 @@ Important invariants:
 - warm-up rejects high-fatigue/high-impact/strength-like entries
 - legacy `selection_weight` is not the final Session Engine decision
 
-## Phase B — Performance Engine — CLOSED FOR ROADMAP / SHADOW-VALIDATED
+Known follow-up gaps found during the A→F audit:
+- the application still sends mostly equipment names instead of the full `user_equipment_inventory` quantity/load model
+- the C4 `joint_impact >= 5` safeguard is currently dead because the WOD catalogue maximum is 4; it must be recalibrated rather than kept as a false safeguard
+
+## Phase B — Performance Engine — LIVE ACTIVATION IN DEV / CONTROLLED DUAL RUN
+
+### B2.1→B2.6 — observation + capability architecture — ✅
 
 Implemented:
 - exact observation identity via `session_exercise_id`
 - observation contract + quality roles
-- reps/load/time/distance/pace/density/progressive capability families
+- per-exercise capability families: reps / load+reps / time / pace / loaded distance
 - confidence and freshness separated
-- capability envelopes + frontier logic
+- capability envelopes + Pareto/frontier logic
 - CONFIRM / EXPAND / HOLD / RECALIBRATE proposal decisions
 - idempotent shadow runtime
 - exact repeated-exercise-instance bridge
+- warm-up / skill / WOD / tabata quality differences
+- pain and contextual skips excluded from capability regression
 
-Validation:
-- duplicate exercise instances require exact identity
-- shadow runs are idempotent
-- 0 shadow errors in validation runs
-- no real capability mutation during B/C backend tests
+### B2.7 — real capability loop + protocol capability split — ✅ backend activation
 
-## Phase C — Session Engine — CLOSED FOR ROADMAP / DEV ROUTED
+DEV migrations:
+- `20260811132942_phase_b27_live_exercise_capability_loop`
+- `20260811133129_phase_b27_protocol_capability_foundation`
+- `20260811133840_phase_b27_restrict_live_rpc_execution`
+- `20260811134027_phase_b27_progressive_protocol_boundary`
+
+Implemented:
+- active policy `b2.7-live-default` / engine `b2.7-live-1`
+- `run_capability_live_session(...)` applies exact observations to real `user_exercise_capabilities`
+- live application is idempotent by `exercise_log_id + capability_family + capability_mode`
+- legacy `user_exercise_progress` remains in parallel during transition
+- B2.6 shadow remains in parallel for comparison/debugging
+- failures in the new live engine are non-blocking for session completion and logged separately
+- `hyper-api-instance` DEV upgraded to `hyper-api-instance-v2-b27` and routes completion through legacy + live + shadow
+
+Protocol capability is now explicitly separated from one-exercise capability:
+- `user_protocol_capabilities`
+- `protocol_capability_events`
+- deterministic protocol signature built from mechanic + variant + parameters + ordered exercise prescriptions
+- `actual_protocol_outcome_json` on the session
+
+Death By / Death By Couplet are modeled as a **progressive protocol boundary**, not as two unrelated exercise scores:
+- independent `start_reps` / `increment_reps` per exercise are part of the protocol signature
+- `last_completed_stage` is the main capability boundary
+- partial work on the failed next interval can be supplied per exercise and normalized within the exact protocol
+- one lower attempt does not immediately regress the stored best
+- if the athlete reaches the programmed time cap without failing, the result is stored as a **right-censored lower bound** (`capability >= reached stage`) rather than pretending the true failure point was observed
+
+Supabase-only validation:
+- existing completed session: first live pass → 18 proposals; second pass → 0 new proposals / 18 idempotent skips
+- test was wrapped in a transaction and rolled back; no historical capability rows were polluted
+- synthetic Death By Couplet: observed failure boundary initialized correctly
+- lower subsequent result → `HOLD_BEST_RECALIBRATION_PENDING`
+- later successful time-cap completion → `EXPAND_PROTOCOL_LOWER_BOUND`
+- partial next-stage ratio is computed from both exercises when `partial_reps_by_exercise` is present
+- all synthetic protocol tests rolled back
+
+Current production-data state intentionally remains clean until the next real completed session:
+- no historical backfill has been forced
+- real capability/protocol rows will start accumulating prospectively through the normal completion path
+
+Security hardening:
+- new SECURITY DEFINER RPCs are not executable by `anon`
+- only authenticated completion flow may invoke live/protocol update RPCs
+
+### Remaining B/C bridge to preserve
+
+The Session Engine already reads capability state in candidate/prescription logic, but the full envelope-driven prescription calibration (reps/time/load chosen directly from mature capability envelopes) will be tightened during the C4.2 composition/prescription solver pass rather than duplicating logic inside B.
+
+## Phase C — Session Engine — CORE C1→C4 DONE, AUDIT GAPS MUST CLOSE BEFORE D
 
 ### C0 — Contracts + hard gates — ✅
 
@@ -69,13 +123,7 @@ The engine builds the target stimulus before exercise choice:
 - complexity
 - RPE band
 
-Inputs: V1 goal, duration, readiness, optional target region, optional progression intent.
-
-### C2 — Candidates + Coach Score — ✅
-
-Migrations:
-- `20260811115832_phase_c2_coach_score_solver_simulation`
-- `20260811115938_phase_c2_conditioning_anchor_guard`
+### C2 — Candidates + Coach Score — ✅ core
 
 Implemented:
 - hard-gated candidate pool
@@ -85,95 +133,86 @@ Implemented:
 - multiple candidate WODs
 - pattern and primary-muscle diversity
 - recent-session anti-repetition
-- one-axis progression budget
+- one-axis progression rule
 - Conditioning/Fat Loss anchor requirement
 - `NO_SAFE_COHERENT_WOD` rather than forcing an incoherent workout
 
-### C3 — Whole-WOD simulation — ✅
+### C3 — Whole-WOD simulation — ✅ core
 
-Migrations:
-- `20260811121155_phase_c3_whole_wod_simulation`
-- `20260811121336_phase_c3_duration_and_muscle_ledger_refinement`
+Implemented for the currently compiled automatic mechanics:
+- AMRAP
+- EMOM
+- FOR_TIME
+- CIRCUIT
+- STRENGTH
+- LADDER
+- PYRAMID
+- PROGRESSIVE_INTERVAL
 
-Implemented for AMRAP / EMOM / FOR_TIME / CIRCUIT / STRENGTH / LADDER / PYRAMID / PROGRESSIVE_INTERVAL:
-- time / round / set projection
-- EMOM work-rest margin
-- For Time cap feasibility
-- cumulative ladder/pyramid/progressive volume
-- whole-WOD reps/distance/hold/active-work volume
-- density
-- time utilization
-- primary-muscle exposure ledger
-- local-fatigue concentration
-- whole-WOD fit
-- underfill / overfill / infeasibility signals
+Simulation includes time, rounds/sets, EMOM rest margin, For Time cap, cumulative progressive volume, density, time utilization, muscle exposure and local-fatigue concentration.
 
-### C4 — Final solver + Quality Gates + DEV routing — ✅
-
-DEV migrations applied:
-- `20260811122720_phase_c4_final_solver_quality_gates`
-- `20260811122852_phase_c4_block_rules_region_coherence`
-- `20260811123006_phase_c4_conditioning_region_balance`
-- `20260811123104_phase_c4_conditioning_target_region_rule`
-- `20260811123231_phase_c4_final_duration_gate`
-- `20260811123400_phase_c4_strength_time_solver`
-- `phase_c4_version_coherence`
+### C4 — Final solver + DEV routing — ✅ core / not full catalogue
 
 Canonical solver: `solve_session_engine_c4(...)` → `c4-final-v1.5`.
 
-Implemented:
-- final mechanic-specific rep/round/set/time corrections
-- strict block-rule exercise counts
-- explicit target-region coherence without destroying Conditioning/Full-Body requirements
-- final underfill/overfill rejection
-- AMRAP transition gate
-- EMOM complexity/fatigue/rest gates
-- For Time heavy Hinge + heavy Jump incompatibility
-- max Jump / max high-impact safeguards
-- readiness caps
-- final anti-redundancy over the last completed sessions
-- exact anchors may repeat when physiologically useful
-- final ranking = Coach Score + whole-WOD fit + anti-redundancy
-- explicit mechanic overlays for Ladder / Pyramid / Progressive Interval
-- legacy equipment-name bridge with quantity semantics; no numeric load inference
-- persisted expected stimulus / mechanic / quality gate / solver decision / capability snapshot contracts
+`coach-handler` DEV routes the WOD through C1→C4 while the legacy generator still supplies the non-WOD scaffold.
 
-Stress validation in Supabase:
-- General Fitness 30/60 → READY
-- Fat Loss 45/60 including wrist discomfort → READY where a safe coherent WOD exists
-- Conditioning 45/60 including wrist discomfort → READY
-- Muscle Gain 60/90 → READY
-- Strength 60/75 → READY
-- legitimate Fat Loss + knee-pain coverage gap → `NO_SAFE_COHERENT_WOD`
-- selected candidates pass final Quality Gate and duration coherence
-- 0 real capability rows/events created by C4 tests
+Audit gaps that must be closed before Phase D:
 
-### Production-facing routing in DEV
+#### C4.1 — complete mechanic compiler
 
-`coach-handler` has been upgraded to `coach-handler-v2.0-c4` and deployed as Edge Function version 2.
+Catalogue mechanics exist but are not all compiled by C4 yet. Add full solver/simulation support for:
+- Chipper
+- Every X Minutes
+- Rep Target
+- Odd / Even
+- Ascending / Descending Couplet
+- Death By
+- Death By Couplet
+- Deck-style strict
+- compatible overlays such as Buy-in / Cash-out and Penalty
 
-Architecture now used by DEV generation:
-1. `bright-handler` builds the non-WOD scaffold (Warm-up / optional Tabata / optional Skill + time architecture).
-2. `coach-handler` audits non-WOD pain + warm-up contract.
-3. C1→C4 is authoritative for the WOD.
-4. C4 replaces the legacy WOD, writes exact `workout_session_exercises`, expected outcome, RPE band, capacity snapshot and solver decision.
-5. Warm-up/Skill post-processing is applied against the final C4 WOD.
-6. `generated_workout`, expected stimulus, mechanic and quality-gate contracts remain coherent in `workout_sessions`.
+Ladder/Pyramid/Progressive must support **per-exercise** starts/increments rather than one global increment.
 
-The frontend response shape is intentionally preserved, so no page redesign was required for C4. Existing session rendering can display the new mechanic structure text. Full application regression remains scheduled after Phase F.
+#### C4.2 — dynamic composition + capability-aware prescription
 
-## Phase D — Weekly feedback loop — NEXT
+- exercise count becomes a solver variable driven by duration/mechanic/stimulus/available patterns, not an initial fixed 3-exercise combination repaired afterward
+- use mature capability envelopes + freshness/confidence to calibrate reps/time/load conservatively
+- keep one-axis-at-a-time progression
+- improve exercise-specific work-time estimates beyond only global prescription-type constants
+
+#### C4.3 — one Session Engine for the entire session
+
+- C becomes the orchestrator for Warm-up / optional Tabata / optional Skill / WOD
+- preserve the proven warm-up/tabata/skill builders but remove the old generator as the authority
+- persist expected outcome contracts consistently across all blocks
+
+#### C4.4 — Swap + format change must re-enter the solver
+
+- use exact `session_exercise_id`
+- after a swap, re-simulate the complete WOD so EMOM margins, fatigue and timing remain valid
+- compatible/adaptable/not-recommended format conversion must use the same mechanic compiler, not a second conversion engine
+- add mechanic/structure diversity to anti-redundancy without allowing a weaker mechanic merely for variety
+
+## Phase D — Weekly feedback loop — WAITING FOR C4.1→C4.4
 
 Existing foundations:
 - `weekly_stimulus_targets`
 - planned vs realized stimulus ledger
 - flexible plan sequence / nullable recommended date
 
-Phase D must now replace the neutral weekly-coherence placeholder used during C2–C4.
+D will replace the neutral weekly-coherence placeholder only after the audited Session Engine gaps above are closed.
 
 ## Phase E — Automatic UX contracts — FOUNDATION PRESENT
 
-Existing backend contracts describe what completion data should be requested from the user according to the exercise/prescription. Production-facing frontend/service changes will be made when needed.
+Existing backend contracts describe what completion data should be requested from the user according to the exercise/prescription.
+
+Death By / Death By Couplet will eventually need minimal protocol completion capture such as:
+- last completed interval/stage
+- whether the user failed or reached the programmed time cap
+- partial work in the next failed interval when useful
+
+The backend B2.7 storage/learning model is already ready for this; the interface will be updated when these mechanics become production-facing.
 
 ## Phase F — External session import — FOUNDATION PRESENT
 
@@ -187,4 +226,4 @@ DEV only. No merge to `main`, STAGING promotion or PROD deployment.
 
 ## Immediate next action
 
-**Phase D — connect weekly planned vs realized stimulus to Session Engine decisions and progression intents.**
+**C4.1 — finish the full mechanic compiler, starting with Chipper / Every X Minutes / Rep Target / Odd-Even / Couplet variants / Death By + Death By Couplet / Deck-style.**
