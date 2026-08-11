@@ -5,179 +5,181 @@
 - DEV Supabase only: `fjjhzzwupjhcasoyerym`
 - No STAGING or PROD promotion
 - No merge to `main`
-- No arbitrary physiological/scoring coefficients invented
-- User-declared pain/discomfort stays absolute hard gate
-- Existing V1/bright-handler kept operational; Phase C foundations are additive
+- User-declared pain/discomfort stays an absolute hard gate
+- Existing V1 generator kept operational during the transition
+- New Performance/Session engines are introduced in shadow/simulation before production routing
+- No numeric load is invented without confirmed capability + inventory information
 
 ## Phase A — DATA foundations — CLOSED / PASS
 
-Final catalog state:
-- 133 exercises
-- 109 WOD-eligible
-- 20 new strategic exercises (EX401→EX420), 18 WOD-eligible
-- 0 critical null metadata
-- 0 exercises without muscles / primary muscle / safety zones
-- 0 invalid selection_weight
-- 0 required equipment without A4 V2 semantics
-- 0 tracked loads without explicit load semantics
-- 0 prescription/tracking mismatches after A7 corrections
+Current catalog state after warm-up enrichment:
+- 157 exercises total
+- 24 dedicated warm-up-only exercises (`EX421`→`EX444`)
+- 43 warm-up-eligible exercises
+- explicit warm-up roles: mobility / activation / movement prep / pulse raiser
+- hard-gate pain coverage generated from authoritative body-zone mappings for all current preparation UI zones
+- equipment quantity semantics, load semantics, body-zone safety, muscles and local-fatigue metadata available to the future Session Engine
 
-Corrections made during A7:
-- 11 missing `starting_position` values filled
-- Couch Stretch equipment corrected to optional; legacy Box gate removed
-- Ankle Rocks and Shoulder CARs changed to `reps_unilateral`
-- Tabata block rules enriched with `allowed_exercise_counts`: 4 min `[1,2]`, 8 min `[1,2,4]`
+Important invariants:
+- pain hard gate executes before scoring/solver
+- equipment requirements support ALL_OF / ANY_OF / OPTIONAL and quantity
+- warm-up contract rejects high-fatigue/high-impact/strength-like entries
+- `selection_weight` remains legacy preference data, not the future final decision engine
 
-Safety × equipment stress tests:
-- Every single declared discomfort zone leaves a usable WOD pool in every equipment profile
-- Rare 2-zone combinations (mainly hip/groin + upper-limb zones) can leave 0–2 WODs; classified as legitimate refusal/coverage-gap cases, never reason to weaken safety
+## Phase B — Performance Engine — CLOSED FOR ROADMAP / SHADOW-VALIDATED
 
-Local fatigue stress:
-- 109 WODs = 5,886 pairs
-- 5,476 pairs have different movement patterns
-- 1,760 of those still share local muscular demand
-- Confirms that pattern diversity alone cannot validate whole-WOD quality
+Implemented:
+- exact observation identity via `session_exercise_id`
+- `performance_observation_contract`
+- observation roles: STATE_ONLY_PAIN / CONTEXT_ONLY / NON_PERFORMANCE_OBSERVATION / CAPABILITY_EXCLUDED / CAPABILITY_CANDIDATE
+- multidimensional observation quality
+- fresh vs repeatable evidence
+- capability families: reps / load+reps / time / pace / loaded distance / density / progressive
+- confidence and freshness kept separate
+- capability envelopes and Pareto/frontier logic
+- proposal decisions: EXCLUDE / CONFIRM / EXPAND / ADD_FRONTIER_POINT / HOLD / RECALIBRATE
+- shadow runtime with idempotent event/state storage
+- exact repeated-exercise-instance bridge
 
-Phase A final invariant audit: all critical checks = 0 errors.
+Validation:
+- historical logs are linked to exact session exercise instances
+- duplicate same-exercise instances require explicit `session_exercise_id`
+- shadow engine is idempotent
+- 0 shadow errors in validation runs
+- 0 real capability mutations during shadow tests
+- real `user_exercise_capabilities` and capability update events remain untouched by Phase C simulations
 
-## Phase B — Performance / Calibration — FOUNDATION IMPLEMENTED
+The roadmap can therefore move to C while capability activation remains intentionally controlled.
 
-Added:
-- `user_exercise_capabilities`
-- six capability envelopes: reps/load/time/distance/pace/density
-- confidence/freshness/evidence metadata
-- `exercise_logs` observation provenance and pain/skip fields
-- `performance_observation_source` view (expected vs actual contract)
-- `user_exercise_coach_state` view combining legacy progress + future capability envelopes
+## Phase C — Session Engine — IN PROGRESS
 
-Important safety behavior:
-- `effective_capability_eligible = false` for pain-affected/non-completed observations
-- no automatic capability degradation from pain/skipped observations at this foundation layer
+### C0 — Contracts + hard gates — ✅
 
-Current data smoke test:
-- 9 exercise logs → 9 observation rows
-- 0 pain eligibility leaks
-
-Not implemented intentionally:
-- capability update/calibration algorithm
-- confidence/freshness formulas
-- expected-vs-actual response coefficients
-These require simulation/validation rather than arbitrary constants.
-
-## Phase C — Session Engine — CONTRACTS + HARD GATES IMPLEMENTED
-
-Added session contracts:
+Implemented before the intelligence layer:
 - `progression_intent`: MAINTAIN / PROGRESS / CONSOLIDATE / DELOAD / RECALIBRATE / EXPLORE
 - planning context JSON
 - expected stimulus JSON
 - mechanic JSON
 - quality gate JSON
-- per-exercise expected outcome, expected RPE band, capacity snapshot, solver decision JSON
+- per-exercise expected outcome / expected RPE / capacity snapshot / solver decision
+- 16 active mechanics: 14 core + 2 overlays
+- deterministic pain and equipment hard gates
+- body-zone alias normalization
 
-Mechanic referential:
-- 16 active mechanics total
-- 14 core mechanics + 2 overlays
-- 8 Free automatic mechanics
-- Premium manual compatibility field
-- progressive interval family with Death By / Death By Couplet variants
-- mechanic and progression-rule concepts kept separate
+### C1 — Target stimulus contract — ✅
 
-Deterministic hard-gate functions:
-- `exercise_safe_for_zones`
-- `exercise_equipment_compatible`
-- `exercise_hard_gate_status`
-- `session_hard_gate_candidates`
+Migration: `20260811114803_phase_c1_session_stimulus_contract`
 
-Equipment behavior tested:
-- pair requirements are enforced
-- ALL_OF and ANY_OF options work
-- optional equipment does not block
+The engine now builds a structured target stimulus before selecting exercises:
+- strength
+- conditioning
+- muscular endurance
+- power
+- stability
+- mobility
+- density
+- local fatigue
+- complexity
+- RPE target
 
-Safety compatibility hardened:
-- `body_zone_aliases`
-- legacy labels such as `Genou`, `Poignet`, `Épaule`, etc. normalize to canonical A3 IDs
-- unknown discomfort terms fail conservatively instead of silently passing
+Inputs include:
+- V1 goal
+- duration
+- readiness
+- optional target region
+- optional progression intent
 
-Not implemented intentionally:
-- Coach Score coefficients
-- rep/load/time/density solver formulas
-- mechanic compatibility score thresholds
-- full replacement of bright-handler
-These need calibration and product/coach validation.
+Readiness modifies the requested session without silently changing the user goal.
 
-## Phase D — Weekly feedback loop — FOUNDATION IMPLEMENTED
+### C2 — Coach Score + Solver simulation — ✅
 
-Added:
-- `weekly_stimulus_targets`
-- `session_stimulus_ledger`
-- `weekly_stimulus_balance` view
-- `user_training_plan_items`
+Migrations:
+- `20260811115832_phase_c2_coach_score_solver_simulation`
+- `20260811115938_phase_c2_conditioning_anchor_guard`
 
-Key architecture preserved:
-- planned stimulus != realized stimulus
-- realized stimulus can later include external sessions
-- recommended training date is nullable; plan sequence is primary
+C2 is explicitly simulation-only and does not replace the production generator.
 
-No arbitrary weekly target values were inserted.
+Implemented:
+- exercise stimulus proxy used only for simulation/calibration
+- multiple hard-gated exercise candidates
+- mechanic-fit scoring across automatic Free mechanics
+- draft per-exercise prescription solver
+- candidate-session generation from multiple exercise combinations and mechanics
+- Coach Score components:
+  - stimulus fit
+  - progression fit
+  - prescription fit
+  - complexity fit
+  - weekly coherence placeholder (neutral until Phase D)
+  - fatigue fit
+  - session similarity
+- session-level pattern diversity
+- primary-muscle redundancy penalty
+- transition-cost visibility
+- anti-repetition from recent completed sessions
+- one-axis-at-a-time progression rule in solver output
+- numeric load left unresolved unless capability/inventory evidence is confirmed
 
-## Phase E — Automatic UX data contracts — FOUNDATION IMPLEMENTED
+Safety/coherence tests:
+- Conditioning + wrist pain + DB/KB/rope inventory: 0 pain-gate violations and 0 equipment-gate violations
+- Conditioning scenario correctly ranks AMRAP / FOR_TIME / PROGRESSIVE_INTERVAL highly
+- Strength scenario ranks STRENGTH first
+- General Fitness scenario ranks CIRCUIT first
+- no real capability state/event mutation from C2 simulation
+- for Fat Loss + knee pain where no real Conditioning/Locomotion anchor survives hard gates, the engine returns `NO_SAFE_COHERENT_WOD` instead of forcing a poor session
 
-Added:
-- `exercise_completion_capture_schema`
-- `user_auto_coach_snapshot`
+Current C2 version: `c2-sim-v1.1`.
 
-Behavior:
-- required fields derived automatically from exercise prescription
-- load remains optional everywhere currently
-- unilateral rep/time/distance semantics are exposed as per-side
-- current catalog: 133 capture-schema rows, 0 missing required capture definitions
+### C3 — NEXT: mechanic-specific whole-session simulation
 
-Not implemented intentionally:
-- visual/UI redesign
-- onboarding pain-zone selector update
-- frontend integration with new views
-These affect product UX and should be reviewed interactively.
+Remaining Phase C intelligence to build next:
+- AMRAP round-time estimation
+- EMOM work/rest margin
+- FOR_TIME fixed-volume + cap prediction
+- Ladder/Pyramid cumulative-volume math
+- Progressive Interval stop rule / expected stage
+- whole-WOD expected rounds/time/volume/density
+- local-fatigue accumulation over the entire candidate
+- prescription/order adjustment after simulation
+- candidate rejection when the whole session is incoherent even if each exercise is individually valid
 
-## Phase F — External session import — STAGING FOUNDATION IMPLEMENTED
+This is the next roadmap step before production routing.
 
-Added:
-- `external_session_imports`
-- `external_session_items`
-- `external_import_review_queue`
-- `external_import_ready_to_commit()`
-- provenance links from exercise logs and stimulus ledger
+### C4 — later in Phase C
 
-Architecture:
-- text/photo/voice input accepted as staging provenance
-- parser output is never directly trusted as capability evidence
-- import must be validated
-- all items must be matched and confirmed before commit readiness
-- no trigger updates user capability from AI/parser output
+After C3 calibration:
+- final Quality Gates
+- final anti-redundancy calibration
+- production-grade candidate selection
+- progressive replacement of `bright-handler` by the new Session Engine
 
-Not implemented intentionally:
-- AI parser Edge Function
-- OCR/photo pipeline
-- voice transcription pipeline
-- commit-to-session function/UI
-These require integration choices and end-to-end tests.
+## Phase D — Weekly feedback loop — FOUNDATION PRESENT, NOT YET ACTIVATED
 
-## Remaining decisions / work for next interactive session
+Existing foundations:
+- weekly stimulus targets
+- planned vs realized stimulus ledger
+- flexible plan sequence / nullable recommended date
 
-1. Decide/validate Phase B calibration formulas and evidence weighting through simulation.
-2. Design Phase C Coach Score + prescription solver, then stress-test across goals/readiness/history.
-3. Rebuild bright-handler/session generation to consume A3/A4/B/C foundations.
-4. Migrate EX150 High Knees to timed-work semantic when the new Session engine supports it.
-5. Update preparation/onboarding pain UI from 5 legacy zones to the 13-zone controlled referential.
-6. Frontend support for exact equipment quantities/loads.
-7. Wire expected outcome capture into session/completion flow.
-8. Wire weekly ledger and flexible plan into Dashboard.
-9. Build/import parser flow for Phase F.
-10. Add exercise illustrations (`image_path` is still empty for EX401→EX420 and many catalog entries).
-11. Generate a full reproducible DEV→STAGING migration/seed snapshot before any promotion. DDL migrations from A→F exist in DEV migration history, but several catalog/reference DML corrections/additions were executed directly in DEV and must be captured before STAGING.
-12. Run end-to-end authenticated app tests after Session engine integration.
+C2 deliberately keeps `weekly_coherence = neutral` until Phase D is connected.
 
-## Repository state
+## Phase E — Automatic UX contracts — FOUNDATION PRESENT
 
-Branch created: `phase-a-f-autonomous-20260811`
+Existing backend contracts can describe what completion data the UI should request according to exercise/prescription.
 
-This branch is intentionally isolated from `main`. No PR/merge/promotion has been performed.
+No UI work is required during C2/C3 backend simulation tests.
+
+## Phase F — External session import — FOUNDATION PRESENT
+
+Staging/provenance contracts exist, but parser/import integration is later in the roadmap.
+
+## Repository / environment state
+
+Branch: `phase-a-f-autonomous-20260811`
+
+DEV only. No merge to `main`, STAGING promotion or PROD deployment has been performed.
+
+## Immediate next action
+
+**C3 — build and stress-test mechanic-specific whole-session simulation in Supabase.**
+
+Tests remain backend-only unless a future step actually touches the interface.
