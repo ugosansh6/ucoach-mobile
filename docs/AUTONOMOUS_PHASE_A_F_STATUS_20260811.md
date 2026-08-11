@@ -130,28 +130,58 @@ Safety/coherence tests:
 
 Current C2 version: `c2-sim-v1.1`.
 
-### C3 — NEXT: mechanic-specific whole-session simulation
+### C3 — Whole-WOD mechanic simulation — ✅
 
-Remaining Phase C intelligence to build next:
-- AMRAP round-time estimation
-- EMOM work/rest margin
-- FOR_TIME fixed-volume + cap prediction
-- Ladder/Pyramid cumulative-volume math
-- Progressive Interval stop rule / expected stage
-- whole-WOD expected rounds/time/volume/density
-- local-fatigue accumulation over the entire candidate
-- prescription/order adjustment after simulation
-- candidate rejection when the whole session is incoherent even if each exercise is individually valid
+Migrations:
+- `20260811121155_phase_c3_whole_wod_simulation`
+- `20260811121336_phase_c3_duration_and_muscle_ledger_refinement`
 
-This is the next roadmap step before production routing.
+C3 remains read-only/simulation-only and does not route into the production generator yet.
 
-### C4 — later in Phase C
+Implemented:
+- WOD time budget with optional exact block-duration override
+- per-exercise work-time estimate from the C2 prescription
+- explicit operational pacing assumptions stored in policy instead of hidden constants
+- AMRAP round-time + expected round range + total volume
+- EMOM station work + minimum rest-margin feasibility
+- FOR_TIME fixed-volume projection + cap feasibility
+- CIRCUIT rounds + inter-round recovery estimate
+- STRENGTH sets + recovery-time feasibility
+- LADDER cumulative-volume/time projection
+- PYRAMID cumulative-volume/time projection
+- Progressive Interval expected stage + stop rule; progressive rep volume includes stage increments
+- whole-WOD predicted reps / distance / hold time / active work
+- density measured across the complete WOD
+- time-utilization fit against the selected mechanic
+- explicit primary-muscle weighted exposure ledger
+- local-fatigue concentration across the whole WOD
+- whole-WOD fit that combines density, local-fatigue and duration coherence
+- underfilled mechanics are exposed to C4 with an adjustment hint instead of silently passing as optimal
+- infeasible candidates are removed; if none survive the engine returns a no-feasible-WOD status
 
-After C3 calibration:
-- final Quality Gates
-- final anti-redundancy calibration
-- production-grade candidate selection
-- progressive replacement of `bright-handler` by the new Session Engine
+Validation examples:
+- Conditioning + wrist pain, 60 min: AMRAP remains first, 27 min WOD budget, 100% time utilization, coherent muscle concentration, all tested candidates feasible
+- General Fitness, 45 min: CIRCUIT remains first, 20 min WOD budget, ~94% time utilization
+- Strength, 75 min: STRENGTH remains first, 30 min WOD budget and coherent set/recovery projection
+- Fat Loss + knee pain with no safe Conditioning/Locomotion anchor still returns `NO_SAFE_COHERENT_WOD`
+- mechanic stress test covers AMRAP / EMOM / FOR_TIME / CIRCUIT / STRENGTH / LADDER / PYRAMID / PROGRESSIVE_INTERVAL
+- LADDER/PYRAMID underfill is detected and handed to C4 for volume adjustment
+- an impossible Progressive Interval start is rejected
+- 0 real capability rows/events created by C3 simulation
+
+Current C3 candidate simulation version: `c3-whole-wod-v1.1`.
+
+### C4 — NEXT: final Quality Gates + production-grade solver
+
+Next Phase C work:
+- convert C3 adjustment hints into actual rep/round/set/distance/time corrections
+- final mechanic-specific Quality Gates
+- final anti-redundancy calibration using whole-WOD exposure, not only exercise-level diversity
+- final session ordering rules
+- finalize expected outcome / mechanic / solver decision contracts for persistence
+- production-grade winner selection
+- progressively route the real `coach-handler` through the new C1→C4 Session Engine while preserving fallback safety
+- update frontend/services only if the production output contract changes; backend-only tests remain in Supabase
 
 ## Phase D — Weekly feedback loop — FOUNDATION PRESENT, NOT YET ACTIVATED
 
@@ -166,7 +196,7 @@ C2 deliberately keeps `weekly_coherence = neutral` until Phase D is connected.
 
 Existing backend contracts can describe what completion data the UI should request according to exercise/prescription.
 
-No UI work is required during C2/C3 backend simulation tests.
+UI/service changes are made during C→F whenever a backend contract becomes production-facing; the final full application pass remains scheduled after F.
 
 ## Phase F — External session import — FOUNDATION PRESENT
 
@@ -180,6 +210,6 @@ DEV only. No merge to `main`, STAGING promotion or PROD deployment has been perf
 
 ## Immediate next action
 
-**C3 — build and stress-test mechanic-specific whole-session simulation in Supabase.**
+**C4 — production-grade adjustment + Quality Gates + final winner selection.**
 
-Tests remain backend-only unless a future step actually touches the interface.
+Tests remain backend-only unless a step changes the production-facing interface contract.
