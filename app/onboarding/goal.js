@@ -10,12 +10,7 @@ import {
 } from 'react-native';
 
 import { useOnboarding } from '../../src/contexts/OnboardingContext';
-
-import {
-  colors,
-  spacing,
-  typography,
-} from '../../src/constants';
+import { colors, spacing, typography } from '../../src/constants';
 
 const brandLogo = require('../../assets/branding/ugerod-logo-white.png');
 
@@ -45,26 +40,13 @@ const GOALS = [
     title: 'CONDITIONING',
     description: 'Développer ton cardio, ton endurance et ta capacité de travail.',
   },
-  {
-    id: 'Skill',
-    title: 'SKILL',
-    description: 'Améliorer ta technique et ta maîtrise des mouvements.',
-  },
 ];
 
 export default function GoalScreen() {
   const { goal, setGoal } = useOnboarding();
 
-  const selectedGoal = goal;
-  const setSelectedGoal = setGoal;
-
-  function handleBack() {
-    router.back();
-  }
-
   function handleNext() {
-    if (!selectedGoal) return;
-
+    if (!goal) return;
     router.push('/onboarding/frequency');
   }
 
@@ -74,59 +56,44 @@ export default function GoalScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* HEADER */}
         <View style={styles.header}>
           <Pressable
-            onPress={handleBack}
+            onPress={() => router.back()}
             hitSlop={12}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           >
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
 
-          <Image
-            source={brandLogo}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-
+          <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
           <View style={styles.headerSpacer} />
         </View>
 
-        {/* PROGRESSION */}
         <View style={styles.progressArea}>
-          <Text style={styles.stepText}>ÉTAPE 2 SUR 5</Text>
-
+          <Text style={styles.stepText}>ÉTAPE 2 SUR 6</Text>
           <View style={styles.progressTrack}>
             <View style={styles.progressFill} />
           </View>
         </View>
 
-        {/* TITRE */}
         <View style={styles.titleArea}>
           <Text style={styles.title}>
-            TON OBJECTIF
-            <Text style={styles.blueDot}>.</Text>
+            TON OBJECTIF<Text style={styles.blueDot}>.</Text>
           </Text>
-
           <Text style={styles.subtitle}>
-            Choisis ta priorité principale. UGEROD adaptera la construction
-            de tes séances autour de cet objectif.
+            Choisis ta priorité principale. UGEROD adaptera la construction de
+            tes séances autour de cet objectif.
           </Text>
         </View>
 
-        {/* CHOIX */}
         <View style={styles.cards}>
-          {GOALS.map((goal) => {
-            const selected = selectedGoal === goal.id;
+          {GOALS.map((item) => {
+            const selected = goal === item.id;
 
             return (
               <Pressable
-                key={goal.id}
-                onPress={() => setSelectedGoal(goal.id)}
+                key={item.id}
+                onPress={() => setGoal(item.id)}
                 style={({ pressed }) => [
                   styles.card,
                   selected && styles.cardSelected,
@@ -141,20 +108,12 @@ export default function GoalScreen() {
                         selected && styles.cardTitleSelected,
                       ]}
                     >
-                      {goal.title}
+                      {item.title}
                     </Text>
-
-                    <Text style={styles.cardDescription}>
-                      {goal.description}
-                    </Text>
+                    <Text style={styles.cardDescription}>{item.description}</Text>
                   </View>
 
-                  <View
-                    style={[
-                      styles.radio,
-                      selected && styles.radioSelected,
-                    ]}
-                  >
+                  <View style={[styles.radio, selected && styles.radioSelected]}>
                     {selected && <View style={styles.radioDot} />}
                   </View>
                 </View>
@@ -165,23 +124,19 @@ export default function GoalScreen() {
 
         <View style={styles.spacer} />
 
-        {/* CTA */}
         <Pressable
           onPress={handleNext}
-          disabled={!selectedGoal}
+          disabled={!goal}
           style={({ pressed }) => [
             styles.primaryButton,
-            !selectedGoal && styles.primaryButtonDisabled,
-            pressed &&
-              selectedGoal &&
-              styles.primaryButtonPressed,
+            !goal && styles.primaryButtonDisabled,
+            pressed && goal && styles.primaryButtonPressed,
           ]}
         >
           <Text
             style={[
               styles.primaryButtonText,
-              !selectedGoal &&
-                styles.primaryButtonTextDisabled,
+              !goal && styles.primaryButtonTextDisabled,
             ]}
           >
             CONTINUER
@@ -193,53 +148,28 @@ export default function GoalScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-
+  screen: { flex: 1, backgroundColor: colors.background },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
   },
-
-  header: {
-    minHeight: 90,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
+  header: { minHeight: 90, flexDirection: 'row', alignItems: 'center' },
   backButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   backIcon: {
     color: colors.textPrimary,
     fontSize: 40,
     lineHeight: 40,
     fontFamily: 'Oswald_400Regular',
   },
-
-  logo: {
-    flex: 1,
-    height: 64,
-    maxWidth: 190,
-    alignSelf: 'center',
-  },
-
-  headerSpacer: {
-    width: 44,
-  },
-
-  progressArea: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.xxl,
-  },
-
+  logo: { flex: 1, height: 64, maxWidth: 190, alignSelf: 'center' },
+  headerSpacer: { width: 44 },
+  progressArea: { marginTop: spacing.sm, marginBottom: spacing.xxl },
   stepText: {
     fontFamily: 'Oswald_600SemiBold',
     fontSize: 12,
@@ -247,24 +177,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 10,
   },
-
   progressTrack: {
     height: 3,
     backgroundColor: colors.surfaceElevated,
     borderRadius: 999,
     overflow: 'hidden',
   },
-
   progressFill: {
-    width: '40%',
+    width: '33.333%',
     height: '100%',
     backgroundColor: colors.primary,
   },
-
-  titleArea: {
-    marginBottom: spacing.xxl,
-  },
-
+  titleArea: { marginBottom: spacing.xxl },
   title: {
     ...typography.display,
     color: colors.textPrimary,
@@ -272,11 +196,7 @@ const styles = StyleSheet.create({
     lineHeight: 46,
     letterSpacing: 2,
   },
-
-  blueDot: {
-    color: colors.primary,
-  },
-
+  blueDot: { color: colors.primary },
   subtitle: {
     fontFamily: 'Oswald_400Regular',
     fontSize: 16,
@@ -285,11 +205,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     maxWidth: 380,
   },
-
-  cards: {
-    gap: spacing.md,
-  },
-
+  cards: { gap: spacing.md },
   card: {
     minHeight: 106,
     backgroundColor: colors.surface,
@@ -299,27 +215,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-
   cardSelected: {
-    backgroundColor: 'rgba(8, 104, 255, 0.10)',
+    backgroundColor: colors.primaryTransparent,
     borderColor: colors.primary,
   },
-
-  cardPressed: {
-    transform: [{ scale: 0.99 }],
-  },
-
+  cardPressed: { transform: [{ scale: 0.99 }] },
   cardContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
   },
-
-  cardTextArea: {
-    flex: 1,
-  },
-
+  cardTextArea: { flex: 1 },
   cardTitle: {
     fontFamily: 'Oswald_700Bold',
     fontSize: 18,
@@ -327,11 +234,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     letterSpacing: 0.5,
   },
-
-  cardTitleSelected: {
-    color: colors.primaryLight,
-  },
-
+  cardTitleSelected: { color: colors.primaryLight },
   cardDescription: {
     fontFamily: 'Oswald_400Regular',
     fontSize: 14,
@@ -339,7 +242,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 5,
   },
-
   radio: {
     width: 24,
     height: 24,
@@ -349,23 +251,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  radioSelected: {
-    borderColor: colors.primary,
-  },
-
+  radioSelected: { borderColor: colors.primary },
   radioDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
     backgroundColor: colors.primary,
   },
-
-  spacer: {
-    flex: 1,
-    minHeight: spacing.xxl,
-  },
-
+  spacer: { flex: 1, minHeight: spacing.xxl },
   primaryButton: {
     minHeight: 58,
     alignItems: 'center',
@@ -375,16 +268,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     marginTop: spacing.xxl,
   },
-
-  primaryButtonDisabled: {
-    backgroundColor: colors.surfaceElevated,
-  },
-
+  primaryButtonDisabled: { backgroundColor: colors.surfaceElevated },
   primaryButtonPressed: {
     backgroundColor: colors.primaryDark,
     transform: [{ scale: 0.985 }],
   },
-
   primaryButtonText: {
     fontFamily: 'BebasNeue_400Regular',
     fontSize: 20,
@@ -392,12 +280,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     color: colors.brandWhite,
   },
-
-  primaryButtonTextDisabled: {
-    color: colors.textDisabled,
-  },
-
-  pressed: {
-    opacity: 0.65,
-  },
+  primaryButtonTextDisabled: { color: colors.textDisabled },
+  pressed: { opacity: 0.65 },
 });
