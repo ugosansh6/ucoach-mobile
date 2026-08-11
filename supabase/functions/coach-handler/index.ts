@@ -1,792 +1,494 @@
-// @ts-ignore -- import URL résolu par Deno/Supabase Edge Runtime
+// @ts-ignore -- Deno/Supabase Edge Runtime
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-// @ts-ignore -- import URL résolu par Deno/Supabase Edge Runtime
+// @ts-ignore -- Deno/Supabase Edge Runtime
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-declare const Deno: {
-  env: {
-    get(name: string): string | undefined;
-  };
-};
+declare const Deno: { env: { get(name: string): string | undefined } };
 
+const VERSION = "coach-handler-v1.0";
+const MAX_ATTEMPTS = 3;
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
-const VERSION = "coach-handler-v1.0";
-const MAX_CANDIDATE_ATTEMPTS = 3;
-
-type Focus =
-  | "Strength"
-  | "Muscle Gain"
-  | "Fat Loss"
-  | "Conditioning"
-  | "Skill"
-  | "General Fitness";
-
-type TargetRegion = "Full Body" | "Lower" | "Upper" | "Core";
-
-type RequestPayload = {
+type Payload = {
   duration_minutes?: number;
   readiness?: number | string;
   available_equipment?: string[];
   injured_zones?: string[];
-  target_region?: TargetRegion | null;
+  target_region?: "Full Body" | "Lower" | "Upper" | "Core" | null;
   format_preference?: string | null;
-  focus_override?: Focus | null;
+  focus_override?: string | null;
   excluded_exercise_ids?: string[];
   excluded_patterns?: string[];
 };
 
-type GeneratedExercise = {
-  id: string;
-  name: string;
-  pattern?: string | null;
-  region?: string | null;
-  prescription?: string | null;
-  prescription_json?: Record<string, unknown> | null;
-  instructions?: string | null;
-  tips?: string | null;
-  tracking_modes?: string[];
-};
-
-type GeneratedBlock = {
-  block_key: "warmup" | "tabata" | "skill" | "wod" | string;
-  block_name?: string;
-  duration_minutes?: number;
-  objective?: string;
-  structure?: string;
-  rounds?: number | null;
-  work_seconds?: number | null;
-  rest_seconds?: number | null;
-  rotation_mode?: string | null;
-  exercises?: GeneratedExercise[];
-};
-
-type BaseWorkout = {
+type Workout = {
   session_id: string;
   status?: string;
   version?: string;
   meta?: Record<string, any>;
-  blocks?: GeneratedBlock[];
+  blocks?: any[];
   error?: string;
 };
 
-type ExerciseMeta = {
-  id: string;
-  body_region: string | null;
-  movement_pattern: string | null;
-  exercise_family: string | null;
-  training_focus: string | null;
-  fatigue_score: number | null;
-  joint_impact: number | null;
-  technical_complexity: number | null;
-  equipment_requirement: string | null;
-  warmup_eligible: boolean | null;
-  warmup_role: string | null;
-  warmup_intensity: number | null;
-  warmup_only: boolean | null;
-};
-
-type CandidateAudit = {
-  painViolations: string[];
-  warmupViolations: string[];
-  conditioningReasons: string[];
-  conditioningExcludedId: string | null;
-};
-
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
-  }
-
-  let currentSessionId: string | null = null;
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return jsonResponse({ error: "Missing Authorization header" }, 401);
-    }
+    const auth = req.headers.get("Authorization");
+    const url = Deno.env.get("SUPABASE_URL");
+    const anon = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!auth) return json({ error: "Missing Authorization header" }, 401);
+    if (!url || !anon) throw new Error("Missing Supabase environment variables.");
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error("Missing Supabase environment variables.");
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: authHeader,
-        },
-      },
+    const supabase = createClient(url, anon, {
+      global: { headers: { Authorization: auth } },
     });
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) return json({ error: "Unauthorized" }, 401);
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
-    }
-
-    const originalPayload = (await req.json()) as RequestPayload;
-    let candidatePayload: RequestPayload = {
-      ...originalPayload,
-      excluded_exercise_ids: uniqueStrings(
-        originalPayload.excluded_exercise_ids ?? [],
-      ),
+    const userId = authData.user.id;
+    const original = (await req.json()) as Payload;
+    let payload: Payload = {
+      ...original,
+      excluded_exercise_ids: unique(original.excluded_exercise_ids ?? []),
     };
+    const rejected: any[] = [];
+    let regionOverride = false;
+    let accepted: Workout | null = null;
 
-    const rejectionHistory: Array<{
-      attempt: number;
-      reasons: string[];
-    }> = [];
-
-    let accepted: BaseWorkout | null = null;
-    let acceptedAudit: CandidateAudit | null = null;
-    let coachRegionOverride = false;
-
-    for (let attempt = 1; attempt <= MAX_CANDIDATE_ATTEMPTS; attempt++) {
-      const candidate = await invokeBaseGenerator({
-        supabaseUrl,
-        supabaseAnonKey,
-        authHeader,
-        payload: candidatePayload,
-      });
-
-      currentSessionId = candidate.session_id;
-
-      const audit = await auditCandidate({
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const candidate = await callBase(url, anon, auth, payload);
+      const audit = await auditCandidate(
         supabase,
         candidate,
-        injuredZones: originalPayload.injured_zones ?? [],
-        focus: (originalPayload.focus_override ?? "General Fitness") as Focus,
-        automaticRegionRequest: originalPayload.target_region == null,
-      });
+        original.injured_zones ?? [],
+        String(original.focus_override ?? "General Fitness"),
+        original.target_region == null,
+      );
 
-      const rejectionReasons = [
-        ...audit.painViolations.map((id) => `PAIN_GATE:${id}`),
-        ...audit.warmupViolations.map((id) => `WARMUP_GATE:${id}`),
+      const reasons = [
+        ...audit.pain.map((id: string) => `PAIN_GATE:${id}`),
+        ...audit.warmup.map((id: string) => `WARMUP_GATE:${id}`),
         ...audit.conditioningReasons,
       ];
 
-      if (rejectionReasons.length === 0) {
+      if (reasons.length === 0) {
         accepted = candidate;
-        acceptedAudit = audit;
         break;
       }
 
-      rejectionHistory.push({ attempt, reasons: rejectionReasons });
-      await cleanupGeneratedSession(supabase, candidate.session_id, user.id);
-      currentSessionId = null;
+      rejected.push({ attempt, reasons });
+      await cleanup(supabase, candidate.session_id, userId);
 
-      const excluded = new Set(
-        uniqueStrings(candidatePayload.excluded_exercise_ids ?? []),
-      );
+      const excluded = new Set(payload.excluded_exercise_ids ?? []);
+      [...audit.pain, ...audit.warmup].forEach((id: string) => excluded.add(id));
+      if (audit.excludeForBalance) excluded.add(audit.excludeForBalance);
+      payload = { ...payload, excluded_exercise_ids: Array.from(excluded) };
 
-      for (const exerciseId of audit.painViolations) {
-        excluded.add(exerciseId);
-      }
-
-      for (const exerciseId of audit.warmupViolations) {
-        excluded.add(exerciseId);
-      }
-
-      if (audit.conditioningExcludedId) {
-        excluded.add(audit.conditioningExcludedId);
-      }
-
-      candidatePayload = {
-        ...candidatePayload,
-        excluded_exercise_ids: Array.from(excluded),
-      };
-
-      // Si UGEROD avait choisi automatiquement une région trop locale pour un
-      // objectif Conditioning/Fat Loss, le prochain candidat est élargi à Full Body.
-      // Une préférence explicite de l'utilisateur n'est jamais écrasée ici.
       if (
-        originalPayload.target_region == null &&
+        original.target_region == null &&
         audit.conditioningReasons.length > 0 &&
         ["Conditioning", "Fat Loss"].includes(
-          String(originalPayload.focus_override ?? "General Fitness"),
+          String(original.focus_override ?? "General Fitness"),
         )
       ) {
-        candidatePayload.target_region = "Full Body";
-        coachRegionOverride = true;
+        payload.target_region = "Full Body";
+        regionOverride = true;
       }
     }
 
-    if (!accepted || !acceptedAudit) {
+    if (!accepted) {
       throw new Error(
         "Impossible de construire une séance suffisamment sûre et cohérente avec les contraintes du jour.",
       );
     }
 
-    const finalWorkout = await applyCoachPostProcessing({
+    const finalWorkout = await postProcess(
       supabase,
-      userId: user.id,
-      candidate: accepted,
-      focus: (originalPayload.focus_override ?? "General Fitness") as Focus,
-      rejectionHistory,
-      coachRegionOverride,
-    });
+      userId,
+      accepted,
+      String(original.focus_override ?? "General Fitness"),
+      rejected,
+      regionOverride,
+    );
 
-    currentSessionId = null;
-
-    return jsonResponse(
-      {
-        session_id: accepted.session_id,
-        status: "generated",
-        ...finalWorkout,
-      },
+    return json(
+      { session_id: accepted.session_id, status: "generated", ...finalWorkout },
       200,
     );
   } catch (error) {
     console.error(VERSION, error);
-
-    return jsonResponse(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unknown coach generation error",
-      },
+    return json(
+      { error: error instanceof Error ? error.message : "Unknown coach error" },
       400,
     );
   }
 });
 
-async function invokeBaseGenerator(args: {
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  authHeader: string;
-  payload: RequestPayload;
-}): Promise<BaseWorkout> {
-  const response = await fetch(
-    `${args.supabaseUrl}/functions/v1/bright-handler`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: args.authHeader,
-        apikey: args.supabaseAnonKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(args.payload),
+async function callBase(
+  url: string,
+  anon: string,
+  auth: string,
+  payload: Payload,
+): Promise<Workout> {
+  const response = await fetch(`${url}/functions/v1/bright-handler`, {
+    method: "POST",
+    headers: {
+      Authorization: auth,
+      apikey: anon,
+      "Content-Type": "application/json",
     },
-  );
-
+    body: JSON.stringify(payload),
+  });
   const text = await response.text();
-  let data: BaseWorkout | null = null;
-
+  let data: Workout | null = null;
   try {
-    data = JSON.parse(text) as BaseWorkout;
+    data = JSON.parse(text);
   } catch {
     data = null;
   }
-
   if (!response.ok || !data || data.error) {
-    throw new Error(
-      data?.error ??
-        `Le générateur de base a échoué (${response.status}).`,
-    );
+    throw new Error(data?.error ?? `bright-handler error ${response.status}`);
   }
-
   if (!data.session_id || !Array.isArray(data.blocks)) {
-    throw new Error("Le générateur de base a retourné une séance incomplète.");
+    throw new Error("bright-handler returned an incomplete session.");
   }
-
   return data;
 }
 
-async function auditCandidate(args: {
-  supabase: any;
-  candidate: BaseWorkout;
-  injuredZones: string[];
-  focus: Focus;
-  automaticRegionRequest: boolean;
-}): Promise<CandidateAudit> {
-  const blocks = args.candidate.blocks ?? [];
-  const allExercises = blocks.flatMap((block) => block.exercises ?? []);
-  const ids = uniqueStrings(allExercises.map((exercise) => exercise.id));
+async function auditCandidate(
+  supabase: any,
+  candidate: Workout,
+  injuredZones: string[],
+  focus: string,
+  automaticRegion: boolean,
+) {
+  const blocks = candidate.blocks ?? [];
+  const exercises = blocks.flatMap((block: any) => block.exercises ?? []);
+  const ids = unique(exercises.map((e: any) => e.id));
+  const meta = await loadMeta(supabase, ids);
 
-  const metaById = await loadExerciseMeta(args.supabase, ids);
+  const zones = unique(injuredZones.map(toConstraintZone).filter(Boolean));
+  let pain: string[] = [];
+  if (ids.length && zones.length) {
+    const { data, error } = await supabase
+      .from("exercise_constraints")
+      .select("exercise_id")
+      .in("exercise_id", ids)
+      .in("body_zone", zones)
+      .eq("rule_type", "avoid");
+    if (error) throw new Error(error.message);
+    pain = unique((data ?? []).map((row: any) => row.exercise_id));
+  }
 
-  const painViolations = await findPainViolations({
-    supabase: args.supabase,
-    ids,
-    injuredZones: args.injuredZones,
-  });
-
-  const warmup =
-    blocks.find((block) => block.block_key === "warmup")?.exercises ?? [];
-
-  const warmupViolations = warmup
-    .filter((exercise) => {
-      const meta = metaById.get(exercise.id);
-      if (!meta) return true;
-      if (meta.warmup_eligible !== true) return true;
-      if (!meta.warmup_role) return true;
-      if ((meta.warmup_intensity ?? 99) > 2) return true;
-      if ((meta.fatigue_score ?? 99) > 2) return true;
-      if ((meta.joint_impact ?? 99) > 2) return true;
-      return false;
+  const warmupExercises =
+    blocks.find((block: any) => block.block_key === "warmup")?.exercises ?? [];
+  const warmup = warmupExercises
+    .filter((exercise: any) => {
+      const m = meta.get(exercise.id);
+      return (
+        !m ||
+        m.warmup_eligible !== true ||
+        !m.warmup_role ||
+        (m.warmup_intensity ?? 99) > 2 ||
+        (m.fatigue_score ?? 99) > 2 ||
+        (m.joint_impact ?? 99) > 2
+      );
     })
-    .map((exercise) => exercise.id);
+    .map((exercise: any) => exercise.id);
 
-  const conditioning = await auditConditioningWod({
-    supabase: args.supabase,
-    candidate: args.candidate,
-    metaById,
-    focus: args.focus,
-    automaticRegionRequest: args.automaticRegionRequest,
-  });
+  const conditioning = await auditConditioning(
+    supabase,
+    blocks,
+    meta,
+    focus,
+    automaticRegion,
+  );
 
   return {
-    painViolations,
-    warmupViolations,
+    pain,
+    warmup,
     conditioningReasons: conditioning.reasons,
-    conditioningExcludedId: conditioning.excludedId,
+    excludeForBalance: conditioning.excludeId,
   };
 }
 
-async function loadExerciseMeta(
+async function auditConditioning(
   supabase: any,
-  ids: string[],
-): Promise<Map<string, ExerciseMeta>> {
-  if (ids.length === 0) return new Map();
-
-  const { data, error } = await supabase
-    .from("exercises")
-    .select(
-      "id, body_region, movement_pattern, exercise_family, training_focus, fatigue_score, joint_impact, technical_complexity, equipment_requirement, warmup_eligible, warmup_role, warmup_intensity, warmup_only",
-    )
-    .in("id", ids);
-
-  if (error) throw new Error(error.message);
-
-  return new Map(
-    (data ?? []).map((exercise: ExerciseMeta) => [exercise.id, exercise]),
-  );
-}
-
-async function findPainViolations(args: {
-  supabase: any;
-  ids: string[];
-  injuredZones: string[];
-}): Promise<string[]> {
-  const normalizedZones = uniqueStrings(
-    args.injuredZones.map(toConstraintZone).filter(Boolean),
-  );
-
-  if (args.ids.length === 0 || normalizedZones.length === 0) {
-    return [];
+  blocks: any[],
+  meta: Map<string, any>,
+  focus: string,
+  automaticRegion: boolean,
+) {
+  if (!["Conditioning", "Fat Loss"].includes(focus)) {
+    return { reasons: [] as string[], excludeId: null as string | null };
   }
+  const wod = blocks.find((b: any) => b.block_key === "wod")?.exercises ?? [];
+  if (wod.length < 4) return { reasons: [], excludeId: null };
 
-  const { data, error } = await args.supabase
-    .from("exercise_constraints")
-    .select("exercise_id, body_zone, rule_type")
-    .in("exercise_id", args.ids)
-    .in("body_zone", normalizedZones)
-    .eq("rule_type", "avoid");
-
-  if (error) throw new Error(error.message);
-
-  return uniqueStrings((data ?? []).map((row: any) => row.exercise_id));
-}
-
-async function auditConditioningWod(args: {
-  supabase: any;
-  candidate: BaseWorkout;
-  metaById: Map<string, ExerciseMeta>;
-  focus: Focus;
-  automaticRegionRequest: boolean;
-}): Promise<{ reasons: string[]; excludedId: string | null }> {
-  if (!["Conditioning", "Fat Loss"].includes(args.focus)) {
-    return { reasons: [], excludedId: null };
-  }
-
-  const wod =
-    (args.candidate.blocks ?? []).find((block) => block.block_key === "wod")
-      ?.exercises ?? [];
-
-  if (wod.length < 4) {
-    return { reasons: [], excludedId: null };
-  }
-
-  const reasons: string[] = [];
-  const regionCounts = new Map<string, number>();
-  let hasConditioningAnchor = false;
-
+  const regions = new Map<string, number>();
+  let cardioAnchor = false;
   for (const exercise of wod) {
-    const meta = args.metaById.get(exercise.id);
-    if (!meta) continue;
-
-    const region = meta.body_region ?? "unknown";
-    regionCounts.set(region, (regionCounts.get(region) ?? 0) + 1);
-
+    const m = meta.get(exercise.id);
+    if (!m) continue;
+    const region = m.body_region ?? "unknown";
+    regions.set(region, (regions.get(region) ?? 0) + 1);
     if (
-      ["Conditioning", "Locomotion"].includes(meta.movement_pattern ?? "") ||
-      ["Conditioning", "Locomotion"].includes(meta.exercise_family ?? "")
-    ) {
-      hasConditioningAnchor = true;
-    }
+      ["Conditioning", "Locomotion"].includes(m.movement_pattern ?? "") ||
+      ["Conditioning", "Locomotion"].includes(m.exercise_family ?? "")
+    ) cardioAnchor = true;
   }
 
-  const primaryMuscleByExercise = await loadPrimaryLocalMuscles(
-    args.supabase,
-    wod.map((exercise) => exercise.id),
-  );
+  const { data: muscleRows, error: muscleError } = await supabase
+    .from("exercise_muscles")
+    .select("exercise_id,muscle_id")
+    .in("exercise_id", wod.map((e: any) => e.id))
+    .eq("priority", "primary");
+  if (muscleError) throw new Error(muscleError.message);
 
-  const primaryMuscleCounts = new Map<string, number>();
-  for (const exercise of wod) {
-    for (const muscleId of primaryMuscleByExercise.get(exercise.id) ?? []) {
-      primaryMuscleCounts.set(
-        muscleId,
-        (primaryMuscleCounts.get(muscleId) ?? 0) + 1,
-      );
-    }
+  const musclesByExercise = new Map<string, string[]>();
+  const muscleCounts = new Map<string, number>();
+  for (const row of muscleRows ?? []) {
+    if (["M15", "M16"].includes(row.muscle_id)) continue;
+    const list = musclesByExercise.get(row.exercise_id) ?? [];
+    list.push(row.muscle_id);
+    musclesByExercise.set(row.exercise_id, list);
+    muscleCounts.set(row.muscle_id, (muscleCounts.get(row.muscle_id) ?? 0) + 1);
   }
 
-  const maxRegionCount = Math.max(0, ...Array.from(regionCounts.values()));
-  const maxPrimaryMuscleCount = Math.max(
-    0,
-    ...Array.from(primaryMuscleCounts.values()),
-  );
-
-  if (
-    args.automaticRegionRequest &&
-    maxRegionCount === wod.length &&
-    !hasConditioningAnchor
-  ) {
+  const maxRegion = Math.max(0, ...Array.from(regions.values()));
+  const maxMuscle = Math.max(0, ...Array.from(muscleCounts.values()));
+  const reasons: string[] = [];
+  if (automaticRegion && maxRegion === wod.length && !cardioAnchor) {
     reasons.push("CONDITIONING_TOO_LOCAL");
   }
+  if (maxMuscle >= 3) reasons.push("CONDITIONING_LOCAL_FATIGUE_REDUNDANCY");
 
-  if (maxPrimaryMuscleCount >= 3) {
-    reasons.push("CONDITIONING_LOCAL_FATIGUE_REDUNDANCY");
-  }
-
-  let excludedId: string | null = null;
-
-  if (reasons.length > 0) {
-    let mostRedundantMuscle: string | null = null;
-    let mostRedundantCount = 0;
-
-    for (const [muscleId, count] of primaryMuscleCounts.entries()) {
-      if (count > mostRedundantCount) {
-        mostRedundantMuscle = muscleId;
-        mostRedundantCount = count;
+  let excludeId: string | null = null;
+  if (reasons.length) {
+    let dominantMuscle: string | null = null;
+    let dominantCount = 0;
+    for (const [muscleId, count] of muscleCounts.entries()) {
+      if (count > dominantCount) {
+        dominantMuscle = muscleId;
+        dominantCount = count;
       }
     }
-
     const candidates = wod
-      .filter((exercise) => {
-        if (!mostRedundantMuscle) return true;
-        return (primaryMuscleByExercise.get(exercise.id) ?? []).includes(
-          mostRedundantMuscle,
-        );
-      })
-      .sort((a, b) => {
-        const fatigueA = args.metaById.get(a.id)?.fatigue_score ?? 0;
-        const fatigueB = args.metaById.get(b.id)?.fatigue_score ?? 0;
-        return fatigueB - fatigueA;
-      });
-
-    excludedId = candidates[0]?.id ?? wod[wod.length - 1]?.id ?? null;
+      .filter((exercise: any) =>
+        !dominantMuscle ||
+        (musclesByExercise.get(exercise.id) ?? []).includes(dominantMuscle),
+      )
+      .sort(
+        (a: any, b: any) =>
+          (meta.get(b.id)?.fatigue_score ?? 0) - (meta.get(a.id)?.fatigue_score ?? 0),
+      );
+    excludeId = candidates[0]?.id ?? wod[wod.length - 1]?.id ?? null;
   }
-
-  return { reasons, excludedId };
+  return { reasons, excludeId };
 }
 
-async function loadPrimaryLocalMuscles(
+async function postProcess(
   supabase: any,
-  ids: string[],
-): Promise<Map<string, string[]>> {
-  if (ids.length === 0) return new Map();
-
-  const { data, error } = await supabase
-    .from("exercise_muscles")
-    .select("exercise_id, muscle_id")
-    .in("exercise_id", ids)
-    .eq("priority", "primary")
-    .not("muscle_id", "in", "(M15,M16)");
-
-  if (error) throw new Error(error.message);
-
-  const map = new Map<string, string[]>();
-  for (const row of data ?? []) {
-    const existing = map.get(row.exercise_id) ?? [];
-    existing.push(row.muscle_id);
-    map.set(row.exercise_id, existing);
-  }
-
-  return map;
-}
-
-async function applyCoachPostProcessing(args: {
-  supabase: any;
-  userId: string;
-  candidate: BaseWorkout;
-  focus: Focus;
-  rejectionHistory: Array<{ attempt: number; reasons: string[] }>;
-  coachRegionOverride: boolean;
-}) {
-  const blocks = structuredClone(args.candidate.blocks ?? []);
-  const meta = structuredClone(args.candidate.meta ?? {});
-  const baseVersion = args.candidate.version ?? null;
-
-  const allIds = uniqueStrings(
-    blocks.flatMap((block) => (block.exercises ?? []).map((exercise) => exercise.id)),
+  userId: string,
+  candidate: Workout,
+  focus: string,
+  rejected: any[],
+  regionOverride: boolean,
+) {
+  const blocks = structuredClone(candidate.blocks ?? []);
+  const meta = structuredClone(candidate.meta ?? {});
+  const allIds = unique(
+    blocks.flatMap((block: any) => (block.exercises ?? []).map((e: any) => e.id)),
   );
-  const metaById = await loadExerciseMeta(args.supabase, allIds);
+  const exerciseMeta = await loadMeta(supabase, allIds);
+  const warmup = blocks.find((b: any) => b.block_key === "warmup");
+  const skill = blocks.find((b: any) => b.block_key === "skill");
+  const wod = blocks.find((b: any) => b.block_key === "wod");
 
-  const warmupBlock = blocks.find((block) => block.block_key === "warmup");
-  const skillBlock = blocks.find((block) => block.block_key === "skill");
-  const wodBlock = blocks.find((block) => block.block_key === "wod");
-
+  let released = 0;
   let warmupTrimmed = false;
-  let warmupMinutesReleased = 0;
-
-  if (warmupBlock && (warmupBlock.exercises ?? []).length > 4) {
-    const originalExercises = warmupBlock.exercises ?? [];
+  if (warmup && (warmup.exercises ?? []).length > 4) {
+    const original = warmup.exercises;
     const targetPatterns = new Set(
-      (wodBlock?.exercises ?? []).map((exercise) => exercise.pattern).filter(Boolean),
+      (wod?.exercises ?? []).map((e: any) => e.pattern).filter(Boolean),
     );
+    const kept = selectWarmupFour(original, exerciseMeta, targetPatterns, focus);
+    const keepIds = new Set(kept.map((e: any) => e.id));
+    const removed = original.filter((e: any) => !keepIds.has(e.id)).map((e: any) => e.id);
+    warmup.exercises = kept;
+    warmupTrimmed = removed.length > 0;
 
-    const selected = selectWarmupSubset({
-      exercises: originalExercises,
-      metaById,
-      targetPatterns,
-      focus: args.focus,
-      count: 4,
-    });
-
-    const keptIds = new Set(selected.map((exercise) => exercise.id));
-    const removedIds = originalExercises
-      .filter((exercise) => !keptIds.has(exercise.id))
-      .map((exercise) => exercise.id);
-
-    warmupBlock.exercises = selected;
-    warmupTrimmed = removedIds.length > 0;
-
-    if (removedIds.length > 0) {
-      const { error: deleteError } = await args.supabase
+    if (removed.length) {
+      const { error } = await supabase
         .from("workout_session_exercises")
         .delete()
-        .eq("session_id", args.candidate.session_id)
+        .eq("session_id", candidate.session_id)
         .eq("block_key", "warm_up")
-        .in("exercise_id", removedIds);
-
-      if (deleteError) throw new Error(deleteError.message);
-
-      for (let index = 0; index < selected.length; index++) {
-        const { error: positionError } = await args.supabase
+        .in("exercise_id", removed);
+      if (error) throw new Error(error.message);
+      for (let i = 0; i < kept.length; i++) {
+        const { error: posError } = await supabase
           .from("workout_session_exercises")
-          .update({ position: index + 1 })
-          .eq("session_id", args.candidate.session_id)
+          .update({ position: i + 1 })
+          .eq("session_id", candidate.session_id)
           .eq("block_key", "warm_up")
-          .eq("exercise_id", selected[index].id);
-
-        if (positionError) throw new Error(positionError.message);
+          .eq("exercise_id", kept[i].id);
+        if (posError) throw new Error(posError.message);
       }
     }
 
-    const originalDuration = Number(warmupBlock.duration_minutes ?? 0);
-    const adjustedDuration = Math.min(originalDuration, 6);
-    warmupMinutesReleased = Math.max(0, originalDuration - adjustedDuration);
-    warmupBlock.duration_minutes = adjustedDuration;
-    warmupBlock.structure = `1 passage fluide — ${selected.length} mouvements — environ ${adjustedDuration} min`;
+    const before = Number(warmup.duration_minutes ?? 0);
+    const after = Math.min(before, 6);
+    warmup.duration_minutes = after;
+    released += Math.max(0, before - after);
+    warmup.structure = `1 passage fluide — ${kept.length} mouvements — environ ${after} min`;
   }
 
-  let skillDurationAdjusted = false;
-  let skillMinutesReleased = 0;
-
-  if (skillBlock && (skillBlock.exercises ?? []).length > 0) {
-    const originalDuration = Number(skillBlock.duration_minutes ?? 0);
-    const skillPriority = meta?.session_architecture?.skill_priority ?? {};
-    const priorityIds = new Set<string>([
-      ...(skillPriority.priority_exercise_ids ?? []),
-      ...(skillPriority.progression_target_ids ?? []),
+  let skillAdjusted = false;
+  if (skill && (skill.exercises ?? []).length) {
+    const before = Number(skill.duration_minutes ?? 0);
+    const priority = meta?.session_architecture?.skill_priority ?? {};
+    const priorityIds = new Set([
+      ...(priority.priority_exercise_ids ?? []),
+      ...(priority.progression_target_ids ?? []),
     ]);
-
-    const selectedSkill = (skillBlock.exercises ?? [])[0];
-    const selectedMeta = selectedSkill ? metaById.get(selectedSkill.id) : null;
-    const matchesPriority = selectedSkill ? priorityIds.has(selectedSkill.id) : false;
-
-    let cap = originalDuration;
-
-    if (["Conditioning", "Fat Loss"].includes(args.focus)) {
-      cap = Math.min(cap, 10);
-    }
-
-    if (priorityIds.size > 0 && !matchesPriority) {
-      cap = Math.min(cap, 10);
-    }
-
+    const chosen = skill.exercises[0];
+    const m = chosen ? exerciseMeta.get(chosen.id) : null;
+    let cap = before;
+    if (["Conditioning", "Fat Loss"].includes(focus)) cap = Math.min(cap, 10);
+    if (priorityIds.size && chosen && !priorityIds.has(chosen.id)) cap = Math.min(cap, 10);
     if (
-      selectedMeta &&
-      (selectedMeta.technical_complexity ?? 99) <= 1 &&
-      (selectedMeta.fatigue_score ?? 99) <= 2 &&
-      selectedMeta.equipment_requirement === "none"
-    ) {
-      cap = Math.min(cap, 8);
-    }
+      m &&
+      (m.technical_complexity ?? 99) <= 1 &&
+      (m.fatigue_score ?? 99) <= 2 &&
+      m.equipment_requirement === "none"
+    ) cap = Math.min(cap, 8);
 
-    if (cap < originalDuration) {
-      skillBlock.duration_minutes = cap;
-      skillMinutesReleased = originalDuration - cap;
-      skillDurationAdjusted = true;
+    if (cap < before) {
+      skill.duration_minutes = cap;
+      released += before - cap;
+      skillAdjusted = true;
     }
   }
 
-  const releasedMinutes = warmupMinutesReleased + skillMinutesReleased;
-  if (releasedMinutes > 0 && wodBlock) {
-    wodBlock.duration_minutes =
-      Number(wodBlock.duration_minutes ?? 0) + releasedMinutes;
-    wodBlock.structure = updateDurationInStructure(
-      wodBlock.structure ?? "",
-      Number(wodBlock.duration_minutes ?? 0),
-    );
+  if (released > 0 && wod) {
+    wod.duration_minutes = Number(wod.duration_minutes ?? 0) + released;
+    wod.structure = replaceMinutes(wod.structure ?? "", wod.duration_minutes);
   }
 
   if (meta.session_architecture) {
-    meta.session_architecture.warmup_minutes = Number(
-      warmupBlock?.duration_minutes ?? meta.session_architecture.warmup_minutes ?? 0,
-    );
-    meta.session_architecture.skill_minutes = Number(
-      skillBlock?.duration_minutes ?? 0,
-    );
-    meta.session_architecture.wod_minutes = Number(
-      wodBlock?.duration_minutes ?? meta.session_architecture.wod_minutes ?? 0,
-    );
+    meta.session_architecture.warmup_minutes = Number(warmup?.duration_minutes ?? 0);
+    meta.session_architecture.skill_minutes = Number(skill?.duration_minutes ?? 0);
+    meta.session_architecture.wod_minutes = Number(wod?.duration_minutes ?? 0);
     meta.session_architecture.programmed_minutes =
       Number(meta.session_architecture.warmup_minutes ?? 0) +
       Number(meta.session_architecture.tabata_minutes ?? 0) +
       Number(meta.session_architecture.skill_minutes ?? 0) +
       Number(meta.session_architecture.wod_minutes ?? 0);
   }
-
-  if (args.coachRegionOverride) {
+  if (regionOverride) {
     meta.target_region_source = "coach_balance_override_from_automatic_history";
   }
-
   meta.coach_gate = {
     version: VERSION,
-    base_version: baseVersion,
-    accepted_attempt: args.rejectionHistory.length + 1,
-    rejected_candidates: args.rejectionHistory,
+    base_version: candidate.version ?? null,
+    accepted_attempt: rejected.length + 1,
+    rejected_candidates: rejected,
     pain_gate_verified: true,
     warmup_contract_verified: true,
     warmup_trimmed_to_max_four: warmupTrimmed,
-    skill_duration_adjusted: skillDurationAdjusted,
-    released_minutes_to_wod: releasedMinutes,
-    conditioning_balance_verified: ["Conditioning", "Fat Loss"].includes(args.focus),
-    region_override_for_conditioning: args.coachRegionOverride,
+    skill_duration_adjusted: skillAdjusted,
+    released_minutes_to_wod: released,
+    conditioning_balance_verified: ["Conditioning", "Fat Loss"].includes(focus),
+    region_override_for_conditioning: regionOverride,
   };
 
-  const storedWorkout = {
-    version: VERSION,
-    meta,
-    blocks,
-  };
-
-  const { error: updateError } = await args.supabase
+  const stored = { version: VERSION, meta, blocks };
+  const { error: updateError } = await supabase
     .from("workout_sessions")
-    .update({ generated_workout: storedWorkout })
-    .eq("id", args.candidate.session_id)
-    .eq("user_id", args.userId);
-
+    .update({ generated_workout: stored })
+    .eq("id", candidate.session_id)
+    .eq("user_id", userId);
   if (updateError) throw new Error(updateError.message);
-
-  return storedWorkout;
+  return stored;
 }
 
-function selectWarmupSubset(args: {
-  exercises: GeneratedExercise[];
-  metaById: Map<string, ExerciseMeta>;
-  targetPatterns: Set<string>;
-  focus: Focus;
-  count: number;
-}): GeneratedExercise[] {
-  const selected: GeneratedExercise[] = [];
+function selectWarmupFour(
+  exercises: any[],
+  meta: Map<string, any>,
+  targetPatterns: Set<any>,
+  focus: string,
+) {
+  const selected: any[] = [];
   const used = new Set<string>();
-
-  const take = (predicate: (exercise: GeneratedExercise, meta: ExerciseMeta) => boolean) => {
-    const exercise = args.exercises.find((item) => {
+  const take = (predicate: (e: any, m: any) => boolean) => {
+    const e = exercises.find((item) => {
       if (used.has(item.id)) return false;
-      const meta = args.metaById.get(item.id);
-      return meta ? predicate(item, meta) : false;
+      const m = meta.get(item.id);
+      return m && predicate(item, m);
     });
-
-    if (exercise && selected.length < args.count) {
-      selected.push(exercise);
-      used.add(exercise.id);
+    if (e && selected.length < 4) {
+      selected.push(e);
+      used.add(e.id);
     }
   };
-
-  // Ordre coach : mobilité → activation → préparation du pattern → montée en température.
-  take((_exercise, meta) => meta.warmup_role === "mobility");
-  take((_exercise, meta) => meta.warmup_role === "activation");
-  take((exercise, meta) =>
-    meta.warmup_role === "movement_prep" &&
-    (!!exercise.pattern && args.targetPatterns.has(exercise.pattern)),
-  );
-
-  if (["Conditioning", "Fat Loss"].includes(args.focus)) {
-    take((_exercise, meta) => meta.warmup_role === "pulse_raiser");
+  take((_e, m) => m.warmup_role === "mobility");
+  take((_e, m) => m.warmup_role === "activation");
+  take((e, m) => m.warmup_role === "movement_prep" && targetPatterns.has(e.pattern));
+  if (["Conditioning", "Fat Loss"].includes(focus)) {
+    take((_e, m) => m.warmup_role === "pulse_raiser");
   }
-
-  for (const exercise of args.exercises) {
-    if (selected.length >= args.count) break;
-    if (used.has(exercise.id)) continue;
-    selected.push(exercise);
-    used.add(exercise.id);
+  for (const e of exercises) {
+    if (selected.length >= 4) break;
+    if (!used.has(e.id)) {
+      selected.push(e);
+      used.add(e.id);
+    }
   }
-
   return selected;
 }
 
-async function cleanupGeneratedSession(
-  supabase: any,
-  sessionId: string,
-  userId: string,
-) {
-  const { error: childrenError } = await supabase
+async function loadMeta(supabase: any, ids: string[]) {
+  if (!ids.length) return new Map<string, any>();
+  const { data, error } = await supabase
+    .from("exercises")
+    .select(
+      "id,body_region,movement_pattern,exercise_family,training_focus,fatigue_score,joint_impact,technical_complexity,equipment_requirement,warmup_eligible,warmup_role,warmup_intensity,warmup_only",
+    )
+    .in("id", ids);
+  if (error) throw new Error(error.message);
+  return new Map((data ?? []).map((e: any) => [e.id, e]));
+}
+
+async function cleanup(supabase: any, sessionId: string, userId: string) {
+  const { error: childError } = await supabase
     .from("workout_session_exercises")
     .delete()
     .eq("session_id", sessionId);
-
-  if (childrenError) throw new Error(childrenError.message);
-
+  if (childError) throw new Error(childError.message);
   const { error: sessionError } = await supabase
     .from("workout_sessions")
     .delete()
     .eq("id", sessionId)
     .eq("user_id", userId);
-
   if (sessionError) throw new Error(sessionError.message);
 }
 
-function updateDurationInStructure(structure: string, duration: number): string {
-  if (!structure) return `WOD ${duration} min`;
-
-  if (/\d+\s*min/i.test(structure)) {
-    return structure.replace(/\d+\s*min/i, `${duration} min`);
-  }
-
-  return `${structure} — ${duration} min`;
+function replaceMinutes(structure: string, minutes: number) {
+  if (!structure) return `WOD ${minutes} min`;
+  return /\d+\s*min/i.test(structure)
+    ? structure.replace(/\d+\s*min/i, `${minutes} min`)
+    : `${structure} — ${minutes} min`;
 }
 
-function toConstraintZone(value: string): string {
-  const normalized = normalizeText(value);
+function toConstraintZone(value: string) {
+  const normalized = normalize(value);
   const map: Record<string, string> = {
     poignet: "wrist",
     wrist: "wrist",
@@ -800,11 +502,10 @@ function toConstraintZone(value: string): string {
     lombaires: "lower_back",
     lower_back: "lower_back",
   };
-
   return map[normalized] ?? normalized.replace(/\s+/g, "_");
 }
 
-function normalizeText(value: string): string {
+function normalize(value: string) {
   return String(value ?? "")
     .trim()
     .toLowerCase()
@@ -812,16 +513,13 @@ function normalizeText(value: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function uniqueStrings(values: string[]): string[] {
-  return Array.from(new Set(values.map((value) => String(value).trim()).filter(Boolean)));
+function unique(values: any[]) {
+  return Array.from(new Set(values.map((v) => String(v).trim()).filter(Boolean)));
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json",
-    },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
