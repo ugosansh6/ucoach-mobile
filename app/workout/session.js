@@ -33,6 +33,7 @@ import {
 import {
   changeWorkoutFormat,
   getWorkoutFormatOptions,
+   markWorkoutSessionStarted,
   reloadWorkoutSession,
   swapWorkoutExercise,
 } from '../../src/services/workoutService';
@@ -619,6 +620,43 @@ export default function WorkoutSessionScreen() {
       }
     );
   }
+useEffect(() => {
+  if (!workout.sessionId) {
+    return undefined;
+  }
+
+  let cancelled = false;
+
+  async function markStarted() {
+    try {
+      const result =
+        await markWorkoutSessionStarted({
+          sessionId: workout.sessionId,
+        });
+
+      if (
+        !cancelled &&
+        result?.status ===
+          'STALE_SESSION_REQUIRES_RECHECKIN'
+      ) {
+        router.replace(
+          '/workout/preparation'
+        );
+      }
+    } catch (error) {
+      console.warn(
+        'Session start marker',
+        error
+      );
+    }
+  }
+
+  markStarted();
+
+  return () => {
+    cancelled = true;
+  };
+}, [workout.sessionId]);
 
   function handleBack() {
     router.back();
