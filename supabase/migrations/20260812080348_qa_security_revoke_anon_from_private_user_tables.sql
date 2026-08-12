@@ -1,0 +1,17 @@
+revoke all on table public.profiles from anon;
+revoke all on table public.user_goals from anon;
+revoke all on table public.exercise_favorites from anon;
+revoke all on table public.exercise_logs from anon;
+revoke all on table public.workout_sessions from anon;
+revoke all on table public.workout_session_exercises from anon;
+revoke all on table public.user_equipment_inventory from anon;
+revoke all on table public.user_athletic_baseline from anon;
+revoke all on table public.external_session_imports from anon;
+revoke all on table public.weekly_loop_run_errors from anon;
+revoke all on table public.capability_live_run_errors from anon;
+revoke all on table public.user_exercise_capabilities_shadow from anon;
+revoke all on table public._backup_exercise_logs_pre_progress_v21 from anon;
+revoke all on table public._backup_workout_session_exercises_pre_progress_v21 from anon;
+revoke all on table public.programs from anon;
+revoke all on table public.workout_logs from anon;
+revoke all on table public.workout_requests from anon;;

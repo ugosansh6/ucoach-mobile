@@ -1,7 +1,3 @@
--- UGEROD Coach Engine hardening
--- 1) Dedicated low-fatigue warm-up contract and catalogue
--- 2) Absolute pain hard gates for the injury zones currently exposed by the app
-
 alter table public.exercises
   add column if not exists warmup_eligible boolean not null default false,
   add column if not exists warmup_role text,
@@ -29,7 +25,6 @@ alter table public.exercises
       )
     );
 
--- Replace the historical permissive Warm-up pool with a conservative coach pool.
 update public.exercises
 set warmup_eligible = false,
     warmup_role = null,
@@ -57,8 +52,6 @@ where id in (
   'EX322','EX323','EX324','EX404','EX406','EX407','EX413'
 );
 
--- 24 exercises dedicated exclusively to warm-up: mobility, activation,
--- movement preparation, and low-impact pulse raising.
 insert into public.exercises (
   id,name,description,instructions,tips,exercise_type,difficulty,technical_complexity,
   movement_pattern,exercise_family,body_region,training_focus,equipment_requirement,
@@ -106,7 +99,8 @@ on conflict (id) do update set
   warmup_intensity=excluded.warmup_intensity,warmup_only=excluded.warmup_only;
 
 insert into public.exercise_equipment (exercise_id,equipment_id)
-values ('EX432','E05'),('EX438','E05') on conflict do nothing;
+values ('EX432','E05'),('EX438','E05')
+on conflict do nothing;
 
 insert into public.exercise_equipment_requirements_v2
   (exercise_id,option_group,equipment_id,min_quantity,is_optional,notes)
@@ -173,12 +167,9 @@ insert into public.exercise_tags (exercise_id,tag)
 select id,'warmup_only' from public.exercises where warmup_only
 on conflict do nothing;
 insert into public.exercise_tags (exercise_id,tag)
-select id,'warmup_role:'||warmup_role from public.exercises
-where warmup_eligible and warmup_role is not null
+select id,'warmup_role:'||warmup_role from public.exercises where warmup_eligible and warmup_role is not null
 on conflict do nothing;
 
--- Convert authoritative exercise_body_zones anatomy into absolute hard gates for
--- the five pain zones currently selectable on the preparation screen.
 insert into public.exercise_constraints
   (exercise_id,constraint_name,reason,priority,body_zone,rule_type,severity)
 select ebz.exercise_id,'auto_hard_gate_wrist',
@@ -261,4 +252,4 @@ for each row execute function public.sync_exercise_warmup_contract();
 comment on column public.exercises.warmup_eligible is 'True only for low-fatigue exercises suitable for warm-up selection.';
 comment on column public.exercises.warmup_role is 'Coach warm-up role: mobility, activation, movement_prep, pulse_raiser.';
 comment on column public.exercises.warmup_intensity is 'Warm-up intensity 1-3; V1 catalogue intentionally stays at 1-2.';
-comment on column public.exercises.warmup_only is 'If true, the exercise is dedicated exclusively to Warm-up.';
+comment on column public.exercises.warmup_only is 'If true, the exercise is dedicated exclusively to Warm-up.';;

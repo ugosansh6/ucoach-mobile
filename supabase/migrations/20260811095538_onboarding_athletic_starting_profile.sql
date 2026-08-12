@@ -10,4 +10,4 @@ alter table public.profiles
   check (jsonb_typeof(athletic_starting_profile) = 'object');
 
 comment on column public.profiles.athletic_starting_profile is
-  'Cold-start self-assessment only. Neutral=3/5, declared strengths=4/5, declared weaknesses=2/5. Real performance observations must supersede this prior.';
+  'Cold-start self-assessment only. Neutral=3/5, declared strengths=4/5, declared weaknesses=2/5. Real performance observations must supersede this prior.';;

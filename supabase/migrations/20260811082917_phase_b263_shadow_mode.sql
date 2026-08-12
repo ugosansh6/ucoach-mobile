@@ -272,4 +272,4 @@ grant execute on function public.shadow_capability_session(uuid,text,text) to au
 comment on function public.shadow_capability_observation_from_state(bigint,jsonb,text,text) is
 'B2.6.3 pure shadow execution. Applies B2.5 proposals only to an in-memory JSON state; never writes user_exercise_capabilities or capability_update_events.';
 comment on function public.shadow_capability_session(uuid,text,text) is
-'B2.6.3 session-level shadow runner. Replays exercise logs chronologically into in-memory capability states and returns decisions without persistence.';
+'B2.6.3 session-level shadow runner. Replays exercise logs chronologically into in-memory capability states and returns decisions without persistence.';;

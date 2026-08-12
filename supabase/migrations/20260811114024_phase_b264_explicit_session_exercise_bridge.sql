@@ -29,7 +29,7 @@ begin
   end if;
 
   -- B2.6.4 bridge: the compatibility Edge Function can carry the exact
-  -- workout_session_exercises.id through the legacy notes field. The marker is
+  -- workout_session_exercises.id through the legacy notes field.  The marker is
   -- removed before persistence, so it never leaks into user-visible history.
   if new.session_exercise_id is null and new.notes is not null then
     v_marker_text := substring(
@@ -106,4 +106,4 @@ begin
 
   return new;
 end;
-$function$;
+$function$;;

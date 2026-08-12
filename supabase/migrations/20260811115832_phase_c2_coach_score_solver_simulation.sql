@@ -574,4 +574,4 @@ select jsonb_build_object(
 $$;
 
 comment on function public.simulate_session_engine_c2(uuid,text,integer,text,text,text,text[],jsonb,integer,text,integer)
-is 'Phase C2 read-only simulation: hard gates -> exercise candidates -> mechanic fit -> draft solver prescription -> candidate session Coach Score. Does not replace production generator.';
+is 'Phase C2 read-only simulation: hard gates -> exercise candidates -> mechanic fit -> draft solver prescription -> candidate session Coach Score. Does not replace production generator.';;

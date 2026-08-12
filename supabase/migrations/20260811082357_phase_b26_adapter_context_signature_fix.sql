@@ -173,4 +173,4 @@ end;
 $$;
 
 comment on function public.build_capability_observation_inputs(bigint,text) is
-'B2.6 draft-2 pure shadow adapter. Session WOD mechanic only affects WOD observations; warm-up/skill/tabata use their own protocol class. Reps tracking defaults to total unless explicitly unilateral.';
+'B2.6 draft-2 pure shadow adapter. Session WOD mechanic only affects WOD observations; warm-up/skill/tabata use their own protocol class. Reps tracking defaults to total unless explicitly unilateral.';;

@@ -139,4 +139,4 @@ end;
 $$;
 
 comment on function public.c3_simulate_candidate_wod(jsonb,jsonb,integer,integer,text)
-is 'C3 canonical candidate simulator v1.1. Adds time utilization, duration fit and primary-muscle exposure ledger; progressive rep volume includes stage increments.';
+is 'C3 canonical candidate simulator v1.1. Adds time utilization, duration fit and primary-muscle exposure ledger; progressive rep volume includes stage increments.';;

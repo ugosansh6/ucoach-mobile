@@ -301,4 +301,4 @@ comment on table public.user_exercise_capabilities_shadow is
 comment on table public.capability_shadow_events is
 'B2.6.3 shadow decisions generated from completed sessions for comparison/stress testing only.';
 comment on function public.run_capability_shadow_session(uuid,text,text) is
-'Runs B2.5 capability proposals against isolated shadow state. Does not mutate real user capabilities.';
+'Runs B2.5 capability proposals against isolated shadow state. Does not mutate real user capabilities.';;

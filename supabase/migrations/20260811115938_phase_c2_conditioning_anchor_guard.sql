@@ -64,4 +64,4 @@ end;
 $$;
 
 comment on function public.simulate_session_engine_c2(uuid,text,integer,text,text,text,text[],jsonb,integer,text,integer)
-is 'Canonical Phase C2 simulation. Adds absolute conditioning-anchor coherence guard; returns NO_SAFE_COHERENT_WOD instead of forcing a poor session.';
+is 'Canonical Phase C2 simulation. Adds absolute conditioning-anchor coherence guard; returns NO_SAFE_COHERENT_WOD instead of forcing a poor session.';;

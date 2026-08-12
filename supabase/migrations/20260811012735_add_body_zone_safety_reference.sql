@@ -48,4 +48,4 @@ on conflict (id) do update set
   zone_group = excluded.zone_group,
   zone_type = excluded.zone_type,
   sort_order = excluded.sort_order,
-  active = excluded.active;
+  active = excluded.active;;

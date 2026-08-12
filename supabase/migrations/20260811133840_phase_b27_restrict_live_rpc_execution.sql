@@ -11,3 +11,4 @@ grant execute on function public.apply_session_protocol_observation(uuid,numeric
 revoke all on function public.build_session_protocol_descriptor(uuid) from public;
 revoke all on function public.build_session_protocol_descriptor(uuid) from anon;
 revoke all on function public.build_session_protocol_descriptor(uuid) from authenticated;
+;

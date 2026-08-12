@@ -213,4 +213,4 @@ end;
 $$;
 
 comment on function public.build_session_stimulus_target(text,integer,text,text,text,text)
-is 'Phase C1 pure target builder: focus + duration + readiness + optional region/intent -> explainable session stimulus. No exercise selection.';
+is 'Phase C1 pure target builder: focus + duration + readiness + optional region/intent -> explainable session stimulus. No exercise selection.';;

@@ -92,4 +92,4 @@ FROM public.exercise_logs el
 LEFT JOIN public.workout_session_exercises wse
   ON wse.id = el.session_exercise_id
 LEFT JOIN public.exercises e
-  ON e.id = el.exercise_id;
+  ON e.id = el.exercise_id;;

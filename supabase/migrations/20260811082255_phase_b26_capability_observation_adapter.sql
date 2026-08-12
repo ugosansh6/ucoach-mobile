@@ -256,4 +256,4 @@ grant execute on function public.performance_context_key(text,text) to authentic
 comment on table public.performance_observation_quality_policy is
 'B2.6 simulation/tuning quality policy. Numeric values are configurable product calibration parameters, not validated physiological constants.';
 comment on function public.build_capability_observation_inputs(bigint,text) is
-'Pure adapter for B2.6 shadow integration: maps one exercise log into zero or more capability-update inputs without mutating capability state.';
+'Pure adapter for B2.6 shadow integration: maps one exercise log into zero or more capability-update inputs without mutating capability state.';;

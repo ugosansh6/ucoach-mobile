@@ -249,6 +249,7 @@ declare
   v_density_fit numeric := 0;
   v_local_fatigue_fit numeric := 0;
   v_whole_wod_fit numeric := 0;
+  rec record;
 begin
   if v_n=0 then
     return jsonb_build_object('status','NO_EXERCISES','feasible',false);
@@ -385,6 +386,7 @@ begin
       v_rounds:=0;
   end case;
 
+  -- Aggregate predicted volume using the execution multiplier of the mechanic.
   v_multiplier := case
     when v_mechanic='LADDER' then greatest(1,(v_rungs+1)/2.0)
     when v_mechanic='PYRAMID' then case when v_rungs=5 then 3.8 else 2.4 end
@@ -399,6 +401,7 @@ begin
   into v_total_reps,v_total_distance,v_total_isometric
   from jsonb_array_elements(v_units) u;
 
+  -- Local fatigue concentration: share of weighted primary-muscle exposure carried by the most-loaded primary muscle.
   with unit_rows as (
     select u,
            coalesce((u->>'fatigue_score')::numeric,3)*v_multiplier as weighted
@@ -570,4 +573,4 @@ end;
 $$;
 
 comment on function public.simulate_session_engine_c3(uuid,text,integer,text,text,text,text[],jsonb,integer,text,integer,integer)
-is 'Phase C3 read-only whole-WOD simulator. Adds mechanic-specific time/round/set/volume/density/local-fatigue feasibility to C2 candidate sessions. Never mutates production state.';
+is 'Phase C3 read-only whole-WOD simulator. Adds mechanic-specific time/round/set/volume/density/local-fatigue feasibility to C2 candidate sessions. Never mutates production state.';;

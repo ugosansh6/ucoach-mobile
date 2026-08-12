@@ -58,6 +58,7 @@ begin
     end if;
   end if;
 
+  -- Single-exercise fallback only. Raw partial reps are not compared across a couplet.
   if jsonb_array_length(coalesce(p_protocol->'exercises','[]'::jsonb))=1
      and nullif(p_actual->>'partial_next_stage_reps','') is not null then
     v_ex:=p_protocol->'exercises'->0;
@@ -268,3 +269,4 @@ $$;
 revoke all on function public.protocol_partial_progress_ratio(jsonb,jsonb) from public;
 revoke all on function public.protocol_partial_progress_ratio(jsonb,jsonb) from anon;
 revoke all on function public.protocol_partial_progress_ratio(jsonb,jsonb) from authenticated;
+;

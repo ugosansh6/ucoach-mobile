@@ -52,6 +52,7 @@ on public.capability_live_run_errors for insert
 to authenticated
 with check (user_id=auth.uid());
 
+-- One applied live proposal per exact log + capability family + fresh/repeatable mode.
 create unique index if not exists uq_capability_update_event_live_observation
 on public.capability_update_events(
   exercise_log_id,
@@ -127,6 +128,7 @@ begin
       v_family:=v_update->>'family';
       v_mode:=v_update->>'capability_mode';
 
+      -- Density/progressive belong to protocol capability, not an isolated exercise.
       if v_family not in ('reps','load_reps','time','pace','loaded_distance') then
         v_protocol_scoped:=v_protocol_scoped+1;
         continue;
@@ -186,4 +188,4 @@ $$;
 comment on function public.run_capability_live_session(uuid,text,text)
 is 'B2.7 controlled live capability runner. Applies exact per-exercise observations idempotently while preserving legacy progression and shadow runtime.';
 
-grant execute on function public.run_capability_live_session(uuid,text,text) to authenticated;
+grant execute on function public.run_capability_live_session(uuid,text,text) to authenticated;;

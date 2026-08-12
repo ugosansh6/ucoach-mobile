@@ -307,4 +307,4 @@ comment on table public.user_protocol_capabilities is
 'Protocol-level capability state for multi-exercise or mechanic-specific performance (e.g. Death By Couplet). Kept separate from per-exercise capability.';
 
 comment on function public.apply_session_protocol_observation(uuid,numeric,text) is
-'B2.7 protocol capability updater. Progressive-limit protocols such as Death By/Death By Couplet use last completed stage + partial next-stage work as a high-quality performance boundary. One lower result never regresses the stored best.';
+'B2.7 protocol capability updater. Progressive-limit protocols such as Death By/Death By Couplet use last completed stage + partial next-stage work as a high-quality performance boundary. One lower result never regresses the stored best.';;
