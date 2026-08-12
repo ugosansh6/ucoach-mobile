@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "swap-handler-v4-c4-exact-instance";
+const VERSION = "swap-handler-v5-c49-multiblock-exact-instance";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -63,7 +63,7 @@ serve(async (req: Request) => {
       instanceId = rows[0].id;
     }
 
-    const { data, error } = await supabase.rpc("c4_swap_session_exercise", {
+    const { data, error } = await supabase.rpc("c4_swap_session_exercise_v2", {
       p_user_id: userId,
       p_session_exercise_id: instanceId,
       p_excluded_exercise_ids: Array.isArray(body.excluded_exercise_ids) ? body.excluded_exercise_ids : [],
@@ -77,17 +77,18 @@ serve(async (req: Request) => {
 
     const result = data.result ?? {};
     const exercises = Array.isArray(result.exercises) ? result.exercises : [];
-    const substitute = exercises.find((x: any) => x.session_exercise_id === instanceId) ?? null;
+    const substitute = data.substitute ?? exercises.find((x: any) => x.session_exercise_id === instanceId) ?? null;
 
     return json({
       success: true,
       version: VERSION,
       session_id: data.session_id,
       session_exercise_id: instanceId,
+      block_key: data.block_key ?? null,
       replaced_exercise_id: data.old_exercise_id,
       new_exercise_id: data.new_exercise_id,
       substitute,
-      full_wod_resimulated: true,
+      full_wod_resimulated: Boolean(data.full_wod_resimulated),
       quality_gate: data.quality_gate,
       c4_result: data,
     });
