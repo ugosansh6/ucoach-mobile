@@ -20,11 +20,9 @@ import {
   spacing,
   typography,
 } from '../../src/constants';
-
 import {
   useWorkout,
 } from '../../src/contexts/WorkoutContext';
-
 import {
   generateWorkoutSession,
 } from '../../src/services/workoutService';
@@ -58,12 +56,9 @@ export default function GeneratingScreen() {
     setGeneratedWorkout,
   } = useWorkout();
 
-  /*
-   * 1 — Animation des étapes
-   */
   useEffect(() => {
-    const interval =
-      setInterval(() => {
+    const interval = setInterval(
+      () => {
         setActiveStep(
           (current) => {
             if (
@@ -76,36 +71,25 @@ export default function GeneratingScreen() {
             return current + 1;
           }
         );
-      }, 850);
+      },
+      850
+    );
 
     return () => {
-      clearInterval(
-        interval
-      );
+      clearInterval(interval);
     };
   }, []);
 
-  /*
-   * 2 — Une fois la dernière étape atteinte,
-   * on appelle le vrai backend bright-handler.
-   */
   useEffect(() => {
     if (
       activeStep !==
-      STEPS.length - 1
-    ) {
-      return;
-    }
-
-    if (
+      STEPS.length - 1 ||
       generationDone.current
     ) {
       return;
     }
 
-    generationDone.current =
-      true;
-
+    generationDone.current = true;
     let cancelled = false;
 
     async function runGeneration() {
@@ -125,6 +109,11 @@ export default function GeneratingScreen() {
           generatedWorkout
         );
 
+        /*
+         * F-C4 : pas d'écran d'aperçu.
+         * Le WOD reste une surprise directement
+         * dans l'écran Session.
+         */
         router.replace(
           '/workout/session'
         );
@@ -138,8 +127,7 @@ export default function GeneratingScreen() {
             'Impossible de générer la séance.'
         );
 
-        generationDone.current =
-          false;
+        generationDone.current = false;
       }
     }
 
@@ -176,13 +164,8 @@ export default function GeneratingScreen() {
     <SafeAreaView
       style={styles.screen}
     >
-      <View
-        style={styles.content}
-      >
-        {/* HEADER */}
-        <View
-          style={styles.header}
-        >
+      <View style={styles.content}>
+        <View style={styles.header}>
           <Pressable
             onPress={handleBack}
             hitSlop={12}
@@ -195,32 +178,23 @@ export default function GeneratingScreen() {
             <Ionicons
               name="arrow-back"
               size={22}
-              color={
-                colors.textPrimary
-              }
+              color={colors.textPrimary}
             />
           </Pressable>
 
           <View
-            style={
-              styles.headerSpacer
-            }
+            style={styles.headerSpacer}
           />
 
           <Image
             source={brandIcon}
-            style={
-              styles.brandIcon
-            }
+            style={styles.brandIcon}
             resizeMode="contain"
           />
         </View>
 
-        {/* PROGRESSION TRICOLORE */}
         <View
-          style={
-            styles.progressWrapper
-          }
+          style={styles.progressWrapper}
         >
           <LinearGradient
             colors={[
@@ -236,99 +210,60 @@ export default function GeneratingScreen() {
               x: 1,
               y: 0.5,
             }}
-            style={
-              styles.progressLine
-            }
+            style={styles.progressLine}
           />
         </View>
 
-        {/* TITRE */}
         <View
-          style={
-            styles.titleArea
-          }
+          style={styles.titleArea}
         >
-          <Text
-            style={
-              styles.eyebrow
-            }
-          >
-            UGEROD PRÉPARE TON WOD
+          <Text style={styles.eyebrow}>
+            UGEROD PRÉPARE TA SÉANCE
           </Text>
 
-          <Text
-            style={
-              styles.title
-            }
-          >
+          <Text style={styles.title}>
             CRÉATION DE
             {'\n'}
             TA SÉANCE
             <Text
-              style={
-                styles.blueDot
-              }
+              style={styles.blueDot}
             >
               .
             </Text>
           </Text>
 
-          <Text
-            style={
-              styles.subtitle
-            }
-          >
-            Quelques secondes pour
-            construire une séance
-            adaptée à tes paramètres.
+          <Text style={styles.subtitle}>
+            UGEROD construit une séance adaptée à ton profil, ton matériel et ta forme du jour.
           </Text>
         </View>
 
-        {/* ÉTAPES */}
-        <View
-          style={
-            styles.stepsCard
-          }
-        >
+        <View style={styles.stepsCard}>
           {STEPS.map(
-            (
-              step,
-              index
-            ) => {
+            (step, index) => {
               const done =
-                index <
-                activeStep;
-
+                index < activeStep;
               const active =
-                index ===
-                activeStep;
-
+                index === activeStep;
               const future =
-                index >
-                activeStep;
+                index > activeStep;
 
               return (
                 <View
                   key={step}
                   style={[
                     styles.stepRow,
-
                     index !==
-                      STEPS.length -
-                        1 &&
+                      STEPS.length - 1 &&
                       styles.stepRowBorder,
                   ]}
                 >
                   <View
                     style={[
                       styles.stepIcon,
-
                       done &&
                         styles.stepIconDone,
-
                       active &&
                         styles.stepIconActive,
-
                       future &&
                         styles.stepIconFuture,
                     ]}
@@ -343,15 +278,11 @@ export default function GeneratingScreen() {
                       />
                     ) : active ? (
                       <View
-                        style={
-                          styles.activeDot
-                        }
+                        style={styles.activeDot}
                       />
                     ) : (
                       <View
-                        style={
-                          styles.futureDot
-                        }
+                        style={styles.futureDot}
                       />
                     )}
                   </View>
@@ -359,13 +290,10 @@ export default function GeneratingScreen() {
                   <Text
                     style={[
                       styles.stepText,
-
                       done &&
                         styles.stepTextDone,
-
                       active &&
                         styles.stepTextActive,
-
                       future &&
                         styles.stepTextFuture,
                     ]}
@@ -378,66 +306,41 @@ export default function GeneratingScreen() {
           )}
         </View>
 
-        <View
-          style={styles.spacer}
-        />
+        <View style={styles.spacer} />
 
-        {/* MESSAGE */}
         <View
-          style={
-            styles.bottomArea
-          }
+          style={styles.bottomArea}
         >
-          <View
-            style={
-              styles.loaderDots
-            }
-          >
+          <View style={styles.loaderDots}>
             <View
-              style={
-                styles.loaderDotBlue
-              }
+              style={styles.loaderDotBlue}
             />
-
             <View
-              style={
-                styles.loaderDotWhite
-              }
+              style={styles.loaderDotWhite}
             />
-
             <View
-              style={
-                styles.loaderDotRed
-              }
+              style={styles.loaderDotRed}
             />
           </View>
 
           {generationError ? (
             <>
               <Text
-                style={
-                  styles.errorText
-                }
+                style={styles.errorText}
               >
                 {generationError}
               </Text>
 
               <Pressable
-                onPress={
-                  handleRetry
-                }
-                style={({
-                  pressed,
-                }) => [
+                onPress={handleRetry}
+                style={({ pressed }) => [
                   styles.retryButton,
                   pressed &&
                     styles.pressed,
                 ]}
               >
                 <Text
-                  style={
-                    styles.retryButtonText
-                  }
+                  style={styles.retryButtonText}
                 >
                   RÉESSAYER
                 </Text>
@@ -446,20 +349,15 @@ export default function GeneratingScreen() {
           ) : (
             <>
               <Text
-                style={
-                  styles.waitText
-                }
+                style={styles.waitText}
               >
                 QUELQUES SECONDES...
               </Text>
 
               <Text
-                style={
-                  styles.motivation
-                }
+                style={styles.motivation}
               >
-                Bois une gorgée d’eau.
-                On attaque juste après.
+                Le contenu du WOD restera une surprise jusqu’au bon moment.
               </Text>
             </>
           )}
@@ -480,8 +378,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal:
       spacing.xl,
-    paddingTop:
-      spacing.sm,
+    paddingTop: spacing.sm,
     paddingBottom:
       spacing.xxl,
   },
@@ -515,8 +412,7 @@ const styles = StyleSheet.create({
   },
 
   progressWrapper: {
-    marginTop:
-      spacing.sm,
+    marginTop: spacing.sm,
     marginBottom:
       spacing.xxl,
   },
@@ -548,13 +444,11 @@ const styles = StyleSheet.create({
     letterSpacing: 2.2,
     color:
       colors.textPrimary,
-    marginTop:
-      spacing.sm,
+    marginTop: spacing.sm,
   },
 
   blueDot: {
-    color:
-      colors.primary,
+    color: colors.primary,
   },
 
   subtitle: {
@@ -564,8 +458,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color:
       colors.textSecondary,
-    marginTop:
-      spacing.md,
+    marginTop: spacing.md,
     maxWidth: 360,
   },
 
@@ -585,8 +478,7 @@ const styles = StyleSheet.create({
       spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap:
-      spacing.md,
+    gap: spacing.md,
   },
 
   stepRowBorder: {
@@ -716,8 +608,7 @@ const styles = StyleSheet.create({
     color:
       colors.textSecondary,
     textAlign: 'center',
-    marginTop:
-      spacing.sm,
+    marginTop: spacing.sm,
     maxWidth: 300,
   },
 

@@ -1,7 +1,12 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useMemo, useState } from 'react';
 import {
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
   Image,
   ImageBackground,
   Pressable,
@@ -18,6 +23,7 @@ import {
   spacing,
   typography,
 } from '../../src/constants';
+import { getDashboardSnapshot } from '../../src/services/weeklyPlanService';
 
 const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -42,124 +48,88 @@ const CALENDAR_DAY_LABELS = [
   'D',
 ];
 
-/*
- * TEMPORAIRE AVANT SUPABASE
- *
- * Plus tard, cette liste viendra de workout_sessions.
- * date = YYYY-MM-DD
- * sessionId = id réel de la séance
- */
-const SESSION_DATES = [
-  {
-    date: '2026-08-03',
-    sessionId: 'session-2',
-  },
-  {
-    date: '2026-08-05',
-    sessionId: 'session-1',
-  },
-  {
-    date: '2026-07-31',
-    sessionId: 'session-3',
-  },
-  {
-    date: '2026-07-27',
-    sessionId: 'session-4',
-  },
-  {
-    date: '2026-07-22',
-    sessionId: 'session-5',
-  },
-  {
-    date: '2026-06-18',
-    sessionId: 'session-6',
-  },
-];
-
-const HISTORY = [
-  {
-    id: 'session-1',
-    day: 'MER 05 AOÛT',
-    title: 'FULL BODY',
-    format: 'AMRAP',
-    duration: '45 MIN',
-  },
-  {
-    id: 'session-2',
-    day: 'LUN 03 AOÛT',
-    title: 'LOWER BODY',
-    format: 'FOR TIME',
-    duration: '45 MIN',
-  },
-  {
-    id: 'session-3',
-    day: 'VEN 31 JUIL',
-    title: 'UPPER BODY',
-    format: 'EMOM',
-    duration: '60 MIN',
-  },
-];
-
 function formatDateKey(date) {
   const year = date.getFullYear();
-
-  const month = String(
-    date.getMonth() + 1
-  ).padStart(2, '0');
-
-  const day = String(
-    date.getDate()
-  ).padStart(2, '0');
-
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(dateKey) {
+  const [year, month, day] = String(dateKey ?? '')
+    .split('-')
+    .map(Number);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  const date = new Date(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 function getMonday(date) {
   const result = new Date(date);
-
   result.setHours(0, 0, 0, 0);
 
   const day = result.getDay();
   const difference = day === 0 ? 6 : day - 1;
-
   result.setDate(result.getDate() - difference);
 
   return result;
 }
 
-function createWeek() {
+function createFallbackWeek() {
   const today = new Date();
-
   today.setHours(0, 0, 0, 0);
-
   const monday = getMonday(today);
 
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(monday);
-
     date.setDate(monday.getDate() + index);
     date.setHours(0, 0, 0, 0);
 
-    const dateKey = formatDateKey(date);
-
-    const session = SESSION_DATES.find(
-      (item) => item.date === dateKey
-    );
-
     return {
-      key: date.toISOString(),
+      key: formatDateKey(date),
       day: DAY_LABELS[date.getDay()],
       number: String(date.getDate()).padStart(2, '0'),
-      completed: Boolean(session),
-      sessionId: session?.sessionId || null,
-      today: date.getTime() === today.getTime(),
+      completed: false,
+      sessionId: null,
+      today: formatDateKey(date) === formatDateKey(today),
+      date,
+    };
+  });
+}
+
+function createWeek(weekDays) {
+  if (!Array.isArray(weekDays) || weekDays.length !== 7) {
+    return createFallbackWeek();
+  }
+
+  const todayKey = formatDateKey(new Date());
+
+  return weekDays.map((item) => {
+    const date = parseDateKey(item?.date);
+
+    return {
+      key: item?.date ?? String(Math.random()),
+      day: date ? DAY_LABELS[date.getDay()] : '',
+      number: date
+        ? String(date.getDate()).padStart(2, '0')
+        : '--',
+      completed: Boolean(item?.completed),
+      sessionId: item?.session_id ?? null,
+      today: item?.date === todayKey,
       date,
     };
   });
 }
 
 function getWeekMonthLabel(week) {
-  if (!week.length) return '';
+  if (!week.length || !week[0]?.date || !week[6]?.date) {
+    return '';
+  }
 
   const firstDay = week[0].date;
   const lastDay = week[6].date;
@@ -190,26 +160,23 @@ function getMonthLabel(date) {
     .toUpperCase();
 }
 
-function createMonthCalendar(displayedMonth) {
+function createMonthCalendar(displayedMonth, monthSessions) {
   const year = displayedMonth.getFullYear();
   const month = displayedMonth.getMonth();
 
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
 
-  /*
-   * JS :
-   * dimanche = 0
-   *
-   * Notre calendrier :
-   * lundi = première colonne
-   */
   const firstDayIndex =
     firstDay.getDay() === 0
       ? 6
       : firstDay.getDay() - 1;
 
-  const totalDays = lastDay.getDate();
+  const sessionMap = new Map(
+    (Array.isArray(monthSessions) ? monthSessions : [])
+      .filter((item) => item?.date)
+      .map((item) => [item.date, item])
+  );
 
   const cells = [];
 
@@ -220,19 +187,13 @@ function createMonthCalendar(displayedMonth) {
     });
   }
 
-  for (let day = 1; day <= totalDays; day += 1) {
+  for (let day = 1; day <= lastDay.getDate(); day += 1) {
     const date = new Date(year, month, day);
-
     date.setHours(0, 0, 0, 0);
 
     const dateKey = formatDateKey(date);
-
-    const session = SESSION_DATES.find(
-      (item) => item.date === dateKey
-    );
-
+    const session = sessionMap.get(dateKey);
     const today = new Date();
-
     today.setHours(0, 0, 0, 0);
 
     cells.push({
@@ -243,7 +204,7 @@ function createMonthCalendar(displayedMonth) {
       dateKey,
       today: date.getTime() === today.getTime(),
       completed: Boolean(session),
-      sessionId: session?.sessionId || null,
+      sessionId: session?.session_id ?? null,
     });
   }
 
@@ -257,29 +218,108 @@ function createMonthCalendar(displayedMonth) {
   return cells;
 }
 
+function formatHistoryDate(dateKey) {
+  const date = parseDateKey(dateKey);
+  if (!date) return 'SÉANCE';
+
+  return date
+    .toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+    })
+    .replace(/\./g, '')
+    .toUpperCase();
+}
+
+function formatHistoryTitle(region) {
+  switch (region) {
+    case 'Upper':
+      return 'UPPER BODY';
+    case 'Lower':
+      return 'LOWER BODY';
+    case 'Core':
+      return 'CORE';
+    default:
+      return 'FULL BODY';
+  }
+}
+
+function formatMechanic(value) {
+  return String(value ?? 'CIRCUIT')
+    .replace(/_/g, ' ')
+    .toUpperCase();
+}
+
+function normalizeHistory(sessions) {
+  return (Array.isArray(sessions) ? sessions : [])
+    .slice(0, 3)
+    .map((session) => ({
+      id: session.session_id,
+      day: formatHistoryDate(session.date),
+      title: formatHistoryTitle(session.target_region),
+      format: formatMechanic(session.mechanic),
+      duration: `${session.duration_minutes ?? 45} MIN`,
+    }));
+}
+
 export default function PlanningScreen() {
-  const week = createWeek();
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [displayedMonth, setDisplayedMonth] = useState(new Date());
+
+  const loadPlanning = useCallback(async () => {
+    try {
+      setLoadError(null);
+      const data = await getDashboardSnapshot({
+        monthDate: displayedMonth,
+      });
+      setSnapshot(data);
+    } catch (error) {
+      console.warn('Planning E snapshot', error);
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : 'Impossible de charger le planning.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [displayedMonth]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPlanning();
+    }, [loadPlanning])
+  );
+
+  const week = createWeek(snapshot?.weekDays);
   const weekMonthLabel = getWeekMonthLabel(week);
 
-  const [calendarOpen, setCalendarOpen] = useState(false);
-
-  const [displayedMonth, setDisplayedMonth] = useState(
-    new Date()
-  );
-
   const monthCells = useMemo(
-    () => createMonthCalendar(displayedMonth),
-    [displayedMonth]
+    () =>
+      createMonthCalendar(
+        displayedMonth,
+        snapshot?.monthSessions
+      ),
+    [displayedMonth, snapshot?.monthSessions]
   );
 
-  /*
-   * TEMPORAIRE AVANT SUPABASE
-   */
-  const completedSessions = 2;
-  const weeklyTarget = 4;
+  const history = useMemo(
+    () => normalizeHistory(snapshot?.recentSessions),
+    [snapshot?.recentSessions]
+  );
 
+  const completedSessions = snapshot?.completedThisWeek ?? 0;
+  const weeklyTarget = snapshot?.weeklyTarget ?? 0;
   const goalReached =
-    completedSessions >= weeklyTarget;
+    weeklyTarget > 0 && completedSessions >= weeklyTarget;
+  const remainingSessions = Math.max(
+    0,
+    weeklyTarget - completedSessions
+  );
 
   function handleProfile() {
     router.push('/profile');
@@ -298,6 +338,7 @@ export default function PlanningScreen() {
   }
 
   function handleHistoryPress(session) {
+    if (!session?.id) return;
     router.push(`/workout/${session.id}`);
   }
 
@@ -314,27 +355,95 @@ export default function PlanningScreen() {
   }
 
   function goPreviousMonth() {
-    setDisplayedMonth((current) => {
-      return new Date(
+    setDisplayedMonth((current) =>
+      new Date(
         current.getFullYear(),
         current.getMonth() - 1,
         1
-      );
-    });
+      )
+    );
   }
 
   function goNextMonth() {
-    setDisplayedMonth((current) => {
-      return new Date(
+    setDisplayedMonth((current) =>
+      new Date(
         current.getFullYear(),
         current.getMonth() + 1,
         1
-      );
-    });
+      )
+    );
   }
 
   function goToday() {
     setDisplayedMonth(new Date());
+  }
+
+  if (loading && !snapshot) {
+    return (
+      <View style={styles.screen}>
+        <ImageBackground
+          source={backgroundImage}
+          resizeMode="cover"
+          style={styles.background}
+        >
+          <View style={styles.darkOverlay} />
+          <LinearGradient
+            colors={[
+              'rgba(7,9,12,0.45)',
+              'rgba(7,9,12,0.96)',
+            ]}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.loadingState}>
+            <ActivityIndicator
+              size="small"
+              color={colors.primaryLight}
+            />
+          </View>
+        </ImageBackground>
+      </View>
+    );
+  }
+
+  if (loadError && !snapshot) {
+    return (
+      <View style={styles.screen}>
+        <ImageBackground
+          source={backgroundImage}
+          resizeMode="cover"
+          style={styles.background}
+        >
+          <View style={styles.darkOverlay} />
+          <LinearGradient
+            colors={[
+              'rgba(7,9,12,0.45)',
+              'rgba(7,9,12,0.96)',
+            ]}
+            style={StyleSheet.absoluteFill}
+          />
+          <SafeAreaView style={styles.safeArea}>
+            <View style={styles.errorState}>
+              <Ionicons
+                name="cloud-offline-outline"
+                size={28}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.errorTitle}>
+                SYNCHRONISATION IMPOSSIBLE
+              </Text>
+              <Pressable
+                onPress={loadPlanning}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryButtonText}>
+                  RÉESSAYER
+                </Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </ImageBackground>
+      </View>
+    );
   }
 
   return (
@@ -344,10 +453,8 @@ export default function PlanningScreen() {
         resizeMode="cover"
         style={styles.background}
       >
-        {/* VOILE NOIR */}
         <View style={styles.darkOverlay} />
 
-        {/* DÉGRADÉ VERTICAL */}
         <LinearGradient
           colors={[
             'rgba(7,9,12,0.34)',
@@ -359,7 +466,6 @@ export default function PlanningScreen() {
           style={StyleSheet.absoluteFill}
         />
 
-        {/* DÉGRADÉ LATÉRAL */}
         <LinearGradient
           colors={[
             'rgba(7,9,12,0.48)',
@@ -376,7 +482,6 @@ export default function PlanningScreen() {
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
           >
-            {/* HEADER */}
             <View style={styles.header}>
               <Pressable
                 onPress={handleProfile}
@@ -410,7 +515,6 @@ export default function PlanningScreen() {
               />
             </View>
 
-            {/* OBJECTIF */}
             <View style={styles.goalCard}>
               <View style={styles.goalLeft}>
                 <Text style={styles.goalEyebrow}>
@@ -431,9 +535,7 @@ export default function PlanningScreen() {
                     {completedSessions}
                   </Text>
 
-                  <Text style={styles.goalDivider}>
-                    /
-                  </Text>
+                  <Text style={styles.goalDivider}>/</Text>
 
                   <Text style={styles.goalTarget}>
                     {weeklyTarget}
@@ -461,12 +563,15 @@ export default function PlanningScreen() {
                 <Text style={styles.goalMessage}>
                   {goalReached
                     ? 'OBJECTIF ATTEINT'
-                    : `${weeklyTarget - completedSessions} SÉANCES À TON RYTHME`}
+                    : `${remainingSessions} ${
+                        remainingSessions === 1
+                          ? 'SÉANCE'
+                          : 'SÉANCES'
+                      } À TON RYTHME`}
                 </Text>
               </View>
             </View>
 
-            {/* SEMAINE */}
             <View style={styles.section}>
               <View style={styles.calendarTitleRow}>
                 <View>
@@ -479,24 +584,18 @@ export default function PlanningScreen() {
                   </Text>
                 </View>
 
-                {/* BOUTON CALENDRIER */}
                 <Pressable
                   onPress={() =>
                     setCalendarOpen((current) => !current)
                   }
                   style={({ pressed }) => [
                     styles.calendarButton,
-                    calendarOpen &&
-                      styles.calendarButtonActive,
+                    calendarOpen && styles.calendarButtonActive,
                     pressed && styles.pressed,
                   ]}
                 >
                   <Ionicons
-                    name={
-                      calendarOpen
-                        ? 'close'
-                        : 'calendar-outline'
-                    }
+                    name={calendarOpen ? 'close' : 'calendar-outline'}
                     size={21}
                     color={
                       calendarOpen
@@ -511,20 +610,16 @@ export default function PlanningScreen() {
                 {week.map((item) => (
                   <Pressable
                     key={item.key}
-                    onPress={() =>
-                      handleCompletedDay(item)
-                    }
+                    onPress={() => handleCompletedDay(item)}
                     style={[
                       styles.dayItem,
-                      item.today &&
-                        styles.dayItemToday,
+                      item.today && styles.dayItemToday,
                     ]}
                   >
                     <Text
                       style={[
                         styles.dayLabel,
-                        item.today &&
-                          styles.dayLabelToday,
+                        item.today && styles.dayLabelToday,
                       ]}
                     >
                       {item.day}
@@ -533,10 +628,7 @@ export default function PlanningScreen() {
                     <View
                       style={[
                         styles.dayCircle,
-
-                        item.completed &&
-                          styles.dayCircleCompleted,
-
+                        item.completed && styles.dayCircleCompleted,
                         item.today &&
                           !item.completed &&
                           styles.dayCircleToday,
@@ -552,8 +644,7 @@ export default function PlanningScreen() {
                         <Text
                           style={[
                             styles.dayNumber,
-                            item.today &&
-                              styles.dayNumberToday,
+                            item.today && styles.dayNumberToday,
                           ]}
                         >
                           {item.number}
@@ -561,17 +652,13 @@ export default function PlanningScreen() {
                       )}
                     </View>
 
-                    {item.today && (
-                      <View style={styles.todayDot} />
-                    )}
+                    {item.today && <View style={styles.todayDot} />}
                   </Pressable>
                 ))}
               </View>
 
-              {/* CALENDRIER DÉPLIANT */}
               {calendarOpen && (
                 <View style={styles.fullCalendar}>
-                  {/* NAVIGATION MOIS */}
                   <View style={styles.fullCalendarHeader}>
                     <Pressable
                       onPress={goPreviousMonth}
@@ -617,21 +704,17 @@ export default function PlanningScreen() {
                     </Pressable>
                   </View>
 
-                  {/* JOURS SEMAINE */}
                   <View style={styles.calendarWeekLabels}>
-                    {CALENDAR_DAY_LABELS.map(
-                      (label, index) => (
-                        <Text
-                          key={`${label}-${index}`}
-                          style={styles.calendarWeekLabel}
-                        >
-                          {label}
-                        </Text>
-                      )
-                    )}
+                    {CALENDAR_DAY_LABELS.map((label, index) => (
+                      <Text
+                        key={`${label}-${index}`}
+                        style={styles.calendarWeekLabel}
+                      >
+                        {label}
+                      </Text>
+                    ))}
                   </View>
 
-                  {/* GRILLE MOIS */}
                   <View style={styles.calendarGrid}>
                     {monthCells.map((item) => {
                       if (item.type === 'empty') {
@@ -646,23 +729,18 @@ export default function PlanningScreen() {
                       return (
                         <Pressable
                           key={item.key}
-                          onPress={() =>
-                            handleCalendarDayPress(item)
-                          }
+                          onPress={() => handleCalendarDayPress(item)}
                           disabled={!item.completed}
                           style={styles.calendarCell}
                         >
                           <View
                             style={[
                               styles.calendarDateCircle,
-
                               item.today &&
                                 !item.completed &&
                                 styles.calendarDateToday,
-
                               item.completed &&
                                 styles.calendarDateCompleted,
-
                               item.today &&
                                 item.completed &&
                                 styles.calendarDateCompletedToday,
@@ -678,7 +756,6 @@ export default function PlanningScreen() {
                               <Text
                                 style={[
                                   styles.calendarDateText,
-
                                   item.today &&
                                     styles.calendarDateTextToday,
                                 ]}
@@ -689,11 +766,7 @@ export default function PlanningScreen() {
                           </View>
 
                           {item.completed && (
-                            <Text
-                              style={
-                                styles.calendarCompletedNumber
-                              }
-                            >
+                            <Text style={styles.calendarCompletedNumber}>
                               {item.day}
                             </Text>
                           )}
@@ -702,7 +775,6 @@ export default function PlanningScreen() {
                     })}
                   </View>
 
-                  {/* LÉGENDE */}
                   <View style={styles.calendarLegend}>
                     <View style={styles.legendItem}>
                       <View style={styles.legendCompleted}>
@@ -738,7 +810,6 @@ export default function PlanningScreen() {
               </Text>
             </View>
 
-            {/* PROCHAINE SÉANCE */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 PROCHAINE SÉANCE
@@ -768,8 +839,7 @@ export default function PlanningScreen() {
                 onPress={handlePrepareWorkout}
                 style={({ pressed }) => [
                   styles.prepareButton,
-                  pressed &&
-                    styles.prepareButtonPressed,
+                  pressed && styles.prepareButtonPressed,
                 ]}
               >
                 <Text style={styles.prepareButtonText}>
@@ -784,7 +854,6 @@ export default function PlanningScreen() {
               </Pressable>
             </View>
 
-            {/* HISTORIQUE */}
             <View style={styles.section}>
               <View style={styles.historyHeader}>
                 <Text style={styles.sectionTitle}>
@@ -792,61 +861,66 @@ export default function PlanningScreen() {
                 </Text>
 
                 <Text style={styles.historyCount}>
-                  {HISTORY.length} DERNIÈRES
+                  {history.length} DERNIÈRES
                 </Text>
               </View>
 
-              <View style={styles.historyList}>
-                {HISTORY.map((session) => (
-                  <Pressable
-                    key={session.id}
-                    onPress={() =>
-                      handleHistoryPress(session)
-                    }
-                    style={({ pressed }) => [
-                      styles.historyCard,
-                      pressed &&
-                        styles.historyCardPressed,
-                    ]}
-                  >
-                    <View style={styles.historyCheck}>
-                      <Ionicons
-                        name="checkmark"
-                        size={16}
-                        color={colors.brandWhite}
-                      />
-                    </View>
-
-                    <View style={styles.historyMain}>
-                      <Text style={styles.historyDate}>
-                        {session.day}
-                      </Text>
-
-                      <Text style={styles.historyTitle}>
-                        {session.title}
-                      </Text>
-
-                      <View style={styles.historyMeta}>
-                        <Text style={styles.historyMetaText}>
-                          {session.format}
-                        </Text>
-
-                        <View style={styles.metaDot} />
-
-                        <Text style={styles.historyMetaText}>
-                          {session.duration}
-                        </Text>
+              {history.length > 0 ? (
+                <View style={styles.historyList}>
+                  {history.map((session) => (
+                    <Pressable
+                      key={session.id}
+                      onPress={() => handleHistoryPress(session)}
+                      style={({ pressed }) => [
+                        styles.historyCard,
+                        pressed && styles.historyCardPressed,
+                      ]}
+                    >
+                      <View style={styles.historyCheck}>
+                        <Ionicons
+                          name="checkmark"
+                          size={16}
+                          color={colors.brandWhite}
+                        />
                       </View>
-                    </View>
 
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={colors.textMuted}
-                    />
-                  </Pressable>
-                ))}
-              </View>
+                      <View style={styles.historyMain}>
+                        <Text style={styles.historyDate}>
+                          {session.day}
+                        </Text>
+
+                        <Text style={styles.historyTitle}>
+                          {session.title}
+                        </Text>
+
+                        <View style={styles.historyMeta}>
+                          <Text style={styles.historyMetaText}>
+                            {session.format}
+                          </Text>
+
+                          <View style={styles.metaDot} />
+
+                          <Text style={styles.historyMetaText}>
+                            {session.duration}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={colors.textMuted}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyHistoryCard}>
+                  <Text style={styles.emptyHistoryText}>
+                    Tes séances terminées apparaîtront ici.
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.bottomSpace} />
@@ -881,7 +955,42 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
 
-  /* HEADER */
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  errorState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    gap: 14,
+  },
+
+  errorTitle: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 12,
+    letterSpacing: 0.8,
+    color: colors.textSecondary,
+  },
+
+  retryButton: {
+    minWidth: 130,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  retryButtonText: {
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 17,
+    letterSpacing: 1,
+    color: colors.brandWhite,
+  },
 
   header: {
     minHeight: 74,
@@ -929,8 +1038,6 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
   },
-
-  /* OBJECTIF */
 
   goalCard: {
     minHeight: 114,
@@ -1007,8 +1114,6 @@ const styles = StyleSheet.create({
     marginTop: 7,
   },
 
-  /* SECTIONS */
-
   section: {
     marginTop: 26,
   },
@@ -1020,8 +1125,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     color: colors.textPrimary,
   },
-
-  /* SEMAINE */
 
   calendarTitleRow: {
     flexDirection: 'row',
@@ -1130,8 +1233,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 9,
   },
-
-  /* GRAND CALENDRIER */
 
   fullCalendar: {
     marginTop: 12,
@@ -1296,8 +1397,6 @@ const styles = StyleSheet.create({
     marginTop: 13,
   },
 
-  /* PROCHAINE SÉANCE */
-
   nextWorkoutCard: {
     marginTop: 10,
     minHeight: 98,
@@ -1365,8 +1464,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.1,
     color: colors.brandWhite,
   },
-
-  /* HISTORIQUE */
 
   historyHeader: {
     flexDirection: 'row',
@@ -1453,6 +1550,24 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 2,
     backgroundColor: colors.textMuted,
+  },
+
+  emptyHistoryCard: {
+    minHeight: 74,
+    marginTop: 10,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(17,21,26,0.91)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    justifyContent: 'center',
+  },
+
+  emptyHistoryText: {
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textMuted,
   },
 
   bottomSpace: {

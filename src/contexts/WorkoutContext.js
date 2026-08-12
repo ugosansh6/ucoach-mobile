@@ -23,12 +23,17 @@ const INITIAL_WORKOUT = {
   backendVersion: null,
   title: null,
   format: null,
+  mechanic: null,
+  formatVariant: null,
   plannedDuration: null,
   blocks: {},
   rawBlocks: [],
   exercises: [],
   meta: {},
   preparationSnapshot: null,
+  validatedBlocks: [],
+  wodRevealed: false,
+  wodRuntime: null,
 };
 
 const INITIAL_COMPLETION = {
@@ -36,132 +41,89 @@ const INITIAL_COMPLETION = {
   rpe: null,
   loads: {},
   notes: '',
+  exerciseFeedback: {},
+  protocolFeedback: {},
 };
 
-export function WorkoutProvider({
-  children,
-}) {
-  const [
-    preparation,
-    setPreparation,
-  ] = useState(
-    INITIAL_PREPARATION
-  );
-
-  const [
-    workout,
-    setWorkout,
-  ] = useState(
-    INITIAL_WORKOUT
-  );
-
-  const [
-    completion,
-    setCompletion,
-  ] = useState(
-    INITIAL_COMPLETION
-  );
+export function WorkoutProvider({ children }) {
+  const [preparation, setPreparation] =
+    useState(INITIAL_PREPARATION);
+  const [workout, setWorkout] =
+    useState(INITIAL_WORKOUT);
+  const [completion, setCompletion] =
+    useState(INITIAL_COMPLETION);
 
   const updatePreparation =
     useCallback((values) => {
-      setPreparation(
-        (current) => ({
-          ...current,
-          ...values,
-        })
-      );
+      setPreparation((current) => ({
+        ...current,
+        ...values,
+      }));
     }, []);
 
   const setGeneratedWorkout =
-    useCallback(
-      (generatedWorkout) => {
-        setWorkout({
-          ...INITIAL_WORKOUT,
-          ...generatedWorkout,
-          status: 'generated',
-        });
-      },
-      []
-    );
+    useCallback((generatedWorkout) => {
+      setWorkout({
+        ...INITIAL_WORKOUT,
+        ...generatedWorkout,
+        status: 'generated',
+      });
+
+      setCompletion(
+        INITIAL_COMPLETION
+      );
+    }, []);
 
   const updateWorkout =
     useCallback((values) => {
-      setWorkout(
-        (current) => ({
-          ...current,
-          ...values,
-        })
-      );
+      setWorkout((current) => ({
+        ...current,
+        ...values,
+      }));
     }, []);
 
   const updateExercise =
-    useCallback(
-      (
-        exerciseId,
-        values
-      ) => {
-        setWorkout(
-          (current) => ({
-            ...current,
-
-            exercises:
-              current.exercises.map(
-                (exercise) =>
-                  exercise.id ===
-                  exerciseId
-                    ? {
-                        ...exercise,
-                        ...values,
-                      }
-                    : exercise
-              ),
-          })
-        );
-      },
-      []
-    );
+    useCallback((exerciseId, values) => {
+      setWorkout((current) => ({
+        ...current,
+        exercises:
+          current.exercises.map(
+            (exercise) =>
+              exercise.id === exerciseId
+                ? {
+                    ...exercise,
+                    ...values,
+                  }
+                : exercise
+          ),
+      }));
+    }, []);
 
   const updateCompletion =
     useCallback((values) => {
-      setCompletion(
-        (current) => ({
-          ...current,
-          ...values,
-        })
-      );
+      setCompletion((current) => ({
+        ...current,
+        ...values,
+      }));
     }, []);
 
   const setExerciseLoad =
-    useCallback(
-      (
-        exerciseId,
-        value
-      ) => {
-        setCompletion(
-          (current) => ({
-            ...current,
-
-            loads: {
-              ...current.loads,
-              [exerciseId]:
-                value,
-            },
-          })
-        );
-      },
-      []
-    );
+    useCallback((exerciseId, value) => {
+      setCompletion((current) => ({
+        ...current,
+        loads: {
+          ...current.loads,
+          [exerciseId]: value,
+        },
+      }));
+    }, []);
 
   const resetWorkout =
     useCallback(() => {
       setPreparation(
         INITIAL_PREPARATION
       );
-
-      setWorkout(
-        INITIAL_WORKOUT
-      );
-
+      setWorkout(INITIAL_WORKOUT);
       setCompletion(
         INITIAL_COMPLETION
       );
@@ -172,7 +134,6 @@ export function WorkoutProvider({
       preparation,
       workout,
       completion,
-
       updatePreparation,
       setGeneratedWorkout,
       updateWorkout,
@@ -196,9 +157,7 @@ export function WorkoutProvider({
   );
 
   return (
-    <WorkoutContext.Provider
-      value={value}
-    >
+    <WorkoutContext.Provider value={value}>
       {children}
     </WorkoutContext.Provider>
   );

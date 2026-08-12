@@ -149,6 +149,10 @@ export default function ProfileScreen() {
     router.push('/profile/frequency');
   }
 
+  function handleEditEquipment() {
+  router.push('/profile/equipment');
+}
+
   function handleEditPrecautions() {
     router.push('/profile/precautions');
   }
@@ -498,7 +502,16 @@ export default function ProfileScreen() {
                   onPress={
                     handleEditFrequency
                   }
+
                 />
+                <ProfileRow
+                   icon="barbell-outline"
+                   label="MON MATÉRIEL"
+                   value="GÉRER MON INVENTAIRE"
+                  onPress={
+                  handleEditEquipment
+                     }
+                 />
 
                 <ProfileRow
                   icon="medical-outline"

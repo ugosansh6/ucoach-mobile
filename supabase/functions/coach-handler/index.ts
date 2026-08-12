@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v2.0-c4";
+const VERSION = "coach-handler-v2.1-a1-real-inventory";
 const C4_VERSION = "c4-final-v1.5";
 const MAX_ATTEMPTS = 3;
 
@@ -191,7 +191,7 @@ serve(async (req: Request) => {
     }
 
     return json(
-      { session_id: accepted.session_id, status: "generated", ...accepted },
+      { ...accepted, status: "generated" },
       200,
     );
   } catch (error) {
@@ -320,11 +320,32 @@ async function solveC4(
     exactWodMinutes: number;
   },
 ): Promise<C4Result> {
+  /*
+   * A1 — Inventaire matériel réel.
+   *
+   * Le check-in continue d'indiquer quels matériels sont disponibles aujourd'hui.
+   * Mais cette sélection est maintenant résolue contre user_equipment_inventory
+   * afin de récupérer les quantités et charges réellement connues.
+   *
+   * Si un matériel n'a pas encore été détaillé par l'utilisateur,
+   * le resolver SQL conserve automatiquement le fallback legacy pour ce
+   * matériel uniquement.
+   */
   const { data: inventory, error: inventoryError } = await supabase.rpc(
-    "c4_legacy_inventory_from_equipment_names",
-    { p_names: args.availableEquipment.length ? args.availableEquipment : ["Aucun"] },
+    "resolve_user_equipment_inventory",
+    {
+      p_user_id: args.userId,
+      p_selected_names:
+        args.availableEquipment.length > 0
+          ? args.availableEquipment
+          : ["Aucun"],
+      p_policy_key: "c4-final-default",
+    },
   );
-  if (inventoryError) throw new Error(inventoryError.message);
+
+  if (inventoryError) {
+    throw new Error(inventoryError.message);
+  }
 
   const { data, error } = await supabase.rpc("solve_session_engine_c4", {
     p_user_id: args.userId,
@@ -539,8 +560,10 @@ async function postProcess(
 
   if (warmup && (warmup.exercises ?? []).length > 4) {
     const original = warmup.exercises;
-    const targetPatterns = new Set(
-      (wod?.exercises ?? []).map((e: any) => e.pattern).filter(Boolean),
+    const targetPatterns = new Set<string>(
+      (wod?.exercises ?? [])
+        .map((e: any) => String(e.pattern ?? ""))
+        .filter(Boolean),
     );
     const kept = selectWarmupFour(original, exerciseMeta, targetPatterns, focus);
     const keepIds = new Set(kept.map((e: any) => e.id));
@@ -703,7 +726,10 @@ function selectWarmupFour(
   return selected;
 }
 
-async function loadMeta(supabase: any, ids: string[]) {
+async function loadMeta(
+  supabase: any,
+  ids: string[],
+): Promise<Map<string, any>> {
   if (!ids.length) return new Map<string, any>();
   const { data, error } = await supabase
     .from("exercises")
@@ -712,10 +738,15 @@ async function loadMeta(supabase: any, ids: string[]) {
     )
     .in("id", ids);
   if (error) throw new Error(error.message);
-  return new Map((data ?? []).map((e: any) => [e.id, e]));
+  return new Map<string, any>(
+    (data ?? []).map((e: any) => [String(e.id), e]),
+  );
 }
 
-async function loadExerciseDetails(supabase: any, ids: string[]) {
+async function loadExerciseDetails(
+  supabase: any,
+  ids: string[],
+): Promise<Map<string, any>> {
   const { data, error } = await supabase
     .from("exercises")
     .select(
@@ -723,14 +754,16 @@ async function loadExerciseDetails(supabase: any, ids: string[]) {
     )
     .in("id", ids);
   if (error) throw new Error(error.message);
-  return new Map((data ?? []).map((e: any) => [e.id, e]));
+  return new Map<string, any>(
+    (data ?? []).map((e: any) => [String(e.id), e]),
+  );
 }
 
 async function loadCapabilitySnapshots(
   supabase: any,
   userId: string,
   ids: string[],
-) {
+): Promise<Map<string, any>> {
   const { data, error } = await supabase
     .from("user_exercise_coach_state")
     .select(
@@ -740,9 +773,9 @@ async function loadCapabilitySnapshots(
     .in("exercise_id", ids);
   if (error) throw new Error(error.message);
 
-  return new Map(
+  return new Map<string, any>(
     (data ?? []).map((row: any) => [
-      row.exercise_id,
+      String(row.exercise_id),
       { source: "user_exercise_coach_state", ...row },
     ]),
   );

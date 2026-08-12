@@ -1,7 +1,7 @@
-// preparation.js — aligné moteur bright-handler v2.4.2
-import { router } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Image,
+  PanResponder,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -9,6 +9,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import {
+  router,
+  useFocusEffect,
+} from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import {
@@ -16,48 +20,18 @@ import {
   spacing,
   typography,
 } from '../../src/constants';
-
 import {
   useWorkout,
 } from '../../src/contexts/WorkoutContext';
+import {
+  getEquipmentCatalog,
+  getUserEquipmentInventory,
+} from '../../src/services/equipmentService';
 
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
 const DURATIONS = [20, 30, 45, 60, 75, 90];
 
-/*
- * Les libellés ci-dessous correspondent exactement
- * aux noms de public.equipment dans Supabase.
- *
- * Exception volontaire :
- * "Poids du corps" est un libellé UI plus naturel.
- * workoutService.js le convertit en "Aucun"
- * avant l'appel à bright-handler.
- */
-const EQUIPMENT = [
-  'Poids du corps',
-  'Tapis',
-  'Corde à sauter',
-  'Haltères',
-  'Kettlebell',
-  'Élastiques',
-  'TRX',
-  'Barre de traction',
-  'Banc',
-  'Medball',
-  'Box',
-  'Step',
-  'Foam roller',
-];
-
-const INJURIES = [
-  'Aucune',
-  'Poignet',
-  'Coude',
-  'Épaule',
-  'Genou',
-  'Bas du dos',
-];
 
 const REGIONS = [
   {
@@ -82,19 +56,157 @@ const REGIONS = [
   },
 ];
 
+/*
+ * Ces matériels peuvent avoir une charge numérique.
+ * Une charge non renseignée n'empêche jamais de les sélectionner.
+ * Le backend sait alors que le matériel existe mais n'invente aucun poids.
+ */
+const LOAD_CAPABLE_EQUIPMENT_IDS = new Set([
+  'E03', // Haltères
+  'E04', // Kettlebell
+  'E09', // Medball
+]);
+
+function buildReferenceEquipment(
+  catalog,
+  inventory
+) {
+  const rowsByEquipment = new Map();
+
+  for (const row of inventory ?? []) {
+    const equipmentId =
+      String(row.equipment_id ?? '');
+
+    if (!equipmentId || equipmentId === 'E00') {
+      continue;
+    }
+
+    if (!rowsByEquipment.has(equipmentId)) {
+      rowsByEquipment.set(
+        equipmentId,
+        []
+      );
+    }
+
+    rowsByEquipment
+      .get(equipmentId)
+      .push(row);
+  }
+
+  return (catalog ?? [])
+    .filter(
+      (item) =>
+        item.id !== 'E00' &&
+        rowsByEquipment.has(item.id)
+    )
+    .map((item) => {
+      const rows =
+        rowsByEquipment.get(item.id) ?? [];
+
+      const supportsLoad =
+        LOAD_CAPABLE_EQUIPMENT_IDS.has(
+          item.id
+        );
+
+      const hasConfirmedLoad =
+        rows.some((row) =>
+          [
+            'fixed_load',
+            'adjustable_load',
+          ].includes(
+            row.inventory_mode
+          )
+        );
+
+      const hasUnknownLoad =
+        supportsLoad &&
+        !hasConfirmedLoad &&
+        rows.some(
+          (row) =>
+            row.inventory_mode ===
+            'load_unknown'
+        );
+
+      const quantity = rows.reduce(
+        (total, row) =>
+          total +
+          Math.max(
+            1,
+            Number(row.quantity ?? 1)
+          ),
+        0
+      );
+
+      const fixedLoads = rows
+        .filter(
+          (row) =>
+            row.inventory_mode ===
+              'fixed_load' &&
+            row.load_kg != null
+        )
+        .map((row) => ({
+          quantity: Math.max(
+            1,
+            Number(row.quantity ?? 1)
+          ),
+          load: Number(row.load_kg),
+        }));
+
+      const adjustable = rows.find(
+        (row) =>
+          row.inventory_mode ===
+          'adjustable_load'
+      );
+
+      let detail = null;
+
+      if (fixedLoads.length > 0) {
+        detail = fixedLoads
+          .map(
+            (row) =>
+              `${row.quantity}×${row.load} kg`
+          )
+          .join(' · ');
+      } else if (adjustable) {
+        detail = `${adjustable.min_load_kg}–${adjustable.max_load_kg} kg`;
+      } else if (hasUnknownLoad) {
+        detail = 'CHARGE NON RENSEIGNÉE';
+      } else if (quantity > 1) {
+        detail = `×${quantity}`;
+      }
+
+      return {
+        id: item.id,
+        name: item.name,
+        rows,
+        quantity,
+        supportsLoad,
+        hasConfirmedLoad,
+        hasUnknownLoad,
+        detail,
+      };
+    });
+}
+
 export default function PreparationScreen() {
   const {
     preparation,
     updatePreparation,
   } = useWorkout();
 
-  /*
-   * Valeurs par défaut de l'interface.
-   *
-   * Si l'utilisateur revient sur cet écran,
-   * les valeurs déjà enregistrées dans le
-   * WorkoutContext sont automatiquement reprises.
-   */
+  const [
+    referenceEquipment,
+    setReferenceEquipment,
+  ] = useState([]);
+  const [
+    equipmentLoading,
+    setEquipmentLoading,
+  ] = useState(true);
+  const [
+    equipmentError,
+    setEquipmentError,
+  ] = useState(null);
+
   const duration =
     preparation.duration ?? 45;
 
@@ -114,8 +226,123 @@ export default function PreparationScreen() {
   const region =
     preparation.region ?? null;
 
+
+  const loadReferenceEquipment =
+    useCallback(async () => {
+      setEquipmentLoading(true);
+      setEquipmentError(null);
+
+      try {
+        const [catalog, inventory] =
+          await Promise.all([
+            getEquipmentCatalog(),
+            getUserEquipmentInventory(),
+          ]);
+
+        const reference =
+          buildReferenceEquipment(
+            catalog,
+            inventory
+          );
+
+        setReferenceEquipment(reference);
+
+        const currentEquipment =
+          Array.isArray(
+            preparation.equipment
+          )
+            ? preparation.equipment
+            : [];
+
+        const allowedNames = new Set(
+          reference.map(
+            (item) => item.name
+          )
+        );
+
+        if (currentEquipment.length === 0) {
+          /*
+           * Première ouverture du check-in :
+           * on part du matériel de référence du profil.
+           * L'utilisateur n'a plus qu'à décocher ce qui
+           * n'est pas disponible aujourd'hui.
+           */
+          updatePreparation({
+            equipment:
+              reference.length > 0
+                ? reference.map(
+                    (item) => item.name
+                  )
+                : ['Poids du corps'],
+          });
+        } else {
+          const sanitized =
+            currentEquipment.filter(
+              (name) =>
+                name ===
+                  'Poids du corps' ||
+                allowedNames.has(name)
+            );
+
+          const normalized =
+            sanitized.length > 0
+              ? sanitized
+              : ['Poids du corps'];
+
+          if (
+            normalized.join('|') !==
+            currentEquipment.join('|')
+          ) {
+            updatePreparation({
+              equipment: normalized,
+            });
+          }
+        }
+      } catch (error) {
+        console.error(
+          'F-C3 equipment loading error',
+          error
+        );
+
+        setEquipmentError(
+          error instanceof Error
+            ? error.message
+            : 'Impossible de charger ton matériel.'
+        );
+      } finally {
+        setEquipmentLoading(false);
+      }
+    }, [
+      preparation.equipment,
+      updatePreparation,
+    ]);
+
+  /*
+   * Recharge l'inventaire à chaque retour sur l'écran.
+   * Si l'utilisateur ouvre "Mon matériel" puis revient,
+   * les changements sont donc visibles immédiatement.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      loadReferenceEquipment();
+    }, [loadReferenceEquipment])
+  );
+
   function handleBack() {
     router.back();
+  }
+
+  function handleManageEquipment() {
+    router.push({
+      pathname: '/profile/equipment',
+      params: {
+        returnTo: '/workout/preparation',
+      },
+    });
+  }
+
+  function handleManageInjuries() {
+    router.push('/workout/injuries');
   }
 
   function handleDuration(item) {
@@ -126,8 +353,10 @@ export default function PreparationScreen() {
 
   function toggleEquipment(item) {
     let nextEquipment;
+    const isAlreadySelected =
+      equipment.includes(item);
 
-    if (equipment.includes(item)) {
+    if (isAlreadySelected) {
       const filtered =
         equipment.filter(
           (value) => value !== item
@@ -156,48 +385,7 @@ export default function PreparationScreen() {
     updatePreparation({
       equipment: nextEquipment,
     });
-  }
 
-  function toggleInjury(item) {
-    if (item === 'Aucune') {
-      updatePreparation({
-        painZones: ['Aucune'],
-      });
-
-      return;
-    }
-
-    const withoutNone =
-      injuries.filter(
-        (value) =>
-          value !== 'Aucune'
-      );
-
-    let nextInjuries;
-
-    if (
-      withoutNone.includes(item)
-    ) {
-      const filtered =
-        withoutNone.filter(
-          (value) =>
-            value !== item
-        );
-
-      nextInjuries =
-        filtered.length === 0
-          ? ['Aucune']
-          : filtered;
-    } else {
-      nextInjuries = [
-        ...withoutNone,
-        item,
-      ];
-    }
-
-    updatePreparation({
-      painZones: nextInjuries,
-    });
   }
 
   function handleReadiness(value) {
@@ -216,8 +404,6 @@ export default function PreparationScreen() {
   }
 
   function getReadinessLabel() {
-    // Aligné avec bright-handler :
-    // 1-4 = low, 5-7 = normal, 8-10 = high.
     if (readiness <= 4) {
       return 'FAIBLE';
     }
@@ -230,14 +416,6 @@ export default function PreparationScreen() {
   }
 
   function handleGenerate() {
-    /*
-     * Important :
-     *
-     * Même si l'utilisateur n'a touché
-     * à aucune valeur, on enregistre
-     * les valeurs par défaut dans le
-     * WorkoutContext avant de continuer.
-     */
     updatePreparation({
       duration,
       equipment,
@@ -263,15 +441,13 @@ export default function PreparationScreen() {
           false
         }
       >
-        {/* HEADER */}
         <View style={styles.header}>
           <Pressable
             onPress={handleBack}
             hitSlop={12}
             style={({ pressed }) => [
               styles.iconButton,
-              pressed &&
-                styles.pressed,
+              pressed && styles.pressed,
             ]}
           >
             <Ionicons
@@ -295,9 +471,7 @@ export default function PreparationScreen() {
             </Text>
 
             <Text
-              style={
-                styles.headerTitle
-              }
+              style={styles.headerTitle}
             >
               PRÉPARATION
               <Text
@@ -316,143 +490,184 @@ export default function PreparationScreen() {
         </View>
 
         <Text style={styles.intro}>
-          Quelques infos avant de
-          construire ta séance.
+          Quelques infos avant de construire ta séance.
         </Text>
 
-        {/* DURÉE */}
         <SectionTitle
           title="TEMPS DISPONIBLE"
-          subtitle="Temps total réel, pauses et transitions comprises."
+          subtitle="Temps total de ta séance."
+        />
+
+        <DurationSlider
+          value={duration}
+          onChange={handleDuration}
         />
 
         <View
-          style={styles.durationRow}
+          style={styles.equipmentTitleRow}
         >
-          {DURATIONS.map(
-            (item) => {
-              const selected =
-                duration === item;
-
-              return (
-                <Pressable
-                  key={item}
-                  onPress={() =>
-                    handleDuration(
-                      item
-                    )
-                  }
-                  style={[
-                    styles.durationButton,
-                    selected &&
-                      styles.durationButtonSelected,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.durationValue,
-                      selected &&
-                        styles.durationValueSelected,
-                    ]}
-                  >
-                    {item}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.durationUnit,
-                      selected &&
-                        styles.durationUnitSelected,
-                    ]}
-                  >
-                    MIN
-                  </Text>
-                </Pressable>
-              );
-            }
-          )}
+          <View style={styles.flexOne}>
+            <SectionTitle
+              title="MATÉRIEL DU JOUR"
+            />
+          </View>
         </View>
 
-        {/* MATÉRIEL */}
-        <SectionTitle
-          title="MATÉRIEL DU JOUR"
-          subtitle="Sélectionne ton matériel disponible. Sans matériel, garde Poids du corps."
-        />
+        {equipmentLoading ? (
+          <View style={styles.infoCard}>
+            <Ionicons
+              name="sync-outline"
+              size={20}
+              color={colors.primaryLight}
+            />
+            <Text style={styles.infoText}>
+              Chargement de ton matériel…
+            </Text>
+          </View>
+        ) : equipmentError ? (
+          <View style={styles.errorCard}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={20}
+              color={colors.brandRed}
+            />
 
-        <View style={styles.chipGrid}>
-          {EQUIPMENT.map(
-            (item) => {
-              const selected =
-                equipment.includes(
-                  item
-                );
+            <View style={styles.flexOne}>
+              <Text style={styles.errorTitle}>
+                MATÉRIEL INDISPONIBLE
+              </Text>
+              <Text style={styles.errorText}>
+                {equipmentError}
+              </Text>
+            </View>
 
-              return (
-                <Pressable
-                  key={item}
-                  onPress={() =>
-                    toggleEquipment(
-                      item
-                    )
-                  }
-                  style={[
-                    styles.chip,
-                    selected &&
-                      styles.chipSelected,
-                  ]}
-                >
+            <Pressable
+              onPress={loadReferenceEquipment}
+              style={styles.retryButton}
+            >
+              <Text
+                style={styles.retryButtonText}
+              >
+                RÉESSAYER
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <View style={styles.chipGrid}>
+              <EquipmentChip
+                item={{
+                  name: 'Poids du corps',
+                  detail: null,
+                  hasUnknownLoad: false,
+                }}
+                selected={equipment.includes(
+                  'Poids du corps'
+                )}
+                onPress={() =>
+                  toggleEquipment(
+                    'Poids du corps'
+                  )
+                }
+                fullWidth
+              />
+
+              {referenceEquipment.map(
+                (item) => (
+                  <EquipmentChip
+                    key={item.id}
+                    item={item}
+                    selected={
+                      equipment.includes(
+                        item.name
+                      )
+                    }
+                    onPress={() =>
+                      toggleEquipment(
+                        item.name
+                      )
+                    }
+                  />
+                )
+              )}
+            </View>
+
+            <Pressable
+              onPress={handleManageEquipment}
+              style={({ pressed }) => [
+                styles.inlineAction,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.inlineActionText}>
+                MODIFIER MON MATÉRIEL
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.primaryLight}
+              />
+            </Pressable>
+
+            {referenceEquipment.length === 0 && (
+              <Pressable
+                onPress={handleManageEquipment}
+                style={styles.emptyEquipmentCard}
+              >
+                <Ionicons
+                  name="barbell-outline"
+                  size={22}
+                  color={colors.primaryLight}
+                />
+
+                <View style={styles.flexOne}>
                   <Text
-                    style={[
-                      styles.chipText,
-                      selected &&
-                        styles.chipTextSelected,
-                    ]}
+                    style={styles.emptyEquipmentTitle}
                   >
-                    {item.toUpperCase()}
+                    MODIFIER MON MATÉRIEL
                   </Text>
-                </Pressable>
-              );
-            }
-          )}
-        </View>
+                  <Text
+                    style={styles.emptyEquipmentText}
+                  >
+                    Ajoute le matériel que tu possèdes pour le retrouver ici à chaque préparation.
+                  </Text>
+                </View>
 
-        {/* FORME DU JOUR */}
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={colors.textMuted}
+                />
+              </Pressable>
+            )}
+          </>
+        )}
+
         <SectionTitle
           title="FORME DU JOUR"
-          subtitle="Comment tu te sens maintenant ?"
+          subtitle="Comment tu te sens aujourd’hui ?"
         />
 
         <View
-          style={
-            styles.readinessCard
-          }
+          style={styles.readinessCard}
         >
           <View
-            style={
-              styles.readinessHeader
-            }
+            style={styles.readinessHeader}
           >
             <View>
               <Text
-                style={
-                  styles.readinessValue
-                }
+                style={styles.readinessValue}
               >
                 {readiness}
-
                 <Text
-                  style={
-                    styles.readinessTotal
-                  }
+                  style={styles.readinessTotal}
                 >
                   /10
                 </Text>
               </Text>
 
               <Text
-                style={
-                  styles.readinessLabel
-                }
+                style={styles.readinessLabel}
               >
                 {getReadinessLabel()}
               </Text>
@@ -472,37 +687,27 @@ export default function PreparationScreen() {
           </View>
 
           <View
-            style={
-              styles.readinessNumbers
-            }
+            style={styles.readinessNumbers}
           >
             {Array.from(
-              {
-                length: 10,
-              },
+              { length: 10 },
               (_, index) => {
-                const value =
-                  index + 1;
-
+                const value = index + 1;
                 const selected =
-                  readiness ===
-                  value;
+                  readiness === value;
 
                 return (
                   <Pressable
                     key={value}
                     onPress={() =>
-                      handleReadiness(
-                        value
-                      )
+                      handleReadiness(value)
                     }
                     style={[
                       styles.readinessNumber,
                       selected &&
                         styles.readinessNumberSelected,
                       selected &&
-                        readiness <=
-                          4 &&
+                        readiness <= 4 &&
                         styles.readinessNumberLow,
                     ]}
                   >
@@ -522,111 +727,112 @@ export default function PreparationScreen() {
           </View>
 
           <View
-            style={
-              styles.readinessScale
-            }
+            style={styles.readinessScale}
           >
-            <Text
-              style={styles.scaleLow}
-            >
+            <Text style={styles.scaleLow}>
               FAIBLE
             </Text>
-
             <Text
-              style={
-                styles.scaleNormal
-              }
+              style={styles.scaleNormal}
             >
               NORMAL
             </Text>
-
-            <Text
-              style={
-                styles.scaleHigh
-              }
-            >
+            <Text style={styles.scaleHigh}>
               TRÈS EN FORME
             </Text>
           </View>
         </View>
 
-        {/* GÊNE OU BLESSURE */}
         <SectionTitle
           title="GÊNE OU BLESSURE"
-          subtitle="Indique ce qu’il faut éviter ou adapter aujourd’hui."
         />
 
-        <View style={styles.chipGrid}>
-          {INJURIES.map(
-            (item) => {
-              const selected =
-                injuries.includes(
-                  item
-                );
+        <View style={styles.injurySummaryCard}>
+          <View style={styles.injurySummaryMain}>
+            <Ionicons
+              name={
+                injuries.length === 1 &&
+                injuries[0] === 'Aucune'
+                  ? 'shield-checkmark-outline'
+                  : 'medical-outline'
+              }
+              size={21}
+              color={
+                injuries.length === 1 &&
+                injuries[0] === 'Aucune'
+                  ? colors.primaryLight
+                  : colors.brandRed
+              }
+            />
 
-              return (
-                <Pressable
-                  key={item}
-                  onPress={() =>
-                    toggleInjury(item)
-                  }
-                  style={[
-                    styles.chip,
-                    selected &&
-                      styles.chipSelected,
-                    selected &&
-                      item !==
-                        'Aucune' &&
-                      styles.injurySelected,
-                  ]}
+            <View style={styles.flexOne}>
+              <Text style={styles.injurySummaryTitle}>
+                {injuries.length === 1 &&
+                injuries[0] === 'Aucune'
+                  ? 'AUCUNE GÊNE'
+                  : `${injuries.length} ZONE${
+                      injuries.length > 1 ? 'S' : ''
+                    } À PROTÉGER`}
+              </Text>
+
+              {!(
+                injuries.length === 1 &&
+                injuries[0] === 'Aucune'
+              ) && (
+                <Text
+                  numberOfLines={2}
+                  style={styles.injurySummaryText}
                 >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      selected &&
-                        styles.chipTextSelected,
-                      selected &&
-                        item !==
-                          'Aucune' &&
-                        styles.injuryTextSelected,
-                    ]}
-                  >
-                    {item.toUpperCase()}
-                  </Text>
-                </Pressable>
-              );
-            }
-          )}
+                  {injuries.join(' · ')}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <Pressable
+            onPress={handleManageInjuries}
+            style={({ pressed }) => [
+              styles.inlineAction,
+              styles.injuryInlineAction,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.inlineActionText}>
+              MODIFIER MES GÊNES
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={colors.primaryLight}
+            />
+          </Pressable>
         </View>
 
-        {/* ZONE OPTIONNELLE */}
         <SectionTitle
           title="ENVIE DU JOUR"
-          subtitle="Optionnel. Par défaut, UGEROD choisit selon ton historique et ta séance du jour."
+          subtitle="Optionnel. Par défaut, UGEROD choisit selon tes besoins."
         />
 
-        <View
-          style={styles.regionGrid}
-        >
-          {REGIONS.map(
-            (item) => {
-              const selected =
-                region === item.id;
+        <View style={styles.regionGrid}>
+          {REGIONS.map((item) => {
+            const selected =
+              region === item.id;
 
-              return (
-                <Pressable
-                  key={item.id ?? 'auto-region'}
-                  onPress={() =>
-                    handleRegion(
-                      item.id
-                    )
-                  }
-                  style={[
-                    styles.regionButton,
-                    selected &&
-                      styles.regionButtonSelected,
-                  ]}
-                >
+            return (
+              <Pressable
+                key={
+                  item.id ?? 'auto-region'
+                }
+                onPress={() =>
+                  handleRegion(item.id)
+                }
+                style={[
+                  styles.regionButton,
+                  selected &&
+                    styles.regionButtonSelected,
+                ]}
+              >
+                <View style={styles.regionButtonContent}>
                   <Text
                     style={[
                       styles.regionText,
@@ -636,25 +842,34 @@ export default function PreparationScreen() {
                   >
                     {item.label}
                   </Text>
-                </Pressable>
-              );
-            }
-          )}
+
+                  {selected && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={colors.primaryLight}
+                    />
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* CTA */}
         <Pressable
           onPress={handleGenerate}
+          disabled={equipmentLoading}
           style={({ pressed }) => [
             styles.generateButton,
+            equipmentLoading &&
+              styles.generateButtonDisabled,
             pressed &&
+              !equipmentLoading &&
               styles.generateButtonPressed,
           ]}
         >
           <Text
-            style={
-              styles.generateButtonText
-            }
+            style={styles.generateButtonText}
           >
             GÉNÉRER MA SÉANCE
           </Text>
@@ -662,17 +877,278 @@ export default function PreparationScreen() {
           <Ionicons
             name="flash-outline"
             size={20}
-            color={
-              colors.brandWhite
-            }
+            color={colors.brandWhite}
           />
         </Pressable>
 
-        <View
-          style={styles.bottomSpace}
-        />
+        <View style={styles.bottomSpace} />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function EquipmentChip({
+  item,
+  selected,
+  onPress,
+  fullWidth = false,
+  staticCard = false,
+}) {
+  const content = (
+    <>
+      <View
+        style={styles.equipmentChipTop}
+      >
+        <Text
+          style={[
+            styles.equipmentChipText,
+            selected &&
+              styles.equipmentChipTextSelected,
+          ]}
+        >
+          {item.name.toUpperCase()}
+        </Text>
+
+        {selected && (
+          <Ionicons
+            name="checkmark-circle"
+            size={20}
+            color={colors.primaryLight}
+          />
+        )}
+      </View>
+
+      {item.detail && (
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.equipmentDetail,
+            item.hasUnknownLoad &&
+              styles.equipmentDetailUnknown,
+          ]}
+        >
+          {item.detail}
+        </Text>
+      )}
+    </>
+  );
+
+  if (staticCard) {
+    return (
+      <View
+        style={[
+          styles.equipmentChip,
+          fullWidth &&
+            styles.equipmentChipFullWidth,
+          styles.bodyweightChip,
+        ]}
+      >
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.equipmentChip,
+        fullWidth &&
+          styles.equipmentChipFullWidth,
+        selected &&
+          styles.equipmentChipSelected,
+        item.hasUnknownLoad &&
+          styles.equipmentChipUnknown,
+        pressed && styles.pressed,
+      ]}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
+function DurationSlider({
+  value,
+  onChange,
+}) {
+  const [trackWidth, setTrackWidth] =
+    useState(0);
+
+  const currentIndex = Math.max(
+    0,
+    DURATIONS.indexOf(value)
+  );
+
+  const step =
+    trackWidth > 0
+      ? trackWidth /
+        (DURATIONS.length - 1)
+      : 0;
+
+  const dragOriginXRef = useRef(0);
+
+  const updateFromX = useCallback(
+    (x) => {
+      if (!trackWidth || !step) {
+        return;
+      }
+
+      const clampedX = Math.max(
+        0,
+        Math.min(trackWidth, x)
+      );
+
+      const nextIndex = Math.max(
+        0,
+        Math.min(
+          DURATIONS.length - 1,
+          Math.round(clampedX / step)
+        )
+      );
+
+      const nextValue =
+        DURATIONS[nextIndex];
+
+      if (nextValue !== value) {
+        onChange(nextValue);
+      }
+    },
+    [onChange, step, trackWidth, value]
+  );
+
+  const knobPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder:
+          () => true,
+        onMoveShouldSetPanResponder:
+          () => true,
+        onPanResponderGrant: () => {
+          dragOriginXRef.current =
+            currentIndex * step;
+        },
+        onPanResponderMove: (
+          _event,
+          gestureState
+        ) => {
+          updateFromX(
+            dragOriginXRef.current +
+              gestureState.dx
+          );
+        },
+        onPanResponderRelease: (
+          _event,
+          gestureState
+        ) => {
+          updateFromX(
+            dragOriginXRef.current +
+              gestureState.dx
+          );
+        },
+        onPanResponderTerminationRequest:
+          () => false,
+      }),
+    [
+      currentIndex,
+      step,
+      updateFromX,
+    ]
+  );
+
+  const knobLeft =
+    currentIndex * step;
+
+  const durationColor =
+    value <= 30
+      ? colors.primaryLight
+      : value >= 75
+        ? colors.brandRed
+        : colors.textPrimary;
+
+  return (
+    <View style={styles.durationSliderCard}>
+      <View style={styles.durationDigitalPanel}>
+        <Text
+          style={[
+            styles.durationDigitalValue,
+            {
+              color: durationColor,
+            },
+          ]}
+        >
+          {value}
+        </Text>
+
+        <Text
+          style={[
+            styles.durationDigitalUnit,
+            {
+              color: durationColor,
+            },
+          ]}
+        >
+          MIN
+        </Text>
+      </View>
+
+      <View style={styles.durationSliderRight}>
+        <View
+          onLayout={(event) =>
+            setTrackWidth(
+              event.nativeEvent.layout.width
+            )
+          }
+          style={styles.durationTrackTouch}
+        >
+          <View style={styles.durationTrack}>
+            <View
+              style={[
+                styles.durationTrackProgress,
+                {
+                  width: knobLeft,
+                  backgroundColor:
+                    durationColor,
+                },
+              ]}
+            />
+
+            <View
+              style={styles.durationPressZones}
+            >
+              {DURATIONS.map((item) => (
+                <Pressable
+                  key={item}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item} minutes`}
+                  onPress={() =>
+                    onChange(item)
+                  }
+                  style={styles.durationPressZone}
+                />
+              ))}
+            </View>
+
+            <View
+              {...knobPanResponder.panHandlers}
+              style={[
+                styles.durationKnob,
+                {
+                  left: knobLeft,
+                  borderColor:
+                    durationColor,
+                },
+              ]}
+            >
+              <Ionicons
+                name="stopwatch-outline"
+                size={18}
+                color={colors.textPrimary}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -681,22 +1157,17 @@ function SectionTitle({
   subtitle,
 }) {
   return (
-    <View
-      style={styles.sectionHeader}
-    >
-      <Text
-        style={styles.sectionTitle}
-      >
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>
         {title}
       </Text>
-
-      <Text
-        style={
-          styles.sectionSubtitle
-        }
-      >
-        {subtitle}
-      </Text>
+      {!!subtitle && (
+        <Text
+          style={styles.sectionSubtitle}
+        >
+          {subtitle}
+        </Text>
+      )}
     </View>
   );
 }
@@ -709,12 +1180,13 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingHorizontal:
-      spacing.xl,
+    paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
   },
 
-  /* HEADER */
+  flexOne: {
+    flex: 1,
+  },
 
   header: {
     minHeight: 76,
@@ -727,11 +1199,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor:
-      colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor:
-      colors.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -741,13 +1211,11 @@ const styles = StyleSheet.create({
   },
 
   headerEyebrow: {
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 10,
     lineHeight: 14,
     letterSpacing: 1,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   headerTitle: {
@@ -755,8 +1223,7 @@ const styles = StyleSheet.create({
     fontSize: 31,
     lineHeight: 34,
     letterSpacing: 1.6,
-    color:
-      colors.textPrimary,
+    color: colors.textPrimary,
   },
 
   blueDot: {
@@ -769,17 +1236,13 @@ const styles = StyleSheet.create({
   },
 
   intro: {
-    fontFamily:
-      'Oswald_400Regular',
+    fontFamily: 'Oswald_400Regular',
     fontSize: 15,
     lineHeight: 21,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 6,
     marginBottom: 6,
   },
-
-  /* SECTIONS */
 
   sectionHeader: {
     marginTop: 26,
@@ -787,83 +1250,122 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontFamily:
-      'Oswald_700Bold',
+    fontFamily: 'Oswald_700Bold',
     fontSize: 15,
     lineHeight: 19,
     letterSpacing: 0.7,
-    color:
-      colors.textPrimary,
+    color: colors.textPrimary,
   },
 
   sectionSubtitle: {
-    fontFamily:
-      'Oswald_400Regular',
+    fontFamily: 'Oswald_400Regular',
     fontSize: 13,
     lineHeight: 19,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 3,
   },
 
-  /* DURÉE */
-
-  durationRow: {
+  durationSliderCard: {
+    minHeight: 112,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
+    gap: 20,
   },
 
-  durationButton: {
-    width: '31%',
-    minHeight: 62,
-    borderRadius: 14,
-    backgroundColor:
-      colors.surface,
-    borderWidth: 1,
-    borderColor:
-      colors.border,
+  durationDigitalPanel: {
+    width: 104,
+    marginLeft: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  durationButtonSelected: {
-    backgroundColor:
-      'rgba(8,104,255,0.12)',
-    borderColor:
-      colors.primary,
+  durationDigitalValue: {
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 62,
+    lineHeight: 60,
+    letterSpacing: 2.4,
+    textAlign: 'center',
   },
 
-  durationValue: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 23,
-    lineHeight: 25,
-    color:
-      colors.textPrimary,
+  durationDigitalUnit: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 2.2,
+    marginTop: -2,
+    textAlign: 'center',
   },
 
-  durationValueSelected: {
-    color:
-      colors.primaryLight,
+  durationSliderRight: {
+    flex: 1,
+    justifyContent: 'center',
   },
 
-  durationUnit: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    lineHeight: 12,
-    letterSpacing: 0.6,
-    color:
-      colors.textMuted,
+  durationTrackTouch: {
+    height: 60,
+    justifyContent: 'center',
   },
 
-  durationUnitSelected: {
-    color:
-      colors.primaryLight,
+  durationTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    position: 'relative',
   },
 
-  /* CHIPS */
+  durationTrackProgress: {
+    height: 4,
+    borderRadius: 2,
+  },
+
+  durationPressZones: {
+    position: 'absolute',
+    left: -18,
+    right: -18,
+    top: -24,
+    bottom: -24,
+    flexDirection: 'row',
+    zIndex: 1,
+  },
+
+  durationPressZone: {
+    flex: 1,
+  },
+
+  durationKnob: {
+    position: 'absolute',
+    top: -18,
+    zIndex: 3,
+    width: 40,
+    height: 40,
+    marginLeft: -20,
+    borderRadius: 20,
+    borderWidth: 2,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    elevation: 3,
+  },
+
+  equipmentTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+
 
   chipGrid: {
     flexDirection: 'row',
@@ -876,10 +1378,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor:
-      colors.border,
-    backgroundColor:
-      colors.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -887,88 +1387,272 @@ const styles = StyleSheet.create({
   chipSelected: {
     backgroundColor:
       'rgba(8,104,255,0.12)',
-    borderColor:
-      colors.primary,
+    borderColor: colors.primary,
   },
 
   chipText: {
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 11,
     lineHeight: 15,
     letterSpacing: 0.5,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   chipTextSelected: {
-    color:
-      colors.primaryLight,
+    color: colors.primaryLight,
   },
 
   injurySelected: {
     backgroundColor:
       'rgba(255,59,59,0.10)',
-    borderColor:
-      colors.brandRed,
+    borderColor: colors.brandRed,
   },
 
   injuryTextSelected: {
-    color:
-      colors.brandRed,
+    color: colors.brandRed,
   },
 
-  /* READINESS */
+  equipmentChip: {
+    width: '48%',
+    minHeight: 48,
+    borderRadius: 13,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+  },
+
+  equipmentChipFullWidth: {
+    width: '100%',
+    minWidth: '100%',
+  },
+
+  bodyweightChip: {
+    minHeight: 48,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.surface,
+  },
+
+  equipmentChipSelected: {
+    backgroundColor:
+      'rgba(8,104,255,0.12)',
+    borderColor: colors.primary,
+  },
+
+  equipmentChipUnknown: {
+    borderStyle: 'dashed',
+  },
+
+  equipmentChipTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+
+  equipmentChipText: {
+    flexShrink: 1,
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 14,
+    lineHeight: 19,
+    letterSpacing: 0.5,
+    color: colors.textSecondary,
+  },
+
+  equipmentChipTextSelected: {
+    color: colors.primaryLight,
+  },
+
+  equipmentDetail: {
+    marginTop: 4,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 9,
+    lineHeight: 13,
+    letterSpacing: 0.25,
+    color: colors.textMuted,
+  },
+
+  equipmentDetailUnknown: {
+    color: colors.textSecondary,
+  },
+
+  infoCard: {
+    minHeight: 58,
+    paddingHorizontal: 14,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  infoText: {
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+
+  errorCard: {
+    minHeight: 72,
+    padding: 13,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: colors.brandRed,
+    backgroundColor:
+      'rgba(255,59,59,0.07)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  errorTitle: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 11,
+    color: colors.brandRed,
+  },
+
+  errorText: {
+    marginTop: 2,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+  },
+
+  retryButton: {
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  retryButtonText: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 9,
+    color: colors.textPrimary,
+  },
+
+  inlineAction: {
+    minHeight: 44,
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  inlineActionText: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 14,
+    lineHeight: 19,
+    letterSpacing: 0.6,
+    color: colors.primaryLight,
+  },
+
+  injurySummaryCard: {
+    borderRadius: 16,
+    padding: 15,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  injurySummaryMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+
+  injurySummaryTitle: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 12,
+    letterSpacing: 0.5,
+    color: colors.textPrimary,
+  },
+
+  injurySummaryText: {
+    marginTop: 4,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textSecondary,
+  },
+
+  injuryInlineAction: {
+    marginTop: 8,
+  },
+
+  emptyEquipmentCard: {
+    marginTop: 12,
+    minHeight: 82,
+    padding: 14,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  emptyEquipmentTitle: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 12,
+    color: colors.textPrimary,
+  },
+
+  emptyEquipmentText: {
+    marginTop: 3,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textSecondary,
+  },
 
   readinessCard: {
     borderRadius: 17,
     padding: 16,
-    backgroundColor:
-      colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor:
-      colors.border,
+    borderColor: colors.border,
   },
 
   readinessHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent:
-      'space-between',
+    justifyContent: 'space-between',
   },
 
   readinessValue: {
-    fontFamily:
-      'BebasNeue_400Regular',
+    fontFamily: 'BebasNeue_400Regular',
     fontSize: 34,
     lineHeight: 36,
-    color:
-      colors.textPrimary,
+    color: colors.textPrimary,
   },
 
   readinessTotal: {
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 14,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   readinessLabel: {
-    fontFamily:
-      'Oswald_700Bold',
+    fontFamily: 'Oswald_700Bold',
     fontSize: 11,
     lineHeight: 15,
     letterSpacing: 0.8,
-    color:
-      colors.primaryLight,
+    color: colors.primaryLight,
     marginTop: 2,
   },
 
   readinessNumbers: {
     flexDirection: 'row',
-    justifyContent:
-      'space-between',
+    justifyContent: 'space-between',
     marginTop: 18,
     gap: 4,
   },
@@ -985,63 +1669,49 @@ const styles = StyleSheet.create({
   },
 
   readinessNumberSelected: {
-    backgroundColor:
-      colors.primary,
+    backgroundColor: colors.primary,
   },
 
   readinessNumberLow: {
-    backgroundColor:
-      colors.brandRed,
+    backgroundColor: colors.brandRed,
   },
 
   readinessNumberText: {
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 12,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   readinessNumberTextSelected: {
-    color:
-      colors.brandWhite,
+    color: colors.brandWhite,
   },
 
   readinessScale: {
     flexDirection: 'row',
-    justifyContent:
-      'space-between',
+    justifyContent: 'space-between',
     marginTop: 10,
   },
 
   scaleLow: {
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 9,
     letterSpacing: 0.4,
-    color:
-      colors.brandRed,
+    color: colors.brandRed,
   },
 
   scaleNormal: {
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 9,
     letterSpacing: 0.4,
-    color:
-      colors.textMuted,
+    color: colors.textMuted,
   },
 
   scaleHigh: {
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 9,
     letterSpacing: 0.4,
-    color:
-      colors.primaryLight,
+    color: colors.primaryLight,
   },
-
-  /* RÉGION */
 
   regionGrid: {
     flexDirection: 'row',
@@ -1054,49 +1724,53 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor:
-      colors.border,
-    backgroundColor:
-      colors.surface,
-    alignItems: 'center',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
   },
 
   regionButtonSelected: {
     backgroundColor:
       'rgba(8,104,255,0.12)',
-    borderColor:
-      colors.primary,
+    borderColor: colors.primary,
+  },
+
+  regionButtonContent: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
   },
 
   regionText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 11,
-    lineHeight: 15,
+    flexShrink: 1,
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 14,
+    lineHeight: 19,
     letterSpacing: 0.5,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
+    textAlign: 'left',
   },
 
   regionTextSelected: {
-    color:
-      colors.primaryLight,
+    color: colors.primaryLight,
   },
-
-  /* CTA */
 
   generateButton: {
     minHeight: 58,
     marginTop: 32,
     borderRadius: 14,
-    backgroundColor:
-      colors.primary,
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 9,
+  },
+
+  generateButtonDisabled: {
+    opacity: 0.45,
   },
 
   generateButtonPressed: {
@@ -1110,13 +1784,11 @@ const styles = StyleSheet.create({
   },
 
   generateButtonText: {
-    fontFamily:
-      'BebasNeue_400Regular',
+    fontFamily: 'BebasNeue_400Regular',
     fontSize: 21,
     lineHeight: 24,
     letterSpacing: 1.2,
-    color:
-      colors.brandWhite,
+    color: colors.brandWhite,
   },
 
   bottomSpace: {

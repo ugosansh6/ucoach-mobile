@@ -1,4 +1,3 @@
-// completion.js — aligné hyper-api v2.2.1 / moteur de progression coach
 import { useState } from 'react';
 import { router } from 'expo-router';
 import {
@@ -20,26 +19,81 @@ import {
   spacing,
   typography,
 } from '../../src/constants';
-
 import {
   useWorkout,
 } from '../../src/contexts/WorkoutContext';
-
 import {
   completeWorkoutSession,
 } from '../../src/services/workoutService';
 
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
-/*
- * FALLBACK MENU DEV
- *
- * Utilisé uniquement si completion.js est ouvert directement
- * sans passer par Préparation → Génération → Séance.
- */
+const ADAPTED_REASONS = [
+  {
+    code: 'TECHNIQUE_DIFFICULTY',
+    label: 'Mouvement difficile',
+  },
+  {
+    code: 'LOAD_TOO_HEAVY',
+    label: 'Charge trop lourde',
+  },
+  {
+    code: 'FATIGUE',
+    label: 'Fatigue',
+  },
+  {
+    code: 'PAIN_DISCOMFORT',
+    label: 'Gêne / douleur',
+  },
+  {
+    code: 'EQUIPMENT',
+    label: 'Matériel',
+  },
+  {
+    code: 'TIME',
+    label: 'Manque de temps',
+  },
+  {
+    code: 'OTHER',
+    label: 'Autre',
+  },
+];
+
+const NOT_COMPLETED_REASONS = [
+  {
+    code: 'MOVEMENT_FAILURE',
+    label: 'Échec du mouvement',
+  },
+  {
+    code: 'FATIGUE',
+    label: 'Fatigue',
+  },
+  {
+    code: 'PAIN_DISCOMFORT',
+    label: 'Gêne / douleur',
+  },
+  {
+    code: 'TIME',
+    label: 'Manque de temps',
+  },
+  {
+    code: 'MOTIVATION',
+    label: 'Motivation',
+  },
+  {
+    code: 'EQUIPMENT',
+    label: 'Matériel',
+  },
+  {
+    code: 'OTHER',
+    label: 'Autre',
+  },
+];
+
 const FALLBACK_EXERCISES = [
   {
     id: 'air-squat',
+    sessionExerciseId: 'dev-air-squat',
     name: 'AIR SQUAT',
     prescription: '12 REPS',
     status: 'completed',
@@ -47,26 +101,368 @@ const FALLBACK_EXERCISES = [
   },
   {
     id: 'goblet-squat',
+    sessionExerciseId: 'dev-goblet-squat',
     name: 'GOBLET SQUAT',
     prescription: '8 REPS',
-    status: 'completed',
+    status: 'adapted',
+    adaptationSource: 'manual',
     trackingType: 'load',
   },
   {
-    id: 'push-up',
-    name: 'PUSH-UP',
-    prescription: '10 REPS',
-    status: 'completed',
-    trackingType: 'bodyweight',
-  },
-  {
     id: 'burpee',
+    sessionExerciseId: 'dev-burpee',
     name: 'BURPEE',
     prescription: '8 REPS',
-    status: 'skipped',
+    status: 'not_completed',
     trackingType: 'bodyweight',
   },
 ];
+
+function executionStatus(exercise) {
+  if (exercise.status === 'adapted') {
+    return 'adapted';
+  }
+
+  if (
+    exercise.status ===
+      'not_completed' ||
+    exercise.status === 'skipped'
+  ) {
+    return 'not_completed';
+  }
+
+  return 'completed';
+}
+
+function exerciseKey(exercise) {
+  return (
+    exercise.sessionExerciseId ??
+    exercise.id
+  );
+}
+
+function normalizeMechanic(value) {
+  return String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s/-]+/g, '_');
+}
+
+function numberOr(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric)
+    ? numeric
+    : fallback;
+}
+
+function failedStageTargetReps(
+  exercise,
+  failedStage
+) {
+  const prescription =
+    exercise?.prescriptionJson ??
+    exercise?.prescription_json ??
+    {};
+  const overlay =
+    prescription.mechanic_overlay ??
+    {};
+  const start = numberOr(
+    overlay.start_reps ??
+      overlay.base_reps ??
+      prescription.reps_min,
+    0
+  );
+  const increment = numberOr(
+    overlay.increment_reps,
+    0
+  );
+
+  return Math.max(
+    0,
+    Math.round(
+      start +
+        Math.max(
+          0,
+          failedStage - 1
+        ) *
+          increment
+    )
+  );
+}
+
+function buildProtocolOutcome(
+  workout,
+  protocolFeedback
+) {
+  const runtime =
+    workout?.wodRuntime;
+
+  if (!runtime?.started) {
+    return null;
+  }
+
+  const mechanic =
+    normalizeMechanic(
+      runtime.mechanic ??
+        workout.mechanic
+    );
+  const variant =
+    normalizeMechanic(
+      runtime.variant ??
+        workout.formatVariant
+    ) || null;
+  const elapsedSeconds =
+    Math.max(
+      0,
+      numberOr(
+        runtime.elapsedSeconds,
+        0
+      )
+    );
+  const parameters =
+    runtime.parameters ?? {};
+
+  const outcome = {
+    mechanic_key: mechanic,
+    variant_key: variant,
+    elapsed_seconds:
+      elapsedSeconds,
+    finish_reason:
+      runtime.finishReason ??
+      null,
+    player_version:
+      runtime.version ??
+      'fc5-wod-player-v1',
+  };
+
+  if (
+    ['AMRAP', 'CIRCUIT', 'FOR_TIME'].includes(
+      mechanic
+    )
+  ) {
+    outcome.rounds_completed =
+      Math.max(
+        0,
+        numberOr(
+          runtime.completedRounds,
+          0
+        )
+      );
+  }
+
+  if (mechanic === 'FOR_TIME') {
+    outcome.hit_time_cap =
+      runtime.finishReason ===
+      'time_cap';
+    outcome.time_limit_seconds =
+      numberOr(
+        parameters.cap_seconds,
+        elapsedSeconds
+      );
+  }
+
+  if (
+    mechanic === 'EMOM' ||
+    mechanic === 'ODD_EVEN'
+  ) {
+    const stationSeconds =
+      Math.max(
+        1,
+        numberOr(
+          parameters.station_seconds,
+          60
+        )
+      );
+    outcome.intervals_completed =
+      Math.floor(
+        elapsedSeconds /
+          stationSeconds
+      );
+  }
+
+  if (
+    mechanic ===
+    'EVERY_X_MINUTES'
+  ) {
+    const intervalSeconds =
+      Math.max(
+        1,
+        numberOr(
+          parameters.interval_seconds,
+          120
+        )
+      );
+    outcome.intervals_completed =
+      Math.floor(
+        elapsedSeconds /
+          intervalSeconds
+      );
+  }
+
+  if (mechanic === 'HIIT') {
+    const workSeconds =
+      Math.max(
+        1,
+        numberOr(
+          parameters.work_seconds,
+          40
+        )
+      );
+    const restSeconds =
+      Math.max(
+        0,
+        numberOr(
+          parameters.rest_seconds,
+          20
+        )
+      );
+    const stationSeconds =
+      Math.max(
+        1,
+        workSeconds +
+          restSeconds
+      );
+    const stationsCompleted =
+      Math.floor(
+        elapsedSeconds /
+          stationSeconds
+      );
+
+    outcome.intervals_completed =
+      stationsCompleted;
+    outcome.work_seconds =
+      stationsCompleted *
+      workSeconds;
+  }
+
+  if (
+    mechanic === 'LADDER' ||
+    mechanic === 'COUPLET'
+  ) {
+    outcome.last_completed_stage =
+      Math.max(
+        0,
+        numberOr(
+          runtime.manualStep,
+          1
+        )
+      );
+  }
+
+  if (
+    mechanic ===
+    'PROGRESSIVE_INTERVAL'
+  ) {
+    const currentStage =
+      Math.max(
+        1,
+        numberOr(
+          runtime.currentStage,
+          1
+        )
+      );
+
+    if (
+      runtime.finishReason ===
+      'observed_failure'
+    ) {
+      outcome.last_completed_stage =
+        Math.max(
+          0,
+          currentStage - 1
+        );
+      outcome.failed_stage =
+        currentStage;
+
+      const partial =
+        protocolFeedback
+          ?.partialRepsByExercise ??
+        {};
+
+      if (
+        Object.keys(partial).length >
+        0
+      ) {
+        outcome.partial_reps_by_exercise =
+          Object.fromEntries(
+            Object.entries(partial)
+              .map(([id, value]) => [
+                id,
+                Math.max(
+                  0,
+                  numberOr(value, 0)
+                ),
+              ])
+          );
+      }
+    } else {
+      outcome.last_completed_stage =
+        currentStage;
+
+      if (
+        runtime.finishReason ===
+        'time_cap'
+      ) {
+        outcome.completed_time_limit =
+          true;
+        outcome.hit_time_cap = true;
+        outcome.time_limit_seconds =
+          elapsedSeconds;
+      }
+    }
+  }
+
+  if (mechanic === 'PYRAMID') {
+    outcome.steps_completed =
+      Math.max(
+        0,
+        numberOr(
+          runtime.manualStep,
+          1
+        )
+      );
+  }
+
+  if (
+    mechanic === 'CHIPPER' ||
+    mechanic === 'REP_TARGET'
+  ) {
+    outcome.items_completed =
+      Math.max(
+        0,
+        numberOr(
+          runtime.currentItemIndex,
+          0
+        ) +
+          (runtime.finished ? 1 : 0)
+      );
+  }
+
+  if (mechanic === 'DECK') {
+    outcome.cards_completed =
+      Math.max(
+        0,
+        numberOr(
+          runtime.currentItemIndex,
+          0
+        ) +
+          (runtime.finished ? 1 : 0)
+      );
+  }
+
+  if (mechanic === 'STRENGTH') {
+    outcome.set_stations_completed =
+      Math.max(
+        0,
+        numberOr(
+          runtime.manualStep,
+          1
+        )
+      );
+  }
+
+  return outcome;
+}
 
 export default function CompletionScreen() {
   const {
@@ -79,37 +475,36 @@ export default function CompletionScreen() {
 
   const [isSaving, setIsSaving] =
     useState(false);
-
   const [saveError, setSaveError] =
     useState('');
-
-  /*
-   * =========================================================
-   * DONNÉES DE LA SÉANCE
-   * =========================================================
-   */
 
   const sourceExercises =
     workout.exercises?.length > 0
       ? workout.exercises
       : FALLBACK_EXERCISES;
 
-  const completedExercises =
+  const performedExercises =
     sourceExercises.filter(
       (exercise) =>
-        exercise.status === 'completed'
+        executionStatus(exercise) !==
+        'not_completed'
     );
 
-  const skippedExercises =
+  const exceptionExercises =
     sourceExercises.filter(
       (exercise) =>
-        exercise.status === 'skipped'
+        executionStatus(exercise) !==
+        'completed'
     );
 
   const loadExercises =
-    completedExercises.filter(
+    performedExercises.filter(
       (exercise) =>
-        exercise.trackingType === 'load'
+        exercise.trackingType ===
+          'load' ||
+        exercise.trackingModes?.includes(
+          'load'
+        )
     );
 
   const plannedDuration =
@@ -119,53 +514,101 @@ export default function CompletionScreen() {
     Array.isArray(workout.rawBlocks) &&
     workout.rawBlocks.length > 0
       ? workout.rawBlocks.length
-      : Object.keys(workout.blocks ?? {}).length;
+      : Object.keys(
+          workout.blocks ?? {}
+        ).length;
 
-  /*
-   * Ne jamais inventer un ressenti utilisateur.
-   * Tant que l'utilisateur n'a pas choisi une note,
-   * la valeur reste réellement absente.
-   */
   const formAfterWorkout =
     completion.formAfter ?? null;
-
   const rpe =
     completion.rpe ?? null;
-
   const notes =
     completion.notes ?? '';
-
   const loads =
     completion.loads ?? {};
+  const exerciseFeedback =
+    completion.exerciseFeedback ?? {};
+  const protocolFeedback =
+    completion.protocolFeedback ?? {};
+  const wodRuntime =
+    workout.wodRuntime ?? null;
+  const wodExercises =
+    sourceExercises.filter(
+      (exercise) =>
+        String(
+          exercise.blockKey ??
+            exercise.block ??
+            ''
+        ).toLowerCase() === 'wod'
+    );
+  const progressiveFailure =
+    normalizeMechanic(
+      wodRuntime?.mechanic
+    ) ===
+      'PROGRESSIVE_INTERVAL' &&
+    wodRuntime?.finishReason ===
+      'observed_failure';
+  const failedStage =
+    progressiveFailure
+      ? Math.max(
+          1,
+          numberOr(
+            wodRuntime?.currentStage,
+            1
+          )
+        )
+      : null;
 
   function handleBack() {
     router.back();
   }
 
-  function handleFormChange(value) {
+  function setReason(
+    exercise,
+    reasonCode
+  ) {
+    const key = exerciseKey(exercise);
+    const current =
+      exerciseFeedback[key] ?? {};
+
     updateCompletion({
-      formAfter: value,
+      exerciseFeedback: {
+        ...exerciseFeedback,
+        [key]: {
+          ...current,
+          reasonCode:
+            current.reasonCode ===
+            reasonCode
+              ? null
+              : reasonCode,
+        },
+      },
     });
   }
 
-  function handleRpeChange(value) {
+  function updatePartialReps(
+    exercise,
+    value
+  ) {
     updateCompletion({
-      rpe: value,
-    });
-  }
-
-  function handleNotesChange(value) {
-    updateCompletion({
-      notes: value,
+      protocolFeedback: {
+        ...protocolFeedback,
+        partialRepsByExercise: {
+          ...(protocolFeedback
+            .partialRepsByExercise ??
+            {}),
+          [exercise.id]: value,
+        },
+      },
     });
   }
 
   function updateLoad(
-    exerciseId,
+    exercise,
     value
   ) {
     setExerciseLoad(
-      exerciseId,
+      exerciseKey(exercise),
       value
     );
   }
@@ -185,40 +628,34 @@ export default function CompletionScreen() {
         );
       }
 
-      if (formAfterWorkout == null) {
+      if (rpe == null) {
         throw new Error(
-          'Indique ta forme après la séance avant de l’enregistrer.'
+          'Indique la difficulté ressentie avant d’enregistrer la séance.'
         );
       }
 
-      if (rpe == null) {
+      if (formAfterWorkout == null) {
         throw new Error(
-          'Indique la difficulté ressentie avant de l’enregistrer.'
+          'Indique ton ressenti après la séance avant de l’enregistrer.'
         );
       }
 
       await completeWorkoutSession({
         sessionId:
           workout.sessionId,
-
         exercises:
           sourceExercises,
-
         formAfter:
           formAfterWorkout,
-
         rpe,
-
         notes,
-
         loads,
-      });
-
-      updateCompletion({
-        formAfter:
-          formAfterWorkout,
-        rpe,
-        notes,
+        exerciseFeedback,
+        protocolOutcome:
+          buildProtocolOutcome(
+            workout,
+            protocolFeedback
+          ),
       });
 
       updateWorkout({
@@ -242,25 +679,15 @@ export default function CompletionScreen() {
     if (formAfterWorkout == null) {
       return 'À RENSEIGNER';
     }
-
-    if (
-      formAfterWorkout <= 3
-    ) {
+    if (formAfterWorkout <= 3) {
       return 'VIDÉ';
     }
-
-    if (
-      formAfterWorkout <= 6
-    ) {
+    if (formAfterWorkout <= 6) {
       return 'BIEN SOLLICITÉ';
     }
-
-    if (
-      formAfterWorkout <= 8
-    ) {
+    if (formAfterWorkout <= 8) {
       return 'BIEN';
     }
-
     return 'ENCORE DU JUS';
   }
 
@@ -268,30 +695,22 @@ export default function CompletionScreen() {
     if (rpe == null) {
       return 'À RENSEIGNER';
     }
-
     if (rpe <= 3) {
       return 'FACILE';
     }
-
     if (rpe <= 6) {
       return 'MODÉRÉ';
     }
-
     if (rpe <= 8) {
       return 'DIFFICILE';
     }
-
     return 'TRÈS DIFFICILE';
   }
 
   return (
-    <SafeAreaView
-      style={styles.screen}
-    >
+    <SafeAreaView style={styles.screen}>
       <KeyboardAvoidingView
-        style={
-          styles.keyboardView
-        }
+        style={styles.keyboardView}
         behavior={
           Platform.OS === 'ios'
             ? 'padding'
@@ -307,16 +726,11 @@ export default function CompletionScreen() {
           }
           keyboardShouldPersistTaps="handled"
         >
-          {/* HEADER */}
-          <View
-            style={styles.header}
-          >
+          <View style={styles.header}>
             <Pressable
               onPress={handleBack}
               hitSlop={12}
-              style={({
-                pressed,
-              }) => [
+              style={({ pressed }) => [
                 styles.backButton,
                 pressed &&
                   styles.pressed,
@@ -331,29 +745,18 @@ export default function CompletionScreen() {
               />
             </Pressable>
 
-            <View
-              style={
-                styles.headerText
-              }
-            >
+            <View style={styles.headerText}>
               <Text
-                style={
-                  styles.headerEyebrow
-                }
+                style={styles.headerEyebrow}
               >
                 SÉANCE TERMINÉE
               </Text>
-
               <Text
-                style={
-                  styles.headerTitle
-                }
+                style={styles.headerTitle}
               >
                 BIEN JOUÉ
                 <Text
-                  style={
-                    styles.blueDot
-                  }
+                  style={styles.blueDot}
                 >
                   .
                 </Text>
@@ -362,734 +765,608 @@ export default function CompletionScreen() {
 
             <Image
               source={brandIcon}
-              style={
-                styles.brandIcon
-              }
+              style={styles.brandIcon}
               resizeMode="contain"
             />
           </View>
 
-          {/* HERO */}
-          <View
-            style={
-              styles.heroCard
-            }
-          >
-            <View
-              style={
-                styles.heroIcon
-              }
-            >
+          <View style={styles.heroCard}>
+            <View style={styles.heroIcon}>
               <Ionicons
                 name="checkmark"
-                size={29}
+                size={27}
+                color={colors.brandWhite}
+              />
+            </View>
+
+            <View style={styles.heroMain}>
+              <Text style={styles.heroTitle}>
+                SÉANCE VALIDÉE
+              </Text>
+              <Text
+                style={styles.heroDescription}
+              >
+                {plannedDuration} MIN · {blockCount} BLOCS · {performedExercises.length} EXOS RÉALISÉS
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.learningCard}>
+            <View
+              style={styles.learningIcon}
+            >
+              <Ionicons
+                name="analytics-outline"
+                size={23}
                 color={
                   colors.brandWhite
                 }
               />
             </View>
 
-            <Text
-              style={
-                styles.heroTitle
-              }
-            >
-              SÉANCE VALIDÉE
-            </Text>
-
-            <Text
-              style={
-                styles.heroDescription
-              }
-            >
-              Ton entraînement est
-              terminé. Enregistre
-              maintenant ton ressenti
-              et tes performances.
-            </Text>
-
-            <View
-              style={
-                styles.heroStats
-              }
-            >
-              <View
-                style={
-                  styles.heroStat
-                }
+            <View style={styles.learningMain}>
+              <Text
+                style={styles.learningTitle}
               >
-                <Text
-                  style={
-                    styles.heroStatValue
-                  }
-                >
-                  {plannedDuration}
-                </Text>
-
-                <Text
-                  style={
-                    styles.heroStatLabel
-                  }
-                >
-                  MINUTES
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.heroStatDivider
-                }
-              />
-
-              <View
-                style={
-                  styles.heroStat
-                }
+                CES INFORMATIONS AIDENT UGEROD À MIEUX ADAPTER TES PROCHAINES SÉANCES.
+              </Text>
+              <Text
+                style={styles.learningText}
               >
-                <Text
-                  style={
-                    styles.heroStatValue
-                  }
-                >
-                  {blockCount}
-                </Text>
-
-                <Text
-                  style={
-                    styles.heroStatLabel
-                  }
-                >
-                  BLOCS
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.heroStatDivider
-                }
-              />
-
-              <View
-                style={
-                  styles.heroStat
-                }
-              >
-                <Text
-                  style={
-                    styles.heroStatValue
-                  }
-                >
-                  {
-                    completedExercises.length
-                  }
-                </Text>
-
-                <Text
-                  style={
-                    styles.heroStatLabel
-                  }
-                >
-                  EXOS FAITS
-                </Text>
-              </View>
+                Ta difficulté, ton ressenti et les raisons d’une adaptation permettent au coach de mieux comprendre ce qui s’est réellement passé.
+              </Text>
             </View>
           </View>
 
-          {/* FORME APRÈS */}
           <SectionHeader
-            title="TA FORME MAINTENANT"
-            subtitle="Comment tu te sens juste après cette séance ?"
+            title="DIFFICULTÉ DE LA SÉANCE"
+            subtitle="À quel point cette séance t’a semblé difficile ?"
           />
-
-          <RatingCard
-            value={
-              formAfterWorkout
-            }
-            onChange={
-              handleFormChange
-            }
-            label={
-              getFormLabel()
-            }
-            lowLabel="VIDÉ"
-            highLabel="ENCORE DU JUS"
-          />
-
-          {/* RPE */}
-          <SectionHeader
-            title="DIFFICULTÉ RESSENTIE"
-            subtitle="Note l’intensité globale de ta séance."
-          />
-
           <RatingCard
             value={rpe}
-            onChange={
-              handleRpeChange
+            onChange={(value) =>
+              updateCompletion({
+                rpe: value,
+              })
             }
-            label={
-              getRpeLabel()
-            }
+            label={getRpeLabel()}
             lowLabel="FACILE"
             highLabel="TRÈS DIFFICILE"
             useRedAtHigh
           />
 
-          {/* CHARGES */}
-          {loadExercises.length >
-            0 && (
+          <SectionHeader
+            title="TON RESSENTI MAINTENANT"
+            subtitle="Comment tu te sens juste après l’entraînement ?"
+          />
+          <RatingCard
+            value={formAfterWorkout}
+            onChange={(value) =>
+              updateCompletion({
+                formAfter: value,
+              })
+            }
+            label={getFormLabel()}
+            lowLabel="VIDÉ"
+            highLabel="ENCORE DU JUS"
+          />
+
+          {wodRuntime?.started ? (
+            <>
+              <SectionHeader
+                title="RÉSULTAT DU WOD"
+                subtitle="UGEROD a déjà récupéré le résultat du player. Tu n’as rien à ressaisir sauf une éventuelle étape échouée."
+              />
+
+              <ProtocolResultCard
+                runtime={wodRuntime}
+                failedStage={failedStage}
+                wodExercises={wodExercises}
+                protocolFeedback={
+                  protocolFeedback
+                }
+                onPartialRepsChange={
+                  updatePartialReps
+                }
+              />
+            </>
+          ) : null}
+
+          {exceptionExercises.length > 0 ? (
+            <>
+              <SectionHeader
+                title="ADAPTATIONS DE LA SÉANCE"
+                subtitle="Facultatif : précise uniquement pourquoi certains exercices ont été adaptés ou non réalisés."
+              />
+
+              <View style={styles.exceptionList}>
+                {exceptionExercises.map(
+                  (exercise) => (
+                    <ExceptionCard
+                      key={exerciseKey(
+                        exercise
+                      )}
+                      exercise={exercise}
+                      selectedReason={
+                        exerciseFeedback[
+                          exerciseKey(
+                            exercise
+                          )
+                        ]?.reasonCode ??
+                        null
+                      }
+                      onReasonSelect={(
+                        reasonCode
+                      ) =>
+                        setReason(
+                          exercise,
+                          reasonCode
+                        )
+                      }
+                    />
+                  )
+                )}
+              </View>
+            </>
+          ) : null}
+
+          {loadExercises.length > 0 ? (
             <>
               <SectionHeader
                 title="CHARGES UTILISÉES"
-                subtitle="Optionnel. Renseigne les charges réellement utilisées aujourd’hui."
+                subtitle="Optionnel. Renseigne uniquement les charges que tu veux conserver dans ton historique."
               />
 
-              <View
-                style={
-                  styles.loadsCard
-                }
-              >
+              <View style={styles.loadsCard}>
                 {loadExercises.map(
-                  (
-                    exercise,
-                    index
-                  ) => (
-                    <View
-                      key={
-                        exercise.id
-                      }
-                      style={[
-                        styles.loadRow,
+                  (exercise, index) => {
+                    const key =
+                      exerciseKey(
+                        exercise
+                      );
 
-                        index !==
-                          loadExercises.length -
-                            1 &&
-                          styles.loadRowBorder,
-                      ]}
-                    >
+                    return (
                       <View
-                        style={
-                          styles.loadExerciseMain
-                        }
+                        key={key}
+                        style={[
+                          styles.loadRow,
+                          index !==
+                            loadExercises.length -
+                              1 &&
+                            styles.loadRowBorder,
+                        ]}
                       >
-                        <Text
-                          style={
-                            styles.loadExerciseName
-                          }
-                        >
-                          {exercise.name.toUpperCase()}
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.loadExerciseDetail
-                          }
-                        >
-                          {
-                            exercise.prescription
-                          }
-                        </Text>
-                      </View>
-
-                      <View
-                        style={
-                          styles.loadInputWrapper
-                        }
-                      >
-                        <Ionicons
-                          name="barbell-outline"
-                          size={15}
-                          color={
-                            colors.textMuted
-                          }
-                        />
-
-                        <TextInput
-                          value={
-                            loads[
-                              exercise
-                                .id
-                            ] || ''
-                          }
-                          onChangeText={(
-                            value
-                          ) =>
-                            updateLoad(
-                              exercise.id,
-                              value
-                            )
-                          }
-                          placeholder="Ex : 20 kg"
-                          placeholderTextColor={
-                            colors.textMuted
-                          }
-                          style={
-                            styles.loadInput
-                          }
-                          autoCapitalize="none"
-                          autoCorrect={
-                            false
-                          }
-                          returnKeyType="done"
-                        />
-                      </View>
-                    </View>
-                  )
-                )}
-
-                <View
-                  style={
-                    styles.loadHelp
-                  }
-                >
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={17}
-                    color={
-                      colors.primaryLight
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.loadHelpText
-                    }
-                  >
-                    Tu peux écrire par
-                    exemple 20 kg,
-                    2 × 12 kg ou laisser
-                    vide.
-                  </Text>
-                </View>
-              </View>
-            </>
-          )}
-
-          {/* RÉCAP */}
-          <SectionHeader
-            title="RÉCAP DE TA SÉANCE"
-            subtitle="Les exercices enregistrés pour aujourd’hui."
-          />
-
-          <View
-            style={
-              styles.recapCard
-            }
-          >
-            <View
-              style={
-                styles.recapHeader
-              }
-            >
-              <View>
-                <Text
-                  style={
-                    styles.recapEyebrow
-                  }
-                >
-                  RÉALISÉS
-                </Text>
-
-                <Text
-                  style={
-                    styles.recapCount
-                  }
-                >
-                  {
-                    completedExercises.length
-                  }
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.recapCompletedIcon
-                }
-              >
-                <Ionicons
-                  name="checkmark"
-                  size={19}
-                  color={
-                    colors.brandWhite
-                  }
-                />
-              </View>
-            </View>
-
-            <View
-              style={
-                styles.exerciseList
-              }
-            >
-              {completedExercises.map(
-                (
-                  exercise,
-                  index
-                ) => {
-                  const load =
-                    exercise.trackingType ===
-                      'load' &&
-                    loads[
-                      exercise.id
-                    ]?.trim();
-
-                  return (
-                    <View
-                      key={
-                        exercise.id
-                      }
-                      style={[
-                        styles.exerciseRow,
-
-                        index !==
-                          completedExercises.length -
-                            1 &&
-                          styles.exerciseBorder,
-                      ]}
-                    >
-                      <View
-                        style={
-                          styles.exerciseStatusCompleted
-                        }
-                      >
-                        <Ionicons
-                          name="checkmark"
-                          size={13}
-                          color={
-                            colors.brandWhite
-                          }
-                        />
-                      </View>
-
-                      <View
-                        style={
-                          styles.exerciseMain
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.exerciseName
-                          }
-                        >
-                          {exercise.name.toUpperCase()}
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.exerciseDetail
-                          }
-                        >
-                          {
-                            exercise.prescription
-                          }
-                        </Text>
-                      </View>
-
-                      {load ? (
                         <View
-                          style={
-                            styles.savedLoadBadge
-                          }
+                          style={styles.loadMain}
+                        >
+                          <Text
+                            style={styles.loadName}
+                          >
+                            {String(
+                              exercise.name
+                            ).toUpperCase()}
+                          </Text>
+                          <Text
+                            style={styles.loadPrescription}
+                          >
+                            {exercise.prescription}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={styles.loadInputWrap}
                         >
                           <Ionicons
                             name="barbell-outline"
-                            size={12}
+                            size={15}
                             color={
-                              colors.primaryLight
+                              colors.textMuted
                             }
                           />
-
-                          <Text
-                            style={
-                              styles.savedLoadText
+                          <TextInput
+                            value={
+                              loads[key] ??
+                              loads[
+                                exercise.id
+                              ] ??
+                              ''
                             }
-                          >
-                            {load.toUpperCase()}
-                          </Text>
+                            onChangeText={(
+                              value
+                            ) =>
+                              updateLoad(
+                                exercise,
+                                value
+                              )
+                            }
+                            placeholder="Ex : 2 × 12 kg"
+                            placeholderTextColor={
+                              colors.textMuted
+                            }
+                            style={styles.loadInput}
+                            returnKeyType="done"
+                          />
                         </View>
-                      ) : null}
-                    </View>
-                  );
-                }
-              )}
-
-              {completedExercises.length ===
-                0 && (
-                <Text
-                  style={
-                    styles.emptyText
+                      </View>
+                    );
                   }
-                >
-                  Aucun exercice
-                  marqué comme réalisé.
-                </Text>
-              )}
-            </View>
-          </View>
-
-          {/* NON RÉALISÉS */}
-          {skippedExercises.length >
-            0 && (
-            <View
-              style={
-                styles.skippedCard
-              }
-            >
-              <View
-                style={
-                  styles.skippedHeader
-                }
-              >
-                <Text
-                  style={
-                    styles.skippedTitle
-                  }
-                >
-                  NON RÉALISÉS
-                </Text>
-
-                <Text
-                  style={
-                    styles.skippedCount
-                  }
-                >
-                  {
-                    skippedExercises.length
-                  }
-                </Text>
+                )}
               </View>
+            </>
+          ) : null}
 
-              {skippedExercises.map(
-                (exercise) => (
-                  <View
-                    key={
-                      exercise.id
-                    }
-                    style={
-                      styles.skippedRow
-                    }
-                  >
-                    <View
-                      style={
-                        styles.exerciseStatusSkipped
-                      }
-                    >
-                      <Ionicons
-                        name="close"
-                        size={13}
-                        color={
-                          colors.brandWhite
-                        }
-                      />
-                    </View>
-
-                    <Text
-                      style={
-                        styles.skippedExerciseName
-                      }
-                    >
-                      {exercise.name.toUpperCase()}
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.exerciseDetail
-                      }
-                    >
-                      {
-                        exercise.prescription
-                      }
-                    </Text>
-                  </View>
-                )
-              )}
-            </View>
-          )}
-
-          {/* NOTES */}
           <SectionHeader
             title="NOTES"
-            subtitle="Ajoute librement ce que tu veux retenir de cette séance."
+            subtitle="Optionnel. Ajoute ce que tu veux retenir de cette séance."
           />
 
-          <View
-            style={
-              styles.notesCard
-            }
-          >
+          <View style={styles.notesCard}>
             <TextInput
               value={notes}
-              onChangeText={
-                handleNotesChange
+              onChangeText={(value) =>
+                updateCompletion({
+                  notes: value,
+                })
               }
-              placeholder="Ex : bonnes sensations aujourd’hui, 24 kg un peu lourd sur les dernières séries..."
+              placeholder="Ex : bonnes sensations, mouvement à retravailler..."
               placeholderTextColor={
                 colors.textMuted
               }
               multiline
               textAlignVertical="top"
               maxLength={1000}
-              style={
-                styles.notesInput
-              }
+              style={styles.notesInput}
             />
-
-            <View
-              style={
-                styles.notesFooter
-              }
-            >
-              <View
-                style={
-                  styles.notesHint
-                }
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={15}
-                  color={
-                    colors.textMuted
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.notesHintText
-                  }
-                >
-                  NOTE PERSONNELLE
-                </Text>
-              </View>
-
-              <Text
-                style={
-                  styles.notesCount
-                }
-              >
-                {notes.length}/1000
-              </Text>
-            </View>
-          </View>
-
-          {/* INFO */}
-          <View
-            style={
-              styles.infoCard
-            }
-          >
-            <Ionicons
-              name="analytics-outline"
-              size={21}
-              color={
-                colors.primaryLight
-              }
-            />
-
-            <Text
-              style={
-                styles.infoText
-              }
-            >
-              Tes performances et
-              ton ressenti alimentent
-              la progression UGEROD.
-              Tes notes restent aussi
-              enregistrées avec la
-              séance.
+            <Text style={styles.notesCount}>
+              {notes.length}/1000
             </Text>
           </View>
 
-          {/* ERREUR ENREGISTREMENT */}
           {saveError ? (
-            <View
-              style={
-                styles.saveErrorCard
-              }
-            >
+            <View style={styles.errorCard}>
               <Ionicons
                 name="alert-circle-outline"
-                size={20}
-                color={
-                  colors.brandRed
-                }
+                size={19}
+                color={colors.brandRed}
               />
-
-              <Text
-                style={
-                  styles.saveErrorText
-                }
-              >
+              <Text style={styles.errorText}>
                 {saveError}
               </Text>
             </View>
           ) : null}
 
-          {/* CTA */}
           <Pressable
-            onPress={
-              handleFinish
-            }
+            onPress={handleFinish}
             disabled={
               isSaving ||
-              formAfterWorkout == null ||
-              rpe == null
+              rpe == null ||
+              formAfterWorkout == null
             }
-            style={({
-              pressed,
-            }) => [
+            style={({ pressed }) => [
               styles.finishButton,
-
               (isSaving ||
-                formAfterWorkout == null ||
-                rpe == null) &&
+                rpe == null ||
+                formAfterWorkout == null) &&
                 styles.finishButtonDisabled,
-
               pressed &&
                 !isSaving &&
-                formAfterWorkout != null &&
                 rpe != null &&
+                formAfterWorkout != null &&
                 styles.finishButtonPressed,
             ]}
           >
             <Text
-              style={
-                styles.finishButtonText
-              }
+              style={styles.finishButtonText}
             >
               {isSaving
                 ? 'ENREGISTREMENT...'
-                : formAfterWorkout == null ||
-                    rpe == null
-                  ? 'RENSEIGNE TON RESSENTI'
+                : rpe == null ||
+                    formAfterWorkout == null
+                  ? 'RENSEIGNE TES 2 JAUGES'
                   : 'ENREGISTRER MA SÉANCE'}
             </Text>
-
             <Ionicons
               name="checkmark-circle-outline"
               size={21}
-              color={
-                colors.brandWhite
-              }
+              color={colors.brandWhite}
             />
           </Pressable>
 
-          <Text
-            style={
-              styles.finishHint
-            }
-          >
-            Tu retrouveras cette
-            séance dans ton planning
-            et ta progression.
+          <Text style={styles.finishHint}>
+            Les motifs d’adaptation sont facultatifs et ne bloquent jamais l’enregistrement.
           </Text>
 
-          <View
-            style={
-              styles.bottomSpace
-            }
-          />
+          <View style={styles.bottomSpace} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function ProtocolResultCard({
+  runtime,
+  failedStage,
+  wodExercises,
+  protocolFeedback,
+  onPartialRepsChange,
+}) {
+  const mechanic =
+    normalizeMechanic(
+      runtime?.mechanic
+    );
+  const variant =
+    normalizeMechanic(
+      runtime?.variant
+    );
+  const partial =
+    protocolFeedback
+      ?.partialRepsByExercise ??
+    {};
+
+  const title =
+    mechanic ===
+      'PROGRESSIVE_INTERVAL' &&
+    variant === 'DEATH_BY'
+      ? 'DEATH BY'
+      : mechanic ===
+            'PROGRESSIVE_INTERVAL' &&
+          variant ===
+            'DEATH_BY_COUPLET'
+        ? 'DEATH BY COUPLET'
+        : mechanic.replaceAll(
+            '_',
+            ' '
+          );
+
+  return (
+    <View style={styles.protocolCard}>
+      <View style={styles.protocolHeader}>
+        <View style={styles.protocolIcon}>
+          <Ionicons
+            name="timer-outline"
+            size={20}
+            color={colors.brandWhite}
+          />
+        </View>
+
+        <View style={styles.protocolHeaderMain}>
+          <Text style={styles.protocolTitle}>
+            {title}
+          </Text>
+          <Text style={styles.protocolMeta}>
+            {Math.floor(
+              numberOr(
+                runtime.elapsedSeconds,
+                0
+              ) / 60
+            )}
+            :{String(
+              Math.floor(
+                numberOr(
+                  runtime.elapsedSeconds,
+                  0
+                ) % 60
+              )
+            ).padStart(2, '0')}
+            {runtime.completedRounds > 0
+              ? ` · ${runtime.completedRounds} tour${runtime.completedRounds > 1 ? 's' : ''}`
+              : ''}
+          </Text>
+        </View>
+
+        <Ionicons
+          name="checkmark-circle-outline"
+          size={22}
+          color={colors.primaryLight}
+        />
+      </View>
+
+      {failedStage ? (
+        <View style={styles.failureResult}>
+          <Text style={styles.failureResultTitle}>
+            ÉCHEC À L’ÉTAPE {failedStage}
+          </Text>
+          <Text style={styles.failureResultText}>
+            {Math.max(
+              0,
+              failedStage - 1
+            )}{' '}
+            étape{failedStage - 1 > 1 ? 's' : ''} complète{failedStage - 1 > 1 ? 's' : ''} enregistrée{failedStage - 1 > 1 ? 's' : ''}. Si tu t’en souviens, indique les répétitions faites sur l’étape échouée.
+          </Text>
+
+          {wodExercises.map(
+            (exercise) => {
+              const target =
+                failedStageTargetReps(
+                  exercise,
+                  failedStage
+                );
+
+              return (
+                <View
+                  key={exerciseKey(
+                    exercise
+                  )}
+                  style={styles.partialRow}
+                >
+                  <View style={styles.partialMain}>
+                    <Text style={styles.partialName}>
+                      {String(
+                        exercise.name
+                      ).toUpperCase()}
+                    </Text>
+                    <Text style={styles.partialTarget}>
+                      Prévu : {target} reps
+                    </Text>
+                  </View>
+
+                  <View style={styles.partialInputWrap}>
+                    <TextInput
+                      value={String(
+                        partial[
+                          exercise.id
+                        ] ?? ''
+                      )}
+                      onChangeText={(value) =>
+                        onPartialRepsChange(
+                          exercise,
+                          value.replace(
+                            /[^0-9]/g,
+                            ''
+                          )
+                        )
+                      }
+                      placeholder="0"
+                      placeholderTextColor={
+                        colors.textMuted
+                      }
+                      keyboardType="number-pad"
+                      style={styles.partialInput}
+                    />
+                    <Text style={styles.partialUnit}>
+                      / {target}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
+          )}
+        </View>
+      ) : (
+        <Text style={styles.protocolSavedText}>
+          Résultat récupéré automatiquement par le player UGEROD.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function ExceptionCard({
+  exercise,
+  selectedReason,
+  onReasonSelect,
+}) {
+  const status =
+    executionStatus(exercise);
+  const adapted =
+    status === 'adapted';
+  const reasons = adapted
+    ? ADAPTED_REASONS
+    : NOT_COMPLETED_REASONS;
+
+  return (
+    <View style={styles.exceptionCard}>
+      <View style={styles.exceptionHeader}>
+        <View
+          style={[
+            styles.exceptionStatus,
+            adapted
+              ? styles.exceptionStatusAdapted
+              : styles.exceptionStatusNotCompleted,
+          ]}
+        >
+          {adapted ? (
+            <Text
+              style={styles.exceptionAdaptedSymbol}
+            >
+              ≈
+            </Text>
+          ) : (
+            <Ionicons
+              name="close"
+              size={15}
+              color={colors.brandWhite}
+            />
+          )}
+        </View>
+
+        <View style={styles.exceptionMain}>
+          <Text
+            style={styles.exceptionName}
+          >
+            {String(
+              exercise.name
+            ).toUpperCase()}
+          </Text>
+          <Text
+            style={styles.exceptionPrescription}
+          >
+            {exercise.prescription}
+          </Text>
+        </View>
+
+        <Text
+          style={[
+            styles.exceptionBadge,
+            adapted
+              ? styles.exceptionBadgeAdapted
+              : styles.exceptionBadgeNotCompleted,
+          ]}
+        >
+          {adapted
+            ? 'ADAPTÉ'
+            : 'NON RÉALISÉ'}
+        </Text>
+      </View>
+
+      {exercise.adaptationSource ===
+      'swap' ? (
+        <View style={styles.swapInfo}>
+          <Ionicons
+            name="swap-horizontal-outline"
+            size={15}
+            color={colors.primaryLight}
+          />
+          <Text style={styles.swapInfoText}>
+            Exercice remplacé pendant la séance.
+          </Text>
+        </View>
+      ) : null}
+
+      <Text style={styles.reasonQuestion}>
+        {adapted
+          ? 'Pourquoi as-tu adapté cet exercice ?'
+          : 'Pourquoi ne l’as-tu pas réalisé ?'}
+      </Text>
+
+      <Text style={styles.reasonOptional}>
+        Facultatif
+      </Text>
+
+      <View style={styles.reasonChips}>
+        {reasons.map((reason) => {
+          const selected =
+            selectedReason ===
+            reason.code;
+
+          return (
+            <Pressable
+              key={reason.code}
+              onPress={() =>
+                onReasonSelect(
+                  reason.code
+                )
+              }
+              style={[
+                styles.reasonChip,
+                selected &&
+                  styles.reasonChipSelected,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.reasonChipText,
+                  selected &&
+                    styles.reasonChipTextSelected,
+                ]}
+              >
+                {reason.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -1098,23 +1375,12 @@ function SectionHeader({
   subtitle,
 }) {
   return (
-    <View
-      style={
-        styles.sectionHeader
-      }
-    >
-      <Text
-        style={
-          styles.sectionTitle
-        }
-      >
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>
         {title}
       </Text>
-
       <Text
-        style={
-          styles.sectionSubtitle
-        }
+        style={styles.sectionSubtitle}
       >
         {subtitle}
       </Text>
@@ -1130,71 +1396,48 @@ function RatingCard({
   highLabel,
   useRedAtHigh = false,
 }) {
-  const hasValue =
-    value != null;
-
+  const hasValue = value != null;
   const highValue =
     hasValue && value >= 9;
-
   const lowValue =
     hasValue && value <= 3;
 
-  let activeColor =
-    hasValue
-      ? colors.primary
-      : colors.textMuted;
+  let activeColor = hasValue
+    ? colors.primary
+    : colors.textMuted;
 
   if (lowValue) {
-    activeColor =
-      colors.brandRed;
+    activeColor = colors.brandRed;
   }
 
   if (
     highValue &&
     useRedAtHigh
   ) {
-    activeColor =
-      colors.brandRed;
+    activeColor = colors.brandRed;
   }
 
   return (
-    <View
-      style={
-        styles.ratingCard
-      }
-    >
-      <View
-        style={
-          styles.ratingTop
-        }
-      >
+    <View style={styles.ratingCard}>
+      <View style={styles.ratingTop}>
         <View>
           <Text
             style={[
               styles.ratingValue,
-              {
-                color:
-                  activeColor,
-              },
+              { color: activeColor },
             ]}
           >
             {hasValue ? value : '—'}
             <Text
-              style={
-                styles.ratingTotal
-              }
+              style={styles.ratingTotal}
             >
               /10
             </Text>
           </Text>
-
           <Text
             style={[
               styles.ratingLabel,
-              {
-                color:
-                  activeColor,
-              },
+              { color: activeColor },
             ]}
           >
             {label}
@@ -1204,34 +1447,22 @@ function RatingCard({
         <Ionicons
           name="pulse-outline"
           size={27}
-          color={
-            activeColor
-          }
+          color={activeColor}
         />
       </View>
 
-      <View
-        style={
-          styles.ratingNumbers
-        }
-      >
+      <View style={styles.ratingNumbers}>
         {Array.from(
-          {
-            length: 10,
-          },
+          { length: 10 },
           (_, index) => {
-            const number =
-              index + 1;
-
+            const number = index + 1;
             const selected =
               value === number;
 
             let selectedBackground =
               colors.primary;
 
-            if (
-              number <= 3
-            ) {
+            if (number <= 3) {
               selectedBackground =
                 colors.brandRed;
             }
@@ -1252,11 +1483,9 @@ function RatingCard({
                 }
                 style={[
                   styles.ratingNumber,
-
                   selected && {
                     backgroundColor:
                       selectedBackground,
-
                     borderColor:
                       selectedBackground,
                   },
@@ -1265,7 +1494,6 @@ function RatingCard({
                 <Text
                   style={[
                     styles.ratingNumberText,
-
                     selected &&
                       styles.ratingNumberTextSelected,
                   ]}
@@ -1278,23 +1506,14 @@ function RatingCard({
         )}
       </View>
 
-      <View
-        style={
-          styles.ratingLegend
-        }
-      >
+      <View style={styles.ratingLegend}>
         <Text
-          style={
-            styles.ratingLegendLow
-          }
+          style={styles.ratingLegendText}
         >
           {lowLabel}
         </Text>
-
         <Text
-          style={
-            styles.ratingLegendHigh
-          }
+          style={styles.ratingLegendText}
         >
           {highLabel}
         </Text>
@@ -1309,27 +1528,20 @@ const styles = StyleSheet.create({
     backgroundColor:
       colors.background,
   },
-
   keyboardView: {
     flex: 1,
   },
-
   content: {
     paddingHorizontal:
       spacing.xl,
-    paddingTop:
-      spacing.sm,
+    paddingTop: spacing.sm,
   },
-
-  /* HEADER */
-
   header: {
     minHeight: 74,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-
   backButton: {
     width: 42,
     height: 42,
@@ -1342,11 +1554,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   headerText: {
     flex: 1,
   },
-
   headerEyebrow: {
     fontFamily:
       'Oswald_600SemiBold',
@@ -1356,7 +1566,6 @@ const styles = StyleSheet.create({
     color:
       colors.textSecondary,
   },
-
   headerTitle: {
     ...typography.display,
     fontSize: 32,
@@ -1365,126 +1574,113 @@ const styles = StyleSheet.create({
     color:
       colors.textPrimary,
   },
-
   blueDot: {
-    color:
-      colors.primary,
+    color: colors.primary,
   },
-
   brandIcon: {
     width: 45,
     height: 45,
   },
-
-  /* HERO */
-
   heroCard: {
     marginTop: 10,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 18,
+    padding: 15,
     backgroundColor:
       colors.surface,
     borderWidth: 1,
     borderColor:
       colors.border,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
-
   heroIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor:
       colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
+  heroMain: {
+    flex: 1,
+  },
   heroTitle: {
     fontFamily:
       'BebasNeue_400Regular',
-    fontSize: 31,
-    lineHeight: 34,
-    letterSpacing: 1.6,
+    fontSize: 27,
+    lineHeight: 30,
+    letterSpacing: 1.3,
     color:
       colors.textPrimary,
-    marginTop: 13,
   },
-
   heroDescription: {
     fontFamily:
       'Oswald_400Regular',
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 10,
+    lineHeight: 15,
+    letterSpacing: 0.3,
     color:
       colors.textSecondary,
-    textAlign: 'center',
-    maxWidth: 310,
-    marginTop: 5,
+    marginTop: 2,
   },
-
-  heroStats: {
-    width: '100%',
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor:
-      'rgba(255,255,255,0.06)',
+  learningCard: {
+    marginTop: 14,
+    borderRadius: 16,
+    padding: 15,
+    backgroundColor:
+      'rgba(8,104,255,0.16)',
+    borderWidth: 1,
+    borderColor:
+      'rgba(8,104,255,0.46)',
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent:
-      'space-around',
+    alignItems: 'flex-start',
+    gap: 11,
   },
-
-  heroStat: {
+  learningIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor:
+      colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  learningMain: {
     flex: 1,
-    alignItems: 'center',
   },
-
-  heroStatValue: {
+  learningTitle: {
     fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 27,
-    lineHeight: 29,
+      'Oswald_700Bold',
+    fontSize: 12,
+    lineHeight: 17,
+    letterSpacing: 0.5,
     color:
       colors.textPrimary,
   },
-
-  heroStatLabel: {
+  learningText: {
     fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    lineHeight: 12,
-    letterSpacing: 0.6,
+      'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 17,
     color:
-      colors.textMuted,
-    marginTop: 2,
+      colors.textSecondary,
+    marginTop: 4,
   },
-
-  heroStatDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor:
-      'rgba(255,255,255,0.08)',
-  },
-
-  /* SECTIONS */
-
   sectionHeader: {
-    marginTop: 28,
-    marginBottom: 11,
+    marginTop: 27,
+    marginBottom: 10,
   },
-
   sectionTitle: {
     fontFamily:
       'Oswald_700Bold',
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.7,
+    fontSize: 15,
+    lineHeight: 19,
+    letterSpacing: 0.65,
     color:
       colors.textPrimary,
   },
-
   sectionSubtitle: {
     fontFamily:
       'Oswald_400Regular',
@@ -1494,9 +1690,6 @@ const styles = StyleSheet.create({
       colors.textSecondary,
     marginTop: 3,
   },
-
-  /* RATING */
-
   ratingCard: {
     borderRadius: 17,
     padding: 16,
@@ -1506,103 +1699,363 @@ const styles = StyleSheet.create({
     borderColor:
       colors.border,
   },
-
   ratingTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent:
       'space-between',
   },
-
   ratingValue: {
     fontFamily:
       'BebasNeue_400Regular',
     fontSize: 35,
-    lineHeight: 37,
+    lineHeight: 38,
   },
-
   ratingTotal: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 14,
+    fontSize: 18,
     color:
-      colors.textSecondary,
+      colors.textMuted,
   },
-
   ratingLabel: {
     fontFamily:
       'Oswald_700Bold',
     fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.7,
-    marginTop: 1,
+    letterSpacing: 0.65,
   },
-
   ratingNumbers: {
+    marginTop: 16,
     flexDirection: 'row',
     justifyContent:
       'space-between',
     gap: 4,
-    marginTop: 18,
   },
-
   ratingNumber: {
     flex: 1,
     aspectRatio: 1,
-    maxWidth: 34,
-    borderRadius: 17,
-    backgroundColor:
-      colors.backgroundSoft,
+    maxWidth: 33,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor:
       colors.border,
+    backgroundColor:
+      'rgba(255,255,255,0.025)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   ratingNumberText: {
     fontFamily:
       'Oswald_600SemiBold',
-    fontSize: 12,
+    fontSize: 11,
     color:
       colors.textSecondary,
   },
-
   ratingNumberTextSelected: {
     color:
       colors.brandWhite,
   },
-
   ratingLegend: {
+    marginTop: 8,
     flexDirection: 'row',
     justifyContent:
       'space-between',
-    marginTop: 10,
   },
-
-  ratingLegendLow: {
+  ratingLegendText: {
     fontFamily:
       'Oswald_600SemiBold',
+    fontSize: 8,
+    letterSpacing: 0.5,
+    color:
+      colors.textMuted,
+  },
+  protocolCard: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor:
+      colors.surface,
+    borderWidth: 1,
+    borderColor:
+      'rgba(8,104,255,0.28)',
+  },
+  protocolHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  protocolIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor:
+      colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  protocolHeaderMain: {
+    flex: 1,
+  },
+  protocolTitle: {
+    fontFamily:
+      'BebasNeue_400Regular',
+    fontSize: 23,
+    lineHeight: 26,
+    letterSpacing: 1,
+    color:
+      colors.textPrimary,
+  },
+  protocolMeta: {
+    fontFamily:
+      'Oswald_400Regular',
+    fontSize: 10,
+    color:
+      colors.textSecondary,
+    marginTop: 1,
+  },
+  protocolSavedText: {
+    marginTop: 12,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor:
+      'rgba(255,255,255,0.05)',
+    fontFamily:
+      'Oswald_400Regular',
+    fontSize: 10,
+    lineHeight: 16,
+    color:
+      colors.textSecondary,
+  },
+  failureResult: {
+    marginTop: 13,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor:
+      'rgba(255,255,255,0.06)',
+  },
+  failureResultTitle: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.55,
+    color:
+      colors.brandRed,
+  },
+  failureResultText: {
+    fontFamily:
+      'Oswald_400Regular',
+    fontSize: 10,
+    lineHeight: 16,
+    color:
+      colors.textSecondary,
+    marginTop: 4,
+  },
+  partialRow: {
+    minHeight: 58,
+    marginTop: 9,
+    borderRadius: 12,
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor:
+      'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor:
+      'rgba(255,255,255,0.06)',
+  },
+  partialMain: {
+    flex: 1,
+  },
+  partialName: {
+    fontFamily:
+      'Oswald_600SemiBold',
+    fontSize: 10,
+    color:
+      colors.textPrimary,
+  },
+  partialTarget: {
+    fontFamily:
+      'Oswald_400Regular',
     fontSize: 9,
-    letterSpacing: 0.4,
+    color:
+      colors.textMuted,
+    marginTop: 2,
+  },
+  partialInputWrap: {
+    minWidth: 86,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor:
+      colors.border,
+    backgroundColor:
+      'rgba(255,255,255,0.025)',
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  partialInput: {
+    minWidth: 28,
+    paddingVertical: 0,
+    textAlign: 'right',
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 13,
+    color:
+      colors.textPrimary,
+  },
+  partialUnit: {
+    marginLeft: 3,
+    fontFamily:
+      'Oswald_400Regular',
+    fontSize: 10,
     color:
       colors.textMuted,
   },
 
-  ratingLegendHigh: {
+  exceptionList: {
+    gap: 10,
+  },
+  exceptionCard: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor:
+      colors.surface,
+    borderWidth: 1,
+    borderColor:
+      colors.border,
+  },
+  exceptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  exceptionStatus: {
+    width: 31,
+    height: 31,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exceptionStatusAdapted: {
+    backgroundColor:
+      'rgba(245,166,35,0.92)',
+  },
+  exceptionStatusNotCompleted: {
+    backgroundColor:
+      colors.brandRed,
+  },
+  exceptionAdaptedSymbol: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 17,
+    color:
+      colors.brandWhite,
+  },
+  exceptionMain: {
+    flex: 1,
+  },
+  exceptionName: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 12,
+    lineHeight: 16,
+    color:
+      colors.textPrimary,
+  },
+  exceptionPrescription: {
+    fontFamily:
+      'Oswald_400Regular',
+    fontSize: 10,
+    lineHeight: 14,
+    color:
+      colors.textSecondary,
+    marginTop: 2,
+  },
+  exceptionBadge: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 8,
+    letterSpacing: 0.5,
+  },
+  exceptionBadgeAdapted: {
+    color:
+      '#F5A623',
+  },
+  exceptionBadgeNotCompleted: {
+    color:
+      colors.brandRed,
+  },
+  swapInfo: {
+    marginTop: 11,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor:
+      'rgba(255,255,255,0.05)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  swapInfoText: {
+    fontFamily:
+      'Oswald_400Regular',
+    fontSize: 10,
+    color:
+      colors.primaryLight,
+  },
+  reasonQuestion: {
+    marginTop: 13,
     fontFamily:
       'Oswald_600SemiBold',
+    fontSize: 11,
+    lineHeight: 16,
+    color:
+      colors.textPrimary,
+  },
+  reasonOptional: {
+    fontFamily:
+      'Oswald_400Regular',
     fontSize: 9,
-    letterSpacing: 0.4,
     color:
       colors.textMuted,
+    marginTop: 1,
   },
-
-  /* CHARGES */
-
+  reasonChips: {
+    marginTop: 9,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  reasonChip: {
+    minHeight: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor:
+      'rgba(255,255,255,0.09)',
+    backgroundColor:
+      'rgba(255,255,255,0.03)',
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reasonChipSelected: {
+    borderColor:
+      'rgba(8,104,255,0.52)',
+    backgroundColor:
+      'rgba(8,104,255,0.15)',
+  },
+  reasonChipText: {
+    fontFamily:
+      'Oswald_500Medium',
+    fontSize: 9,
+    color:
+      colors.textSecondary,
+  },
+  reasonChipTextSelected: {
+    color:
+      colors.primaryLight,
+  },
   loadsCard: {
-    borderRadius: 17,
-    paddingHorizontal: 15,
+    borderRadius: 16,
     backgroundColor:
       colors.surface,
     borderWidth: 1,
@@ -1610,408 +2063,106 @@ const styles = StyleSheet.create({
       colors.border,
     overflow: 'hidden',
   },
-
   loadRow: {
-    minHeight: 86,
-    paddingVertical: 13,
+    minHeight: 72,
+    padding: 13,
     gap: 10,
   },
-
   loadRowBorder: {
     borderBottomWidth: 1,
     borderBottomColor:
-      'rgba(255,255,255,0.06)',
+      'rgba(255,255,255,0.05)',
   },
-
-  loadExerciseMain: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent:
-      'space-between',
-  },
-
-  loadExerciseName: {
+  loadMain: {
     flex: 1,
+  },
+  loadName: {
     fontFamily:
-      'Oswald_700Bold',
-    fontSize: 13,
-    lineHeight: 17,
+      'Oswald_600SemiBold',
+    fontSize: 11,
     color:
       colors.textPrimary,
   },
-
-  loadExerciseDetail: {
+  loadPrescription: {
     fontFamily:
-      'Oswald_500Medium',
+      'Oswald_400Regular',
     fontSize: 10,
     color:
       colors.textMuted,
+    marginTop: 2,
   },
-
-  loadInputWrapper: {
-    height: 44,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    backgroundColor:
-      colors.backgroundSoft,
+  loadInputWrap: {
+    minHeight: 42,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor:
       colors.border,
+    backgroundColor:
+      'rgba(255,255,255,0.025)',
+    paddingHorizontal: 11,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-
   loadInput: {
     flex: 1,
     fontFamily:
-      'Oswald_500Medium',
-    fontSize: 13,
+      'Oswald_400Regular',
+    fontSize: 12,
     color:
       colors.textPrimary,
     paddingVertical: 0,
   },
-
-  loadHelp: {
-    minHeight: 52,
-    borderTopWidth: 1,
-    borderTopColor:
-      'rgba(255,255,255,0.06)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  loadHelpText: {
-    flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 10,
-    lineHeight: 15,
-    color:
-      colors.textMuted,
-  },
-
-  /* NOTES */
-
   notesCard: {
-    minHeight: 170,
-    borderRadius: 17,
-    padding: 14,
+    borderRadius: 16,
+    padding: 13,
     backgroundColor:
       colors.surface,
     borderWidth: 1,
     borderColor:
       colors.border,
   },
-
   notesInput: {
-    minHeight: 115,
+    minHeight: 92,
     fontFamily:
       'Oswald_400Regular',
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 18,
     color:
       colors.textPrimary,
     padding: 0,
   },
-
-  notesFooter: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor:
-      'rgba(255,255,255,0.06)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent:
-      'space-between',
-  },
-
-  notesHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  notesHintText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 8,
-    letterSpacing: 0.6,
-    color:
-      colors.textMuted,
-  },
-
   notesCount: {
+    marginTop: 8,
+    textAlign: 'right',
     fontFamily:
-      'Oswald_500Medium',
+      'Oswald_400Regular',
     fontSize: 9,
     color:
       colors.textMuted,
   },
-
-  /* RÉCAP */
-
-  recapCard: {
-    borderRadius: 17,
-    padding: 16,
-    backgroundColor:
-      colors.surface,
+  errorCard: {
+    marginTop: 18,
+    borderRadius: 13,
+    padding: 12,
     borderWidth: 1,
     borderColor:
-      colors.border,
-  },
-
-  recapHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent:
-      'space-between',
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor:
-      'rgba(255,255,255,0.06)',
-  },
-
-  recapEyebrow: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.7,
-    color:
-      colors.textSecondary,
-  },
-
-  recapCount: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 27,
-    lineHeight: 29,
-    color:
-      colors.primaryLight,
-    marginTop: 2,
-  },
-
-  recapCompletedIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+      'rgba(227,27,35,0.32)',
     backgroundColor:
-      colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  exerciseList: {
-    marginTop: 4,
-  },
-
-  exerciseRow: {
-    minHeight: 57,
+      'rgba(227,27,35,0.08)',
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    alignItems: 'flex-start',
+    gap: 8,
   },
-
-  exerciseBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor:
-      'rgba(255,255,255,0.05)',
-  },
-
-  exerciseStatusCompleted: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor:
-      colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  exerciseMain: {
+  errorText: {
     flex: 1,
-  },
-
-  exerciseName: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 12,
-    lineHeight: 17,
-    letterSpacing: 0.3,
-    color:
-      colors.textPrimary,
-  },
-
-  exerciseDetail: {
-    fontFamily:
-      'Oswald_500Medium',
-    fontSize: 10,
-    lineHeight: 14,
-    color:
-      colors.textMuted,
-    marginTop: 2,
-  },
-
-  savedLoadBadge: {
-    minHeight: 28,
-    paddingHorizontal: 8,
-    borderRadius: 14,
-    backgroundColor:
-      'rgba(8,104,255,0.10)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(8,104,255,0.25)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-
-  savedLoadText: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 9,
-    color:
-      colors.primaryLight,
-  },
-
-  emptyText: {
     fontFamily:
       'Oswald_400Regular',
     fontSize: 11,
-    lineHeight: 17,
-    color:
-      colors.textMuted,
-    textAlign: 'center',
-    paddingVertical: 18,
-  },
-
-  /* NON RÉALISÉS */
-
-  skippedCard: {
-    marginTop: 10,
-    borderRadius: 17,
-    padding: 16,
-    backgroundColor:
-      colors.surface,
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,59,59,0.20)',
-  },
-
-  skippedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent:
-      'space-between',
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor:
-      'rgba(255,255,255,0.05)',
-  },
-
-  skippedTitle: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.7,
+    lineHeight: 16,
     color:
       colors.brandRed,
   },
-
-  skippedCount: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 21,
-    color:
-      colors.brandRed,
-  },
-
-  skippedRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
-  exerciseStatusSkipped: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor:
-      colors.brandRed,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  skippedExerciseName: {
-    flex: 1,
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 12,
-    lineHeight: 17,
-    color:
-      colors.textSecondary,
-  },
-
-  /* INFO */
-
-  infoCard: {
-    minHeight: 76,
-    marginTop: 24,
-    borderRadius: 15,
-    padding: 14,
-    backgroundColor:
-      'rgba(8,104,255,0.08)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(8,104,255,0.25)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-  },
-
-  infoText: {
-    flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
-    color:
-      colors.textSecondary,
-  },
-
-  /* ERREUR ENREGISTREMENT */
-
-  saveErrorCard: {
-    minHeight: 58,
-    marginTop: 22,
-    borderRadius: 14,
-    padding: 13,
-    backgroundColor:
-      'rgba(255,59,59,0.08)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,59,59,0.24)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
-  saveErrorText: {
-    flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
-    color:
-      colors.textSecondary,
-  },
-
-  /* CTA */
-
   finishButton: {
     minHeight: 58,
     marginTop: 22,
@@ -2021,50 +2172,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
+    gap: 8,
   },
-
   finishButtonDisabled: {
-    opacity: 0.45,
+    opacity: 0.38,
   },
-
   finishButtonPressed: {
-    backgroundColor:
-      colors.primaryDark,
     transform: [
-      {
-        scale: 0.985,
-      },
+      { scale: 0.985 },
     ],
   },
-
   finishButtonText: {
     fontFamily:
       'BebasNeue_400Regular',
     fontSize: 20,
-    lineHeight: 23,
-    letterSpacing: 1.1,
+    letterSpacing: 1,
     color:
       colors.brandWhite,
   },
-
   finishHint: {
+    marginTop: 9,
+    textAlign: 'center',
     fontFamily:
       'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
+    fontSize: 10,
+    lineHeight: 15,
     color:
       colors.textMuted,
-    textAlign: 'center',
-    marginTop: 10,
-    paddingHorizontal: 20,
   },
-
   bottomSpace: {
     height: 38,
   },
-
   pressed: {
-    opacity: 0.65,
+    opacity: 0.66,
   },
 });

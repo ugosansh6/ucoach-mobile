@@ -11,7 +11,11 @@ import {
 } from 'react-native';
 
 import { useOnboarding } from '../../src/contexts/OnboardingContext';
-import { colors, spacing, typography } from '../../src/constants';
+import {
+  colors,
+  spacing,
+  typography,
+} from '../../src/constants';
 
 const brandLogo = require('../../assets/branding/ugerod-logo-white.png');
 
@@ -23,69 +27,132 @@ const DIMENSIONS = [
   { id: 'mobility', title: 'MOBILITÉ' },
 ];
 
-export default function AthleticProfileScreen() {
-  const { startingProfile, setStartingProfile } = useOnboarding();
+function getDimensionState(id, strengths, weaknesses) {
+  if (strengths.includes(id)) {
+    return 'strong';
+  }
 
-  const strengths = startingProfile?.strengths ?? [];
-  const weaknesses = startingProfile?.weaknesses ?? [];
-  const unsure = startingProfile?.unsure ?? false;
+  if (weaknesses.includes(id)) {
+    return 'weak';
+  }
+
+  return 'neutral';
+}
+
+export default function AthleticProfileScreen() {
+  const {
+    startingProfile,
+    setStartingProfile,
+  } = useOnboarding();
+
+  const strengths =
+    startingProfile?.strengths ?? [];
+
+  const weaknesses =
+    startingProfile?.weaknesses ?? [];
+
+  const unsure =
+    startingProfile?.unsure ?? false;
 
   const canContinue =
-    unsure || strengths.length > 0 || weaknesses.length > 0;
+    unsure ||
+    strengths.length > 0 ||
+    weaknesses.length > 0;
 
-  function setDimensionState(id, nextState) {
+  function cycleDimension(id) {
     setStartingProfile((current) => {
-      const currentStrengths = current?.strengths ?? [];
-      const currentWeaknesses = current?.weaknesses ?? [];
+      const currentStrengths =
+        current?.strengths ?? [];
 
-      const isStrength = currentStrengths.includes(id);
-      const isWeakness = currentWeaknesses.includes(id);
+      const currentWeaknesses =
+        current?.weaknesses ?? [];
 
-      if (nextState === 'strong') {
-        if (isStrength) {
+      const currentState =
+        getDimensionState(
+          id,
+          currentStrengths,
+          currentWeaknesses
+        );
+
+      /*
+       * 1er clic : point fort
+       * 2e clic : point faible
+       * 3e clic : retour neutre
+       *
+       * Maximum 2 points forts et 2 points faibles.
+       */
+
+      if (currentState === 'neutral') {
+        if (currentStrengths.length < 2) {
           return {
-            strengths: currentStrengths.filter((item) => item !== id),
-            weaknesses: currentWeaknesses,
+            strengths: [
+              ...currentStrengths,
+              id,
+            ],
+            weaknesses:
+              currentWeaknesses.filter(
+                (item) => item !== id
+              ),
             unsure: false,
           };
         }
 
-        if (currentStrengths.length >= 2) {
-          return current;
-        }
-
-        return {
-          strengths: [...currentStrengths, id],
-          weaknesses: currentWeaknesses.filter((item) => item !== id),
-          unsure: false,
-        };
-      }
-
-      if (nextState === 'weak') {
-        if (isWeakness) {
+        if (currentWeaknesses.length < 2) {
           return {
             strengths: currentStrengths,
-            weaknesses: currentWeaknesses.filter((item) => item !== id),
+            weaknesses: [
+              ...currentWeaknesses,
+              id,
+            ],
             unsure: false,
           };
         }
 
+        return current;
+      }
+
+      if (currentState === 'strong') {
         if (currentWeaknesses.length >= 2) {
           return current;
         }
 
         return {
-          strengths: currentStrengths.filter((item) => item !== id),
-          weaknesses: [...currentWeaknesses, id],
+          strengths:
+            currentStrengths.filter(
+              (item) => item !== id
+            ),
+          weaknesses: [
+            ...currentWeaknesses,
+            id,
+          ],
           unsure: false,
         };
       }
 
-      return current;
+      return {
+        strengths:
+          currentStrengths.filter(
+            (item) => item !== id
+          ),
+        weaknesses:
+          currentWeaknesses.filter(
+            (item) => item !== id
+          ),
+        unsure: false,
+      };
     });
   }
 
   function handleUnsure() {
+    if (unsure) {
+      setStartingProfile({
+        strengths: [],
+        weaknesses: [],
+        unsure: false,
+      });
+      return;
+    }
+
     setStartingProfile({
       strengths: [],
       weaknesses: [],
@@ -94,7 +161,10 @@ export default function AthleticProfileScreen() {
   }
 
   function handleNext() {
-    if (!canContinue) return;
+    if (!canContinue) {
+      return;
+    }
+
     router.push('/onboarding/precautions');
   }
 
@@ -113,7 +183,9 @@ export default function AthleticProfileScreen() {
               pressed && styles.pressed,
             ]}
           >
-            <Text style={styles.backIcon}>‹</Text>
+            <Text style={styles.backIcon}>
+              ‹
+            </Text>
           </Pressable>
 
           <Image
@@ -126,7 +198,9 @@ export default function AthleticProfileScreen() {
         </View>
 
         <View style={styles.progressArea}>
-          <Text style={styles.stepText}>ÉTAPE 4 SUR 6</Text>
+          <Text style={styles.stepText}>
+            ÉTAPE 4 SUR 6
+          </Text>
 
           <View style={styles.progressTrack}>
             <View style={styles.progressFill} />
@@ -135,188 +209,234 @@ export default function AthleticProfileScreen() {
 
         <View style={styles.titleArea}>
           <Text style={styles.title}>
-            TON PROFIL DE DÉPART<Text style={styles.blueDot}>.</Text>
+            TON PROFIL DE DÉPART
+            <Text style={styles.blueDot}>
+              .
+            </Text>
           </Text>
 
           <Text style={styles.subtitle}>
-            Indique simplement ce qui te semble aujourd’hui être un point fort
-            ou un point faible. Tout le reste reste neutre.
+            Choisis jusqu’à 2 points forts
+            et 2 points faibles.
           </Text>
         </View>
 
-        <View style={styles.counterCard}>
-          <View style={styles.counterItem}>
-            <View style={[styles.counterDot, styles.counterDotWeak]} />
-            <Text style={styles.counterLabel}>POINTS FAIBLES</Text>
-            <Text style={styles.counterValue}>{weaknesses.length}/2</Text>
+        <View style={styles.legendRow}>
+          <View
+            style={[
+              styles.legendBrick,
+              styles.legendBrickStrong,
+            ]}
+          >
+            <View style={styles.legendIconStrong}>
+              <Ionicons
+                name="thumbs-up-outline"
+                size={18}
+                color={colors.success}
+              />
+            </View>
+
+            <View style={styles.legendTextArea}>
+              <Text style={styles.legendLabel}>
+                POINTS FORTS
+              </Text>
+
+              <Text
+                style={[
+                  styles.legendCount,
+                  styles.legendCountStrong,
+                ]}
+              >
+                {strengths.length}/2
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.counterDivider} />
+          <View
+            style={[
+              styles.legendBrick,
+              styles.legendBrickWeak,
+            ]}
+          >
+            <View style={styles.legendIconWeak}>
+              <Ionicons
+                name="thumbs-down-outline"
+                size={18}
+                color={colors.brandRed}
+              />
+            </View>
 
-          <View style={styles.counterItem}>
-            <View style={[styles.counterDot, styles.counterDotStrong]} />
-            <Text style={styles.counterLabel}>POINTS FORTS</Text>
-            <Text style={styles.counterValue}>{strengths.length}/2</Text>
+            <View style={styles.legendTextArea}>
+              <Text style={styles.legendLabel}>
+                POINTS FAIBLES
+              </Text>
+
+              <Text
+                style={[
+                  styles.legendCount,
+                  styles.legendCountWeak,
+                ]}
+              >
+                {weaknesses.length}/2
+              </Text>
+            </View>
           </View>
         </View>
 
         <View style={styles.dimensions}>
           {DIMENSIONS.map((item) => {
-            const isStrength = strengths.includes(item.id);
-            const isWeakness = weaknesses.includes(item.id);
-            const isNeutral = !isStrength && !isWeakness;
+            const state =
+              getDimensionState(
+                item.id,
+                strengths,
+                weaknesses
+              );
 
-            const strongDisabled =
-              !isStrength && strengths.length >= 2;
+            const isStrong =
+              state === 'strong';
 
-            const weakDisabled =
-              !isWeakness && weaknesses.length >= 2;
+            const isWeak =
+              state === 'weak';
 
             return (
-              <View
+              <Pressable
                 key={item.id}
-                style={[
-                  styles.dimensionCard,
-                  isStrength && styles.dimensionCardStrong,
-                  isWeakness && styles.dimensionCardWeak,
+                onPress={() =>
+                  cycleDimension(item.id)
+                }
+                style={({ pressed }) => [
+                  styles.dimensionButton,
+                  isStrong &&
+                    styles.dimensionButtonStrong,
+                  isWeak &&
+                    styles.dimensionButtonWeak,
+                  pressed &&
+                    styles.dimensionButtonPressed,
                 ]}
               >
-                <View style={styles.dimensionMain}>
-                  <Text style={styles.dimensionTitle}>{item.title}</Text>
-
-                  <Text
-                    style={[
-                      styles.dimensionState,
-                      isStrength && styles.dimensionStateStrong,
-                      isWeakness && styles.dimensionStateWeak,
-                    ]}
-                  >
-                    {isNeutral && 'NEUTRE · 3/5'}
-                    {isStrength && 'POINT FORT · 4/5'}
-                    {isWeakness && 'POINT FAIBLE · 2/5'}
-                  </Text>
-                </View>
-
-                <View style={styles.actions}>
-                  <Pressable
-                    onPress={() => setDimensionState(item.id, 'weak')}
-                    disabled={weakDisabled}
-                    hitSlop={6}
-                    style={({ pressed }) => [
-                      styles.stateButton,
-                      styles.stateButtonWeak,
-                      isWeakness && styles.stateButtonWeakSelected,
-                      weakDisabled && styles.stateButtonDisabled,
-                      pressed && !weakDisabled && styles.stateButtonPressed,
-                    ]}
-                  >
-                    <Ionicons
-                      name="arrow-down"
-                      size={17}
-                      color={
-                        isWeakness ? colors.brandWhite : colors.brandRed
-                      }
-                    />
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => setDimensionState(item.id, 'strong')}
-                    disabled={strongDisabled}
-                    hitSlop={6}
-                    style={({ pressed }) => [
-                      styles.stateButton,
-                      styles.stateButtonStrong,
-                      isStrength && styles.stateButtonStrongSelected,
-                      strongDisabled && styles.stateButtonDisabled,
-                      pressed && !strongDisabled && styles.stateButtonPressed,
-                    ]}
-                  >
+                <View
+                  style={[
+                    styles.stateIndicator,
+                    isStrong &&
+                      styles.stateIndicatorStrong,
+                    isWeak &&
+                      styles.stateIndicatorWeak,
+                  ]}
+                >
+                  {isStrong && (
                     <Ionicons
                       name="arrow-up"
-                      size={17}
-                      color={
-                        isStrength ? colors.brandWhite : colors.primaryLight
+                      size={18}
+                      color={colors.brandWhite}
+                    />
+                  )}
+
+                  {isWeak && (
+                    <Ionicons
+                      name="arrow-down"
+                      size={18}
+                      color={colors.brandWhite}
+                    />
+                  )}
+
+                  {!isStrong && !isWeak && (
+                    <View
+                      style={
+                        styles.neutralIndicator
                       }
                     />
-                  </Pressable>
+                  )}
                 </View>
-              </View>
+
+                <Text
+                  style={[
+                    styles.dimensionTitle,
+                    isStrong &&
+                      styles.dimensionTitleStrong,
+                    isWeak &&
+                      styles.dimensionTitleWeak,
+                  ]}
+                >
+                  {item.title}
+                </Text>
+              </Pressable>
             );
           })}
-        </View>
-
-        <View style={styles.legendCard}>
-          <Text style={styles.legendText}>
-            ↓ POINT FAIBLE
-          </Text>
-
-          <View style={styles.legendDot} />
-
-          <Text style={styles.legendText}>
-            NON SÉLECTIONNÉ = 3/5
-          </Text>
-
-          <View style={styles.legendDot} />
-
-          <Text style={styles.legendText}>
-            ↑ POINT FORT
-          </Text>
         </View>
 
         <Pressable
           onPress={handleUnsure}
           style={({ pressed }) => [
             styles.unsureButton,
-            unsure && styles.unsureButtonSelected,
-            pressed && styles.stateButtonPressed,
+            unsure &&
+              styles.unsureButtonSelected,
+            pressed &&
+              styles.dimensionButtonPressed,
           ]}
         >
           <View
             style={[
-              styles.unsureStatus,
-              unsure && styles.unsureStatusSelected,
+              styles.unsureIcon,
+              unsure &&
+                styles.unsureIconSelected,
             ]}
           >
-            {unsure && (
-              <Ionicons
-                name="checkmark"
-                size={17}
-                color={colors.brandWhite}
-              />
-            )}
+            <Ionicons
+              name={
+                unsure
+                  ? 'checkmark'
+                  : 'help'
+              }
+              size={18}
+              color={
+                unsure
+                  ? colors.brandWhite
+                  : colors.textSecondary
+              }
+            />
           </View>
 
-          <View style={styles.unsureTextArea}>
-            <Text
-              style={[
-                styles.unsureTitle,
-                unsure && styles.unsureTitleSelected,
-              ]}
-            >
-              JE NE SAIS PAS
-            </Text>
-
-            <Text style={styles.unsureText}>
-              UGEROD démarre à 3/5 partout et apprendra avec mes séances.
-            </Text>
-          </View>
+          <Text
+            style={[
+              styles.unsureTitle,
+              unsure &&
+                styles.unsureTitleSelected,
+            ]}
+          >
+            JE NE SAIS PAS
+          </Text>
         </Pressable>
 
-        <View style={styles.spacer} />
+        <View style={styles.infoCard}>
+          <Ionicons
+            name="analytics-outline"
+            size={18}
+            color={colors.primaryLight}
+          />
+
+          <Text style={styles.infoText}>
+            Tes futures séances et performances
+            alimenteront progressivement ton profil sportif.
+          </Text>
+        </View>
 
         <Pressable
           onPress={handleNext}
           disabled={!canContinue}
           style={({ pressed }) => [
             styles.primaryButton,
-            !canContinue && styles.primaryButtonDisabled,
-            pressed && canContinue && styles.primaryButtonPressed,
+            !canContinue &&
+              styles.primaryButtonDisabled,
+            pressed &&
+              canContinue &&
+              styles.primaryButtonPressed,
           ]}
         >
           <Text
             style={[
               styles.primaryButtonText,
-              !canContinue && styles.primaryButtonTextDisabled,
+              !canContinue &&
+                styles.primaryButtonTextDisabled,
             ]}
           >
             CONTINUER
@@ -336,11 +456,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
+    paddingBottom: 24,
   },
 
   header: {
-    minHeight: 90,
+    minHeight: 78,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -361,8 +481,8 @@ const styles = StyleSheet.create({
 
   logo: {
     flex: 1,
-    height: 64,
-    maxWidth: 190,
+    height: 58,
+    maxWidth: 180,
     alignSelf: 'center',
   },
 
@@ -371,8 +491,8 @@ const styles = StyleSheet.create({
   },
 
   progressArea: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.xxl,
+    marginTop: 2,
+    marginBottom: 18,
   },
 
   stepText: {
@@ -397,7 +517,7 @@ const styles = StyleSheet.create({
   },
 
   titleArea: {
-    marginBottom: spacing.lg,
+    marginBottom: 16,
   },
 
   title: {
@@ -414,233 +534,199 @@ const styles = StyleSheet.create({
 
   subtitle: {
     fontFamily: 'Oswald_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 23,
     color: colors.textSecondary,
     marginTop: spacing.sm,
-    maxWidth: 390,
   },
 
-  counterCard: {
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: 'rgba(17,21,26,0.92)',
+  legendRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+
+  legendBrick: {
+    flex: 1,
+    minHeight: 76,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    marginBottom: spacing.md,
+    gap: 10,
   },
 
-  counterItem: {
-    flex: 1,
-    flexDirection: 'row',
+  legendBrickStrong: {
+    backgroundColor: 'rgba(36,200,117,0.08)',
+    borderColor: 'rgba(36,200,117,0.38)',
+  },
+
+  legendBrickWeak: {
+    backgroundColor: 'rgba(255,59,59,0.08)',
+    borderColor: 'rgba(255,59,59,0.38)',
+  },
+
+  legendIconStrong: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: 'rgba(36,200,117,0.12)',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
   },
 
-  counterDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  legendIconWeak: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,59,59,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  counterDotWeak: {
-    backgroundColor: colors.brandRed,
-  },
-
-  counterDotStrong: {
-    backgroundColor: colors.primary,
-  },
-
-  counterLabel: {
+  legendTextArea: {
     flex: 1,
+  },
+
+  legendLabel: {
     fontFamily: 'Oswald_600SemiBold',
     fontSize: 9,
     lineHeight: 13,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
     color: colors.textSecondary,
   },
 
-  counterValue: {
+  legendCount: {
     fontFamily: 'BebasNeue_400Regular',
-    fontSize: 19,
-    lineHeight: 21,
-    color: colors.textPrimary,
+    fontSize: 24,
+    lineHeight: 27,
+    marginTop: 1,
   },
 
-  counterDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    marginHorizontal: 10,
+  legendCountStrong: {
+    color: colors.success,
+  },
+
+  legendCountWeak: {
+    color: colors.brandRed,
   },
 
   dimensions: {
     gap: 10,
   },
 
-  dimensionCard: {
-    minHeight: 72,
+  dimensionButton: {
+    minHeight: 76,
     borderRadius: 16,
-    backgroundColor: 'rgba(17,21,26,0.92)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
-  dimensionCardStrong: {
-    borderColor: 'rgba(8,104,255,0.55)',
-    backgroundColor: 'rgba(8,104,255,0.10)',
-  },
-
-  dimensionCardWeak: {
-    borderColor: 'rgba(255,59,59,0.45)',
-    backgroundColor: 'rgba(255,59,59,0.08)',
-  },
-
-  dimensionMain: {
-    flex: 1,
-  },
-
-  dimensionTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.3,
-    color: colors.textPrimary,
-  },
-
-  dimensionState: {
-    fontFamily: 'Oswald_500Medium',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.5,
-    color: colors.textMuted,
-    marginTop: 3,
-  },
-
-  dimensionStateStrong: {
-    color: colors.primaryLight,
-  },
-
-  dimensionStateWeak: {
-    color: colors.brandRed,
-  },
-
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  stateButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  stateButtonWeak: {
-    backgroundColor: 'rgba(255,59,59,0.08)',
-    borderColor: 'rgba(255,59,59,0.30)',
-  },
-
-  stateButtonWeakSelected: {
-    backgroundColor: colors.brandRed,
-    borderColor: colors.brandRed,
-  },
-
-  stateButtonStrong: {
-    backgroundColor: 'rgba(8,104,255,0.10)',
-    borderColor: 'rgba(8,104,255,0.28)',
-  },
-
-  stateButtonStrongSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-
-  stateButtonDisabled: {
-    opacity: 0.25,
-  },
-
-  stateButtonPressed: {
-    transform: [{ scale: 0.94 }],
-  },
-
-  legendCard: {
-    marginTop: 12,
-    minHeight: 34,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-  },
-
-  legendText: {
-    fontFamily: 'Oswald_500Medium',
-    fontSize: 8,
-    lineHeight: 12,
-    letterSpacing: 0.4,
-    color: colors.textMuted,
-  },
-
-  legendDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.textMuted,
-  },
-
-  unsureButton: {
-    minHeight: 78,
-    marginTop: spacing.lg,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    backgroundColor: 'rgba(17,21,26,0.92)',
-    paddingHorizontal: 14,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
 
-  unsureButtonSelected: {
-    borderColor: 'rgba(8,104,255,0.55)',
-    backgroundColor: 'rgba(8,104,255,0.10)',
+  dimensionButtonStrong: {
+    backgroundColor: 'rgba(36,200,117,0.12)',
+    borderColor: colors.success,
   },
 
-  unsureStatus: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
+  dimensionButtonWeak: {
+    backgroundColor: 'rgba(255,59,59,0.11)',
+    borderColor: colors.brandRed,
+  },
+
+  dimensionButtonPressed: {
+    transform: [{ scale: 0.985 }],
+    opacity: 0.9,
+  },
+
+  dimensionTitle: {
+    flex: 1,
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 16,
+    lineHeight: 21,
+    letterSpacing: 0.4,
+    color: colors.textPrimary,
+  },
+
+  dimensionTitleStrong: {
+    color: colors.success,
+  },
+
+  dimensionTitleWeak: {
+    color: '#FF6B6B',
+  },
+
+  stateIndicator: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.backgroundSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  unsureStatusSelected: {
-    backgroundColor: colors.primary,
+  stateIndicatorStrong: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
+  },
+
+  stateIndicatorWeak: {
+    backgroundColor: colors.brandRed,
+    borderColor: colors.brandRed,
+  },
+
+  neutralIndicator: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.textMuted,
+  },
+
+  unsureButton: {
+    minHeight: 76,
+    marginTop: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+
+  unsureButtonSelected: {
+    backgroundColor: 'rgba(8,104,255,0.12)',
     borderColor: colors.primary,
   },
 
-  unsureTextArea: {
-    flex: 1,
+  unsureIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  unsureIconSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
 
   unsureTitle: {
     fontFamily: 'Oswald_700Bold',
     fontSize: 14,
     lineHeight: 18,
+    letterSpacing: 0.4,
     color: colors.textPrimary,
   },
 
@@ -648,17 +734,26 @@ const styles = StyleSheet.create({
     color: colors.primaryLight,
   },
 
-  unsureText: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
-    color: colors.textSecondary,
-    marginTop: 2,
+  infoCard: {
+    marginTop: 10,
+    minHeight: 76,
+    borderRadius: 14,
+    backgroundColor: colors.backgroundSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 
-  spacer: {
+  infoText: {
     flex: 1,
-    minHeight: spacing.xxl,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
   },
 
   primaryButton: {
@@ -668,7 +763,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 14,
     paddingHorizontal: spacing.xl,
-    marginTop: spacing.xxl,
+    marginTop: 18,
   },
 
   primaryButtonDisabled: {
