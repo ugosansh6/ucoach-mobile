@@ -990,53 +990,81 @@ function DurationSlider({
         (DURATIONS.length - 1)
       : 0;
 
+  /*
+   * IMPORTANT MOBILE / IOS
+   * ----------------------
+   * Le PanResponder doit rester stable pendant tout le drag.
+   * Sinon chaque changement de duree rerend le composant et peut remplacer
+   * les handlers pendant que le doigt est encore pose sur le curseur.
+   * Les refs gardent les valeurs courantes sans recreer le responder.
+   */
   const dragOriginXRef = useRef(0);
+  const currentIndexRef = useRef(currentIndex);
+  const stepRef = useRef(step);
+  const trackWidthRef = useRef(trackWidth);
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
 
-  const updateFromX = useCallback(
-    (x) => {
-      if (!trackWidth || !step) {
-        return;
-      }
+  currentIndexRef.current = currentIndex;
+  stepRef.current = step;
+  trackWidthRef.current = trackWidth;
+  valueRef.current = value;
+  onChangeRef.current = onChange;
 
-      const clampedX = Math.max(
-        0,
-        Math.min(trackWidth, x)
-      );
+  const updateFromXRef = useRef(null);
 
-      const nextIndex = Math.max(
-        0,
-        Math.min(
-          DURATIONS.length - 1,
-          Math.round(clampedX / step)
-        )
-      );
+  updateFromXRef.current = (x) => {
+    const liveTrackWidth =
+      trackWidthRef.current;
+    const liveStep = stepRef.current;
 
-      const nextValue =
-        DURATIONS[nextIndex];
+    if (!liveTrackWidth || !liveStep) {
+      return;
+    }
 
-      if (nextValue !== value) {
-        onChange(nextValue);
-      }
-    },
-    [onChange, step, trackWidth, value]
-  );
+    const clampedX = Math.max(
+      0,
+      Math.min(liveTrackWidth, x)
+    );
+
+    const nextIndex = Math.max(
+      0,
+      Math.min(
+        DURATIONS.length - 1,
+        Math.round(clampedX / liveStep)
+      )
+    );
+
+    const nextValue =
+      DURATIONS[nextIndex];
+
+    if (nextValue !== valueRef.current) {
+      valueRef.current = nextValue;
+      onChangeRef.current(nextValue);
+    }
+  };
 
   const knobPanResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder:
           () => true,
+        onStartShouldSetPanResponderCapture:
+          () => true,
         onMoveShouldSetPanResponder:
+          () => true,
+        onMoveShouldSetPanResponderCapture:
           () => true,
         onPanResponderGrant: () => {
           dragOriginXRef.current =
-            currentIndex * step;
+            currentIndexRef.current *
+            stepRef.current;
         },
         onPanResponderMove: (
           _event,
           gestureState
         ) => {
-          updateFromX(
+          updateFromXRef.current?.(
             dragOriginXRef.current +
               gestureState.dx
           );
@@ -1045,19 +1073,26 @@ function DurationSlider({
           _event,
           gestureState
         ) => {
-          updateFromX(
+          updateFromXRef.current?.(
+            dragOriginXRef.current +
+              gestureState.dx
+          );
+        },
+        onPanResponderTerminate: (
+          _event,
+          gestureState
+        ) => {
+          updateFromXRef.current?.(
             dragOriginXRef.current +
               gestureState.dx
           );
         },
         onPanResponderTerminationRequest:
           () => false,
+        onShouldBlockNativeResponder:
+          () => true,
       }),
-    [
-      currentIndex,
-      step,
-      updateFromX,
-    ]
+    []
   );
 
   const knobLeft =
@@ -1098,11 +1133,16 @@ function DurationSlider({
 
       <View style={styles.durationSliderRight}>
         <View
-          onLayout={(event) =>
+          onLayout={(event) => {
+            const nextTrackWidth =
+              event.nativeEvent.layout.width;
+
+            trackWidthRef.current =
+              nextTrackWidth;
             setTrackWidth(
-              event.nativeEvent.layout.width
-            )
-          }
+              nextTrackWidth
+            );
+          }}
           style={styles.durationTrackTouch}
         >
           <View style={styles.durationTrack}>
