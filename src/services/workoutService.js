@@ -1066,6 +1066,39 @@ async function resolveSessionExerciseInstances(
   });
 }
 
+export async function getWorkoutSwapAvailability(sessionId) {
+  if (!sessionId) {
+    return {
+      sessionId: null,
+      items: {},
+      version: null,
+    };
+  }
+
+  const { data, error } = await supabase.rpc(
+    'get_workout_swap_availability',
+    {
+      p_session_id: sessionId,
+    }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ??
+        'Impossible de vérifier les remplacements disponibles.'
+    );
+  }
+
+  return {
+    sessionId:
+      data?.session_id ?? sessionId,
+    items:
+      data?.items ?? {},
+    version:
+      data?.version ?? null,
+  };
+}
+
 export async function swapWorkoutExercise({
   sessionId,
   sessionExerciseId,

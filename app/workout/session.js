@@ -33,7 +33,8 @@ import {
 import {
   changeWorkoutFormat,
   getWorkoutFormatOptions,
-   markWorkoutSessionStarted,
+  getWorkoutSwapAvailability,
+  markWorkoutSessionStarted,
   reloadWorkoutSession,
   swapWorkoutExercise,
 } from '../../src/services/workoutService';
@@ -478,6 +479,16 @@ export default function WorkoutSessionScreen() {
     useState('');
 
   const [
+    swapAvailability,
+    setSwapAvailability,
+  ] = useState({});
+
+  const [
+    swapAvailabilityLoading,
+    setSwapAvailabilityLoading,
+  ] = useState(false);
+
+  const [
     formatModalVisible,
     setFormatModalVisible,
   ] = useState(false);
@@ -584,6 +595,58 @@ export default function WorkoutSessionScreen() {
       'wod'
     )?.mechanicLabel ??
     'FORMAT UGEROD';
+
+  const swapAvailabilityFingerprint =
+    useMemo(
+      () =>
+        sourceExercises
+          .filter(
+            (exercise) =>
+              exercise.sessionExerciseId
+          )
+          .map(
+            (exercise) =>
+              `${exercise.sessionExerciseId}:${exercise.id}`
+          )
+          .join('|'),
+      [sourceExercises]
+    );
+
+  const refreshSwapAvailability =
+    useCallback(async () => {
+      if (!workout.sessionId) {
+        setSwapAvailability({});
+        return;
+      }
+
+      setSwapAvailabilityLoading(true);
+
+      try {
+        const result =
+          await getWorkoutSwapAvailability(
+            workout.sessionId
+          );
+
+        setSwapAvailability(
+          result?.items ?? {}
+        );
+      } catch (error) {
+        console.warn(
+          'Swap availability',
+          error
+        );
+        setSwapAvailability({});
+      } finally {
+        setSwapAvailabilityLoading(false);
+      }
+    }, [workout.sessionId]);
+
+  useEffect(() => {
+    refreshSwapAvailability();
+  }, [
+    refreshSwapAvailability,
+    swapAvailabilityFingerprint,
+  ]);
 
   function moveActiveExercise(
     blockId,
@@ -778,7 +841,11 @@ useEffect(() => {
       validatedBlocks.includes(
         blockId
       ) ||
-      !workout.sessionId
+      !workout.sessionId ||
+      !exercise.sessionExerciseId ||
+      swapAvailability?.[
+        exercise.sessionExerciseId
+      ]?.available !== true
     ) {
       return;
     }
@@ -1656,6 +1723,24 @@ useEffect(() => {
                               swappingExerciseKey ===
                               exercise._uiKey;
 
+                            const swapState =
+                              exercise.sessionExerciseId
+                                ? swapAvailability[
+                                    exercise.sessionExerciseId
+                                  ]
+                                : null;
+
+                            const swapAvailable =
+                              swapState?.available ===
+                              true;
+
+                            const swapDisabled =
+                              Boolean(
+                                swappingExerciseKey
+                              ) ||
+                              swapAvailabilityLoading ||
+                              !swapAvailable;
+
                             return (
                               <View
                                 key={exercise._uiKey}
@@ -1774,15 +1859,16 @@ useEffect(() => {
                                         )
                                       }
                                       disabled={
-                                        Boolean(
-                                          swappingExerciseKey
-                                        )
+                                        swapDisabled
                                       }
                                       hitSlop={8}
                                       style={[
                                         styles.swapButton,
                                         swapping &&
                                           styles.swapButtonLoading,
+                                        (!swapAvailable ||
+                                          swapAvailabilityLoading) &&
+                                          { opacity: 0.28 },
                                       ]}
                                     >
                                       {swapping ? (
@@ -1797,7 +1883,10 @@ useEffect(() => {
                                           name="swap-horizontal-outline"
                                           size={20}
                                           color={
-                                            colors.primaryLight
+                                            swapAvailable &&
+                                            !swapAvailabilityLoading
+                                              ? colors.primaryLight
+                                              : colors.textMuted
                                           }
                                         />
                                       )}
