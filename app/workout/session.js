@@ -2963,7 +2963,7 @@ function FormatModal({
     viewportWidth <= 600;
 
   const modalHeight = compactViewport
-    ? Math.max(320, viewportHeight - 24)
+    ? viewportHeight
     : Math.min(
         720,
         Math.max(
@@ -2990,6 +2990,8 @@ function FormatModal({
         <SafeAreaView
           style={[
             styles.modalSheet,
+            compactViewport &&
+              styles.modalSheetCompact,
             { height: modalHeight },
           ]}
         >
@@ -4386,8 +4388,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
   },
 
   modalBackdrop: {
@@ -4397,9 +4397,9 @@ const styles = StyleSheet.create({
   },
 
   modalSheet: {
-    width: '100%',
+    width: '94%',
     maxWidth: 560,
-    maxHeight: '100%',
+    maxHeight: '94%',
     flexShrink: 1,
     borderRadius: 20,
     overflow: 'hidden',
@@ -4408,6 +4408,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor:
       'rgba(255,255,255,0.10)',
+    paddingHorizontal: 16,
+  },
+
+  modalSheetCompact: {
+    width: '100%',
+    maxWidth: '100%',
+    maxHeight: '100%',
+    borderRadius: 0,
+    borderWidth: 0,
     paddingHorizontal: 16,
   },
 
