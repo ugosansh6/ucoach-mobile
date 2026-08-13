@@ -127,6 +127,20 @@ const FALLBACK_EXERCISES = [
   },
 ];
 
+function formatExerciseDetailText(value) {
+  if (typeof value !== 'string') {
+    return value ?? '';
+  }
+
+  return value
+    .replace(/\\r\\n|\\n|\\r/g, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/(^|\n)\s*(\d+)[.)-]?\s+/g, (_, prefix, number) =>
+      prefix + number + '. '
+    )
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 function normalizeBlockId(value) {
   if (value === 'warm_up') {
     return 'warmup';
@@ -724,7 +738,12 @@ useEffect(() => {
 }, [workout.sessionId]);
 
   function handleBack() {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/workout/preparation');
   }
 
   function replaceExercise(
@@ -948,6 +967,88 @@ useEffect(() => {
     } finally {
       setSwappingExerciseKey(null);
     }
+  }
+
+  function toggleBlockExerciseSelection(
+    blockId
+  ) {
+    if (
+      validatedBlocks.includes(
+        blockId
+      )
+    ) {
+      return;
+    }
+
+    const blockExercises =
+      sourceExercises.filter(
+        (exercise) =>
+          normalizeBlockId(
+            exercise.blockKey ??
+              exercise.block
+          ) === blockId
+      );
+
+    if (blockExercises.length === 0) {
+      return;
+    }
+
+    const hasPending =
+      blockExercises.some(
+        (exercise) =>
+          exercise.status ===
+          'pending'
+      );
+
+    const nextExercises =
+      sourceExercises.map(
+        (exercise) => {
+          const sameBlock =
+            normalizeBlockId(
+              exercise.blockKey ??
+                exercise.block
+            ) === blockId;
+
+          if (!sameBlock) {
+            return exercise;
+          }
+
+          if (hasPending) {
+            return exercise.status ===
+              'pending'
+              ? {
+                  ...exercise,
+                  status: 'completed',
+                }
+              : exercise;
+          }
+
+          return exercise.status ===
+            'completed'
+            ? {
+                ...exercise,
+                status: 'pending',
+              }
+            : exercise;
+        }
+      );
+
+    if (workout.exercises?.length) {
+      updateWorkout({
+        exercises: nextExercises,
+      });
+    } else {
+      setDevExercises(
+        nextExercises
+      );
+    }
+
+    setExpandedBlocks(
+      (current) => ({
+        ...current,
+        [blockId]: true,
+      })
+    );
   }
 
   function canValidateBlock(block) {
@@ -1457,6 +1558,14 @@ useEffect(() => {
                           block.validated
                         }
                         locked={locked}
+                        selected={
+                          block.exercises.length > 0 &&
+                          block.exercises.every(
+                            (exercise) =>
+                              exercise.status !==
+                              'pending'
+                          )
+                        }
                         onPress={
                           block.id !== 'wod' &&
                           !block.validated &&
@@ -1464,7 +1573,7 @@ useEffect(() => {
                           !concealed &&
                           canValidate
                             ? () =>
-                                validateBlock(
+                                toggleBlockExerciseSelection(
                                   block.id
                                 )
                             : null
@@ -1930,7 +2039,7 @@ useEffect(() => {
                                           PRÉSENTATION
                                         </Text>
                                         <Text style={styles.exerciseDescription}>
-                                          {exercise.description}
+                                          {formatExerciseDetailText(exercise.description)}
                                         </Text>
                                       </View>
                                     ) : null}
@@ -1941,7 +2050,7 @@ useEffect(() => {
                                           EXÉCUTION
                                         </Text>
                                         <Text style={styles.exerciseDescription}>
-                                          {exercise.instructions}
+                                          {formatExerciseDetailText(exercise.instructions)}
                                         </Text>
                                       </View>
                                     ) : null}
@@ -1971,7 +2080,7 @@ useEffect(() => {
                                           <Text
                                             style={styles.tipText}
                                           >
-                                            {exercise.tips}
+                                            {formatExerciseDetailText(exercise.tips)}
                                           </Text>
                                         </View>
                                       </View>
@@ -2197,6 +2306,7 @@ function CurrentExerciseCard({
 function BlockStatus({
   validated,
   locked,
+  selected,
   onPress,
 }) {
   if (locked) {
@@ -2236,10 +2346,12 @@ function BlockStatus({
         }}
         hitSlop={10}
         accessibilityRole="button"
-        accessibilityLabel="Valider le bloc"
+        accessibilityLabel="Sélectionner ou désélectionner les exercices du bloc"
         style={({ pressed }) => [
           styles.blockStatusPending,
           styles.blockStatusActionable,
+          selected &&
+            styles.blockStatusSelected,
           pressed &&
             styles.blockStatusPressed,
         ]}
@@ -3374,6 +3486,13 @@ const styles = StyleSheet.create({
       'rgba(8,104,255,0.62)',
     backgroundColor:
       'rgba(8,104,255,0.08)',
+  },
+
+  blockStatusSelected: {
+    borderColor:
+      colors.primary,
+    backgroundColor:
+      colors.primary,
   },
 
   blockStatusPressed: {

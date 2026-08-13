@@ -13,11 +13,14 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 
 import {
   colors,
   spacing,
 } from '../../constants';
+
+const wodBeep = require('../../../assets/sounds/tabata-beep.wav');
 
 function normalizeMechanic(value) {
   return String(value ?? '')
@@ -308,6 +311,44 @@ export default function WodProtocolPlayer({
       10
     );
 
+  const beepPlayer =
+    useAudioPlayer(wodBeep);
+
+  useEffect(() => {
+    setAudioModeAsync({
+      playsInSilentMode: true,
+    }).catch((error) => {
+      console.warn(
+        'WOD audio mode',
+        error
+      );
+    });
+  }, []);
+
+  const playBeep =
+    useCallback(
+      (count = 1) => {
+        for (
+          let index = 0;
+          index < count;
+          index += 1
+        ) {
+          setTimeout(() => {
+            try {
+              beepPlayer.seekTo(0);
+              beepPlayer.play();
+            } catch (error) {
+              console.warn(
+                'WOD beep',
+                error
+              );
+            }
+          }, index * 170);
+        }
+      },
+      [beepPlayer]
+    );
+
   const [started, setStarted] =
     useState(
       Boolean(initialRuntime?.started)
@@ -391,13 +432,14 @@ export default function WodProtocolPlayer({
         setFinishReason('timer_complete');
       }
 
+      playBeep(2);
       Vibration.vibrate([
         0,
         120,
         80,
         120,
       ]);
-    }, [finished, mechanic]);
+    }, [finished, mechanic, playBeep]);
 
   const [elapsed, setElapsed] =
     useSecondClock({
@@ -422,6 +464,7 @@ export default function WodProtocolPlayer({
     const timer = setInterval(() => {
       setRestRemaining((current) => {
         if (current <= 1) {
+          playBeep();
           Vibration.vibrate(70);
           return 0;
         }
@@ -431,7 +474,7 @@ export default function WodProtocolPlayer({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [restRemaining > 0]);
+  }, [playBeep, restRemaining > 0]);
 
   const derived = useMemo(() => {
     const interval = Math.max(
@@ -692,6 +735,7 @@ export default function WodProtocolPlayer({
     }
 
     if (lastPhaseKey.current != null) {
+      playBeep();
       Vibration.vibrate(70);
     }
 
@@ -700,6 +744,7 @@ export default function WodProtocolPlayer({
   }, [
     derived.phaseKey,
     finished,
+    playBeep,
     started,
   ]);
 
@@ -723,6 +768,7 @@ export default function WodProtocolPlayer({
       remaining > 0 &&
       remaining <= 3
     ) {
+      playBeep();
       Vibration.vibrate(30);
     }
   }, [
@@ -730,6 +776,7 @@ export default function WodProtocolPlayer({
     elapsed,
     finished,
     paused,
+    playBeep,
     started,
     totalSeconds,
   ]);
@@ -788,6 +835,7 @@ export default function WodProtocolPlayer({
     setStarted(true);
     setPaused(false);
     setFinishReason(null);
+    playBeep();
     Vibration.vibrate(60);
   }
 
@@ -803,6 +851,7 @@ export default function WodProtocolPlayer({
     setFinished(true);
     setPaused(false);
     setFinishReason(reason);
+    playBeep(2);
     Vibration.vibrate([
       0,
       100,

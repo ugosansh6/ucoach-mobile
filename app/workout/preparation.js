@@ -329,7 +329,12 @@ export default function PreparationScreen() {
   );
 
   function handleBack() {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/(tabs)');
   }
 
   function handleManageEquipment() {
