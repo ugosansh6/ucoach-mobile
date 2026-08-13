@@ -2087,67 +2087,95 @@ useEffect(() => {
                           }
                         )}
 
-                        <Pressable
-                          onPress={() =>
-                            validateBlock(
-                              block.id
-                            )
-                          }
-                          disabled={
-                            !canValidate ||
-                            block.validated
-                          }
-                          style={({ pressed }) => [
-                            styles.validateButton,
-                            block.validated &&
-                              styles.validateButtonDone,
-                            !canValidate &&
-                              !block.validated &&
-                              styles.validateButtonDisabled,
-                            pressed &&
-                              canValidate &&
-                              !block.validated &&
-                              styles.validateButtonPressed,
-                          ]}
-                        >
-                          {block.validated ? (
-                            <>
-                              <Ionicons
-                                name="checkmark-circle"
-                                size={20}
-                                color={
-                                  colors.primaryLight
-                                }
-                              />
-                              <Text
-                                style={styles.validateButtonDoneText}
-                              >
-                                BLOC VALIDÉ
-                              </Text>
-                            </>
-                          ) : (
+                        {block.id === 'wod' &&
+                        block.validated &&
+                        workout.status !== 'completed' ? (
+                          <Pressable
+                            onPress={() =>
+                              router.push(
+                                '/workout/completion'
+                              )
+                            }
+                            style={({ pressed }) => [
+                              styles.validateButton,
+                              pressed &&
+                                styles.validateButtonPressed,
+                            ]}
+                          >
+                            <Ionicons
+                              name="arrow-forward-circle-outline"
+                              size={20}
+                              color={colors.brandWhite}
+                            />
                             <Text
-                              style={[
-                                styles.validateButtonText,
-                                !canValidate &&
-                                  styles.validateButtonTextDisabled,
-                              ]}
+                              style={styles.validateButtonText}
                             >
-                              {block.id ===
-                                'warmup' &&
-                                'TERMINER LE WARM-UP'}
-                              {block.id ===
-                                'tabata' &&
-                                'TERMINER LE TABATA'}
-                              {block.id ===
-                                'skill' &&
-                                'TERMINER LE SKILL'}
-                              {block.id ===
-                                'wod' &&
-                                'TERMINER LA SÉANCE'}
+                              RETOURNER À LA FIN DE SÉANCE
                             </Text>
-                          )}
-                        </Pressable>
+                          </Pressable>
+                        ) : (
+                          <Pressable
+                            onPress={() =>
+                              validateBlock(
+                                block.id
+                              )
+                            }
+                            disabled={
+                              !canValidate ||
+                              block.validated
+                            }
+                            style={({ pressed }) => [
+                              styles.validateButton,
+                              block.validated &&
+                                styles.validateButtonDone,
+                              !canValidate &&
+                                !block.validated &&
+                                styles.validateButtonDisabled,
+                              pressed &&
+                                canValidate &&
+                                !block.validated &&
+                                styles.validateButtonPressed,
+                            ]}
+                          >
+                            {block.validated ? (
+                              <>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={20}
+                                  color={
+                                    colors.primaryLight
+                                  }
+                                />
+                                <Text
+                                  style={styles.validateButtonDoneText}
+                                >
+                                  BLOC VALIDÉ
+                                </Text>
+                              </>
+                            ) : (
+                              <Text
+                                style={[
+                                  styles.validateButtonText,
+                                  !canValidate &&
+                                    styles.validateButtonTextDisabled,
+                                ]}
+                              >
+                                {block.id ===
+                                  'warmup' &&
+                                  'TERMINER LE WARM-UP'}
+                                {block.id ===
+                                  'tabata' &&
+                                  'TERMINER LE TABATA'}
+                                {block.id ===
+                                  'skill' &&
+                                  'TERMINER LE SKILL'}
+                                {block.id ===
+                                  'wod' &&
+                                  'TERMINER LA SÉANCE'}
+                              </Text>
+                            )}
+                          </Pressable>
+                        )}
                       </View>
                     ) : null}
                   </View>
