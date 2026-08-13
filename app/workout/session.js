@@ -19,6 +19,7 @@ import {
   Text,
   Vibration,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
@@ -341,11 +342,17 @@ function sortFormatOptions(options) {
           return 0;
         }
 
-        if (item.entitled) {
+        if (
+          item.compatible &&
+          !item.locked
+        ) {
           return 1;
         }
 
-        if (item.locked) {
+        if (
+          item.compatible &&
+          item.locked
+        ) {
           return 2;
         }
 
@@ -401,22 +408,10 @@ function formatOptionState(option) {
     };
   }
 
-  if (
-    option.classification ===
-    'ADAPTABLE'
-  ) {
-    return {
-      label:
-        'UGEROD ADAPTERA LE WOD',
-      icon: 'options-outline',
-      tone: 'adaptable',
-    };
-  }
-
   return {
-    label: 'COMPATIBLE',
+    label: null,
     icon: 'checkmark',
-    tone: 'compatible',
+    tone: 'available',
   };
 }
 
@@ -2314,11 +2309,11 @@ function BlockStatus({
   if (locked) {
     return (
       <View
-        style={styles.blockStatusLocked}
+        style={styles.exerciseStatus}
       >
         <Ionicons
           name="lock-closed"
-          size={13}
+          size={16}
           color={colors.textMuted}
         />
       </View>
@@ -2328,11 +2323,14 @@ function BlockStatus({
   if (validated) {
     return (
       <View
-        style={styles.blockStatusValidated}
+        style={[
+          styles.exerciseStatus,
+          styles.exerciseStatusCompleted,
+        ]}
       >
         <Ionicons
           name="checkmark"
-          size={17}
+          size={16}
           color={colors.brandWhite}
         />
       </View>
@@ -2350,21 +2348,26 @@ function BlockStatus({
         accessibilityRole="button"
         accessibilityLabel="Sélectionner ou désélectionner les exercices du bloc"
         style={({ pressed }) => [
-          styles.blockStatusPending,
-          styles.blockStatusActionable,
+          styles.exerciseStatus,
           selected &&
-            styles.blockStatusSelected,
+            styles.exerciseStatusCompleted,
           pressed &&
             styles.blockStatusPressed,
         ]}
-      />
+      >
+        {selected ? (
+          <Ionicons
+            name="checkmark"
+            size={16}
+            color={colors.brandWhite}
+          />
+        ) : null}
+      </Pressable>
     );
   }
 
   return (
-    <View
-      style={styles.blockStatusPending}
-    />
+    <View style={styles.exerciseStatus} />
   );
 }
 
@@ -2951,6 +2954,24 @@ function FormatModal({
   subscriptionTier,
   onSelect,
 }) {
+  const {
+    width: viewportWidth,
+    height: viewportHeight,
+  } = useWindowDimensions();
+
+  const compactViewport =
+    viewportWidth <= 600;
+
+  const modalHeight = compactViewport
+    ? Math.max(320, viewportHeight - 24)
+    : Math.min(
+        720,
+        Math.max(
+          480,
+          Math.round(viewportHeight * 0.84)
+        )
+      );
+
   return (
     <Modal
       visible={visible}
@@ -2967,7 +2988,10 @@ function FormatModal({
         />
 
         <SafeAreaView
-          style={styles.modalSheet}
+          style={[
+            styles.modalSheet,
+            { height: modalHeight },
+          ]}
         >
           <View
             style={styles.modalHandle}
@@ -3080,6 +3104,7 @@ function FormatModal({
                       !option.compatible &&
                         styles.formatOptionDisabled,
                       option.locked &&
+                        option.compatible &&
                         styles.formatOptionLocked,
                       pressed &&
                         !disabled &&
@@ -3095,8 +3120,7 @@ function FormatModal({
                         <Text
                           style={[
                             styles.formatOptionTitle,
-                            (!option.compatible ||
-                              option.locked) &&
+                            !option.compatible &&
                               !option.current &&
                               styles.formatOptionTitleMuted,
                           ]}
@@ -3122,7 +3146,7 @@ function FormatModal({
                                 ? colors.textMuted
                                 : state.tone ===
                                     'locked'
-                                  ? colors.textMuted
+                                  ? '#F5A623'
                                   : colors.primaryLight
                             }
                           />
@@ -3132,8 +3156,7 @@ function FormatModal({
                       <Text
                         style={[
                           styles.formatOptionDescription,
-                          (!option.compatible ||
-                            option.locked) &&
+                          !option.compatible &&
                             !option.current &&
                             styles.formatOptionDescriptionMuted,
                         ]}
@@ -3142,38 +3165,26 @@ function FormatModal({
                           'UGEROD adaptera la structure de la séance à cette mécanique.'}
                       </Text>
 
-                      <Text
-                        style={[
-                          styles.formatOptionState,
-                          state.tone ===
-                            'incompatible' &&
-                            styles.formatStateMuted,
-                          state.tone ===
-                            'locked' &&
-                            styles.formatStateLocked,
-                        ]}
-                      >
-                        {state.label}
-                      </Text>
+                      {state.label ? (
+                        <Text
+                          style={[
+                            styles.formatOptionState,
+                            state.tone ===
+                              'incompatible' &&
+                              styles.formatStateMuted,
+                            state.tone ===
+                              'locked' &&
+                              styles.formatStateLocked,
+                          ]}
+                        >
+                          {state.label}
+                        </Text>
+                      ) : null}
                     </View>
                   </Pressable>
                 );
               })}
 
-              <View
-                style={styles.formatFooter}
-              >
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={18}
-                  color={colors.primaryLight}
-                />
-                <Text
-                  style={styles.formatFooterText}
-                >
-                  Un format reste indisponible si le moteur juge qu’il n’est pas adapté à la séance, même en Premium.
-                </Text>
-              </View>
             </ScrollView>
           )}
         </SafeAreaView>
@@ -4373,7 +4384,10 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
 
   modalBackdrop: {
@@ -4383,17 +4397,18 @@ const styles = StyleSheet.create({
   },
 
   modalSheet: {
-    maxHeight: '88%',
-    minHeight: '60%',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '100%',
+    flexShrink: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
     backgroundColor:
       colors.background,
-    borderTopWidth: 1,
+    borderWidth: 1,
     borderColor:
       'rgba(255,255,255,0.10)',
-    paddingHorizontal:
-      spacing.xl,
+    paddingHorizontal: 16,
   },
 
   modalHandle: {
@@ -4507,6 +4522,7 @@ const styles = StyleSheet.create({
 
   formatList: {
     flex: 1,
+    minHeight: 0,
   },
 
   formatListContent: {
@@ -4537,7 +4553,10 @@ const styles = StyleSheet.create({
   },
 
   formatOptionLocked: {
-    opacity: 0.58,
+    backgroundColor:
+      'rgba(245,166,35,0.10)',
+    borderColor:
+      'rgba(245,166,35,0.48)',
   },
 
   formatOptionPressed: {
@@ -4575,11 +4594,11 @@ const styles = StyleSheet.create({
   },
 
   formatOptionDescription: {
-    marginTop: 4,
+    marginTop: 5,
     fontFamily:
       'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 19,
     color:
       colors.textSecondary,
   },
@@ -4606,7 +4625,7 @@ const styles = StyleSheet.create({
 
   formatStateLocked: {
     color:
-      colors.textSecondary,
+      '#F5A623',
   },
 
   formatFooter: {
