@@ -733,11 +733,9 @@ useEffect(() => {
 }, [workout.sessionId]);
 
   function handleBack() {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
+    // Session -> paramètres de séance, quel que soit l'historique de navigation.
+    // On évite router.back(), qui peut renvoyer directement au dashboard
+    // après un replace/deep-link Expo Go.
     router.replace('/workout/preparation');
   }
 
