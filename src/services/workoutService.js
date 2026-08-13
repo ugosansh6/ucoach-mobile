@@ -160,7 +160,7 @@ function readPrescriptionObject(exercise) {
     exercise?.prescription &&
     typeof exercise.prescription === 'object'
   ) {
-    return exercise.prescription;
+    return stripRpeFromPrescription(exercise.prescription);
   }
 
   return {};
@@ -199,6 +199,20 @@ function formatRange(
   return `${min ?? max} ${suffix}`;
 }
 
+function stripRpeFromPrescription(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  return value
+    .replace(/\s*[·|•]\s*RPE\s*\d+(?:[.,]\d+)?(?:\s*[–-]\s*\d+(?:[.,]\d+)?)?/gi, '')
+    .replace(/RPE\s*\d+(?:[.,]\d+)?(?:\s*[–-]\s*\d+(?:[.,]\d+)?)?\s*[·|•]?\s*/gi, '')
+    .replace(/\s*[·|•]\s*$/g, '')
+    .replace(/^\s*[·|•]\s*/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function formatPrescription(exercise) {
   if (
     typeof exercise?.prescription ===
@@ -215,7 +229,7 @@ function formatPrescription(exercise) {
       'string' &&
     prescription.text.trim()
   ) {
-    return prescription.text.trim();
+    return stripRpeFromPrescription(prescription.text.trim());
   }
 
   const protocol =
@@ -298,22 +312,6 @@ function formatPrescription(exercise) {
     pieces.unshift(`${sets} séries`);
   }
 
-  const rpeMin = formatNumber(
-    prescription.target_rpe_min
-  );
-  const rpeMax = formatNumber(
-    prescription.target_rpe_max
-  );
-
-  if (rpeMin || rpeMax) {
-    pieces.push(
-      rpeMin &&
-        rpeMax &&
-        rpeMin !== rpeMax
-        ? `RPE ${rpeMin}–${rpeMax}`
-        : `RPE ${rpeMin ?? rpeMax}`
-    );
-  }
 
   if (pieces.length > 0) {
     return pieces.join(' · ');
@@ -834,6 +832,72 @@ function mapGeneratedWorkout(data, preparation) {
     meta: data?.meta ?? {},
   };
 }
+async function enrichWorkoutExerciseMetadata(workout) {
+  const source = Array.isArray(workout?.exercises)
+    ? workout.exercises
+    : [];
+
+  const ids = [
+    ...new Set(
+      source
+        .map((exercise) => exercise.id)
+        .filter(Boolean)
+    ),
+  ];
+
+  if (ids.length === 0) {
+    return workout;
+  }
+
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('id, description, instructions, tips, image_path')
+    .in('id', ids);
+
+  if (error) {
+    console.warn('Exercise metadata enrichment', error.message);
+    return workout;
+  }
+
+  const metaById = new Map(
+    (data ?? []).map((item) => [
+      item.id,
+      item,
+    ])
+  );
+
+  return {
+    ...workout,
+    exercises: source.map((exercise) => {
+      const meta = metaById.get(exercise.id);
+
+      if (!meta) {
+        return exercise;
+      }
+
+      return {
+        ...exercise,
+        description:
+          meta.description ??
+          exercise.description ??
+          null,
+        instructions:
+          meta.instructions ??
+          exercise.instructions ??
+          null,
+        tips:
+          meta.tips ??
+          exercise.tips ??
+          null,
+        imagePath:
+          meta.image_path ??
+          exercise.imagePath ??
+          null,
+      };
+    }),
+  };
+}
+
 async function resolveFocusForGeneration() {
   try {
     const primaryGoal =
@@ -923,9 +987,14 @@ export async function generateWorkoutSession(preparation) {
     );
   }
 
-  return mapGeneratedWorkout(
-    data,
-    preparation
+  const mappedWorkout =
+    mapGeneratedWorkout(
+      data,
+      preparation
+    );
+
+  return enrichWorkoutExerciseMetadata(
+    mappedWorkout
   );
 }
 
@@ -1227,16 +1296,21 @@ export async function reloadWorkoutSession({
     );
   }
 
-  return mapGeneratedWorkout(
-    {
-      ...data.generated_workout,
-      session_id: sessionId,
-      status:
-        data.status ??
-        data.generated_workout.status ??
-        'generated',
-    },
-    preparationSnapshot ?? {}
+  const mappedWorkout =
+    mapGeneratedWorkout(
+      {
+        ...data.generated_workout,
+        session_id: sessionId,
+        status:
+          data.status ??
+          data.generated_workout.status ??
+          'generated',
+      },
+      preparationSnapshot ?? {}
+    );
+
+  return enrichWorkoutExerciseMetadata(
+    mappedWorkout
   );
 }
 

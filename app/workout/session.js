@@ -21,6 +21,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 
 import {
   colors,
@@ -43,6 +44,7 @@ import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayer';
 
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 const workoutBackground = require('../../assets/backgrounds/welcome-default.jpg');
+const tabataBeep = require('../../assets/sounds/tabata-beep.wav');
 
 const BLOCK_ORDER = [
   'warmup',
@@ -868,68 +870,62 @@ useEffect(() => {
             exercise.id,
         });
 
-      if (blockId === 'wod') {
-        const refreshed =
-          await reloadWorkoutSession({
-            sessionId:
-              workout.sessionId,
-            preparationSnapshot:
-              workout.preparationSnapshot,
-          });
-
-        updateWorkout({
-          ...refreshed,
-          exercises:
-            refreshed.exercises.map(
+      const previousByInstance =
+        new Map(
+          sourceExercises
+            .filter(
               (item) =>
+                item.sessionExerciseId
+            )
+            .map((item) => [
+              item.sessionExerciseId,
+              item,
+            ])
+        );
+
+      const refreshed =
+        await reloadWorkoutSession({
+          sessionId:
+            workout.sessionId,
+          preparationSnapshot:
+            workout.preparationSnapshot,
+        });
+
+      updateWorkout({
+        ...refreshed,
+        exercises:
+          refreshed.exercises.map(
+            (item) => {
+              if (
                 item.sessionExerciseId ===
                 exercise.sessionExerciseId
-                  ? {
-                      ...item,
-                      status: 'adapted',
-                      adaptationSource: 'swap',
-                    }
-                  : item
-            ),
-          validatedBlocks,
-        });
-      } else {
-        const substitute =
-          data.substitute;
+              ) {
+                return {
+                  ...item,
+                  status: 'adapted',
+                  adaptationSource: 'swap',
+                };
+              }
 
-        replaceExercise(
-          exercise,
-          {
-            id: substitute.id,
-            exerciseId:
-              substitute.id,
-            name:
-              substitute.name,
-            prescription:
-              substitute.prescription,
-            prescriptionJson:
-              substitute.prescription_json ??
-              null,
-            instructions:
-              substitute.instructions ??
-              null,
-            tips:
-              substitute.tips ??
-              null,
-            pattern:
-              substitute.pattern ??
-              null,
-            region:
-              substitute.region ??
-              null,
-            trackingModes:
-              substitute.tracking_modes ??
-              [],
-            status: 'adapted',
-            adaptationSource: 'swap',
-          }
-        );
-      }
+              const previous =
+                previousByInstance.get(
+                  item.sessionExerciseId
+                );
+
+              return previous
+                ? {
+                    ...item,
+                    status:
+                      previous.status,
+                    adaptationSource:
+                      previous.adaptationSource ??
+                      null,
+                  }
+                : item;
+            }
+          ),
+        validatedBlocks,
+      });
 
       setExpandedExercises(
         (current) => {
@@ -1395,12 +1391,6 @@ useEffect(() => {
                     ? `EN COURS · ${activeBlock.title}`
                     : 'SÉANCE TERMINÉE'}
                 </Text>
-
-                <Text
-                  style={styles.summaryMeta}
-                >
-                  WOD SURPRISE
-                </Text>
               </View>
             </View>
 
@@ -1467,6 +1457,18 @@ useEffect(() => {
                           block.validated
                         }
                         locked={locked}
+                        onPress={
+                          block.id !== 'wod' &&
+                          !block.validated &&
+                          !locked &&
+                          !concealed &&
+                          canValidate
+                            ? () =>
+                                validateBlock(
+                                  block.id
+                                )
+                            : null
+                        }
                       />
 
                       <View
@@ -1822,14 +1824,6 @@ useEffect(() => {
                                     }
                                     style={styles.exerciseMain}
                                   >
-                                    {block.id ===
-                                    'tabata' ? (
-                                      <Text
-                                        style={styles.tabataPosition}
-                                      >
-                                        EXERCICE {exercise.tabataPosition}
-                                      </Text>
-                                    ) : null}
 
                                     <Text
                                       style={styles.exerciseName}
@@ -1917,29 +1911,69 @@ useEffect(() => {
                                   <View
                                     style={styles.exerciseDetails}
                                   >
-                                    <Text
-                                      style={styles.exerciseDescription}
-                                    >
-                                      {exercise.instructions ??
-                                        'Réalise le mouvement avec contrôle et respecte la prescription.'}
-                                    </Text>
+                                    {exercise.imagePath &&
+                                    /^https?:\/\//i.test(
+                                      exercise.imagePath
+                                    ) ? (
+                                      <Image
+                                        source={{
+                                          uri: exercise.imagePath,
+                                        }}
+                                        style={styles.exerciseDetailImage}
+                                        resizeMode="cover"
+                                      />
+                                    ) : null}
+
+                                    {exercise.description ? (
+                                      <View style={styles.exerciseDetailSection}>
+                                        <Text style={styles.exerciseDetailLabel}>
+                                          PRÉSENTATION
+                                        </Text>
+                                        <Text style={styles.exerciseDescription}>
+                                          {exercise.description}
+                                        </Text>
+                                      </View>
+                                    ) : null}
+
+                                    {exercise.instructions ? (
+                                      <View style={styles.exerciseDetailSection}>
+                                        <Text style={styles.exerciseDetailLabel}>
+                                          EXÉCUTION
+                                        </Text>
+                                        <Text style={styles.exerciseDescription}>
+                                          {exercise.instructions}
+                                        </Text>
+                                      </View>
+                                    ) : null}
+
+                                    {!exercise.description &&
+                                    !exercise.instructions ? (
+                                      <Text style={styles.exerciseDescription}>
+                                        Les consignes détaillées de ce mouvement ne sont pas encore renseignées.
+                                      </Text>
+                                    ) : null}
 
                                     {exercise.tips ? (
                                       <View
                                         style={styles.tipRow}
                                       >
                                         <Ionicons
-                                          name="information-circle-outline"
+                                          name="bulb-outline"
                                           size={18}
                                           color={
                                             colors.primaryLight
                                           }
                                         />
-                                        <Text
-                                          style={styles.tipText}
-                                        >
-                                          {exercise.tips}
-                                        </Text>
+                                        <View style={styles.tipTextWrap}>
+                                          <Text style={styles.exerciseDetailLabel}>
+                                            CONSEIL UGEROD
+                                          </Text>
+                                          <Text
+                                            style={styles.tipText}
+                                          >
+                                            {exercise.tips}
+                                          </Text>
+                                        </View>
                                       </View>
                                     ) : null}
                                   </View>
@@ -1948,14 +1982,6 @@ useEffect(() => {
                             );
                           }
                         )}
-
-                        {!block.validated ? (
-                          <Text
-                            style={styles.statusHint}
-                          >
-                            Le cercle sert uniquement à signaler une exception. En validant le bloc, tout exercice encore à faire sera enregistré comme réalisé.
-                          </Text>
-                        ) : null}
 
                         <Pressable
                           onPress={() =>
@@ -2171,6 +2197,7 @@ function CurrentExerciseCard({
 function BlockStatus({
   validated,
   locked,
+  onPress,
 }) {
   if (locked) {
     return (
@@ -2197,6 +2224,26 @@ function BlockStatus({
           color={colors.brandWhite}
         />
       </View>
+    );
+  }
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={(event) => {
+          event?.stopPropagation?.();
+          onPress();
+        }}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel="Valider le bloc"
+        style={({ pressed }) => [
+          styles.blockStatusPending,
+          styles.blockStatusActionable,
+          pressed &&
+            styles.blockStatusPressed,
+        ]}
+      />
     );
   }
 
@@ -2385,6 +2432,44 @@ function TabataTimer({ block }) {
   const [paused, setPaused] =
     useState(false);
 
+  const beepPlayer =
+    useAudioPlayer(tabataBeep);
+
+  useEffect(() => {
+    setAudioModeAsync({
+      playsInSilentMode: true,
+    }).catch((error) => {
+      console.warn(
+        'Tabata audio mode',
+        error
+      );
+    });
+  }, []);
+
+  const playBeep =
+    useCallback(
+      (count = 1) => {
+        for (
+          let index = 0;
+          index < count;
+          index += 1
+        ) {
+          setTimeout(() => {
+            try {
+              beepPlayer.seekTo(0);
+              beepPlayer.play();
+            } catch (error) {
+              console.warn(
+                'Tabata beep',
+                error
+              );
+            }
+          }, index * 170);
+        }
+      },
+      [beepPlayer]
+    );
+
   const lastBuzzSecond =
     useRef(null);
 
@@ -2445,6 +2530,7 @@ function TabataTimer({ block }) {
           if (phase === 'work') {
             setPhase('rest');
             Vibration.vibrate(80);
+            playBeep(1);
             return restSeconds;
           }
 
@@ -2457,6 +2543,7 @@ function TabataTimer({ block }) {
               80,
               120,
             ]);
+            playBeep(3);
             return 0;
           }
 
@@ -2465,6 +2552,7 @@ function TabataTimer({ block }) {
           );
           setPhase('work');
           Vibration.vibrate(80);
+          playBeep(1);
           return workSeconds;
         }
       );
@@ -2480,6 +2568,7 @@ function TabataTimer({ block }) {
     rounds,
     running,
     workSeconds,
+    playBeep,
   ]);
 
   useEffect(() => {
@@ -2506,10 +2595,12 @@ function TabataTimer({ block }) {
     lastBuzzSecond.current =
       remaining;
     Vibration.vibrate(35);
+    playBeep(1);
   }, [
     paused,
     remaining,
     running,
+    playBeep,
   ]);
 
   function start() {
@@ -2519,6 +2610,7 @@ function TabataTimer({ block }) {
     setPaused(false);
     lastBuzzSecond.current = null;
     Vibration.vibrate(60);
+    playBeep(1);
   }
 
   function reset() {
@@ -3277,6 +3369,18 @@ const styles = StyleSheet.create({
       colors.border,
   },
 
+  blockStatusActionable: {
+    borderColor:
+      'rgba(8,104,255,0.62)',
+    backgroundColor:
+      'rgba(8,104,255,0.08)',
+  },
+
+  blockStatusPressed: {
+    backgroundColor:
+      'rgba(8,104,255,0.24)',
+  },
+
   blockStatusLocked: {
     width: 24,
     height: 24,
@@ -3642,6 +3746,30 @@ const styles = StyleSheet.create({
       'rgba(255,255,255,0.035)',
   },
 
+  exerciseDetailImage: {
+    width: '100%',
+    height: 170,
+    borderRadius: 10,
+    marginBottom: 12,
+    backgroundColor:
+      'rgba(255,255,255,0.04)',
+  },
+
+  exerciseDetailSection: {
+    gap: 4,
+    marginBottom: 10,
+  },
+
+  exerciseDetailLabel: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 9,
+    lineHeight: 13,
+    letterSpacing: 0.75,
+    color:
+      colors.primaryLight,
+  },
+
   exerciseDescription: {
     fontFamily:
       'Oswald_400Regular',
@@ -3656,6 +3784,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 7,
+  },
+
+  tipTextWrap: {
+    flex: 1,
+    gap: 3,
   },
 
   tipText: {
