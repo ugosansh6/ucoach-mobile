@@ -22,10 +22,33 @@ function replaceOnce(content, search, replacement, label) {
 let session = readNormalized(sessionPath);
 
 if (!session.includes('function formatExerciseDetailText(value) {')) {
+  const formatter = [
+    'function formatExerciseDetailText(value) {',
+    "  if (typeof value !== 'string') {",
+    "    return value ?? '';",
+    '  }',
+    '',
+    '  return value',
+    '    // Certaines descriptions viennent de la base avec des "\\\\n" littéraux.',
+    '    // On les transforme en vrais retours à la ligne pour React Native.',
+    "    .replace(/\\\\r\\\\n|\\\\n|\\\\r/g, '\\n')",
+    "    .replace(/\\r\\n?/g, '\\n')",
+    '    // Normalise les étapes : "2 texte", "2) texte", "2- texte" -> "2. texte".',
+    "    .replace(/(^|\\n)\\s*(\\d+)[.)-]?\\s+/g, (_, prefix, number) =>",
+    "      prefix + number + '. '",
+    '    )',
+    "    .replace(/\\n{3,}/g, '\\n\\n')",
+    '    .trim();',
+    '}',
+    '',
+    'function normalizeBlockId(value) {',
+    '',
+  ].join('\n');
+
   session = replaceOnce(
     session,
     'function normalizeBlockId(value) {\n',
-    `function formatExerciseDetailText(value) {\n  if (typeof value !== 'string') {\n    return value ?? '';\n  }\n\n  return value\n    // Certaines descriptions viennent de la base avec des "\\\\n" littéraux.\n    // On les transforme en vrais retours à la ligne pour React Native.\n    .replace(/\\\\r\\\\n|\\\\n|\\\\r/g, '\\n')\n    .replace(/\\r\\n?/g, '\\n')\n    // Normalise les étapes : "2 texte", "2) texte", "2- texte" -> "2. texte".\n    .replace(/(^|\\n)\\s*(\\d+)[.)-]?\\s+/g, (_, prefix, number) =>\n      \\`\\${prefix}\\${number}. \\`\n    )\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n}\n\nfunction normalizeBlockId(value) {\n`,
+    formatter,
     'session / detail text formatter'
   );
 }
@@ -51,4 +74,4 @@ writePreservingWindows(sessionPath, session);
 
 console.log('SESSION DETAIL FORMAT PATCH APPLIED SUCCESSFULLY');
 console.log('Modified: app/workout/session.js');
-console.log('Formatting: \\n -> real line breaks, numbered steps -> "1. / 2. / 3."');
+console.log('Formatting: literal \\n -> real line breaks, numbered steps -> "1. / 2. / 3."');
