@@ -55,7 +55,7 @@ const BLOCK_ORDER = [
 
 const BLOCK_LABELS = {
   warmup: 'WARM-UP',
-  tabata: 'CORE TABATA',
+  tabata: 'TABATA',
   skill: 'SKILL',
   wod: 'WOD',
 };
@@ -2241,7 +2241,9 @@ function CurrentExerciseCard({
 
       {exercise.instructions ? (
         <Text style={styles.currentExerciseInstructions}>
-          {exercise.instructions}
+          {formatExerciseDetailText(
+            exercise.instructions
+          )}
         </Text>
       ) : null}
 
