@@ -1232,7 +1232,7 @@ function playerTitle(mechanic, variant) {
     COUPLET: 'COUPLET',
     DECK: 'DECK-STYLE',
     STRENGTH: 'MUSCULATION',
-    SETS_REPS: 'S??RIES / REPS',
+    SETS_REPS: 'SERIES / REPS',
   };
 
   return (

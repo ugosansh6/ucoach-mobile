@@ -695,9 +695,11 @@ export default function WorkoutSessionScreen() {
     );
   }
 const sessionStartedRef = useRef(false);
+  const wodRuntimeStartedRef = useRef(false);
 
   useEffect(() => {
     sessionStartedRef.current = false;
+    wodRuntimeStartedRef.current = false;
   }, [workout.sessionId]);
 
   const ensureSessionStarted =
@@ -1193,11 +1195,22 @@ const sessionStartedRef = useRef(false);
   const handleWodRuntimeChange =
     useCallback(
       (runtime) => {
+        if (
+          runtime?.started &&
+          !wodRuntimeStartedRef.current
+        ) {
+          wodRuntimeStartedRef.current = true;
+          ensureSessionStarted();
+        }
+
         updateWorkout({
           wodRuntime: runtime,
         });
       },
-      [updateWorkout]
+      [
+        ensureSessionStarted,
+        updateWorkout,
+      ]
     );
 
   async function openFormatModal() {
@@ -1531,8 +1544,16 @@ const sessionStartedRef = useRef(false);
                     block.id
                   ];
 
+                const wodPlayerInProgress =
+                  isWod &&
+                  Boolean(
+                    workout.wodRuntime?.started
+                  ) &&
+                  !workout.wodRuntime?.finished;
+
                 const canValidate =
-                  canValidateBlock(block);
+                  canValidateBlock(block) &&
+                  !wodPlayerInProgress;
 
                 return (
                   <View
@@ -2176,7 +2197,9 @@ const sessionStartedRef = useRef(false);
                                   'TERMINER LE SKILL'}
                                 {block.id ===
                                   'wod' &&
-                                  'TERMINER LA SÉANCE'}
+                                  (wodPlayerInProgress
+                                    ? 'TERMINE OU ARRÊTE LE WOD'
+                                    : 'TERMINER LA SÉANCE')}
                               </Text>
                             )}
                           </Pressable>

@@ -131,7 +131,7 @@ function humanizeMechanic(value, variant = null) {
     FOR_TIME: 'FOR TIME',
     CIRCUIT: 'CIRCUIT',
     STRENGTH: 'MUSCULATION',
-    SETS_REPS: 'S??RIES / REPS',
+    SETS_REPS: 'SERIES / REPS',
     LADDER: 'LADDER',
     PYRAMID: 'PYRAMIDE',
     PROGRESSIVE_INTERVAL: 'PROGRESSIF',
