@@ -694,43 +694,44 @@ export default function WorkoutSessionScreen() {
       }
     );
   }
-useEffect(() => {
-  if (!workout.sessionId) {
-    return undefined;
-  }
+const sessionStartedRef = useRef(false);
 
-  let cancelled = false;
+  useEffect(() => {
+    sessionStartedRef.current = false;
+  }, [workout.sessionId]);
 
-  async function markStarted() {
-    try {
-      const result =
-        await markWorkoutSessionStarted({
-          sessionId: workout.sessionId,
-        });
-
+  const ensureSessionStarted =
+    useCallback(() => {
       if (
-        !cancelled &&
-        result?.status ===
-          'STALE_SESSION_REQUIRES_RECHECKIN'
+        sessionStartedRef.current ||
+        !workout.sessionId
       ) {
-        router.replace(
-          '/workout/preparation'
-        );
+        return;
       }
-    } catch (error) {
-      console.warn(
-        'Session start marker',
-        error
-      );
-    }
-  }
 
-  markStarted();
+      sessionStartedRef.current = true;
 
-  return () => {
-    cancelled = true;
-  };
-}, [workout.sessionId]);
+      markWorkoutSessionStarted({
+        sessionId: workout.sessionId,
+      })
+        .then((result) => {
+          if (
+            result?.status ===
+              'STALE_SESSION_REQUIRES_RECHECKIN'
+          ) {
+            router.replace(
+              '/workout/preparation'
+            );
+          }
+        })
+        .catch((error) => {
+          sessionStartedRef.current = false;
+          console.warn(
+            'Session start marker',
+            error
+          );
+        });
+    }, [workout.sessionId]);
 
   function handleBack() {
     // Session -> paramètres de séance, quel que soit l'historique de navigation.
@@ -838,6 +839,8 @@ useEffect(() => {
     if (!exercise) {
       return;
     }
+
+    ensureSessionStarted();
 
     replaceExercise(exercise, {
       status,
@@ -986,6 +989,8 @@ useEffect(() => {
       return;
     }
 
+    ensureSessionStarted();
+
     const hasPending =
       blockExercises.some(
         (exercise) =>
@@ -1058,6 +1063,8 @@ useEffect(() => {
     if (!block) {
       return;
     }
+
+    ensureSessionStarted();
 
     const finalizedExercises =
       sourceExercises.map(
