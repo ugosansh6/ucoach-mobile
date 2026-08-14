@@ -1122,7 +1122,7 @@ export default function WodProtocolPlayer({
             />
           ) : null}
 
-          {mechanic === 'STRENGTH' ? (
+          {mechanic === 'STRENGTH' || mechanic === 'SETS_REPS' ? (
             <StrengthProtocol
               params={params}
               exercises={exercises}
@@ -1232,6 +1232,7 @@ function playerTitle(mechanic, variant) {
     COUPLET: 'COUPLET',
     DECK: 'DECK-STYLE',
     STRENGTH: 'MUSCULATION',
+    SETS_REPS: 'S??RIES / REPS',
   };
 
   return (

@@ -131,6 +131,7 @@ function humanizeMechanic(value, variant = null) {
     FOR_TIME: 'FOR TIME',
     CIRCUIT: 'CIRCUIT',
     STRENGTH: 'MUSCULATION',
+    SETS_REPS: 'S??RIES / REPS',
     LADDER: 'LADDER',
     PYRAMID: 'PYRAMIDE',
     PROGRESSIVE_INTERVAL: 'PROGRESSIF',
@@ -523,7 +524,7 @@ function buildMechanicStructure(
     return parts.join(' · ');
   }
 
-  if (mechanic === 'STRENGTH') {
+  if (mechanic === 'STRENGTH' || mechanic === 'SETS_REPS') {
     return rounds
       ? `${baseLabel} · ${rounds} séries`
       : baseLabel;
