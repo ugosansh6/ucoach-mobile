@@ -25,6 +25,9 @@ import {
 import {
   completeWorkoutSession,
 } from '../../src/services/workoutService';
+import {
+  buildWodProtocolCompletion,
+} from '../../src/services/wodProtocolOutcome';
 
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
@@ -169,6 +172,7 @@ function failedStageTargetReps(
   const start = numberOr(
     overlay.start_reps ??
       overlay.base_reps ??
+      prescription.execution_target_reps ??
       prescription.reps_min,
     0
   );
@@ -188,280 +192,6 @@ function failedStageTargetReps(
           increment
     )
   );
-}
-
-function buildProtocolOutcome(
-  workout,
-  protocolFeedback
-) {
-  const runtime =
-    workout?.wodRuntime;
-
-  if (!runtime?.started) {
-    return null;
-  }
-
-  const mechanic =
-    normalizeMechanic(
-      runtime.mechanic ??
-        workout.mechanic
-    );
-  const variant =
-    normalizeMechanic(
-      runtime.variant ??
-        workout.formatVariant
-    ) || null;
-  const elapsedSeconds =
-    Math.max(
-      0,
-      numberOr(
-        runtime.elapsedSeconds,
-        0
-      )
-    );
-  const parameters =
-    runtime.parameters ?? {};
-
-  const outcome = {
-    mechanic_key: mechanic,
-    variant_key: variant,
-    elapsed_seconds:
-      elapsedSeconds,
-    finish_reason:
-      runtime.finishReason ??
-      null,
-    player_version:
-      runtime.version ??
-      'fc5-wod-player-v1',
-  };
-
-  if (
-    ['AMRAP', 'CIRCUIT', 'FOR_TIME'].includes(
-      mechanic
-    )
-  ) {
-    outcome.rounds_completed =
-      Math.max(
-        0,
-        numberOr(
-          runtime.completedRounds,
-          0
-        )
-      );
-  }
-
-  if (mechanic === 'FOR_TIME') {
-    outcome.hit_time_cap =
-      runtime.finishReason ===
-      'time_cap';
-    outcome.time_limit_seconds =
-      numberOr(
-        parameters.cap_seconds,
-        elapsedSeconds
-      );
-  }
-
-  if (
-    mechanic === 'EMOM' ||
-    mechanic === 'ODD_EVEN'
-  ) {
-    const stationSeconds =
-      Math.max(
-        1,
-        numberOr(
-          parameters.station_seconds,
-          60
-        )
-      );
-    outcome.intervals_completed =
-      Math.floor(
-        elapsedSeconds /
-          stationSeconds
-      );
-  }
-
-  if (
-    mechanic ===
-    'EVERY_X_MINUTES'
-  ) {
-    const intervalSeconds =
-      Math.max(
-        1,
-        numberOr(
-          parameters.interval_seconds,
-          120
-        )
-      );
-    outcome.intervals_completed =
-      Math.floor(
-        elapsedSeconds /
-          intervalSeconds
-      );
-  }
-
-  if (mechanic === 'HIIT') {
-    const workSeconds =
-      Math.max(
-        1,
-        numberOr(
-          parameters.work_seconds,
-          40
-        )
-      );
-    const restSeconds =
-      Math.max(
-        0,
-        numberOr(
-          parameters.rest_seconds,
-          20
-        )
-      );
-    const stationSeconds =
-      Math.max(
-        1,
-        workSeconds +
-          restSeconds
-      );
-    const stationsCompleted =
-      Math.floor(
-        elapsedSeconds /
-          stationSeconds
-      );
-
-    outcome.intervals_completed =
-      stationsCompleted;
-    outcome.work_seconds =
-      stationsCompleted *
-      workSeconds;
-  }
-
-  if (
-    mechanic === 'LADDER' ||
-    mechanic === 'COUPLET'
-  ) {
-    outcome.last_completed_stage =
-      Math.max(
-        0,
-        numberOr(
-          runtime.manualStep,
-          1
-        )
-      );
-  }
-
-  if (
-    mechanic ===
-    'PROGRESSIVE_INTERVAL'
-  ) {
-    const currentStage =
-      Math.max(
-        1,
-        numberOr(
-          runtime.currentStage,
-          1
-        )
-      );
-
-    if (
-      runtime.finishReason ===
-      'observed_failure'
-    ) {
-      outcome.last_completed_stage =
-        Math.max(
-          0,
-          currentStage - 1
-        );
-      outcome.failed_stage =
-        currentStage;
-
-      const partial =
-        protocolFeedback
-          ?.partialRepsByExercise ??
-        {};
-
-      if (
-        Object.keys(partial).length >
-        0
-      ) {
-        outcome.partial_reps_by_exercise =
-          Object.fromEntries(
-            Object.entries(partial)
-              .map(([id, value]) => [
-                id,
-                Math.max(
-                  0,
-                  numberOr(value, 0)
-                ),
-              ])
-          );
-      }
-    } else {
-      outcome.last_completed_stage =
-        currentStage;
-
-      if (
-        runtime.finishReason ===
-        'time_cap'
-      ) {
-        outcome.completed_time_limit =
-          true;
-        outcome.hit_time_cap = true;
-        outcome.time_limit_seconds =
-          elapsedSeconds;
-      }
-    }
-  }
-
-  if (mechanic === 'PYRAMID') {
-    outcome.steps_completed =
-      Math.max(
-        0,
-        numberOr(
-          runtime.manualStep,
-          1
-        )
-      );
-  }
-
-  if (
-    mechanic === 'CHIPPER' ||
-    mechanic === 'REP_TARGET'
-  ) {
-    outcome.items_completed =
-      Math.max(
-        0,
-        numberOr(
-          runtime.currentItemIndex,
-          0
-        ) +
-          (runtime.finished ? 1 : 0)
-      );
-  }
-
-  if (mechanic === 'DECK') {
-    outcome.cards_completed =
-      Math.max(
-        0,
-        numberOr(
-          runtime.currentItemIndex,
-          0
-        ) +
-          (runtime.finished ? 1 : 0)
-      );
-  }
-
-  if (mechanic === 'STRENGTH') {
-    outcome.set_stations_completed =
-      Math.max(
-        0,
-        numberOr(
-          runtime.manualStep,
-          1
-        )
-      );
-  }
-
-  return outcome;
 }
 
 export default function CompletionScreen() {
@@ -640,25 +370,36 @@ export default function CompletionScreen() {
         );
       }
 
+      const {
+        exercises:
+          completionExercises,
+        outcome:
+          protocolOutcome,
+      } =
+        buildWodProtocolCompletion({
+          workout,
+          exercises:
+            sourceExercises,
+          protocolFeedback,
+        });
+
       await completeWorkoutSession({
         sessionId:
           workout.sessionId,
         exercises:
-          sourceExercises,
+          completionExercises,
         formAfter:
           formAfterWorkout,
         rpe,
         notes,
         loads,
         exerciseFeedback,
-        protocolOutcome:
-          buildProtocolOutcome(
-            workout,
-            protocolFeedback
-          ),
+        protocolOutcome,
       });
 
       updateWorkout({
+        exercises:
+          completionExercises,
         status: 'completed',
         completedAt:
           new Date().toISOString(),

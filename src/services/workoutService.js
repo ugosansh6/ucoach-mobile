@@ -214,16 +214,125 @@ function stripRpeFromPrescription(value) {
     .trim();
 }
 
+function formatExecutionTargetPrescription(exercise) {
+  const prescription =
+    readPrescriptionObject(exercise);
+
+  const reps = formatNumber(
+    prescription.execution_target_reps
+  );
+  const duration = formatNumber(
+    prescription.execution_target_duration_seconds
+  );
+  const distance = formatNumber(
+    prescription.execution_target_distance_meters
+  );
+
+  if (!reps && !duration && !distance) {
+    return null;
+  }
+
+  const pieces = [];
+
+  const sets = formatNumber(
+    prescription.sets
+  );
+
+  if (sets) {
+    pieces.push(`${sets} séries`);
+  }
+
+  if (reps) {
+    pieces.push(
+      `${reps} ${
+        prescription.reps_semantics ===
+        'per_side'
+          ? 'reps / côté'
+          : 'reps'
+      }`
+    );
+  } else if (duration) {
+    pieces.push(`${duration} sec`);
+  } else if (distance) {
+    pieces.push(`${distance} m`);
+  }
+
+  const load = formatNumber(
+    prescription.load_kg
+  );
+
+  if (load) {
+    const scope =
+      prescription.load_scope ===
+      'per_implement'
+        ? ' / haltère'
+        : '';
+
+    pieces.push(
+      `${load} kg${scope}`
+    );
+  }
+
+  return pieces.join(' · ');
+}
+
 function formatPrescription(exercise) {
+  const prescription =
+    readPrescriptionObject(exercise);
+
+  if (
+    prescription.skill_objective_type ===
+    'TEST'
+  ) {
+    const attempts =
+      formatNumber(
+        prescription.test_attempts ??
+          prescription.sets
+      ) ?? '3';
+
+    const metric =
+      prescription.test_metric;
+
+    if (metric === 'load_kg') {
+      return `${attempts} tentatives · meilleure charge propre`;
+    }
+
+    if (metric === 'max_reps') {
+      return `${attempts} tentatives · max reps propres`;
+    }
+
+    if (
+      metric ===
+      'max_duration_seconds'
+    ) {
+      return `${attempts} tentatives · temps max propre`;
+    }
+
+    if (
+      metric ===
+      'max_distance_meters'
+    ) {
+      return `${attempts} tentatives · distance max propre`;
+    }
+
+    return `${attempts} tentatives · meilleure performance propre`;
+  }
+
+  const executionTarget =
+    formatExecutionTargetPrescription(
+      exercise
+    );
+
+  if (executionTarget) {
+    return executionTarget;
+  }
+
   if (
     typeof exercise?.prescription ===
     'string'
   ) {
     return exercise.prescription;
   }
-
-  const prescription =
-    readPrescriptionObject(exercise);
 
   if (
     typeof prescription.text ===
@@ -458,9 +567,28 @@ function buildMechanicStructure(
   }
 
   if (mechanic === 'EMOM') {
-    return rounds
-      ? `${baseLabel} · ${rounds} minutes`
-      : baseLabel;
+    const cycles =
+      formatNumber(
+        parameters.cycles ??
+          parameters.rounds ??
+          parameters.total_rounds
+      );
+
+    const executionMinutes =
+      formatNumber(
+        parameters.duration_minutes ??
+          duration
+      );
+
+    if (cycles && executionMinutes) {
+      return `${baseLabel} · ${executionMinutes} min · ${cycles} tours complets`;
+    }
+
+    if (executionMinutes) {
+      return `${baseLabel} · ${executionMinutes} min`;
+    }
+
+    return baseLabel;
   }
 
   if (
@@ -720,6 +848,43 @@ function mapGeneratedWorkout(data, preparation) {
       expectedOutcome:
         block.expected_outcome ??
         null,
+      skillContract:
+        block.skill_contract &&
+        typeof block.skill_contract ===
+          'object'
+          ? {
+              ...block.skill_contract,
+              objectiveType:
+                block.skill_contract
+                  .objective_type ??
+                null,
+              objectiveTitle:
+                block.skill_contract
+                  .objective_title ??
+                null,
+              objectiveDescription:
+                block.skill_contract
+                  .objective_description ??
+                null,
+              scoreRequired:
+                Boolean(
+                  block.skill_contract
+                    .score_required
+                ),
+              scoreMetric:
+                block.skill_contract
+                  .score_metric ??
+                null,
+              scoreLabel:
+                block.skill_contract
+                  .score_label ??
+                null,
+              scoreUnit:
+                block.skill_contract
+                  .score_unit ??
+                null,
+            }
+          : null,
       rounds:
         block.rounds ??
         blockProtocol.rounds ??
@@ -1066,6 +1231,27 @@ async function resolveSessionExerciseInstances(
   sessionId,
   exercises
 ) {
+  const allInstancesKnown =
+    exercises.length > 0 &&
+    exercises.every(
+      (exercise) =>
+        Boolean(
+          exercise.sessionExerciseId ??
+            exercise.session_exercise_id
+        )
+    );
+
+  if (allInstancesKnown) {
+    return exercises.map(
+      (exercise) => ({
+        ...exercise,
+        sessionExerciseId:
+          exercise.sessionExerciseId ??
+          exercise.session_exercise_id,
+      })
+    );
+  }
+
   const { data, error } = await supabase
     .from('workout_session_exercises')
     .select('id, exercise_id, block_key, position')
@@ -1173,6 +1359,9 @@ export async function swapWorkoutExercise({
   sessionId,
   sessionExerciseId,
   currentExerciseId,
+  direction = 'equivalent',
+  undo = false,
+  excludedExerciseIds = [],
 }) {
   if (!sessionId) {
     throw new Error(
@@ -1196,6 +1385,21 @@ export async function swapWorkoutExercise({
             sessionExerciseId ?? null,
           current_exercise_id:
             currentExerciseId ?? null,
+          direction:
+            ['easier', 'equivalent', 'harder'].includes(
+              direction
+            )
+              ? direction
+              : 'equivalent',
+          undo: Boolean(undo),
+          excluded_exercise_ids:
+            Array.isArray(
+              excludedExerciseIds
+            )
+              ? excludedExerciseIds.filter(
+                  Boolean
+                )
+              : [],
         },
       }
     );
@@ -1544,49 +1748,129 @@ export async function completeWorkoutSession({
 
       notes:
         exercise.notes ?? null,
+
+      performance_actual_json:
+        exercise.performanceActualJson ??
+        exercise.performance_actual_json ??
+        null,
     };
   });
 
   const { data, error } =
-    await supabase.functions.invoke(
-      'hyper-api-instance',
+    await supabase.rpc(
+      'complete_workout_session_v2',
       {
-        body: {
-          session_id: sessionId,
-          post_workout_feeling: formAfter,
-          global_rpe: rpe,
-          notes: notes?.trim() || null,
-          exercises: results,
-          protocol_outcome:
-            protocolOutcome &&
-            typeof protocolOutcome === 'object'
-              ? protocolOutcome
-              : null,
-        },
+        p_session_id: sessionId,
+        p_global_rpe: rpe,
+        p_post_workout_feeling:
+          formAfter,
+        p_notes:
+          notes?.trim() || null,
+        p_exercises: results,
+        p_protocol_outcome:
+          protocolOutcome &&
+          typeof protocolOutcome ===
+            'object'
+            ? protocolOutcome
+            : null,
       }
     );
 
   if (error) {
-    let detail = null;
-
-    try {
-      detail = await error?.context?.json();
-    } catch {
-      detail = null;
-    }
-
-    const detailMessage =
-      detail?.error ??
-      detail?.message ??
+    throw new Error(
       error?.message ??
-      'Erreur inconnue pendant l’enregistrement.';
-
-    throw new Error(detailMessage);
+        "Impossible d'enregistrer la séance."
+    );
   }
 
   if (data?.error) {
     throw new Error(data.error);
   }
 
-  return data;
+  const analysis = {};
+
+  async function runAnalysis(
+    key,
+    rpcName,
+    args
+  ) {
+    const {
+      data: analysisData,
+      error: analysisError,
+    } = await supabase.rpc(
+      rpcName,
+      args
+    );
+
+    if (analysisError) {
+      console.warn(
+        `Post-completion ${rpcName}`,
+        analysisError.message
+      );
+
+      analysis[key] = {
+        status: 'ERROR',
+        message:
+          analysisError.message,
+      };
+      return;
+    }
+
+    analysis[key] =
+      analysisData ?? {
+        status: 'OK',
+      };
+  }
+
+  await runAnalysis(
+    'capability',
+    'run_capability_live_session',
+    {
+      p_session_id: sessionId,
+    }
+  );
+
+  if (
+    protocolOutcome &&
+    typeof protocolOutcome ===
+      'object'
+  ) {
+    await runAnalysis(
+      'protocol',
+      'apply_session_protocol_observation',
+      {
+        p_session_id: sessionId,
+      }
+    );
+  }
+
+  await runAnalysis(
+    'weekly',
+    'd_finalize_weekly_session',
+    {
+      p_session_id: sessionId,
+    }
+  );
+
+  const { data: authData } =
+    await supabase.auth.getUser();
+
+  const userId =
+    authData?.user?.id ?? null;
+
+  if (userId) {
+    await runAnalysis(
+      'directives',
+      'pi_refresh_coaching_directives',
+      {
+        p_user_id: userId,
+      }
+    );
+  }
+
+  return {
+    ...(data ?? {}),
+    analysis_after_commit_results:
+      analysis,
+  };
 }

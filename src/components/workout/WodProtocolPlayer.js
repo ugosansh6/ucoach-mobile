@@ -784,7 +784,7 @@ export default function WodProtocolPlayer({
   const runtime = useMemo(
     () => ({
       version:
-        'fc5-wod-player-v1',
+        'fc7-wod-player-v2',
       mechanic,
       variant:
         variant || null,
@@ -793,6 +793,7 @@ export default function WodProtocolPlayer({
       finished,
       finishReason,
       elapsedSeconds: elapsed,
+      totalSeconds,
       completedRounds,
       manualStep,
       currentItemIndex,
@@ -814,6 +815,7 @@ export default function WodProtocolPlayer({
       elapsed,
       finishReason,
       finished,
+      totalSeconds,
       manualStep,
       mechanic,
       params,
@@ -1166,6 +1168,23 @@ export default function WodProtocolPlayer({
                 }
               }}
             />
+          ) : null}
+          {mechanic !== 'PROGRESSIVE_INTERVAL' ? (
+            <Pressable
+              onPress={() =>
+                finishManually('manual_stop')
+              }
+              style={styles.failureButton}
+            >
+              <Ionicons
+                name="stop-circle-outline"
+                size={17}
+                color={colors.brandRed}
+              />
+              <Text style={styles.failureButtonText}>
+                ARRÊTER LE WOD
+              </Text>
+            </Pressable>
           ) : null}
         </>
       ) : null}

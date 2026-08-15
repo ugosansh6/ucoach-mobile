@@ -17,6 +17,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   Vibration,
   View,
   useWindowDimensions,
@@ -272,6 +273,10 @@ function buildBlocks(
         objective:
           source?.objective ??
           null,
+        skillContract:
+          source?.skillContract ??
+          source?.skill_contract ??
+          null,
         mechanic:
           source?.mechanic ??
           null,
@@ -419,6 +424,7 @@ export default function WorkoutSessionScreen() {
   const {
     workout,
     updateWorkout,
+    setExerciseLoad,
   } = useWorkout();
 
   const [
@@ -482,6 +488,11 @@ export default function WorkoutSessionScreen() {
   ] = useState(null);
 
   const [
+    skillTestModal,
+    setSkillTestModal,
+  ] = useState(null);
+
+  const [
     swappingExerciseKey,
     setSwappingExerciseKey,
   ] = useState(null);
@@ -498,6 +509,16 @@ export default function WorkoutSessionScreen() {
     swapAvailabilityLoading,
     setSwapAvailabilityLoading,
   ] = useState(false);
+
+  const [
+    swapActionExercise,
+    setSwapActionExercise,
+  ] = useState(null);
+
+  const [
+    swapSeenExerciseIds,
+    setSwapSeenExerciseIds,
+  ] = useState({});
 
   const [
     formatModalVisible,
@@ -851,7 +872,7 @@ const sessionStartedRef = useRef(false);
     setStatusModalExercise(null);
   }
 
-  async function handleSwap(
+  function openSwapActions(
     blockId,
     exercise
   ) {
@@ -870,22 +891,83 @@ const sessionStartedRef = useRef(false);
     }
 
     setSwapError('');
+    setSwapActionExercise({
+      blockId,
+      exercise,
+    });
+  }
+
+  function closeSwapActions() {
+    if (swappingExerciseKey) {
+      return;
+    }
+
+    setSwapActionExercise(null);
+  }
+
+  async function handleSwap(
+    blockId,
+    exercise,
+    {
+      direction = 'equivalent',
+      undo = false,
+    } = {}
+  ) {
+    const instanceId =
+      exercise?.sessionExerciseId;
+
+    const swapState =
+      instanceId
+        ? swapAvailability?.[
+            instanceId
+          ]
+        : null;
+
+    const directionAvailable =
+      undo
+        ? swapState?.can_undo ===
+          true
+        : swapState?.directions?.[
+            direction
+          ]?.available === true;
+
+    if (
+      swappingExerciseKey ||
+      validatedBlocks.includes(
+        blockId
+      ) ||
+      !workout.sessionId ||
+      !instanceId ||
+      !directionAvailable
+    ) {
+      return;
+    }
+
+    setSwapError('');
     setSwappingExerciseKey(
       exercise._uiKey
     );
 
     try {
-      const data =
-        await swapWorkoutExercise({
-          sessionId:
-            workout.sessionId,
-          sessionExerciseId:
-            exercise.sessionExerciseId ??
-            null,
-          currentExerciseId:
-            exercise.exerciseId ??
-            exercise.id,
-        });
+      const excludedExerciseIds =
+        undo
+          ? []
+          : swapSeenExerciseIds[
+              instanceId
+            ] ?? [];
+
+      await swapWorkoutExercise({
+        sessionId:
+          workout.sessionId,
+        sessionExerciseId:
+          instanceId,
+        currentExerciseId:
+          exercise.exerciseId ??
+          exercise.id,
+        direction,
+        undo,
+        excludedExerciseIds,
+      });
 
       const previousByInstance =
         new Map(
@@ -908,6 +990,22 @@ const sessionStartedRef = useRef(false);
             workout.preparationSnapshot,
         });
 
+      const availabilityAfter =
+        await getWorkoutSwapAvailability(
+          workout.sessionId
+        );
+
+      const stillAdaptedAfterUndo =
+        undo
+          ? availabilityAfter?.items?.[
+              instanceId
+            ]?.can_undo === true
+          : true;
+
+      setSwapAvailability(
+        availabilityAfter?.items ?? {}
+      );
+
       updateWorkout({
         ...refreshed,
         exercises:
@@ -915,12 +1013,22 @@ const sessionStartedRef = useRef(false);
             (item) => {
               if (
                 item.sessionExerciseId ===
-                exercise.sessionExerciseId
+                instanceId
               ) {
                 return {
                   ...item,
-                  status: 'adapted',
-                  adaptationSource: 'swap',
+                  status:
+                    undo &&
+                    !stillAdaptedAfterUndo
+                      ? 'pending'
+                      : 'adapted',
+                  adaptationSource:
+                    undo &&
+                    !stillAdaptedAfterUndo
+                      ? null
+                      : undo
+                        ? 'swap-undo'
+                        : 'swap',
                 };
               }
 
@@ -944,6 +1052,38 @@ const sessionStartedRef = useRef(false);
         validatedBlocks,
       });
 
+      setSwapSeenExerciseIds(
+        (current) => {
+          if (undo) {
+            return {
+              ...current,
+              [instanceId]: [],
+            };
+          }
+
+          const seen = new Set(
+            current[instanceId] ?? []
+          );
+
+          const currentExerciseId =
+            exercise.exerciseId ??
+            exercise.id;
+
+          if (currentExerciseId) {
+            seen.add(
+              currentExerciseId
+            );
+          }
+
+          return {
+            ...current,
+            [instanceId]: [
+              ...seen,
+            ],
+          };
+        }
+      );
+
       setExpandedExercises(
         (current) => {
           const next = {
@@ -957,6 +1097,8 @@ const sessionStartedRef = useRef(false);
           return next;
         }
       );
+
+      setSwapActionExercise(null);
     } catch (error) {
       setSwapError(
         error?.message ??
@@ -1057,13 +1199,45 @@ const sessionStartedRef = useRef(false);
     );
   }
 
-  function validateBlock(blockId) {
+  function validateBlock(
+    blockId,
+    options = {}
+  ) {
     const block = blocks.find(
       (item) => item.id === blockId
     );
 
     if (!block) {
       return;
+    }
+
+    const skillContract =
+      block.skillContract ??
+      block.source?.skillContract ??
+      block.source?.skill_contract ??
+      null;
+
+    if (
+      blockId === 'skill' &&
+      skillContract?.scoreRequired ===
+        true &&
+      !options.skipSkillTestPrompt
+    ) {
+      const exercise =
+        block.exercises?.[0] ??
+        null;
+
+      if (exercise) {
+        ensureSessionStarted();
+
+        setSkillTestModal({
+          blockId,
+          exercise,
+          contract:
+            skillContract,
+        });
+        return;
+      }
     }
 
     ensureSessionStarted();
@@ -1077,18 +1251,56 @@ const sessionStartedRef = useRef(false);
                 exercise.block
             ) === blockId;
 
+          let nextExercise =
+            exercise;
+
           if (
             sameBlock &&
-            exercise.status ===
+            options.skillTestActual &&
+            sameExerciseInstance(
+              exercise,
+              options.skillTestActual
+                .exercise
+            )
+          ) {
+            nextExercise = {
+              ...nextExercise,
+              ...options.skillTestActual
+                .exerciseValues,
+              performanceActualJson: {
+                ...(nextExercise
+                  .performanceActualJson ??
+                  {}),
+                skill_test_contract:
+                  'skill-contract-v2',
+                skill_objective_type:
+                  'TEST',
+                skill_test_metric:
+                  options.skillTestActual
+                    .metric,
+                skill_test_score:
+                  options.skillTestActual
+                    .score,
+                skill_test_unit:
+                  options.skillTestActual
+                    .unit ??
+                  null,
+              },
+            };
+          }
+
+          if (
+            sameBlock &&
+            nextExercise.status ===
               'pending'
           ) {
             return {
-              ...exercise,
+              ...nextExercise,
               status: 'completed',
             };
           }
 
-          return exercise;
+          return nextExercise;
         }
       );
 
@@ -1170,6 +1382,103 @@ const sessionStartedRef = useRef(false);
         })
       );
     }
+  }
+
+  function closeSkillTestModal() {
+    setSkillTestModal(null);
+  }
+
+  function saveSkillTestScore(rawValue) {
+    const modal =
+      skillTestModal;
+
+    if (!modal?.exercise) {
+      return;
+    }
+
+    const normalized =
+      String(rawValue ?? '')
+        .trim()
+        .replace(',', '.');
+
+    const numeric =
+      Number(normalized);
+
+    if (
+      !Number.isFinite(numeric) ||
+      numeric <= 0
+    ) {
+      return;
+    }
+
+    const metric =
+      modal.contract?.scoreMetric ??
+      modal.contract?.score_metric ??
+      'score';
+
+    const unit =
+      modal.contract?.scoreUnit ??
+      modal.contract?.score_unit ??
+      null;
+
+    const score =
+      metric === 'max_reps'
+        ? Math.max(
+            1,
+            Math.round(numeric)
+          )
+        : Math.round(
+            numeric * 10
+          ) / 10;
+
+    const exerciseValues = {};
+
+    if (metric === 'max_reps') {
+      exerciseValues.repsCompleted =
+        score;
+    }
+
+    if (
+      metric ===
+      'max_duration_seconds'
+    ) {
+      exerciseValues.durationSeconds =
+        score;
+    }
+
+    if (
+      metric ===
+      'max_distance_meters'
+    ) {
+      exerciseValues.distanceMeters =
+        score;
+    }
+
+    if (metric === 'load_kg') {
+      setExerciseLoad(
+        modal.exercise
+          .sessionExerciseId ??
+          modal.exercise.id,
+        `${score} kg`
+      );
+    }
+
+    setSkillTestModal(null);
+
+    validateBlock(
+      modal.blockId,
+      {
+        skipSkillTestPrompt: true,
+        skillTestActual: {
+          exercise:
+            modal.exercise,
+          exerciseValues,
+          metric,
+          score,
+          unit,
+        },
+      }
+    );
   }
 
   function revealWod() {
@@ -1789,6 +2098,23 @@ const sessionStartedRef = useRef(false);
                             >
                               {block.objective}
                             </Text>
+
+                            {block.skillContract
+                              ?.scoreRequired ? (
+                              <Text
+                                style={
+                                  styles.skillScoreHint
+                                }
+                              >
+                                SCORE À ENREGISTRER · {String(
+                                  block.skillContract
+                                    .scoreLabel ??
+                                    block.skillContract
+                                      .score_label ??
+                                    'SCORE'
+                                ).toUpperCase()}
+                              </Text>
+                            ) : null}
                           </View>
                         ) : null}
 
@@ -1971,13 +2297,15 @@ const sessionStartedRef = useRef(false);
                                     </Text>
                                   </Pressable>
 
-                                  {exercise.status ===
-                                    'pending' &&
+                                  {(exercise.status ===
+                                    'pending' ||
+                                    exercise.status ===
+                                      'adapted') &&
                                   !block.validated &&
                                   workout.sessionId ? (
                                     <Pressable
                                       onPress={() =>
-                                        handleSwap(
+                                        openSwapActions(
                                           block.id,
                                           exercise
                                         )
@@ -2234,6 +2562,67 @@ const sessionStartedRef = useRef(false);
         }
       />
 
+      <SwapDirectionModal
+        visible={Boolean(
+          swapActionExercise
+        )}
+        exercise={
+          swapActionExercise?.exercise ??
+          null
+        }
+        availability={
+          swapActionExercise?.exercise
+            ?.sessionExerciseId
+            ? swapAvailability[
+                swapActionExercise
+                  .exercise
+                  .sessionExerciseId
+              ] ?? null
+            : null
+        }
+        loading={Boolean(
+          swappingExerciseKey
+        )}
+        onClose={
+          closeSwapActions
+        }
+        onSelect={(
+          direction,
+          undo = false
+        ) =>
+          handleSwap(
+            swapActionExercise
+              ?.blockId,
+            swapActionExercise
+              ?.exercise,
+            {
+              direction,
+              undo,
+            }
+          )
+        }
+      />
+
+      <SkillTestModal
+        visible={Boolean(
+          skillTestModal
+        )}
+        exercise={
+          skillTestModal?.exercise ??
+          null
+        }
+        contract={
+          skillTestModal?.contract ??
+          null
+        }
+        onClose={
+          closeSkillTestModal
+        }
+        onSave={
+          saveSkillTestScore
+        }
+      />
+
       <FormatModal
         visible={formatModalVisible}
         onClose={closeFormatModal}
@@ -2424,6 +2813,430 @@ function BlockStatus({
 
   return (
     <View style={styles.exerciseStatus} />
+  );
+}
+
+function SkillTestModal({
+  visible,
+  exercise,
+  contract,
+  onClose,
+  onSave,
+}) {
+  const [value, setValue] =
+    useState('');
+
+  useEffect(() => {
+    if (visible) {
+      setValue('');
+    }
+  }, [visible]);
+
+  const metric =
+    contract?.scoreMetric ??
+    contract?.score_metric ??
+    'score';
+
+  const label =
+    contract?.scoreLabel ??
+    contract?.score_label ??
+    'SCORE';
+
+  const unit =
+    contract?.scoreUnit ??
+    contract?.score_unit ??
+    '';
+
+  const placeholder =
+    metric === 'load_kg'
+      ? 'Ex : 20'
+      : metric === 'max_duration_seconds'
+        ? 'Ex : 45'
+        : metric === 'max_distance_meters'
+          ? 'Ex : 25'
+          : 'Ex : 8';
+
+  const numeric =
+    Number(
+      String(value)
+        .trim()
+        .replace(',', '.')
+    );
+
+  const canSave =
+    Number.isFinite(numeric) &&
+    numeric > 0;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={onClose}
+    >
+      <View
+        style={
+          styles.skillTestOverlay
+        }
+      >
+        <Pressable
+          style={
+            styles.skillTestBackdrop
+          }
+          onPress={onClose}
+        />
+
+        <View
+          style={
+            styles.skillTestCard
+          }
+        >
+          <Text
+            style={
+              styles.skillTestEyebrow
+            }
+          >
+            TEST TERMINÉ
+          </Text>
+
+          <Text
+            style={
+              styles.skillTestTitle
+            }
+          >
+            {String(
+              exercise?.name ??
+                'SKILL'
+            ).toUpperCase()}
+          </Text>
+
+          <Text
+            style={
+              styles.skillTestPrompt
+            }
+          >
+            SCORE À ENREGISTRER · {String(
+              label
+            ).toUpperCase()}
+          </Text>
+
+          <Text
+            style={
+              styles.skillTestHelper
+            }
+          >
+            Entre ta meilleure performance propre.
+          </Text>
+
+          <View
+            style={
+              styles.skillTestInputWrap
+            }
+          >
+            <TextInput
+              value={value}
+              onChangeText={setValue}
+              placeholder={placeholder}
+              placeholderTextColor={
+                colors.textMuted
+              }
+              keyboardType="decimal-pad"
+              autoFocus
+              style={
+                styles.skillTestInput
+              }
+              returnKeyType="done"
+            />
+
+            {unit ? (
+              <Text
+                style={
+                  styles.skillTestUnit
+                }
+              >
+                {unit}
+              </Text>
+            ) : null}
+          </View>
+
+          <View
+            style={
+              styles.skillTestActions
+            }
+          >
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [
+                styles.skillTestCancel,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Text
+                style={
+                  styles.skillTestCancelText
+                }
+              >
+                REVENIR AU SKILL
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() =>
+                onSave(value)
+              }
+              disabled={!canSave}
+              style={({ pressed }) => [
+                styles.skillTestSave,
+                !canSave &&
+                  styles.skillTestSaveDisabled,
+                pressed &&
+                  canSave &&
+                  styles.validateButtonPressed,
+              ]}
+            >
+              <Text
+                style={
+                  styles.skillTestSaveText
+                }
+              >
+                ENREGISTRER LE SCORE
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function SwapDirectionModal({
+  visible,
+  exercise,
+  availability,
+  loading,
+  onClose,
+  onSelect,
+}) {
+  const directions =
+    availability?.directions ?? {};
+
+  const options = [
+    {
+      value: 'easier',
+      label: 'PLUS FACILE',
+      description:
+        'Une régression sûre du mouvement.',
+      icon: 'arrow-down',
+      available:
+        directions?.easier
+          ?.available === true,
+    },
+    {
+      value: 'equivalent',
+      label: 'ÉQUIVALENT',
+      description:
+        'Un autre mouvement de niveau comparable.',
+      icon: 'swap-horizontal',
+      available:
+        directions?.equivalent
+          ?.available === true,
+    },
+    {
+      value: 'harder',
+      label: 'PLUS DIFFICILE',
+      description:
+        'Un niveau au-dessus, seulement si UGEROD le valide.',
+      icon: 'arrow-up',
+      available:
+        directions?.harder
+          ?.available === true,
+    },
+  ];
+
+  const canUndo =
+    availability?.can_undo === true;
+
+  const undoLabel =
+    availability?.undo_exercise_name
+      ? `REVENIR À ${String(
+          availability.undo_exercise_name
+        ).toUpperCase()}`
+      : 'REVENIR AU PRÉCÉDENT';
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={styles.statusModalOverlay}>
+        <Pressable
+          style={styles.statusModalBackdrop}
+          onPress={onClose}
+        />
+
+        <View style={styles.statusModalCard}>
+          <View style={styles.statusModalHeader}>
+            <View style={styles.statusModalTitleArea}>
+              <Text style={styles.statusModalEyebrow}>
+                ALTERNATIVE
+              </Text>
+              <Text style={styles.statusModalTitle}>
+                {String(
+                  exercise?.name ??
+                    'EXERCICE'
+                ).toUpperCase()}
+              </Text>
+              <Text style={styles.statusModalSubtitle}>
+                Choisis le type d’alternative. Les contraintes de sécurité, de matériel et de séance restent prioritaires.
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={onClose}
+              disabled={loading}
+              style={styles.closeButton}
+            >
+              <Ionicons
+                name="close"
+                size={21}
+                color={colors.textPrimary}
+              />
+            </Pressable>
+          </View>
+
+          <View style={styles.statusOptions}>
+            {options.map((option) => {
+              const disabled =
+                loading ||
+                !option.available;
+
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() =>
+                    onSelect(
+                      option.value,
+                      false
+                    )
+                  }
+                  disabled={disabled}
+                  style={({ pressed }) => [
+                    styles.statusOption,
+                    disabled &&
+                      styles.swapDirectionOptionDisabled,
+                    pressed &&
+                      !disabled &&
+                      styles.pressed,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.statusOptionIcon,
+                      styles.statusOptionIconCompleted,
+                    ]}
+                  >
+                    <Ionicons
+                      name={option.icon}
+                      size={18}
+                      color={colors.brandWhite}
+                    />
+                  </View>
+
+                  <View style={styles.statusOptionMain}>
+                    <Text style={styles.statusOptionLabel}>
+                      {option.label}
+                    </Text>
+                    <Text style={styles.statusOptionDescription}>
+                      {option.available
+                        ? option.description
+                        : 'Aucune option sûre disponible.'}
+                    </Text>
+                  </View>
+
+                  {loading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.primaryLight}
+                    />
+                  ) : option.available ? (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={colors.primaryLight}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="ban-outline"
+                      size={18}
+                      color={colors.textMuted}
+                    />
+                  )}
+                </Pressable>
+              );
+            })}
+
+            {canUndo ? (
+              <Pressable
+                onPress={() =>
+                  onSelect(
+                    'equivalent',
+                    true
+                  )
+                }
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.statusOption,
+                  styles.swapUndoOption,
+                  loading &&
+                    styles.swapDirectionOptionDisabled,
+                  pressed &&
+                    !loading &&
+                    styles.pressed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.statusOptionIcon,
+                    styles.swapUndoIcon,
+                  ]}
+                >
+                  <Ionicons
+                    name="arrow-undo"
+                    size={18}
+                    color={colors.brandWhite}
+                  />
+                </View>
+
+                <View style={styles.statusOptionMain}>
+                  <Text style={styles.statusOptionLabel}>
+                    {undoLabel}
+                  </Text>
+                  <Text style={styles.statusOptionDescription}>
+                    Annule le dernier remplacement de cet exercice.
+                  </Text>
+                </View>
+
+                {loading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.primaryLight}
+                  />
+                ) : (
+                  <Ionicons
+                    name="chevron-back"
+                    size={18}
+                    color={colors.primaryLight}
+                  />
+                )}
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -3927,6 +4740,21 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 
+  swapDirectionOptionDisabled: {
+    opacity: 0.42,
+  },
+
+  swapUndoOption: {
+    marginTop: 3,
+    borderColor:
+      'rgba(8,104,255,0.18)',
+  },
+
+  swapUndoIcon: {
+    backgroundColor:
+      'rgba(8,104,255,0.72)',
+  },
+
   exerciseDetails: {
     marginTop: 11,
     marginLeft: 38,
@@ -4593,6 +5421,161 @@ const styles = StyleSheet.create({
   formatListContent: {
     paddingBottom: 24,
     gap: 8,
+  },
+
+  skillScoreHint: {
+    marginTop: 7,
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 9,
+    lineHeight: 13,
+    letterSpacing: 0.65,
+    color:
+      colors.primaryLight,
+  },
+
+  skillTestOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+
+  skillTestBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor:
+      'rgba(0,0,0,0.78)',
+  },
+
+  skillTestCard: {
+    width: '100%',
+    maxWidth: 430,
+    borderRadius: 18,
+    padding: 18,
+    backgroundColor:
+      '#0B0F14',
+    borderWidth: 1,
+    borderColor:
+      'rgba(8,104,255,0.38)',
+  },
+
+  skillTestEyebrow: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 9,
+    letterSpacing: 0.8,
+    color:
+      colors.primaryLight,
+  },
+
+  skillTestTitle: {
+    marginTop: 3,
+    fontFamily:
+      'BebasNeue_400Regular',
+    fontSize: 28,
+    lineHeight: 31,
+    letterSpacing: 1.1,
+    color:
+      colors.textPrimary,
+  },
+
+  skillTestPrompt: {
+    marginTop: 14,
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 12,
+    lineHeight: 17,
+    letterSpacing: 0.55,
+    color:
+      colors.textPrimary,
+  },
+
+  skillTestHelper: {
+    marginTop: 3,
+    fontFamily:
+      'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 17,
+    color:
+      colors.textSecondary,
+  },
+
+  skillTestInputWrap: {
+    minHeight: 54,
+    marginTop: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor:
+      colors.border,
+    backgroundColor:
+      'rgba(255,255,255,0.035)',
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  skillTestInput: {
+    flex: 1,
+    fontFamily:
+      'BebasNeue_400Regular',
+    fontSize: 27,
+    color:
+      colors.textPrimary,
+    paddingVertical: 0,
+  },
+
+  skillTestUnit: {
+    fontFamily:
+      'Oswald_600SemiBold',
+    fontSize: 12,
+    color:
+      colors.textMuted,
+  },
+
+  skillTestActions: {
+    marginTop: 15,
+    gap: 8,
+  },
+
+  skillTestCancel: {
+    minHeight: 44,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor:
+      colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  skillTestCancelText: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color:
+      colors.textSecondary,
+  },
+
+  skillTestSave: {
+    minHeight: 50,
+    borderRadius: 12,
+    backgroundColor:
+      colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  skillTestSaveDisabled: {
+    opacity: 0.35,
+  },
+
+  skillTestSaveText: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.7,
+    color:
+      colors.brandWhite,
   },
 
   formatOption: {
