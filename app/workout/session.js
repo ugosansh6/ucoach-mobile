@@ -49,20 +49,38 @@ const workoutBackground = require('../../assets/backgrounds/welcome-default.jpg'
 const tabataBeep = require('../../assets/sounds/tabata-beep.wav');
 
 const BLOCK_ORDER = [
-  'warmup',
+  'unlock',
   'tabata',
+  'warmup',
   'skill',
   'wod',
 ];
 
 const BLOCK_LABELS = {
-  warmup: 'WARM-UP',
-  tabata: 'TABATA',
+  unlock: 'UNLOCK',
+  tabata: 'TABATA CORE',
+  warmup: 'WARM-UP SPÉCIFIQUE',
   skill: 'SKILL',
   wod: 'WOD',
 };
 
 const FALLBACK_EXERCISES = [
+  {
+    id: 'shoulder-cars',
+    exerciseId: 'shoulder-cars',
+    sessionExerciseId: null,
+    block: 'unlock',
+    blockKey: 'unlock',
+    name: 'Shoulder CARs',
+    prescription: '45 sec / côté',
+    status: 'pending',
+    trackingType: 'time',
+    trackingModes: ['time'],
+    instructions:
+      'Réalise de grands cercles contrôlés de l’épaule sans chercher la fatigue.',
+    tips:
+      'Reste lent et cherche surtout l’amplitude disponible.',
+  },
   {
     id: 'air-squat',
     exerciseId: 'air-squat',
@@ -212,10 +230,11 @@ function buildBlocks(
     !workout.exercises?.length;
 
   const fallbackDurations = {
-    warmup: 8,
+    unlock: 3,
     tabata: 4,
-    skill: 8,
-    wod: 20,
+    warmup: 5,
+    skill: 10,
+    wod: 15,
   };
 
   return BLOCK_ORDER.map(
@@ -264,12 +283,16 @@ function buildBlocks(
           `${duration} MIN`,
         structure:
           structure ||
-          (blockId === 'tabata'
-            ? '8 rounds · 20s travail / 10s repos'
-            : blockId === 'wod'
-              ? workout.format ??
-                'FORMAT UGEROD'
-              : ''),
+          (blockId === 'unlock'
+            ? 'Mobilité / déverrouillage · faible fatigue'
+            : blockId === 'tabata'
+              ? '8 rounds · 20s travail / 10s repos'
+              : blockId === 'warmup'
+                ? 'Préparation directe du Skill et du WOD'
+                : blockId === 'wod'
+                  ? workout.format ??
+                    'FORMAT UGEROD'
+                  : ''),
         objective:
           source?.objective ??
           null,
@@ -757,9 +780,6 @@ const sessionStartedRef = useRef(false);
     }, [workout.sessionId]);
 
   function handleBack() {
-    // Session -> paramètres de séance, quel que soit l'historique de navigation.
-    // On évite router.back(), qui peut renvoyer directement au dashboard
-    // après un replace/deep-link Expo Go.
     router.replace('/workout/preparation');
   }
 
@@ -2141,7 +2161,8 @@ const sessionStartedRef = useRef(false);
                           />
                         ) : null}
 
-                        {(block.id === 'warmup' ||
+                        {(block.id === 'unlock' ||
+                          block.id === 'warmup' ||
                           block.id === 'skill') &&
                         block.exercises.length > 0 ? (
                           <CurrentExerciseCard
@@ -2514,6 +2535,9 @@ const sessionStartedRef = useRef(false);
                                     styles.validateButtonTextDisabled,
                                 ]}
                               >
+                                {block.id ===
+                                  'unlock' &&
+                                  'TERMINER L’UNLOCK'}
                                 {block.id ===
                                   'warmup' &&
                                   'TERMINER LE WARM-UP'}
