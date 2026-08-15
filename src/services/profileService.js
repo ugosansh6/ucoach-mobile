@@ -229,3 +229,33 @@ export async function updateExperienceLevel(level) {
 
   return data;
 }
+
+export async function updateWeeklySessionTarget(weeklyTarget) {
+  const user = await getAuthenticatedUser();
+  const normalizedWeeklyTarget = Number(weeklyTarget);
+
+  if (
+    !Number.isInteger(normalizedWeeklyTarget) ||
+    normalizedWeeklyTarget < 2 ||
+    normalizedWeeklyTarget > 6
+  ) {
+    throw new Error(
+      'Le rythme hebdomadaire doit être compris entre 2 et 6 séances.'
+    );
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      weekly_session_target: normalizedWeeklyTarget,
+    })
+    .eq('id', user.id)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
