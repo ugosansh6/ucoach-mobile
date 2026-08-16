@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v7-c51-20min-block-budget";
+const VERSION = "coach-handler-v8-context-recalculation";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -23,6 +23,8 @@ type Payload = {
   focus_override?: string | null;
   progression_intent?: string | null;
   local_date?: string | null;
+  force_recalculate_started?: boolean;
+  protected_session_exercise_ids?: string[];
 };
 
 serve(async (req: Request) => {
@@ -49,6 +51,7 @@ serve(async (req: Request) => {
     const equipment = unique(body.available_equipment?.length ? body.available_equipment : ["Aucun"]);
     const injuredZones = unique(body.injured_zones ?? []);
     const localDate = normalizeLocalDate(body.local_date);
+    const protectedSessionExerciseIds = unique(body.protected_session_exercise_ids ?? []);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles").select("experience").eq("id", userId).maybeSingle();
@@ -63,7 +66,7 @@ serve(async (req: Request) => {
     if (inventoryError) throw new Error(inventoryError.message);
 
     const { data: generated, error: generateError } = await supabase.rpc(
-      "d_generate_adaptive_session",
+      "d_generate_adaptive_session_v2",
       {
         p_user_id: userId,
         p_focus_override: focusOverride,
@@ -79,24 +82,46 @@ serve(async (req: Request) => {
         p_candidate_count: 12,
         p_policy_key: "c4-final-default",
         p_anchor_date: localDate,
+        p_force_recalculate_started: Boolean(body.force_recalculate_started),
+        p_protected_session_exercise_ids: protectedSessionExerciseIds,
       },
     );
     if (generateError) throw new Error(generateError.message);
 
-    if (generated?.status === "resume_existing" && generated?.session_id) {
+    if (["STARTED_SESSION_CONFIRM_REQUIRED", "RECALC_LIMIT_REACHED"].includes(generated?.status)) {
+      return json({
+        ...(generated ?? {}),
+        version: VERSION,
+      });
+    }
+
+    if (
+      ["resume_existing", "safety_adapted_existing", "safety_adapt_partial_recalc_required"].includes(generated?.status)
+      && generated?.session_id
+    ) {
       const workout = generated.generated_workout ?? {};
       const coachNote = await getSessionCoachNote(supabase, generated.session_id);
+      const safetyAdaptation = generated.safety_adaptation ?? null;
       return json({
         session_id: generated.session_id,
         status: "generated",
         version: VERSION,
         ...(workout ?? {}),
+        generation_control_status: generated.status,
+        context_recalculation_count: generated.context_recalculation_count ?? 0,
+        context_recalculation_limit: generated.context_recalculation_limit ?? 3,
+        safety_adaptation: safetyAdaptation,
         meta: {
           ...(workout?.meta ?? {}),
           backend_authority: "d1_weekly_loop_plus_c4_full_session",
           legacy_scaffold_authority: false,
           weekly_loop: generated.weekly_loop ?? null,
-          resumed_existing_session: true,
+          resumed_existing_session: generated.status === "resume_existing",
+          safety_adapted_existing: generated.status === "safety_adapted_existing",
+          safety_adaptation: safetyAdaptation,
+          generation_control_status: generated.status,
+          context_recalculation_count: generated.context_recalculation_count ?? 0,
+          context_recalculation_limit: generated.context_recalculation_limit ?? 3,
           coach_note: coachNote,
           format_preference_result: null,
         },
@@ -123,7 +148,7 @@ serve(async (req: Request) => {
 
     const { data: stored, error: storedError } = await supabase
       .from("workout_sessions")
-      .select("generated_workout, planning_context_json, progression_intent, focus, target_region")
+      .select("generated_workout, planning_context_json, progression_intent, focus, target_region, context_recalculation_count, context_recalculation_root_session_id, context_recalculation_parent_session_id")
       .eq("id", generated.session_id)
       .eq("user_id", userId)
       .single();
@@ -138,6 +163,9 @@ serve(async (req: Request) => {
       status: "generated",
       version: VERSION,
       ...(workout ?? {}),
+      context_recalculation_count: stored.context_recalculation_count ?? generated.context_recalculation_count ?? 0,
+      context_recalculation_limit: generated.context_recalculation_limit ?? 3,
+      recalculation_continuity: generated.recalculation_continuity ?? stored.planning_context_json?.recalculation_continuity ?? null,
       meta: {
         ...(workout?.meta ?? generated.meta ?? {}),
         backend_authority: "d1_weekly_loop_plus_c4_full_session",
@@ -147,6 +175,11 @@ serve(async (req: Request) => {
         progression_intent: stored.progression_intent ?? weeklyLoop?.progression_intent ?? null,
         focus: stored.focus ?? weeklyLoop?.focus ?? null,
         target_region: stored.target_region ?? weeklyLoop?.target_region ?? null,
+        context_recalculation_count: stored.context_recalculation_count ?? 0,
+        context_recalculation_limit: generated.context_recalculation_limit ?? 3,
+        context_recalculation_root_session_id: stored.context_recalculation_root_session_id ?? null,
+        context_recalculation_parent_session_id: stored.context_recalculation_parent_session_id ?? null,
+        recalculation_continuity: generated.recalculation_continuity ?? stored.planning_context_json?.recalculation_continuity ?? null,
         coach_note: coachNote,
         format_preference_result: formatResult,
       },
