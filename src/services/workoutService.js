@@ -40,6 +40,50 @@ export async function markWorkoutSessionStarted({
   };
 }
 
+export async function markWorkoutWodRevealed({
+  sessionId,
+}) {
+  if (!sessionId) {
+    return { status: 'NO_SESSION' };
+  }
+
+  const { data, error } = await supabase.rpc(
+    'mark_wod_revealed',
+    { p_session_id: sessionId }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ??
+        'Impossible de révéler le WOD.'
+    );
+  }
+
+  return data ?? { status: 'UNKNOWN' };
+}
+
+export async function markWorkoutWodStarted({
+  sessionId,
+}) {
+  if (!sessionId) {
+    return { status: 'NO_SESSION' };
+  }
+
+  const { data, error } = await supabase.rpc(
+    'mark_wod_started',
+    { p_session_id: sessionId }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ??
+        'Impossible de démarrer le WOD.'
+    );
+  }
+
+  return data ?? { status: 'UNKNOWN' };
+}
+
 function normalizeEquipmentForBackend(equipment) {
   const values = Array.isArray(equipment)
     ? equipment.filter(Boolean)
@@ -1466,6 +1510,18 @@ export async function getWorkoutFormatOptions(sessionId) {
       data?.current_mechanic ?? null,
     currentVariant:
       data?.current_variant ?? null,
+    wodRevealedAt:
+      data?.wod_revealed_at ?? null,
+    wodStartedAt:
+      data?.wod_started_at ?? null,
+    formatChangeCount:
+      Number(data?.format_change_count ?? 0),
+    formatChangeLimit:
+      Number(data?.format_change_limit ?? 3),
+    remainingFormatChanges:
+      Number(data?.remaining_format_changes ?? 0),
+    formatLocked:
+      Boolean(data?.format_locked),
     options:
       Array.isArray(data?.options)
         ? data.options
@@ -1487,7 +1543,9 @@ export async function reloadWorkoutSession({
 
   const { data, error } = await supabase
     .from('workout_sessions')
-    .select('id, status, generated_workout')
+    .select(
+      'id, status, generated_workout, wod_revealed_at, wod_started_at, format_change_count'
+    )
     .eq('id', sessionId)
     .single();
 
@@ -1514,9 +1572,37 @@ export async function reloadWorkoutSession({
       preparationSnapshot ?? {}
     );
 
-  return enrichWorkoutExerciseMetadata(
-    mappedWorkout
-  );
+  const enriched =
+    await enrichWorkoutExerciseMetadata(
+      mappedWorkout
+    );
+  const formatChangeCount =
+    Number(data?.format_change_count ?? 0);
+  const formatChangeLimit = 3;
+
+  return {
+    ...enriched,
+    wodRevealed:
+      Boolean(data?.wod_revealed_at),
+    wodRevealedAt:
+      data?.wod_revealed_at ?? null,
+    wodStarted:
+      Boolean(data?.wod_started_at),
+    wodStartedAt:
+      data?.wod_started_at ?? null,
+    formatChangeCount,
+    formatChangeLimit,
+    remainingFormatChanges:
+      Math.max(
+        0,
+        formatChangeLimit -
+          formatChangeCount
+      ),
+    formatLocked:
+      Boolean(data?.wod_started_at) ||
+      formatChangeCount >=
+        formatChangeLimit,
+  };
 }
 
 export async function changeWorkoutFormat({
@@ -1591,6 +1677,24 @@ export async function changeWorkoutFormat({
   ) {
     throw new Error(
       'Ce format n’est pas adapté à cette séance.'
+    );
+  }
+
+  if (
+    data?.classification ===
+    'LOCKED_AFTER_WOD_START'
+  ) {
+    throw new Error(
+      'Le format est verrouillé : le WOD a déjà commencé.'
+    );
+  }
+
+  if (
+    data?.classification ===
+    'LOCKED_AFTER_FORMAT_CHANGE_LIMIT'
+  ) {
+    throw new Error(
+      'La limite de 3 changements de format est atteinte.'
     );
   }
 

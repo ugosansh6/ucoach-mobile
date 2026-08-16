@@ -38,6 +38,8 @@ import {
   getWorkoutFormatOptions,
   getWorkoutSwapAvailability,
   markWorkoutSessionStarted,
+  markWorkoutWodRevealed,
+  markWorkoutWodStarted,
   reloadWorkoutSession,
   swapWorkoutExercise,
 } from '../../src/services/workoutService';
@@ -577,8 +579,81 @@ export default function WorkoutSessionScreen() {
     wodRevealed,
     setWodRevealed,
   ] = useState(
-    Boolean(workout.wodRevealed)
+    Boolean(
+      workout.wodRevealed ||
+        workout.wodRevealedAt
+    )
   );
+
+  const [
+    formatChangeCount,
+    setFormatChangeCount,
+  ] = useState(
+    Number(workout.formatChangeCount ?? 0)
+  );
+
+  const [
+    formatChangeLimit,
+    setFormatChangeLimit,
+  ] = useState(
+    Number(workout.formatChangeLimit ?? 3)
+  );
+
+  const [
+    formatLocked,
+    setFormatLocked,
+  ] = useState(
+    Boolean(
+      workout.formatLocked ||
+        workout.wodStarted ||
+        workout.wodStartedAt ||
+        workout.wodRuntime?.started
+    )
+  );
+
+  const remainingFormatChanges =
+    Math.max(
+      0,
+      formatChangeLimit -
+        formatChangeCount
+    );
+
+  useEffect(() => {
+    setWodRevealed(
+      Boolean(
+        workout.wodRevealed ||
+          workout.wodRevealedAt
+      )
+    );
+    setFormatChangeCount(
+      Number(
+        workout.formatChangeCount ?? 0
+      )
+    );
+    setFormatChangeLimit(
+      Number(
+        workout.formatChangeLimit ?? 3
+      )
+    );
+    setFormatLocked(
+      Boolean(
+        workout.formatLocked ||
+          workout.wodStarted ||
+          workout.wodStartedAt ||
+          workout.wodRuntime?.started
+      )
+    );
+  }, [
+    workout.sessionId,
+    workout.wodRevealed,
+    workout.wodRevealedAt,
+    workout.wodStarted,
+    workout.wodStartedAt,
+    workout.wodRuntime?.started,
+    workout.formatChangeCount,
+    workout.formatChangeLimit,
+    workout.formatLocked,
+  ]);
 
   const blocks = useMemo(
     () =>
@@ -1501,7 +1576,7 @@ const sessionStartedRef = useRef(false);
     );
   }
 
-  function revealWod() {
+  async function revealWod() {
     if (
       !wodUnlocked ||
       wodRevealed
@@ -1509,17 +1584,122 @@ const sessionStartedRef = useRef(false);
       return;
     }
 
-    setWodRevealed(true);
-    setExpandedBlocks(
-      (current) => ({
-        ...current,
-        wod: true,
-      })
-    );
-    updateWorkout({
-      wodRevealed: true,
-    });
+    setSwapError('');
+
+    try {
+      const result =
+        workout.sessionId
+          ? await markWorkoutWodRevealed({
+              sessionId:
+                workout.sessionId,
+            })
+          : null;
+      const nextCount =
+        Number(
+          result?.format_change_count ??
+            formatChangeCount
+        );
+      const nextLimit =
+        Number(
+          result?.format_change_limit ??
+            formatChangeLimit
+        );
+      const nextLocked =
+        Boolean(
+          result?.format_locked ??
+            nextCount >= nextLimit
+        );
+
+      setWodRevealed(true);
+      setFormatChangeCount(nextCount);
+      setFormatChangeLimit(nextLimit);
+      setFormatLocked(nextLocked);
+      setExpandedBlocks(
+        (current) => ({
+          ...current,
+          wod: true,
+        })
+      );
+      updateWorkout({
+        wodRevealed: true,
+        wodRevealedAt:
+          result?.wod_revealed_at ??
+          workout.wodRevealedAt ??
+          null,
+        formatChangeCount: nextCount,
+        formatChangeLimit: nextLimit,
+        remainingFormatChanges:
+          Math.max(
+            0,
+            nextLimit - nextCount
+          ),
+        formatLocked: nextLocked,
+      });
+    } catch (error) {
+      setSwapError(
+        error?.message ??
+          'Impossible de révéler le WOD.'
+      );
+    }
   }
+
+  const handleWodStartRequest =
+    useCallback(async () => {
+      if (!workout.sessionId) {
+        setFormatLocked(true);
+        ensureSessionStarted();
+        return;
+      }
+
+      const result =
+        await markWorkoutWodStarted({
+          sessionId:
+            workout.sessionId,
+        });
+
+      if (
+        result?.status &&
+        result.status !== 'WOD_STARTED'
+      ) {
+        throw new Error(
+          'Le WOD ne peut pas être démarré dans cet état.'
+        );
+      }
+
+      wodRuntimeStartedRef.current = true;
+      setFormatLocked(true);
+      ensureSessionStarted();
+      updateWorkout({
+        wodStarted: true,
+        wodStartedAt:
+          result?.wod_started_at ??
+          new Date().toISOString(),
+        wodRevealed: true,
+        wodRevealedAt:
+          result?.wod_revealed_at ??
+          workout.wodRevealedAt ??
+          null,
+        formatChangeCount:
+          Number(
+            result?.format_change_count ??
+              formatChangeCount
+          ),
+        formatChangeLimit:
+          Number(
+            result?.format_change_limit ??
+              formatChangeLimit
+          ),
+        remainingFormatChanges: 0,
+        formatLocked: true,
+      });
+    }, [
+      ensureSessionStarted,
+      formatChangeCount,
+      formatChangeLimit,
+      updateWorkout,
+      workout.sessionId,
+      workout.wodRevealedAt,
+    ]);
 
   const handleWodRuntimeChange =
     useCallback(
@@ -1529,7 +1709,31 @@ const sessionStartedRef = useRef(false);
           !wodRuntimeStartedRef.current
         ) {
           wodRuntimeStartedRef.current = true;
+          setFormatLocked(true);
           ensureSessionStarted();
+
+          if (workout.sessionId) {
+            markWorkoutWodStarted({
+              sessionId:
+                workout.sessionId,
+            })
+              .then((result) => {
+                updateWorkout({
+                  wodStarted: true,
+                  wodStartedAt:
+                    result?.wod_started_at ??
+                    null,
+                  formatLocked: true,
+                  remainingFormatChanges: 0,
+                });
+              })
+              .catch((error) => {
+                console.warn(
+                  'WOD start marker fallback',
+                  error
+                );
+              });
+          }
         }
 
         updateWorkout({
@@ -1539,13 +1743,15 @@ const sessionStartedRef = useRef(false);
       [
         ensureSessionStarted,
         updateWorkout,
+        workout.sessionId,
       ]
     );
 
   async function openFormatModal() {
     if (
-      wodRevealed ||
-      !workout.sessionId
+      !workout.sessionId ||
+      formatLocked ||
+      workout.wodRuntime?.started
     ) {
       return;
     }
@@ -1563,6 +1769,24 @@ const sessionStartedRef = useRef(false);
       setSubscriptionTier(
         result.subscriptionTier
       );
+      setFormatChangeCount(
+        Number(
+          result.formatChangeCount ?? 0
+        )
+      );
+      setFormatChangeLimit(
+        Number(
+          result.formatChangeLimit ?? 3
+        )
+      );
+      setFormatLocked(
+        Boolean(result.formatLocked)
+      );
+
+      if (result.formatLocked) {
+        setFormatModalVisible(false);
+        return;
+      }
 
       setFormatOptions(
         sortFormatOptions(
@@ -1595,7 +1819,8 @@ const sessionStartedRef = useRef(false);
       !option?.selectable ||
       option.current ||
       formatChanging ||
-      wodRevealed
+      formatLocked ||
+      workout.wodRuntime?.started
     ) {
       return;
     }
@@ -1606,15 +1831,18 @@ const sessionStartedRef = useRef(false);
     setFormatError('');
 
     try {
-      await changeWorkoutFormat({
-        sessionId:
-          workout.sessionId,
-        mechanic:
-          option.mechanic,
-        variantKey:
-          option.variant_key ??
-          null,
-      });
+      const wasRevealed =
+        wodRevealed;
+      const changeResult =
+        await changeWorkoutFormat({
+          sessionId:
+            workout.sessionId,
+          mechanic:
+            option.mechanic,
+          variantKey:
+            option.variant_key ??
+            null,
+        });
 
       const refreshed =
         await reloadWorkoutSession({
@@ -1636,6 +1864,24 @@ const sessionStartedRef = useRef(false);
               exercise,
             ])
         );
+      const nextCount =
+        Number(
+          changeResult?.format_change_count ??
+            refreshed.formatChangeCount ??
+            formatChangeCount
+        );
+      const nextLimit =
+        Number(
+          changeResult?.format_change_limit ??
+            refreshed.formatChangeLimit ??
+            formatChangeLimit
+        );
+      const nextLocked =
+        Boolean(
+          changeResult?.format_locked ??
+            refreshed.formatLocked ??
+            nextCount >= nextLimit
+        );
 
       updateWorkout({
         ...refreshed,
@@ -1646,7 +1892,6 @@ const sessionStartedRef = useRef(false);
                 previousByInstance.get(
                   exercise.sessionExerciseId
                 );
-
               const blockId =
                 normalizeBlockId(
                   exercise.blockKey ??
@@ -1667,15 +1912,52 @@ const sessionStartedRef = useRef(false);
                 };
               }
 
+              if (
+                previous &&
+                blockId === 'wod' &&
+                previous.id === exercise.id &&
+                previous.status === 'adapted'
+              ) {
+                return {
+                  ...exercise,
+                  status: 'adapted',
+                  adaptationSource:
+                    previous.adaptationSource ??
+                    'swap',
+                };
+              }
+
               return exercise;
             }
           ),
         validatedBlocks,
-        wodRevealed: false,
+        wodRevealed: wasRevealed,
         wodRuntime: null,
+        formatChangeCount: nextCount,
+        formatChangeLimit: nextLimit,
+        remainingFormatChanges:
+          Math.max(
+            0,
+            nextLimit - nextCount
+          ),
+        formatLocked: nextLocked,
       });
-      setWodRevealed(false);
 
+      setWodRevealed(wasRevealed);
+      setFormatChangeCount(nextCount);
+      setFormatChangeLimit(nextLimit);
+      setFormatLocked(nextLocked);
+
+      if (wasRevealed) {
+        setExpandedBlocks(
+          (current) => ({
+            ...current,
+            wod: true,
+          })
+        );
+      }
+
+      await refreshSwapAvailability();
       setFormatModalVisible(false);
       setFormatOptions([]);
     } catch (error) {
@@ -2139,7 +2421,96 @@ const sessionStartedRef = useRef(false);
                         ) : null}
 
                         {block.id === 'wod' ? (
-                          <WodProtocolPlayer
+                          <>
+                            <View
+                              style={[
+                                styles.formatPreview,
+                                {
+                                  marginTop: 12,
+                                  marginBottom: 12,
+                                },
+                              ]}
+                            >
+                              <View
+                                style={styles.formatPreviewMain}
+                              >
+                                <Text
+                                  style={styles.formatPreviewLabel}
+                                >
+                                  FORMAT DU WOD
+                                </Text>
+                                <Text
+                                  style={styles.formatPreviewValue}
+                                >
+                                  {String(
+                                    workoutFormat
+                                  ).toUpperCase()}
+                                </Text>
+                                <Text
+                                  style={styles.formatPreviewHint}
+                                >
+                                  {workout.wodRuntime?.started ||
+                                  workout.wodStarted ||
+                                  workout.wodStartedAt
+                                    ? 'Format verrouillé après démarrage'
+                                    : remainingFormatChanges <= 0
+                                      ? 'Limite de ' + formatChangeLimit + ' changements atteinte'
+                                      : remainingFormatChanges + ' changement' + (remainingFormatChanges > 1 ? 's' : '') + ' restant' + (remainingFormatChanges > 1 ? 's' : '')}
+                                </Text>
+                              </View>
+
+                              {workout.sessionId ? (
+                                <Pressable
+                                  onPress={openFormatModal}
+                                  disabled={
+                                    formatLocked ||
+                                    workout.wodRuntime?.started ||
+                                    remainingFormatChanges <= 0
+                                  }
+                                  style={({ pressed }) => [
+                                    styles.modifyFormatButton,
+                                    (formatLocked ||
+                                      workout.wodRuntime?.started ||
+                                      remainingFormatChanges <= 0) &&
+                                      { opacity: 0.38 },
+                                    pressed &&
+                                      !formatLocked &&
+                                      !workout.wodRuntime?.started &&
+                                      remainingFormatChanges > 0 &&
+                                      styles.pressed,
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name={
+                                      formatLocked ||
+                                      workout.wodRuntime?.started ||
+                                      remainingFormatChanges <= 0
+                                        ? 'lock-closed-outline'
+                                        : 'options-outline'
+                                    }
+                                    size={16}
+                                    color={
+                                      formatLocked ||
+                                      workout.wodRuntime?.started ||
+                                      remainingFormatChanges <= 0
+                                        ? colors.textMuted
+                                        : colors.primaryLight
+                                    }
+                                  />
+                                  <Text
+                                    style={styles.modifyFormatText}
+                                  >
+                                    {formatLocked ||
+                                    workout.wodRuntime?.started ||
+                                    remainingFormatChanges <= 0
+                                      ? 'VERROUILLÉ'
+                                      : 'MODIFIER'}
+                                  </Text>
+                                </Pressable>
+                              ) : null}
+                            </View>
+
+                            <WodProtocolPlayer
                             key={`${
                               workout.sessionId ?? 'dev'
                             }-${
@@ -2149,10 +2520,14 @@ const sessionStartedRef = useRef(false);
                             initialRuntime={
                               workout.wodRuntime ?? null
                             }
+                            onBeforeStart={
+                              handleWodStartRequest
+                            }
                             onRuntimeChange={
                               handleWodRuntimeChange
                             }
                           />
+                          </>
                         ) : null}
 
                         {block.id === 'tabata' ? (

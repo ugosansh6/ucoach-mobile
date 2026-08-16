@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -293,6 +294,7 @@ function useSecondClock({
 export default function WodProtocolPlayer({
   block,
   initialRuntime = null,
+  onBeforeStart,
   onRuntimeChange,
 }) {
   const mechanic =
@@ -355,6 +357,10 @@ export default function WodProtocolPlayer({
     );
   const [paused, setPaused] =
     useState(false);
+  const [starting, setStarting] =
+    useState(false);
+  const [startError, setStartError] =
+    useState('');
   const [finished, setFinished] =
     useState(
       Boolean(initialRuntime?.finished)
@@ -829,16 +835,29 @@ export default function WodProtocolPlayer({
     onRuntimeChange?.(runtime);
   }, [onRuntimeChange, runtime]);
 
-  function start() {
-    if (finished) {
+  async function start() {
+    if (finished || starting) {
       return;
     }
 
-    setStarted(true);
-    setPaused(false);
-    setFinishReason(null);
-    playBeep();
-    Vibration.vibrate(60);
+    setStarting(true);
+    setStartError('');
+
+    try {
+      await onBeforeStart?.();
+      setStarted(true);
+      setPaused(false);
+      setFinishReason(null);
+      playBeep();
+      Vibration.vibrate(60);
+    } catch (error) {
+      setStartError(
+        error?.message ??
+          'Impossible de démarrer le WOD. Réessaie.'
+      );
+    } finally {
+      setStarting(false);
+    }
   }
 
   function togglePause() {
@@ -984,6 +1003,8 @@ export default function WodProtocolPlayer({
         <StartPanel
           mechanic={mechanic}
           exercises={exercises}
+          loading={starting}
+          error={startError}
           onStart={start}
         />
       ) : null}
@@ -1263,6 +1284,8 @@ function playerTitle(mechanic, variant) {
 function StartPanel({
   mechanic,
   exercises,
+  loading,
+  error,
   onStart,
 }) {
   return (
@@ -1282,17 +1305,36 @@ function StartPanel({
         {exercises.length} exercice{exercises.length > 1 ? 's' : ''} · {playerTitle(mechanic)}. Le player suit le protocole décidé par UGEROD.
       </Text>
 
+      {error ? (
+        <Text style={styles.startError}>
+          {error}
+        </Text>
+      ) : null}
+
       <Pressable
         onPress={onStart}
-        style={styles.primaryButton}
+        disabled={loading}
+        style={[
+          styles.primaryButton,
+          loading && styles.buttonDisabled,
+        ]}
       >
-        <Ionicons
-          name="play"
-          size={18}
-          color={colors.brandWhite}
-        />
+        {loading ? (
+          <ActivityIndicator
+            size="small"
+            color={colors.brandWhite}
+          />
+        ) : (
+          <Ionicons
+            name="play"
+            size={18}
+            color={colors.brandWhite}
+          />
+        )}
         <Text style={styles.primaryButtonText}>
-          DÉMARRER LE WOD
+          {loading
+            ? 'VERROUILLAGE DU FORMAT…'
+            : 'DÉMARRER LE WOD'}
         </Text>
       </Pressable>
     </View>
@@ -2345,6 +2387,16 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 3,
+  },
+  startError: {
+    maxWidth: 320,
+    marginTop: 10,
+    fontFamily:
+      'Oswald_600SemiBold',
+    fontSize: 10,
+    lineHeight: 15,
+    color: colors.brandRed,
+    textAlign: 'center',
   },
   primaryButton: {
     minHeight: 48,
