@@ -1020,6 +1020,44 @@ function mapGeneratedWorkout(data, preparation) {
       Boolean(
         data?.meta?.resumed_existing_session
       ),
+    generationControlStatus:
+      data?.generation_control_status ??
+      data?.meta?.generation_control_status ??
+      null,
+    contextRecalculationCount:
+      Number(
+        data?.context_recalculation_count ??
+          data?.meta
+            ?.context_recalculation_count ??
+          0
+      ),
+    contextRecalculationLimit:
+      Number(
+        data?.context_recalculation_limit ??
+          data?.meta
+            ?.context_recalculation_limit ??
+          3
+      ),
+    remainingContextRecalculations:
+      Math.max(
+        0,
+        Number(
+          data?.context_recalculation_limit ??
+            data?.meta
+              ?.context_recalculation_limit ??
+            3
+        ) -
+          Number(
+            data?.context_recalculation_count ??
+              data?.meta
+                ?.context_recalculation_count ??
+              0
+          )
+      ),
+    safetyAdaptation:
+      data?.safety_adaptation ??
+      data?.meta?.safety_adaptation ??
+      null,
     preparationSnapshot: {
       duration:
         preparation?.duration ?? 45,
@@ -1127,7 +1165,7 @@ async function resolveFocusForGeneration() {
   }
 }
 
-export async function generateWorkoutSession(preparation) {
+export async function generateWorkoutSession(preparation, options = {}) {
   const focusOverride =
     await resolveFocusForGeneration();
 
@@ -1150,6 +1188,18 @@ export async function generateWorkoutSession(preparation) {
     focus_override: focusOverride,
     local_date:
       getLocalDateKey(),
+    force_recalculate_started:
+      Boolean(
+        options?.forceRecalculateStarted
+      ),
+    protected_session_exercise_ids:
+      Array.isArray(
+        options?.protectedSessionExerciseIds
+      )
+        ? options.protectedSessionExerciseIds.filter(
+            Boolean
+          )
+        : [],
   };
 
   const { data, error } =
@@ -1180,6 +1230,39 @@ export async function generateWorkoutSession(preparation) {
 
   if (data?.error) {
     throw new Error(data.error);
+  }
+
+  if (
+    [
+      'STARTED_SESSION_CONFIRM_REQUIRED',
+      'RECALC_LIMIT_REACHED',
+    ].includes(data?.status)
+  ) {
+    return {
+      controlStatus: data.status,
+      sessionId:
+        data?.session_id ?? null,
+      changedFields:
+        Array.isArray(data?.changed_fields)
+          ? data.changed_fields
+          : [],
+      warningCode:
+        data?.warning_code ?? null,
+      contextRecalculationCount:
+        Number(
+          data?.context_recalculation_count ??
+            0
+        ),
+      contextRecalculationLimit:
+        Number(
+          data?.context_recalculation_limit ??
+            3
+        ),
+      startedAt:
+        data?.started_at ?? null,
+      startedLocalDate:
+        data?.started_local_date ?? null,
+    };
   }
 
   if (!data?.session_id) {
@@ -1544,7 +1627,7 @@ export async function reloadWorkoutSession({
   const { data, error } = await supabase
     .from('workout_sessions')
     .select(
-      'id, status, generated_workout, wod_revealed_at, wod_started_at, format_change_count'
+      'id, status, generated_workout, started_at, started_local_date, wod_revealed_at, wod_started_at, format_change_count, context_recalculation_count'
     )
     .eq('id', sessionId)
     .single();
@@ -1580,8 +1663,29 @@ export async function reloadWorkoutSession({
     Number(data?.format_change_count ?? 0);
   const formatChangeLimit = 3;
 
+  const contextRecalculationCount =
+    Number(
+      data?.context_recalculation_count ?? 0
+    );
+  const contextRecalculationLimit = 3;
+
   return {
     ...enriched,
+    sessionStarted:
+      data?.status === 'in_progress' ||
+      Boolean(data?.started_at),
+    startedAt:
+      data?.started_at ?? null,
+    startedLocalDate:
+      data?.started_local_date ?? null,
+    contextRecalculationCount,
+    contextRecalculationLimit,
+    remainingContextRecalculations:
+      Math.max(
+        0,
+        contextRecalculationLimit -
+          contextRecalculationCount
+      ),
     wodRevealed:
       Boolean(data?.wod_revealed_at),
     wodRevealedAt:

@@ -1,12 +1,14 @@
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
 import {
   Image,
+  Modal,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -48,12 +50,24 @@ export default function GeneratingScreen() {
     setGenerationError,
   ] = useState('');
 
+  const [
+    generationControl,
+    setGenerationControl,
+  ] = useState(null);
+
+  const [
+    forceRecalculating,
+    setForceRecalculating,
+  ] = useState(false);
+
   const generationDone =
     useRef(false);
 
   const {
     preparation,
+    workout,
     setGeneratedWorkout,
+    setGeneratedWorkoutPreservingProgress,
   } = useWorkout();
 
   useEffect(() => {
@@ -80,67 +94,148 @@ export default function GeneratingScreen() {
     };
   }, []);
 
+  const runGeneration =
+    useCallback(
+      async ({
+        forceRecalculateStarted = false,
+      } = {}) => {
+        setGenerationError('');
+        setGenerationControl(null);
+
+        const protectedSessionExerciseIds =
+          (workout.exercises ?? [])
+            .filter(
+              (exercise) =>
+                exercise.sessionExerciseId &&
+                exercise.status !== 'pending'
+            )
+            .map(
+              (exercise) =>
+                exercise.sessionExerciseId
+            );
+
+        const generatedWorkout =
+          await generateWorkoutSession(
+            preparation,
+            {
+              forceRecalculateStarted,
+              protectedSessionExerciseIds,
+            }
+          );
+
+        if (generatedWorkout?.controlStatus) {
+          setGenerationControl(
+            generatedWorkout
+          );
+          return;
+        }
+
+        const sameSession =
+          Boolean(workout.sessionId) &&
+          workout.sessionId ===
+            generatedWorkout?.sessionId;
+
+        const preserveProgress =
+          sameSession &&
+          [
+            'resume_existing',
+            'safety_adapted_existing',
+            'safety_adapt_partial_recalc_required',
+          ].includes(
+            generatedWorkout
+              ?.generationControlStatus
+          );
+
+        if (preserveProgress) {
+          setGeneratedWorkoutPreservingProgress(
+            generatedWorkout
+          );
+        } else {
+          setGeneratedWorkout(
+            generatedWorkout
+          );
+        }
+
+        if (
+          generatedWorkout
+            ?.generationControlStatus ===
+          'safety_adapt_partial_recalc_required'
+        ) {
+          setGenerationControl({
+            controlStatus:
+              'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED',
+            sessionId:
+              generatedWorkout.sessionId,
+            safetyAdaptation:
+              generatedWorkout
+                .safetyAdaptation,
+          });
+          return;
+        }
+
+        router.replace(
+          '/workout/session'
+        );
+      },
+      [
+        preparation,
+        workout.exercises,
+        workout.sessionId,
+        setGeneratedWorkout,
+        setGeneratedWorkoutPreservingProgress,
+      ]
+    );
+
   useEffect(() => {
     if (
       activeStep !==
-      STEPS.length - 1 ||
+        STEPS.length - 1 ||
       generationDone.current
     ) {
       return;
     }
 
     generationDone.current = true;
-    let cancelled = false;
 
-    async function runGeneration() {
-      try {
-        setGenerationError('');
-
-        const generatedWorkout =
-          await generateWorkoutSession(
-            preparation
-          );
-
-        if (cancelled) {
-          return;
-        }
-
-        setGeneratedWorkout(
-          generatedWorkout
-        );
-
-        /*
-         * F-C4 : pas d'écran d'aperçu.
-         * Le WOD reste une surprise directement
-         * dans l'écran Session.
-         */
-        router.replace(
-          '/workout/session'
-        );
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        setGenerationError(
-          error?.message ??
-            'Impossible de générer la séance.'
-        );
-
-        generationDone.current = false;
-      }
-    }
-
-    runGeneration();
-
-    return () => {
-      cancelled = true;
-    };
+    runGeneration().catch((error) => {
+      setGenerationError(
+        error?.message ??
+          'Impossible de générer la séance.'
+      );
+      generationDone.current = false;
+    });
   }, [
     activeStep,
-    preparation,
-    setGeneratedWorkout,
+    runGeneration,
   ]);
+
+  async function handleForceRecalculate() {
+    if (forceRecalculating) {
+      return;
+    }
+
+    setForceRecalculating(true);
+
+    try {
+      await runGeneration({
+        forceRecalculateStarted: true,
+      });
+    } catch (error) {
+      setGenerationError(
+        error?.message ??
+          'Impossible de recalculer la séance.'
+      );
+      setGenerationControl(null);
+      generationDone.current = false;
+    } finally {
+      setForceRecalculating(false);
+    }
+  }
+
+  function handleResumeCurrentSession() {
+    setGenerationControl(null);
+    router.replace('/workout/session');
+  }
 
   function handleRetry() {
     setGenerationError('');
@@ -159,6 +254,33 @@ export default function GeneratingScreen() {
   function handleBack() {
     router.back();
   }
+
+  const controlStatus =
+    generationControl?.controlStatus;
+
+  const controlTitle =
+    controlStatus ===
+      'RECALC_LIMIT_REACHED'
+      ? '3 RECALCULS UTILISÉS'
+      : controlStatus ===
+          'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED'
+        ? 'ADAPTATION INCOMPLÈTE'
+        : 'RECALCULER LA SÉANCE ?';
+
+  const controlMessage =
+    controlStatus ===
+      'RECALC_LIMIT_REACHED'
+      ? 'Tu as utilisé les 3 recalculs volontaires disponibles avant le début. Les adaptations nécessaires pour une nouvelle gêne ou un matériel devenu indisponible restent possibles.'
+      : controlStatus ===
+          'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED'
+        ? 'UGEROD a sécurisé ce qu’il pouvait sans effacer ta progression, mais certains exercices restants n’ont pas de remplacement suffisamment sûr. Tu peux reprendre la séance adaptée ou abandonner et tout recalculer.'
+        : 'Ta séance a déjà commencé. En la recalculant, tu perdras toute la progression enregistrée sur cette séance : exercices validés, adaptations, chronos et performances.';
+
+  const canForceRecalculate =
+    controlStatus ===
+      'STARTED_SESSION_CONFIRM_REQUIRED' ||
+    controlStatus ===
+      'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED';
 
   return (
     <SafeAreaView
@@ -363,6 +485,98 @@ export default function GeneratingScreen() {
           )}
         </View>
       </View>
+
+      <Modal
+        visible={Boolean(generationControl)}
+        transparent
+        animationType="fade"
+        onRequestClose={
+          handleResumeCurrentSession
+        }
+      >
+        <View
+          style={styles.controlModalOverlay}
+        >
+          <View
+            style={styles.controlModalCard}
+          >
+            <View
+              style={styles.controlModalIcon}
+            >
+              <Ionicons
+                name={
+                  controlStatus ===
+                  'RECALC_LIMIT_REACHED'
+                    ? 'lock-closed-outline'
+                    : 'warning-outline'
+                }
+                size={26}
+                color={
+                  colors.brandRed
+                }
+              />
+            </View>
+
+            <Text
+              style={styles.controlModalTitle}
+            >
+              {controlTitle}
+            </Text>
+
+            <Text
+              style={styles.controlModalText}
+            >
+              {controlMessage}
+            </Text>
+
+            <Pressable
+              onPress={
+                handleResumeCurrentSession
+              }
+              disabled={forceRecalculating}
+              style={({ pressed }) => [
+                styles.controlPrimaryButton,
+                pressed &&
+                  !forceRecalculating &&
+                  styles.pressed,
+              ]}
+            >
+              <Text
+                style={
+                  styles.controlPrimaryButtonText
+                }
+              >
+                REPRENDRE MA SÉANCE
+              </Text>
+            </Pressable>
+
+            {canForceRecalculate ? (
+              <Pressable
+                onPress={
+                  handleForceRecalculate
+                }
+                disabled={forceRecalculating}
+                style={({ pressed }) => [
+                  styles.controlDangerButton,
+                  pressed &&
+                    !forceRecalculating &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={
+                    styles.controlDangerButtonText
+                  }
+                >
+                  {forceRecalculating
+                    ? 'RECALCUL EN COURS...'
+                    : 'ABANDONNER ET RECALCULER'}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -641,6 +855,98 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     color:
       colors.brandWhite,
+  },
+
+  controlModalOverlay: {
+    flex: 1,
+    backgroundColor:
+      'rgba(0,0,0,0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal:
+      spacing.xl,
+  },
+
+  controlModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 20,
+    padding: spacing.xl,
+    backgroundColor:
+      colors.surface,
+    borderWidth: 1,
+    borderColor:
+      colors.border,
+  },
+
+  controlModalIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      'rgba(255,65,65,0.10)',
+    marginBottom: spacing.lg,
+  },
+
+  controlModalTitle: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 24,
+    lineHeight: 30,
+    letterSpacing: 0.7,
+    color:
+      colors.textPrimary,
+  },
+
+  controlModalText: {
+    fontFamily:
+      'Oswald_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    color:
+      colors.textSecondary,
+    marginTop: spacing.md,
+    marginBottom: spacing.xl,
+  },
+
+  controlPrimaryButton: {
+    minHeight: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      colors.primary,
+  },
+
+  controlPrimaryButtonText: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 13,
+    letterSpacing: 0.8,
+    color:
+      colors.brandWhite,
+  },
+
+  controlDangerButton: {
+    minHeight: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor:
+      colors.brandRed,
+  },
+
+  controlDangerButtonText: {
+    fontFamily:
+      'Oswald_700Bold',
+    fontSize: 12,
+    letterSpacing: 0.7,
+    color:
+      colors.brandRed,
   },
 
   pressed: {

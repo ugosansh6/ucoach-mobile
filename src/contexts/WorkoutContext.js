@@ -34,6 +34,14 @@ const INITIAL_WORKOUT = {
   validatedBlocks: [],
   wodRevealed: false,
   wodRuntime: null,
+  sessionStarted: false,
+  startedAt: null,
+  startedLocalDate: null,
+  contextRecalculationCount: 0,
+  contextRecalculationLimit: 3,
+  remainingContextRecalculations: 3,
+  generationControlStatus: null,
+  safetyAdaptation: null,
 };
 
 const INITIAL_COMPLETION = {
@@ -72,6 +80,119 @@ export function WorkoutProvider({ children }) {
       setCompletion(
         INITIAL_COMPLETION
       );
+    }, []);
+
+  const setGeneratedWorkoutPreservingProgress =
+    useCallback((generatedWorkout) => {
+      setWorkout((current) => {
+        const sameSession =
+          Boolean(current.sessionId) &&
+          current.sessionId ===
+            generatedWorkout?.sessionId;
+
+        if (!sameSession) {
+          return {
+            ...INITIAL_WORKOUT,
+            ...generatedWorkout,
+            status: 'generated',
+          };
+        }
+
+        const previousByInstance =
+          new Map(
+            (current.exercises ?? [])
+              .filter(
+                (exercise) =>
+                  exercise.sessionExerciseId
+              )
+              .map((exercise) => [
+                exercise.sessionExerciseId,
+                exercise,
+              ])
+          );
+
+        const nextExercises =
+          (generatedWorkout?.exercises ?? [])
+            .map((exercise) => {
+              const previous =
+                previousByInstance.get(
+                  exercise.sessionExerciseId
+                );
+
+              if (
+                !previous ||
+                previous.status === 'pending'
+              ) {
+                return exercise;
+              }
+
+              return {
+                ...exercise,
+                status: previous.status,
+                adaptationSource:
+                  previous.adaptationSource ??
+                  exercise.adaptationSource ??
+                  null,
+                performanceActualJson:
+                  previous.performanceActualJson ??
+                  exercise.performanceActualJson ??
+                  null,
+                repsCompleted:
+                  previous.repsCompleted ??
+                  exercise.repsCompleted ??
+                  null,
+                durationSeconds:
+                  previous.durationSeconds ??
+                  exercise.durationSeconds ??
+                  null,
+                distanceMeters:
+                  previous.distanceMeters ??
+                  exercise.distanceMeters ??
+                  null,
+                rpe:
+                  previous.rpe ??
+                  exercise.rpe ??
+                  null,
+                notes:
+                  previous.notes ??
+                  exercise.notes ??
+                  null,
+              };
+            });
+
+        return {
+          ...current,
+          ...generatedWorkout,
+          status:
+            current.sessionStarted
+              ? 'in_progress'
+              : generatedWorkout?.status ??
+                current.status,
+          exercises: nextExercises,
+          validatedBlocks:
+            current.validatedBlocks,
+          wodRevealed:
+            current.wodRevealed ||
+            Boolean(
+              generatedWorkout?.wodRevealed
+            ),
+          wodRuntime:
+            current.wodRuntime,
+          sessionStarted:
+            current.sessionStarted ||
+            Boolean(
+              generatedWorkout?.sessionStarted
+            ),
+          startedAt:
+            current.startedAt ??
+            generatedWorkout?.startedAt ??
+            null,
+          startedLocalDate:
+            current.startedLocalDate ??
+            generatedWorkout?.startedLocalDate ??
+            null,
+        };
+      });
     }, []);
 
   const updateWorkout =
@@ -136,6 +257,7 @@ export function WorkoutProvider({ children }) {
       completion,
       updatePreparation,
       setGeneratedWorkout,
+      setGeneratedWorkoutPreservingProgress,
       updateWorkout,
       updateExercise,
       updateCompletion,
@@ -148,6 +270,7 @@ export function WorkoutProvider({ children }) {
       completion,
       updatePreparation,
       setGeneratedWorkout,
+      setGeneratedWorkoutPreservingProgress,
       updateWorkout,
       updateExercise,
       updateCompletion,

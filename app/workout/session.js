@@ -60,8 +60,8 @@ const BLOCK_ORDER = [
 
 const BLOCK_LABELS = {
   unlock: 'UNLOCK',
-  tabata: 'TABATA CORE',
-  warmup: 'WARM-UP SPÉCIFIQUE',
+  tabata: 'TABATA',
+  warmup: 'WARM-UP',
   skill: 'SKILL',
   wod: 'WOD',
 };
@@ -224,6 +224,245 @@ function readBlockStructure(block) {
   );
 }
 
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const numeric = Number(value);
+
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+
+  return null;
+}
+
+function formatCompactNumber(value) {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+
+  return Number.isInteger(numeric)
+    ? String(numeric)
+    : String(
+        Math.round(numeric * 10) / 10
+      );
+}
+
+function getExercisePrescription(exercise) {
+  const value =
+    exercise?.prescriptionJson ??
+    exercise?.prescription_json ??
+    (exercise?.prescription &&
+    typeof exercise.prescription === 'object'
+      ? exercise.prescription
+      : null);
+
+  return value && typeof value === 'object'
+    ? value
+    : {};
+}
+
+function formatExerciseCount(count) {
+  const safeCount = Math.max(
+    1,
+    Number(count) || 1
+  );
+
+  return `${safeCount} exercice${safeCount > 1 ? 's' : ''}`;
+}
+
+function buildPreWodBlockStructure({
+  blockId,
+  source,
+  blockExercises,
+  durationMinutes,
+}) {
+  const exerciseCount =
+    blockExercises.length;
+  const prescription =
+    getExercisePrescription(
+      blockExercises[0]
+    );
+  const protocol =
+    prescription?.protocol &&
+    typeof prescription.protocol === 'object'
+      ? prescription.protocol
+      : {};
+
+  if (blockId === 'tabata') {
+    const rounds = firstFiniteNumber(
+      source?.rounds,
+      protocol.rounds,
+      8
+    );
+    const workSeconds =
+      firstFiniteNumber(
+        source?.workSeconds,
+        source?.work_seconds,
+        protocol.work_seconds
+      );
+    const restSeconds =
+      firstFiniteNumber(
+        source?.restSeconds,
+        source?.rest_seconds,
+        protocol.rest_seconds
+      );
+
+    if (
+      rounds != null &&
+      workSeconds != null &&
+      restSeconds != null
+    ) {
+      return `${formatCompactNumber(rounds)} séries · ${formatCompactNumber(workSeconds)}s travail / ${formatCompactNumber(restSeconds)}s repos`;
+    }
+  }
+
+  if (blockId === 'skill') {
+    const contract =
+      source?.skillContract ??
+      source?.skill_contract ??
+      {};
+    const patch =
+      contract?.prescription_patch &&
+      typeof contract.prescription_patch ===
+        'object'
+        ? contract.prescription_patch
+        : {};
+
+    const sets = firstFiniteNumber(
+      contract?.sets,
+      patch?.sets,
+      prescription?.sets
+    );
+    const restSeconds =
+      firstFiniteNumber(
+        contract?.restSeconds,
+        contract?.rest_seconds,
+        patch?.rest_between_sets_seconds,
+        prescription?.rest_between_sets_seconds
+      );
+    const workSeconds =
+      firstFiniteNumber(
+        patch?.execution_target_duration_seconds,
+        prescription?.execution_target_duration_seconds
+      );
+    const targetReps =
+      firstFiniteNumber(
+        patch?.execution_target_reps,
+        prescription?.execution_target_reps
+      );
+    const repsMin = firstFiniteNumber(
+      prescription?.reps_min
+    );
+    const repsMax = firstFiniteNumber(
+      prescription?.reps_max
+    );
+
+    const seriesLabel = sets != null
+      ? `${formatCompactNumber(sets)} séries`
+      : '1 série';
+
+    if (workSeconds != null) {
+      const workLabel =
+        `${formatCompactNumber(workSeconds)}s travail`;
+
+      return restSeconds != null
+        ? `${seriesLabel} · ${workLabel} / ${formatCompactNumber(restSeconds)}s repos`
+        : `${seriesLabel} · ${workLabel}`;
+    }
+
+    let repsLabel = null;
+
+    if (targetReps != null) {
+      repsLabel = `${formatCompactNumber(targetReps)} reps`;
+    } else if (
+      repsMin != null ||
+      repsMax != null
+    ) {
+      const min = formatCompactNumber(
+        repsMin ?? repsMax
+      );
+      const max = formatCompactNumber(
+        repsMax ?? repsMin
+      );
+
+      repsLabel = min === max
+        ? `${min} reps`
+        : `${min}–${max} reps`;
+    }
+
+    if (repsLabel) {
+      return restSeconds != null
+        ? `${seriesLabel} · ${repsLabel} · ${formatCompactNumber(restSeconds)}s repos`
+        : `${seriesLabel} · ${repsLabel}`;
+    }
+
+    return seriesLabel;
+  }
+
+  if (
+    blockId === 'unlock' ||
+    blockId === 'warmup'
+  ) {
+    const safeCount = Math.max(
+      1,
+      exerciseCount
+    );
+
+    const allocatedDurations =
+      blockExercises
+        .map((exercise) =>
+          firstFiniteNumber(
+            getExercisePrescription(exercise)
+              ?.allocated_duration_seconds,
+            exercise?.expectedOutcome
+              ?.allocated_duration_seconds
+          )
+        )
+        .filter(
+          (value) => value != null
+        );
+
+    const totalSeconds =
+      Math.max(
+        0,
+        Number(durationMinutes) || 0
+      ) * 60;
+    const secondsPerExercise =
+      allocatedDurations.length ===
+      safeCount
+        ? Math.round(
+            allocatedDurations.reduce(
+              (sum, value) =>
+                sum + value,
+              0
+            ) / safeCount
+          )
+        : totalSeconds > 0
+          ? Math.round(
+              totalSeconds / safeCount
+            )
+          : null;
+
+    const parts = [
+      '1 série',
+      formatExerciseCount(safeCount),
+    ];
+
+    if (secondsPerExercise != null) {
+      parts.push(
+        `${formatCompactNumber(secondsPerExercise)}s / exercice`
+      );
+    }
+
+    return parts.join(' · ');
+  }
+
+  return readBlockStructure(source);
+}
+
 function buildBlocks(
   workout,
   exercises
@@ -267,7 +506,12 @@ function buildBlocks(
         );
 
       const structure =
-        readBlockStructure(source);
+        buildPreWodBlockStructure({
+          blockId,
+          source,
+          blockExercises,
+          durationMinutes: duration,
+        });
 
       return {
         id: blockId,
@@ -285,16 +529,10 @@ function buildBlocks(
           `${duration} MIN`,
         structure:
           structure ||
-          (blockId === 'unlock'
-            ? 'Mobilité / déverrouillage · faible fatigue'
-            : blockId === 'tabata'
-              ? '8 rounds · 20s travail / 10s repos'
-              : blockId === 'warmup'
-                ? 'Préparation directe du Skill et du WOD'
-                : blockId === 'wod'
-                  ? workout.format ??
-                    'FORMAT UGEROD'
-                  : ''),
+          (blockId === 'wod'
+            ? workout.format ??
+              'FORMAT UGEROD'
+            : ''),
         objective:
           source?.objective ??
           null,
@@ -715,9 +953,6 @@ export default function WorkoutSessionScreen() {
   const plannedDuration =
     workout.plannedDuration ?? 45;
 
-  const workoutTitle =
-    workout.title ?? 'FULL BODY';
-
   const workoutFormat =
     workout.format ??
     getWorkoutBlock(
@@ -814,47 +1049,122 @@ export default function WorkoutSessionScreen() {
     );
   }
 const sessionStartedRef = useRef(false);
+  const sessionStartPromiseRef = useRef(null);
   const wodRuntimeStartedRef = useRef(false);
 
   useEffect(() => {
-    sessionStartedRef.current = false;
-    wodRuntimeStartedRef.current = false;
-  }, [workout.sessionId]);
+    sessionStartedRef.current =
+      Boolean(workout.sessionStarted);
+    sessionStartPromiseRef.current = null;
+    wodRuntimeStartedRef.current =
+      Boolean(
+        workout.wodRuntime?.started
+      );
+  }, [
+    workout.sessionId,
+    workout.sessionStarted,
+    workout.wodRuntime?.started,
+  ]);
 
   const ensureSessionStarted =
     useCallback(() => {
+      if (!workout.sessionId) {
+        return Promise.resolve({
+          status: 'NO_SESSION',
+        });
+      }
+
       if (
-        sessionStartedRef.current ||
-        !workout.sessionId
+        sessionStartPromiseRef.current
       ) {
-        return;
+        return sessionStartPromiseRef.current;
+      }
+
+      if (sessionStartedRef.current) {
+        return Promise.resolve({
+          status: 'IN_PROGRESS',
+        });
       }
 
       sessionStartedRef.current = true;
 
-      markWorkoutSessionStarted({
-        sessionId: workout.sessionId,
-      })
-        .then((result) => {
-          if (
-            result?.status ===
-              'STALE_SESSION_REQUIRES_RECHECKIN'
-          ) {
-            router.replace(
-              '/workout/preparation'
-            );
-          }
-        })
-        .catch((error) => {
-          sessionStartedRef.current = false;
-          console.warn(
-            'Session start marker',
-            error
-          );
-        });
-    }, [workout.sessionId]);
+      updateWorkout({
+        sessionStarted: true,
+        status: 'in_progress',
+        startedAt:
+          workout.startedAt ??
+          new Date().toISOString(),
+      });
 
-  function handleBack() {
+      const request =
+        markWorkoutSessionStarted({
+          sessionId: workout.sessionId,
+        })
+          .then((result) => {
+            if (
+              result?.status ===
+                'STALE_SESSION_REQUIRES_RECHECKIN'
+            ) {
+              router.replace(
+                '/workout/preparation'
+              );
+              return result;
+            }
+
+            if (
+              result?.status ===
+              'IN_PROGRESS'
+            ) {
+              updateWorkout({
+                sessionStarted: true,
+                status: 'in_progress',
+                startedLocalDate:
+                  result
+                    ?.started_local_date ??
+                  null,
+              });
+            }
+
+            return result;
+          })
+          .catch((error) => {
+            sessionStartedRef.current = false;
+            updateWorkout({
+              sessionStarted: false,
+              status: 'generated',
+            });
+            console.warn(
+              'Session start marker',
+              error
+            );
+            throw error;
+          })
+          .finally(() => {
+            sessionStartPromiseRef.current =
+              null;
+          });
+
+      sessionStartPromiseRef.current =
+        request;
+
+      return request;
+    }, [
+      updateWorkout,
+      workout.sessionId,
+      workout.startedAt,
+    ]);
+
+  async function handleBack() {
+    if (
+      sessionStartPromiseRef.current
+    ) {
+      try {
+        await sessionStartPromiseRef.current;
+      } catch {
+        // Le retour vers le check-in reste possible.
+      }
+    }
+
     router.replace('/workout/preparation');
   }
 
@@ -2032,14 +2342,6 @@ const sessionStartedRef = useRef(false);
               <View
                 style={styles.headerText}
               >
-                <Text
-                  style={styles.headerEyebrow}
-                >
-                  {String(
-                    workoutTitle
-                  ).toUpperCase()}
-                </Text>
-
                 <Text
                   style={styles.headerTitle}
                 >

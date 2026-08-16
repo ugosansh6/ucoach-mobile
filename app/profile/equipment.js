@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Image,
   ImageBackground,
+  Keyboard,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -39,10 +40,12 @@ const FIXED_LOAD_CAPABLE_IDS = new Set([
   'E03', // Haltères
   'E04', // Kettlebell
   'E09', // Medball
+  'E14', // Barre olympique + disques
 ]);
 
 const ADJUSTABLE_LOAD_CAPABLE_IDS = new Set([
   'E03', // Haltères réglables
+  'E14', // Barre olympique + disques
 ]);
 
 const QUANTITY_RELEVANT_IDS = new Set([
@@ -51,6 +54,7 @@ const QUANTITY_RELEVANT_IDS = new Set([
 ]);
 
 const RESISTANCE_EQUIPMENT_ID = 'E05';
+const BARBELL_EQUIPMENT_ID = 'E14';
 
 const RESISTANCE_OPTIONS = [
   { value: 'Légère', label: 'LÉGÈRE' },
@@ -289,6 +293,11 @@ export default function ProfileEquipmentScreen() {
   const [saved, setSaved] =
     useState(false);
 
+  const [
+    expandedEquipmentIds,
+    setExpandedEquipmentIds,
+  ] = useState(() => new Set());
+
   useEffect(() => {
     let cancelled = false;
 
@@ -360,6 +369,51 @@ export default function ProfileEquipmentScreen() {
     );
   }
 
+  function setEquipmentExpanded(
+    equipmentId,
+    expanded
+  ) {
+    setExpandedEquipmentIds((current) => {
+      const next = new Set(current);
+
+      if (expanded) {
+        next.add(equipmentId);
+      } else {
+        next.delete(equipmentId);
+      }
+
+      return next;
+    });
+  }
+
+  function toggleEquipmentExpanded(
+    equipmentId
+  ) {
+    setExpandedEquipmentIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(equipmentId)) {
+        next.delete(equipmentId);
+      } else {
+        next.add(equipmentId);
+      }
+
+      return next;
+    });
+  }
+
+  function validateAndCollapseBarbell(row) {
+    if (!validateRow(row)) {
+      return;
+    }
+
+    Keyboard.dismiss();
+    setEquipmentExpanded(
+      BARBELL_EQUIPMENT_ID,
+      false
+    );
+  }
+
   function toggleEquipment(equipment) {
     setSaved(false);
 
@@ -374,23 +428,54 @@ export default function ProfileEquipmentScreen() {
             equipment.id
         )
       );
+      setEquipmentExpanded(
+        equipment.id,
+        false
+      );
       return;
     }
 
-    const defaultMode =
-      FIXED_LOAD_CAPABLE_IDS.has(
-        equipment.id
-      )
+    const isBarbell =
+      equipment.id ===
+      BARBELL_EQUIPMENT_ID;
+
+    const defaultMode = isBarbell
+      ? 'adjustable_load'
+      : FIXED_LOAD_CAPABLE_IDS.has(
+          equipment.id
+        )
         ? 'load_unknown'
         : 'non_load';
 
+    const nextRow = createInventoryRow(
+      equipment.id,
+      defaultMode
+    );
+
+    if (isBarbell) {
+      nextRow.min_load_kg = '20';
+      nextRow.increment_kg = '2.5';
+    }
+
     setDraftInventory((current) => [
       ...current,
-      createInventoryRow(
-        equipment.id,
-        defaultMode
-      ),
+      nextRow,
     ]);
+
+    const configurable =
+      isBarbell ||
+      FIXED_LOAD_CAPABLE_IDS.has(
+        equipment.id
+      ) ||
+      equipment.id ===
+        RESISTANCE_EQUIPMENT_ID;
+
+    if (configurable) {
+      setEquipmentExpanded(
+        equipment.id,
+        true
+      );
+    }
   }
 
   function updateRow(
@@ -892,12 +977,23 @@ export default function ProfileEquipmentScreen() {
                   const selected =
                     rows.length > 0;
 
+                  const isBarbell =
+                    equipment.id ===
+                    BARBELL_EQUIPMENT_ID;
+
+                  const expanded =
+                    expandedEquipmentIds.has(
+                      equipment.id
+                    );
+
                   const supportsFixed =
+                    !isBarbell &&
                     FIXED_LOAD_CAPABLE_IDS.has(
                       equipment.id
                     );
 
                   const supportsAdjustable =
+                    !isBarbell &&
                     ADJUSTABLE_LOAD_CAPABLE_IDS.has(
                       equipment.id
                     );
@@ -912,6 +1008,7 @@ export default function ProfileEquipmentScreen() {
                     RESISTANCE_EQUIPMENT_ID;
 
                   const hasConfiguration =
+                    isBarbell ||
                     supportsFixed ||
                     supportsResistance;
 
@@ -930,11 +1027,21 @@ export default function ProfileEquipmentScreen() {
                       ]}
                     >
                       <Pressable
-                        onPress={() =>
+                        onPress={() => {
+                          if (
+                            selected &&
+                            hasConfiguration
+                          ) {
+                            toggleEquipmentExpanded(
+                              equipment.id
+                            );
+                            return;
+                          }
+
                           toggleEquipment(
                             equipment
-                          )
-                        }
+                          );
+                        }}
                         style={({
                           pressed,
                         }) => [
@@ -943,7 +1050,14 @@ export default function ProfileEquipmentScreen() {
                             styles.pressed,
                         ]}
                       >
-                        <View
+                        <Pressable
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            toggleEquipment(
+                              equipment
+                            );
+                          }}
+                          hitSlop={8}
                           style={[
                             styles.checkbox,
                             selected &&
@@ -959,7 +1073,7 @@ export default function ProfileEquipmentScreen() {
                               }
                             />
                           )}
-                        </View>
+                        </Pressable>
 
                         <View
                           style={
@@ -977,10 +1091,11 @@ export default function ProfileEquipmentScreen() {
                             ).toUpperCase()}
                           </Text>
 
-                          {(supportsFixed ||
+                          {(isBarbell ||
+                            supportsFixed ||
                             supportsResistance) && (
                             <View style={styles.equipmentMetaRow}>
-                              {supportsFixed && (
+                              {(isBarbell || supportsFixed) && (
                                 <Ionicons
                                   name="barbell-outline"
                                   size={14}
@@ -991,9 +1106,11 @@ export default function ProfileEquipmentScreen() {
                               <Text
                                 style={styles.equipmentHint}
                               >
-                                {supportsResistance
-                                  ? 'Résistance facultative.'
-                                  : 'Charge facultative.'}
+                                {isBarbell
+                                  ? 'Poids total, barre comprise.'
+                                  : supportsResistance
+                                    ? 'Résistance facultative.'
+                                    : 'Charge facultative.'}
                               </Text>
                             </View>
                           )}
@@ -1002,7 +1119,7 @@ export default function ProfileEquipmentScreen() {
                         {hasConfiguration && (
                           <Ionicons
                             name={
-                              selected
+                              expanded
                                 ? 'chevron-up'
                                 : 'chevron-down'
                             }
@@ -1015,12 +1132,164 @@ export default function ProfileEquipmentScreen() {
                       </Pressable>
 
                       {selected &&
-                        hasConfiguration && (
+                        hasConfiguration &&
+                        expanded && (
                         <View
                           style={
                             styles.configurationArea
                           }
                         >
+                          {isBarbell &&
+                            rows[0] && (
+                              <View
+                                style={
+                                  styles.adjustableArea
+                                }
+                              >
+                                <Text
+                                  style={
+                                    styles.fieldLabel
+                                  }
+                                >
+                                  CHARGE DE TA BARRE
+                                </Text>
+
+                                <Text
+                                  style={
+                                    styles.resistanceHelp
+                                  }
+                                >
+                                  Renseigne toujours le poids total déplacé. La barre est préremplie à 20 kg mais reste modifiable.
+                                </Text>
+
+                                <View
+                                  style={
+                                    styles.adjustableGrid
+                                  }
+                                >
+                                  <LoadInput
+                                    label="POIDS BARRE (KG)"
+                                    value={
+                                      rows[0]
+                                        .min_load_kg
+                                    }
+                                    placeholder="20"
+                                    onChange={(
+                                      value
+                                    ) =>
+                                      updateRow(
+                                        rows[0]
+                                          ._localKey,
+                                        {
+                                          min_load_kg:
+                                            value,
+                                          inventory_mode:
+                                            'adjustable_load',
+                                        }
+                                      )
+                                    }
+                                  />
+
+                                  <LoadInput
+                                    label="CHARGE TOTALE MAX (KG)"
+                                    value={
+                                      rows[0]
+                                        .max_load_kg
+                                    }
+                                    placeholder="100"
+                                    onChange={(
+                                      value
+                                    ) =>
+                                      updateRow(
+                                        rows[0]
+                                          ._localKey,
+                                        {
+                                          max_load_kg:
+                                            value,
+                                          inventory_mode:
+                                            'adjustable_load',
+                                        }
+                                      )
+                                    }
+                                  />
+
+                                  <LoadInput
+                                    label="PALIER TOTAL (KG)"
+                                    value={
+                                      rows[0]
+                                        .increment_kg
+                                    }
+                                    placeholder="2.5"
+                                    onChange={(
+                                      value
+                                    ) =>
+                                      updateRow(
+                                        rows[0]
+                                          ._localKey,
+                                        {
+                                          increment_kg:
+                                            value,
+                                          inventory_mode:
+                                            'adjustable_load',
+                                        }
+                                      )
+                                    }
+                                  />
+                                </View>
+
+                                <Text
+                                  style={
+                                    styles.unknownLoadText
+                                  }
+                                >
+                                  Exemple : barre 20 kg + 20 kg de chaque côté = 60 kg au total. Avec des disques de 1,25 kg par côté, le palier total est 2,5 kg.
+                                </Text>
+
+                                <Pressable
+                                  onPress={() =>
+                                    validateAndCollapseBarbell(
+                                      rows[0]
+                                    )
+                                  }
+                                  disabled={
+                                    !validateRow(
+                                      rows[0]
+                                    )
+                                  }
+                                  style={({
+                                    pressed,
+                                  }) => [
+                                    styles.addLoadButton,
+                                    !validateRow(
+                                      rows[0]
+                                    ) &&
+                                      styles.saveButtonDisabled,
+                                    pressed &&
+                                      validateRow(
+                                        rows[0]
+                                      ) &&
+                                      styles.pressed,
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name="checkmark-circle-outline"
+                                    size={18}
+                                    color={
+                                      colors.primaryLight
+                                    }
+                                  />
+
+                                  <Text
+                                    style={
+                                      styles.addLoadText
+                                    }
+                                  >
+                                    VALIDER LES CHARGES
+                                  </Text>
+                                </Pressable>
+                              </View>
+                            )}
+
                           {supportsFixed && (
                             <View
                               style={

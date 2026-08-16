@@ -65,6 +65,7 @@ const LOAD_CAPABLE_EQUIPMENT_IDS = new Set([
   'E03', // Haltères
   'E04', // Kettlebell
   'E09', // Medball
+  'E14', // Barre olympique + disques
 ]);
 
 function buildReferenceEquipment(
