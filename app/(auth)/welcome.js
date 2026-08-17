@@ -79,17 +79,17 @@ export default function WelcomeScreen() {
             {/* Slogan */}
             <View style={styles.messageArea}>
               <Text style={styles.heroLine}>
-                TON OBJECTIF
+                TON ENTRAÎNEMENT
                 <Text style={styles.blueDot}>.</Text>
               </Text>
 
               <Text style={styles.heroLine}>
-                TA SÉANCE
+                TON RYTHME
                 <Text style={styles.whiteDot}>.</Text>
               </Text>
 
               <Text style={styles.heroLine}>
-                TON ÉVOLUTION
+                TON COACH
                 <Text style={styles.redDot}>.</Text>
               </Text>
 
