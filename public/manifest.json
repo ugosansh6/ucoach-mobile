@@ -1,0 +1,19 @@
+{
+  "name": "UGEROD",
+  "short_name": "UGEROD",
+  "description": "Coach sportif personnel adaptatif",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07090C",
+  "theme_color": "#07090C",
+  "icons": [
+    {
+      "src": "/ugerod-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
