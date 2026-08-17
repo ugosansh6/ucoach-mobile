@@ -44,6 +44,8 @@ import {
   swapWorkoutExercise,
 } from '../../src/services/workoutService';
 
+import { adaptSessionExercise } from '../../src/services/sessionAdaptationService';
+
 import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayer';
 
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -1287,10 +1289,7 @@ const sessionStartedRef = useRef(false);
         blockId
       ) ||
       !workout.sessionId ||
-      !exercise.sessionExerciseId ||
-      swapAvailability?.[
-        exercise.sessionExerciseId
-      ]?.available !== true
+      !exercise.sessionExerciseId
     ) {
       return;
     }
@@ -1314,7 +1313,7 @@ const sessionStartedRef = useRef(false);
     blockId,
     exercise,
     {
-      direction = 'equivalent',
+      reason = 'equivalent',
       undo = false,
     } = {}
   ) {
@@ -1328,13 +1327,27 @@ const sessionStartedRef = useRef(false);
           ]
         : null;
 
+    const directionByReason = {
+      too_easy: 'harder',
+      too_hard: 'easier',
+      environment: 'equivalent',
+      equipment: 'equivalent',
+      equivalent: 'equivalent',
+    };
+
+    const direction =
+      directionByReason[reason] ??
+      'equivalent';
+
     const directionAvailable =
       undo
-        ? swapState?.can_undo ===
-          true
-        : swapState?.directions?.[
-            direction
-          ]?.available === true;
+        ? swapState?.can_undo === true
+        : reason === 'environment' ||
+            reason === 'equipment'
+          ? true
+          : swapState?.directions?.[
+              direction
+            ]?.available === true;
 
     if (
       swappingExerciseKey ||
@@ -1361,18 +1374,32 @@ const sessionStartedRef = useRef(false);
               instanceId
             ] ?? [];
 
-      await swapWorkoutExercise({
-        sessionId:
-          workout.sessionId,
-        sessionExerciseId:
-          instanceId,
-        currentExerciseId:
-          exercise.exerciseId ??
-          exercise.id,
-        direction,
-        undo,
-        excludedExerciseIds,
-      });
+      if (undo) {
+        await swapWorkoutExercise({
+          sessionId:
+            workout.sessionId,
+          sessionExerciseId:
+            instanceId,
+          currentExerciseId:
+            exercise.exerciseId ??
+            exercise.id,
+          direction: 'equivalent',
+          undo: true,
+          excludedExerciseIds: [],
+        });
+      } else {
+        await adaptSessionExercise({
+          sessionId:
+            workout.sessionId,
+          sessionExerciseId:
+            instanceId,
+          currentExerciseId:
+            exercise.exerciseId ??
+            exercise.id,
+          reason,
+          excludedExerciseIds,
+        });
+      }
 
       const previousByInstance =
         new Map(
@@ -1433,7 +1460,7 @@ const sessionStartedRef = useRef(false);
                       ? null
                       : undo
                         ? 'swap-undo'
-                        : 'swap',
+                        : reason,
                 };
               }
 
@@ -2887,8 +2914,9 @@ const sessionStartedRef = useRef(false);
                                 : null;
 
                             const swapAvailable =
-                              swapState?.available ===
-                              true;
+                              Boolean(
+                                exercise.sessionExerciseId
+                              );
 
                             const swapDisabled =
                               Boolean(
@@ -3284,11 +3312,12 @@ const sessionStartedRef = useRef(false);
         loading={Boolean(
           swappingExerciseKey
         )}
+        error={swapError}
         onClose={
           closeSwapActions
         }
         onSelect={(
-          direction,
+          reason,
           undo = false
         ) =>
           handleSwap(
@@ -3297,7 +3326,7 @@ const sessionStartedRef = useRef(false);
             swapActionExercise
               ?.exercise,
             {
-              direction,
+              reason,
               undo,
             }
           )
@@ -3716,6 +3745,7 @@ function SwapDirectionModal({
   exercise,
   availability,
   loading,
+  error,
   onClose,
   onSelect,
 }) {
@@ -3724,34 +3754,44 @@ function SwapDirectionModal({
 
   const options = [
     {
-      value: 'easier',
-      label: 'PLUS FACILE',
+      value: 'too_easy',
+      label: 'TROP FACILE',
       description:
-        'Une régression sûre du mouvement.',
-      icon: 'arrow-down',
-      available:
-        directions?.easier
-          ?.available === true,
-    },
-    {
-      value: 'equivalent',
-      label: 'ÉQUIVALENT',
-      description:
-        'Un autre mouvement de niveau comparable.',
-      icon: 'swap-horizontal',
-      available:
-        directions?.equivalent
-          ?.available === true,
-    },
-    {
-      value: 'harder',
-      label: 'PLUS DIFFICILE',
-      description:
-        'Un niveau au-dessus, seulement si UGEROD le valide.',
-      icon: 'arrow-up',
+        'UGEROD cherche une progression plus exigeante.',
+      icon: 'arrow-up-circle-outline',
       available:
         directions?.harder
           ?.available === true,
+      unavailableText:
+        'Aucune progression sûre disponible.',
+    },
+    {
+      value: 'too_hard',
+      label: 'TROP DIFFICILE',
+      description:
+        'UGEROD cherche une variante plus accessible.',
+      icon: 'arrow-down-circle-outline',
+      available:
+        directions?.easier
+          ?.available === true,
+      unavailableText:
+        'Aucune régression sûre disponible.',
+    },
+    {
+      value: 'environment',
+      label: 'IMPOSSIBLE ICI',
+      description:
+        'Mur, espace, hauteur ou autre contrainte du lieu.',
+      icon: 'location-outline',
+      available: true,
+    },
+    {
+      value: 'equipment',
+      label: 'MATÉRIEL INDISPONIBLE',
+      description:
+        'UGEROD cherche une alternative sans ce matériel.',
+      icon: 'construct-outline',
+      available: true,
     },
   ];
 
@@ -3782,7 +3822,7 @@ function SwapDirectionModal({
           <View style={styles.statusModalHeader}>
             <View style={styles.statusModalTitleArea}>
               <Text style={styles.statusModalEyebrow}>
-                ALTERNATIVE
+                COACH UGEROD
               </Text>
               <Text style={styles.statusModalTitle}>
                 {String(
@@ -3791,7 +3831,7 @@ function SwapDirectionModal({
                 ).toUpperCase()}
               </Text>
               <Text style={styles.statusModalSubtitle}>
-                Choisis le type d’alternative. Les contraintes de sécurité, de matériel et de séance restent prioritaires.
+                Pourquoi veux-tu changer ce mouvement ?
               </Text>
             </View>
 
@@ -3807,6 +3847,39 @@ function SwapDirectionModal({
               />
             </Pressable>
           </View>
+
+          {error ? (
+            <View
+              style={[
+                styles.statusOption,
+                {
+                  marginTop: 14,
+                  borderColor:
+                    'rgba(255,61,72,0.38)',
+                  backgroundColor:
+                    'rgba(255,61,72,0.08)',
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusOptionIcon,
+                  styles.statusOptionIconNotCompleted,
+                ]}
+              >
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color={colors.brandWhite}
+                />
+              </View>
+              <View style={styles.statusOptionMain}>
+                <Text style={styles.statusOptionDescription}>
+                  {error}
+                </Text>
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.statusOptions}>
             {options.map((option) => {
@@ -3853,7 +3926,8 @@ function SwapDirectionModal({
                     <Text style={styles.statusOptionDescription}>
                       {option.available
                         ? option.description
-                        : 'Aucune option sûre disponible.'}
+                        : option.unavailableText ??
+                          'Aucune option sûre disponible.'}
                     </Text>
                   </View>
 
