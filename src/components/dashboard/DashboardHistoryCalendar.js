@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '../../constants';
+import ProductOnboardingModal from '../onboarding/ProductOnboardingModal';
 import DashboardHistoryCalendarBase from './DashboardHistoryCalendarBase';
 
 export default function DashboardHistoryCalendar(props) {
@@ -16,6 +17,7 @@ export default function DashboardHistoryCalendar(props) {
 
   return (
     <>
+      <ProductOnboardingModal />
       <DashboardHistoryCalendarBase {...props} />
 
       <View style={styles.addSection}>
