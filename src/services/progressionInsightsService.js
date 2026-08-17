@@ -18,7 +18,12 @@ export async function getProgressionInsights(period = '4w') {
 
   const periodDays = PERIOD_DAYS[period] ?? PERIOD_DAYS['4w'];
 
-  const [profileResult, intelligenceResult, athleteSummaryResult] = await Promise.all([
+  const [
+    profileResult,
+    intelligenceResult,
+    athleteSummaryResult,
+    athleticEvidenceResult,
+  ] = await Promise.all([
     supabase
       .from('profiles')
       .select('firstname, experience, weekly_session_target')
@@ -31,12 +36,17 @@ export async function getProgressionInsights(period = '4w') {
     supabase.rpc('athlete_profile_summary_v1', {
       p_user_id: user.id,
     }),
+    supabase
+      .from('user_athletic_profile')
+      .select('dimension, confidence, sample_count, explanation_json, calculated_at')
+      .eq('user_id', user.id),
   ]);
 
   const errors = [
     profileResult.error,
     intelligenceResult.error,
     athleteSummaryResult.error,
+    athleticEvidenceResult.error,
   ].filter(Boolean);
 
   if (errors.length > 0) {
@@ -49,5 +59,6 @@ export async function getProgressionInsights(period = '4w') {
     profile: profileResult.data ?? null,
     intelligence: intelligenceResult.data ?? null,
     athleteSummary: athleteSummaryResult.data ?? null,
+    athleticEvidence: athleticEvidenceResult.data ?? [],
   };
 }
