@@ -51,14 +51,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="planning"
         options={{
-          title: 'Planning',
-          tabBarIcon: ({ color }) => (
-            <Ionicons
-              name="calendar-outline"
-              size={23}
-              color={color}
-            />
-          ),
+          href: null,
         }}
       />
 
