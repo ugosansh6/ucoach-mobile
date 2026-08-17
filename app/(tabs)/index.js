@@ -9,210 +9,39 @@ import {
   ActivityIndicator,
   Image,
   ImageBackground,
+  Modal,
   Pressable,
   RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import {
-  colors,
-  spacing,
-  typography,
-} from '../../src/constants';
-import {
-  getDashboardSnapshot,
-} from '../../src/services/weeklyPlanService';
-import {
-  getCurrentProfile,
-} from '../../src/services/profileService';
-import {
-  reloadWorkoutSession,
-} from '../../src/services/workoutService';
-import {
-  useWorkout,
-} from '../../src/contexts/WorkoutContext';
+import { colors } from '../../src/constants';
+import { getDashboardSnapshot } from '../../src/services/weeklyPlanService';
+import { getCurrentProfile } from '../../src/services/profileService';
+import { reloadWorkoutSession } from '../../src/services/workoutService';
+import { getProgramCoachSnapshot } from '../../src/services/programCoachService';
+import { useWorkout } from '../../src/contexts/WorkoutContext';
 
 const dashboardBackground = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
-const DAY_LABELS = [
-  'DIM',
-  'LUN',
-  'MAR',
-  'MER',
-  'JEU',
-  'VEN',
-  'SAM',
-];
-
-function formatDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(
-    date.getMonth() + 1
-  ).padStart(2, '0');
-  const day = String(
-    date.getDate()
-  ).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
+const DAY_LABELS = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM'];
 
 function parseDateKey(dateKey) {
-  const [year, month, day] =
-    String(dateKey ?? '')
-      .split('-')
-      .map(Number);
-
-  if (!year || !month || !day) {
-    return null;
-  }
-
-  const date = new Date(
-    year,
-    month - 1,
-    day
-  );
-
+  const [year, month, day] = String(dateKey ?? '').split('-').map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
   date.setHours(0, 0, 0, 0);
   return date;
 }
 
-function getMonday(date) {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-
-  const day = result.getDay();
-  const difference =
-    day === 0 ? 6 : day - 1;
-
-  result.setDate(
-    result.getDate() - difference
-  );
-
-  return result;
-}
-
-function createFallbackWeek() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const monday = getMonday(today);
-
-  return Array.from(
-    { length: 7 },
-    (_, index) => {
-      const date = new Date(monday);
-      date.setDate(
-        monday.getDate() + index
-      );
-      date.setHours(0, 0, 0, 0);
-
-      return {
-        key: formatDateKey(date),
-        day: DAY_LABELS[date.getDay()],
-        date: String(
-          date.getDate()
-        ).padStart(2, '0'),
-        completed: false,
-        sessionId: null,
-        today:
-          formatDateKey(date) ===
-          formatDateKey(today),
-      };
-    }
-  );
-}
-
-function createCurrentWeek(weekDays) {
-  if (
-    !Array.isArray(weekDays) ||
-    weekDays.length !== 7
-  ) {
-    return createFallbackWeek();
-  }
-
-  const todayKey =
-    formatDateKey(new Date());
-
-  return weekDays.map((item) => {
-    const date =
-      parseDateKey(item?.date);
-
-    return {
-      key:
-        item?.date ??
-        `day-${Math.random()}`,
-      day: date
-        ? DAY_LABELS[date.getDay()]
-        : '',
-      date: date
-        ? String(
-            date.getDate()
-          ).padStart(2, '0')
-        : '--',
-      completed:
-        Boolean(item?.completed),
-      sessionId:
-        item?.session_id ?? null,
-      today:
-        item?.date === todayKey,
-    };
-  });
-}
-
-function getCurrentMonthLabel() {
-  return new Date()
-    .toLocaleDateString('fr-FR', {
-      month: 'long',
-      year: 'numeric',
-    })
-    .toUpperCase();
-}
-
-function formatSessionDate(dateKey) {
-  const date =
-    parseDateKey(dateKey);
-
-  if (!date) {
-    return 'DERNIÈRE SÉANCE';
-  }
-
-  return date
-    .toLocaleDateString('fr-FR', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-    })
-    .replace(/\./g, '')
-    .toUpperCase();
-}
-
-function formatMonthName(dateKey) {
-  const date =
-    parseDateKey(dateKey);
-
-  if (!date) {
-    return 'CE MOIS';
-  }
-
-  return date
-    .toLocaleDateString('fr-FR', {
-      month: 'long',
-    })
-    .toUpperCase();
-}
-
-function humanizeDashboardLabel(value) {
-  if (!value) {
-    return null;
-  }
-
+function humanize(value) {
+  if (!value) return null;
   return String(value)
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -220,2019 +49,527 @@ function humanizeDashboardLabel(value) {
     .toUpperCase();
 }
 
-function formatLastWorkoutSummary(session) {
-  if (!session) {
-    return 'SÉANCE TERMINÉE';
+function formatShortDate(dateKey) {
+  const date = parseDateKey(dateKey);
+  if (!date) return '--';
+  return String(date.getDate()).padStart(2, '0');
+}
+
+function formatDayLong(dateKey) {
+  const date = parseDateKey(dateKey);
+  if (!date) return 'JOUR';
+  return date
+    .toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'short' })
+    .replace(/\./g, '')
+    .toUpperCase();
+}
+
+function intentLabel(value) {
+  switch (value) {
+    case 'PROGRESS': return 'PROGRESSION';
+    case 'CONSOLIDATE': return 'CONSOLIDATION';
+    case 'RECALIBRATE': return 'RECALIBRATION';
+    case 'DELOAD': return 'ALLÈGEMENT';
+    default: return 'ENTRETIEN';
   }
+}
 
-  const mechanic =
-    humanizeDashboardLabel(
-      session?.mechanic
-    );
-  const dominant =
-    humanizeDashboardLabel(
-      session?.target_region ??
-        session?.focus
-    );
+function createWeek(weekDays) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  if (mechanic && dominant) {
-    return `${mechanic} · ${dominant}`;
-  }
-
-  return (
-    mechanic ??
-    dominant ??
-    'SÉANCE TERMINÉE'
-  );
+  return (Array.isArray(weekDays) ? weekDays : []).map((item) => {
+    const date = parseDateKey(item?.date);
+    return {
+      key: item?.date,
+      dateKey: item?.date,
+      day: date ? DAY_LABELS[date.getDay()] : '',
+      number: formatShortDate(item?.date),
+      today: date ? date.getTime() === today.getTime() : false,
+      completed: Boolean(item?.completed),
+      planned: Boolean(item?.planned),
+      sessionId: item?.session_id ?? null,
+      focus: item?.planned_focus ?? null,
+      targetRegion: item?.planned_target_region ?? null,
+      progressionIntent: item?.planned_progression_intent ?? null,
+      planStatus: item?.plan_status ?? null,
+    };
+  });
 }
 
 export default function DashboardScreen() {
-  const { width } =
-    useWindowDimensions();
+  const { setGeneratedWorkout } = useWorkout();
+  const [snapshot, setSnapshot] = useState(null);
+  const [program, setProgram] = useState(null);
+  const [firstName, setFirstName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [weekOpen, setWeekOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [resuming, setResuming] = useState(false);
 
-  const {
-    setGeneratedWorkout,
-  } = useWorkout();
+  const load = useCallback(async ({ refresh = false } = {}) => {
+    try {
+      if (refresh) setRefreshing(true);
+      else setLoading(true);
+      setError('');
 
-  const [snapshot, setSnapshot] =
-    useState(null);
-  const [firstName, setFirstName] =
-    useState('');
-  const [loading, setLoading] =
-    useState(true);
-  const [refreshing, setRefreshing] =
-    useState(false);
-  const [loadError, setLoadError] =
-    useState(null);
-  const [showStickyCta, setShowStickyCta] =
-    useState(false);
-  const [resuming, setResuming] =
-    useState(false);
-  const [heroBottomY, setHeroBottomY] =
-    useState(260);
+      const [data, profile, programData] = await Promise.all([
+        getDashboardSnapshot(),
+        getCurrentProfile().catch(() => null),
+        getProgramCoachSnapshot().catch(() => null),
+      ]);
 
-  const loadDashboard = useCallback(
-    async () => {
-      try {
-        setLoadError(null);
-
-        const [data, profile] =
-          await Promise.all([
-            getDashboardSnapshot(),
-            getCurrentProfile().catch(
-              () => null
-            ),
-          ]);
-
-        setSnapshot(data);
-        setFirstName(
-          profile?.firstname?.trim() ?? ''
-        );
-      } catch (error) {
-        console.warn(
-          'Dashboard E2 snapshot',
-          error
-        );
-
-        setLoadError(
-          error instanceof Error
-            ? error.message
-            : 'Impossible de charger le tableau de bord.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+      setSnapshot(data);
+      setProgram(programData);
+      setFirstName(profile?.firstname?.trim() ?? '');
+    } catch (loadError) {
+      setError(loadError?.message ?? 'Impossible de charger le tableau de bord.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadDashboard();
-    }, [loadDashboard])
+      load();
+    }, [load])
   );
 
-  const handleRefresh = useCallback(
-    async () => {
-      setRefreshing(true);
-
-      try {
-        await loadDashboard();
-      } finally {
-        setRefreshing(false);
-      }
-    },
-    [loadDashboard]
-  );
-
-  const completedSessions =
-    snapshot?.completedThisWeek ?? 0;
-  const totalCompletedSessions =
-    snapshot?.totalCompletedSessions ?? 0;
-  const weeklyTarget =
-    snapshot?.weeklyTarget ?? 0;
-  const consecutiveGoalWeeks =
-    snapshot?.consecutiveGoalWeeks ?? 0;
-  const hasCompletedWorkout =
-    totalCompletedSessions > 0;
-  const goalReached =
-    weeklyTarget > 0 &&
-    completedSessions >= weeklyTarget;
-  const week =
-    createCurrentWeek(
-      snapshot?.weekDays
-    );
-  const monthLabel =
-    getCurrentMonthLabel();
-  const lastWorkout =
-    snapshot?.recentSessions?.[0] ??
-    null;
-  const coachNote =
-    snapshot?.coachNote?.text ??
-    'J’ai préparé quelque chose pour toi aujourd’hui. Fais-moi confiance.';
-  const coachHeadline =
-    snapshot?.coachNote?.headline ??
-    'LE MOT DU COACH';
-  const learning =
-    snapshot?.profileLearning ?? null;
-  const formVisible =
-    snapshot?.formSamples7d >= 2 &&
-    snapshot?.formTrend7d != null;
-  const activeSessionId =
-    snapshot?.activeSessionToday
-      ?.sessionId ?? null;
-  const hasActiveSessionToday =
-    Boolean(activeSessionId);
-  const monthlyActivity =
-    snapshot?.monthlyActivity?.length > 0
-      ? snapshot.monthlyActivity
-      : [
-          {
-            monthStart:
-              `${new Date().getFullYear()}-${String(
-                new Date().getMonth() + 1
-              ).padStart(2, '0')}-01`,
-            completedSessions: 0,
-          },
-        ];
-
-  const lastWorkoutSummary =
-    formatLastWorkoutSummary(lastWorkout);
-
-  const metricCardWidth =
-    useMemo(
-      () =>
-        Math.max(
-          138,
-          (width -
-            spacing.xl * 2 -
-            12) /
-            2
-        ),
-      [width]
-    );
-
-  function handleProfile() {
-    router.push('/profile');
-  }
+  const week = useMemo(() => createWeek(snapshot?.weekDays), [snapshot?.weekDays]);
+  const plannedDays = week.filter((item) => item.planned || item.completed);
+  const activeSessionId = snapshot?.activeSessionToday?.sessionId ?? null;
+  const hasCompletedWorkout = (snapshot?.totalCompletedSessions ?? 0) > 0;
+  const completedThisWeek = snapshot?.completedThisWeek ?? 0;
+  const weeklyTarget = snapshot?.weeklyTarget ?? 0;
+  const block = program?.block ?? null;
+  const nextPlan = snapshot?.nextPlanItem ?? {};
 
   async function handlePrimaryAction() {
     if (!activeSessionId) {
-      router.push(
-        '/workout/preparation'
-      );
+      router.push('/workout/preparation');
       return;
     }
 
     try {
       setResuming(true);
-
-      const restored =
-        await reloadWorkoutSession({
-          sessionId:
-            activeSessionId,
-        });
-
+      const restored = await reloadWorkoutSession({ sessionId: activeSessionId });
       setGeneratedWorkout(restored);
-
-      router.push(
-        '/workout/session'
-      );
-    } catch (error) {
-      console.warn(
-        'Dashboard resume session',
-        error
-      );
-
-      router.push(
-        '/workout/preparation'
-      );
+      router.push('/workout/session');
+    } catch (resumeError) {
+      console.warn('Dashboard resume session', resumeError);
+      router.push('/workout/preparation');
     } finally {
       setResuming(false);
     }
   }
 
-  function handlePlanning() {
-    router.push(
-      '/(tabs)/planning'
-    );
-  }
-
   function handleDayPress(item) {
-    if (
-      !item.completed ||
-      !item.sessionId
-    ) {
-      return;
+    if (item.completed && item.sessionId) {
+      router.push(`/workout/${item.sessionId}`);
     }
-
-    router.push(
-      `/workout/${item.sessionId}`
-    );
   }
-
-  function handleLastWorkout() {
-    if (!lastWorkout?.session_id) {
-      return;
-    }
-
-    router.push(
-      `/workout/${lastWorkout.session_id}`
-    );
-  }
-
-  const primaryLabel =
-    hasActiveSessionToday
-      ? 'REPRENDRE MA SÉANCE'
-      : hasCompletedWorkout
-        ? 'PRÉPARER MA SÉANCE'
-        : 'CRÉER MA PREMIÈRE SÉANCE';
 
   if (loading && !snapshot) {
-    return <DashboardSkeleton />;
-  }
-
-  if (loadError && !snapshot) {
     return (
-      <View style={styles.screen}>
-        <ImageBackground
-          source={dashboardBackground}
-          style={styles.background}
-          resizeMode="cover"
-        >
-          <View style={styles.darkOverlay} />
-          <LinearGradient
-            colors={[
-              'rgba(7,9,12,0.45)',
-              'rgba(7,9,12,0.92)',
-            ]}
-            style={StyleSheet.absoluteFill}
-          />
-          <SafeAreaView style={styles.safeArea}>
-            <View style={styles.errorState}>
-              <Ionicons
-                name="cloud-offline-outline"
-                size={28}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.errorTitle}>
-                SYNCHRONISATION IMPOSSIBLE
-              </Text>
-              <Pressable
-                onPress={loadDashboard}
-                style={styles.retryButton}
-              >
-                <Text style={styles.retryButtonText}>
-                  RÉESSAYER
-                </Text>
-              </Pressable>
-            </View>
-          </SafeAreaView>
-        </ImageBackground>
-      </View>
+      <SafeAreaView style={styles.loadingScreen}>
+        <Image source={brandIcon} style={styles.loadingLogo} resizeMode="contain" />
+        <ActivityIndicator color={colors.primaryLight} />
+        <Text style={styles.loadingText}>UGEROD PRÉPARE TON COCKPIT...</Text>
+      </SafeAreaView>
     );
   }
+
+  const primaryLabel = activeSessionId
+    ? 'REPRENDRE MA SÉANCE'
+    : hasCompletedWorkout
+      ? 'PRÉPARER MA SÉANCE'
+      : 'CRÉER MA PREMIÈRE SÉANCE';
 
   return (
     <View style={styles.screen}>
-      <ImageBackground
-        source={dashboardBackground}
-        style={styles.background}
-        resizeMode="cover"
-      >
+      <ImageBackground source={dashboardBackground} style={styles.background} resizeMode="cover">
         <View style={styles.darkOverlay} />
-
         <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.32)',
-            'rgba(7,9,12,0.20)',
-            'rgba(7,9,12,0.70)',
-            'rgba(7,9,12,0.98)',
-          ]}
-          locations={[0, 0.3, 0.62, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.55)',
-            'rgba(7,9,12,0.08)',
-          ]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
+          colors={['rgba(7,9,12,0.30)', 'rgba(7,9,12,0.64)', 'rgba(7,9,12,0.98)']}
+          locations={[0, 0.44, 1]}
           style={StyleSheet.absoluteFill}
         />
 
         <SafeAreaView style={styles.safeArea}>
           <ScrollView
-            contentContainerStyle={
-              styles.content
-            }
+            contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={handleRefresh}
+                onRefresh={() => load({ refresh: true })}
                 tintColor={colors.primaryLight}
-                colors={[colors.primaryLight]}
-                progressBackgroundColor={colors.surface}
               />
             }
-            scrollEventThrottle={16}
-            onScroll={(event) => {
-              const offset =
-                event.nativeEvent
-                  .contentOffset.y;
-
-              setShowStickyCta(
-                offset >
-                  Math.max(
-                    220,
-                    heroBottomY - 8
-                  )
-              );
-            }}
           >
             <View style={styles.header}>
-              <Pressable
-                onPress={handleProfile}
-                style={({ pressed }) => [
-                  styles.profileButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="person-outline"
-                  size={21}
-                  color={colors.textPrimary}
-                />
+              <Pressable onPress={() => router.push('/profile')} style={styles.profileButton}>
+                <Ionicons name="person-outline" size={20} color={colors.textPrimary} />
               </Pressable>
-
               <View style={styles.headerText}>
                 <Text style={styles.greeting}>
-                  {firstName
-                    ? `BONJOUR ${firstName.toUpperCase()}`
-                    : 'BONJOUR'}
+                  {firstName ? `BONJOUR ${firstName.toUpperCase()}` : 'BONJOUR'}
                 </Text>
-
-                <Text style={styles.name}>
-                  {hasCompletedWorkout
-                    ? 'PRÊT À T’ENTRAÎNER ?'
-                    : 'PRÊT À COMMENCER ?'}
-                </Text>
+                <Text style={styles.headerTitle}>TON COACH, AUJOURD’HUI.</Text>
               </View>
-
-              <Image
-                source={brandIcon}
-                style={styles.brandIcon}
-                resizeMode="contain"
-              />
+              <Image source={brandIcon} style={styles.brandIcon} resizeMode="contain" />
             </View>
 
-            {!hasCompletedWorkout ? (
-              <>
-                {learning?.visible && (
-                  <LearningCard
-                    learning={learning}
-                    featured
-                  />
-                )}
+            {error ? (
+              <View style={styles.errorCard}>
+                <Ionicons name="cloud-offline-outline" size={19} color={colors.brandRed} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
 
-                <View
-                  style={styles.firstWorkoutCard}
-                  onLayout={(event) => {
-                    const { y, height: cardHeight } =
-                      event.nativeEvent.layout;
-                    setHeroBottomY(
-                      y + cardHeight
-                    );
-                  }}
-                >
-                  <View style={styles.firstWorkoutTop}>
-                    <View style={styles.firstBadge}>
-                      <Ionicons
-                        name="flag-outline"
-                        size={15}
-                        color={colors.brandWhite}
-                      />
+            <View style={styles.heroCard}>
+              <View style={styles.heroTopLine}>
+                <View style={styles.redMarker} />
+                <Text style={styles.heroEyebrow}>SÉANCE DU JOUR</Text>
+              </View>
+              <Text style={styles.heroTitle}>
+                {activeSessionId ? 'TA SÉANCE T’ATTEND' : 'PRÊT À T’ENTRAÎNER'}<Text style={styles.blueDot}>.</Text>
+              </Text>
 
-                      <Text style={styles.firstBadgeText}>
-                        PREMIÈRE SÉANCE
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.firstWorkoutTitle}>
-                    PRÊT À DÉCOUVRIR
-                    {'\n'}
-                    TA PREMIÈRE SÉANCE
-                    <Text style={styles.blueDot}>.</Text>
-                  </Text>
-
-                  <CoachNote
-                    headline={coachHeadline}
-                    note={coachNote}
-                  />
-
-                  <PrimaryButton
-                    label={primaryLabel}
-                    loading={resuming}
-                    onPress={handlePrimaryAction}
-                    style={styles.heroPrimaryButton}
-                  />
-                </View>
-
-                <View style={styles.firstCalendarSection}>
-                  <View style={styles.calendarHeader}>
-                    <View>
-                      <Text style={styles.sectionTitle}>
-                        TON OBJECTIF
-                      </Text>
-
-                      <Text style={styles.monthLabel}>
-                        {monthLabel}
-                      </Text>
-                    </View>
-
-                    <WeekScore
-                      completed={completedSessions}
-                      target={weeklyTarget}
-                      reached={goalReached}
-                    />
-                  </View>
-
-                  <WeekCard
-                    week={week}
-                    interactive={false}
-                    onDayPress={handleDayPress}
-                    compact
-                  />
-
-                  <Text style={styles.weekHint}>
-                    Aucun jour imposé. Lance ta séance quand tu es disponible.
+              <View style={styles.coachNote}>
+                <Ionicons name="sparkles-outline" size={18} color={colors.primaryLight} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.coachLabel}>{snapshot?.coachNote?.headline ?? 'LE MOT DU COACH'}</Text>
+                  <Text style={styles.coachText}>
+                    {snapshot?.coachNote?.text ?? 'Je prends en compte ton programme, ta récupération et ce que tu as réellement fait.'}
                   </Text>
                 </View>
+              </View>
 
-                <View style={styles.firstStepsSection}>
-                  <Text style={styles.sectionTitle}>
-                    COMMENT ÇA MARCHE ?
-                  </Text>
-
-                  <View style={styles.firstStepsCard}>
-                    <FirstStep
-                      number="1"
-                      icon="options-outline"
-                      title="PRÉPARE"
-                      description="Forme, temps et matériel."
-                    />
-                    <View style={styles.firstStepDivider} />
-                    <FirstStep
-                      number="2"
-                      icon="sparkles-outline"
-                      title="UGEROD GÉNÈRE"
-                      description="Une séance adaptée."
-                    />
-                    <View style={styles.firstStepDivider} />
-                    <FirstStep
-                      number="3"
-                      icon="checkmark-circle-outline"
-                      title="VALIDE"
-                      description="Enregistre ta séance."
-                    />
-                  </View>
-                </View>
-              </>
-            ) : (
-              <>
-                {learning?.visible && (
-                  <LearningCard
-                    learning={learning}
-                    featured
-                  />
-                )}
-
-                <View
-                  style={styles.workoutCard}
-                  onLayout={(event) => {
-                    const { y, height: cardHeight } =
-                      event.nativeEvent.layout;
-                    setHeroBottomY(
-                      y + cardHeight
-                    );
-                  }}
-                >
-                  <View style={styles.workoutTopLine}>
-                    <View style={styles.redMarker} />
-
-                    <Text style={styles.cardEyebrow}>
-                      SÉANCE DU JOUR
-                    </Text>
-                  </View>
-
-                  <Text style={styles.workoutTitle}>
-                    PRÊT À DÉCOUVRIR
-                    {'\n'}
-                    TA SÉANCE
-                    <Text style={styles.blueDot}>.</Text>
-                  </Text>
-
-                  <CoachNote
-                    headline={coachHeadline}
-                    note={coachNote}
-                  />
-
-                  <PrimaryButton
-                    label={primaryLabel}
-                    loading={resuming}
-                    onPress={handlePrimaryAction}
-                    style={styles.heroPrimaryButton}
-                  />
-                </View>
-
-                <View style={styles.calendarSection}>
-                  <View style={styles.calendarHeader}>
-                    <View>
-                      <Text style={styles.sectionTitle}>
-                        CETTE SEMAINE
-                      </Text>
-
-                      <Text style={styles.monthLabel}>
-                        {monthLabel}
-                      </Text>
-                    </View>
-
-                    <WeekScore
-                      completed={completedSessions}
-                      target={weeklyTarget}
-                      reached={goalReached}
-                    />
-                  </View>
-
-                  <WeekCard
-                    week={week}
-                    interactive
-                    onDayPress={handleDayPress}
-                  />
-
-                  <Pressable
-                    onPress={handlePlanning}
-                    style={({ pressed }) => [
-                      styles.planningShortcut,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={14}
-                      color={colors.textMuted}
-                    />
-                    <Text style={styles.planningShortcutText}>
-                      VOIR MON PLANNING
-                    </Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={14}
-                      color={colors.textMuted}
-                    />
-                  </Pressable>
-                </View>
-
-                <View style={styles.regularitySection}>
-                  <Text style={styles.sectionTitle}>
-                    TA RÉGULARITÉ
-                  </Text>
-
-                  <View style={styles.metricsGrid}>
-                    <StreakMetricCard
-                      width={metricCardWidth}
-                      weeks={consecutiveGoalWeeks}
-                    />
-
-                    <MonthMetricCarousel
-                      width={metricCardWidth}
-                      months={monthlyActivity}
-                    />
-                  </View>
-                </View>
-
-                {formVisible && (
-                  <View style={styles.formSection}>
-                    <Text style={styles.sectionTitle}>
-                      FORME 7 JOURS
-                    </Text>
-
-                    <View style={styles.formCard}>
-                      <View>
-                        <Text style={styles.formValue}>
-                          {snapshot.formTrend7d.toFixed(1).replace('.', ',')}
-                          <Text style={styles.formTarget}> / 10</Text>
-                        </Text>
-                        <Text style={styles.formLabel}>
-                          FORME MOYENNE
-                        </Text>
-                      </View>
-
-                      <Ionicons
-                        name="pulse-outline"
-                        size={25}
-                        color={colors.primaryLight}
-                      />
-                    </View>
-                  </View>
-                )}
-
-                {lastWorkout && (
-                  <View style={styles.lastWorkoutSection}>
-                    <Text style={styles.sectionTitle}>
-                      DERNIÈRE SÉANCE
-                    </Text>
-
-                    <Pressable
-                      onPress={handleLastWorkout}
-                      style={({ pressed }) => [
-                        styles.lastWorkoutCard,
-                        pressed && styles.lastWorkoutCardPressed,
-                      ]}
-                    >
-                      <View style={styles.lastWorkoutLeft}>
-                        <View style={styles.completedIcon}>
-                          <Ionicons
-                            name="checkmark"
-                            size={17}
-                            color={colors.brandWhite}
-                          />
-                        </View>
-
-                        <View style={styles.lastWorkoutText}>
-                          <Text style={styles.lastWorkoutDate}>
-                            {formatSessionDate(lastWorkout.date)}
-                          </Text>
-                          <Text
-                            style={styles.lastWorkoutStatus}
-                            numberOfLines={1}
-                          >
-                            {lastWorkoutSummary}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.lastWorkoutLink}>
-                        <Text style={styles.lastWorkoutLinkText}>
-                          RÉCAP
-                        </Text>
-                        <Ionicons
-                          name="chevron-forward"
-                          size={18}
-                          color={colors.primaryLight}
-                        />
-                      </View>
-                    </Pressable>
-                  </View>
-                )}
-              </>
-            )}
-          </ScrollView>
-
-          {showStickyCta && (
-            <View style={styles.stickyCtaShell}>
-              <Pressable
-                disabled={resuming}
-                onPress={handlePrimaryAction}
-                style={({ pressed }) => [
-                  styles.stickyCta,
-                  pressed && styles.primaryButtonPressed,
-                ]}
-              >
+              <Pressable disabled={resuming} onPress={handlePrimaryAction} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
                 {resuming ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.brandWhite}
-                  />
+                  <ActivityIndicator size="small" color={colors.brandWhite} />
                 ) : (
                   <>
-                    <Text style={styles.stickyCtaText}>
-                      {primaryLabel}
-                    </Text>
-                    <Ionicons
-                      name="arrow-forward"
-                      size={18}
-                      color={colors.brandWhite}
-                    />
+                    <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
+                    <Ionicons name="arrow-forward" size={18} color={colors.brandWhite} />
                   </>
                 )}
               </Pressable>
             </View>
-          )}
-        </SafeAreaView>
-      </ImageBackground>
-    </View>
-  );
-}
 
-function DashboardSkeleton() {
-  return (
-    <View style={styles.screen}>
-      <ImageBackground
-        source={dashboardBackground}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        <View style={styles.darkOverlay} />
-
-        <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.38)',
-            'rgba(7,9,12,0.72)',
-            'rgba(7,9,12,0.98)',
-          ]}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.skeletonContent}>
-            <View style={styles.skeletonHeader}>
-              <View style={styles.skeletonAvatar} />
-
-              <View style={styles.skeletonHeaderText}>
-                <View
-                  style={[
-                    styles.skeletonLine,
-                    styles.skeletonLineShort,
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.skeletonLine,
-                    styles.skeletonLineMedium,
-                  ]}
-                />
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>CETTE SEMAINE</Text>
+                <Text style={styles.sectionSubtitle}>DATES RECOMMANDÉES, JAMAIS IMPOSÉES</Text>
               </View>
-
-              <View style={styles.skeletonLogo} />
+              <Text style={styles.weekScore}>{completedThisWeek} / {weeklyTarget}</Text>
             </View>
 
-            <View style={styles.skeletonHero}>
-              <View
-                style={[
-                  styles.skeletonLine,
-                  styles.skeletonEyebrow,
-                ]}
-              />
-              <View
-                style={[
-                  styles.skeletonLine,
-                  styles.skeletonTitle,
-                ]}
-              />
-              <View
-                style={[
-                  styles.skeletonLine,
-                  styles.skeletonTitleSecondary,
-                ]}
-              />
+            <View style={styles.weekCard}>
+              <View style={styles.weekStrip}>
+                {week.map((item) => (
+                  <Pressable key={item.key} onPress={() => handleDayPress(item)} style={styles.dayItem}>
+                    <Text style={[styles.dayLabel, item.today && styles.dayLabelToday]}>{item.day}</Text>
+                    <View
+                      style={[
+                        styles.dayCircle,
+                        item.completed && styles.dayCircleCompleted,
+                        item.today && !item.completed && styles.dayCircleToday,
+                        item.planned && !item.completed && !item.today && styles.dayCirclePlanned,
+                      ]}
+                    >
+                      {item.completed ? (
+                        <Ionicons name="checkmark" size={15} color={colors.brandWhite} />
+                      ) : (
+                        <Text style={[styles.dayNumber, item.today && styles.dayNumberToday]}>{item.number}</Text>
+                      )}
+                    </View>
+                    {item.planned && !item.completed ? <View style={styles.planDot} /> : <View style={styles.planDotGhost} />}
+                  </Pressable>
+                ))}
+              </View>
 
-              <View style={styles.skeletonCoach}>
-                <View style={styles.skeletonCoachIcon} />
-                <View style={styles.skeletonCoachText}>
-                  <View
-                    style={[
-                      styles.skeletonLine,
-                      styles.skeletonLineShort,
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.skeletonLine,
-                      styles.skeletonLineLong,
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.skeletonLine,
-                      styles.skeletonLineMedium,
-                    ]}
+              <Pressable onPress={() => setWeekOpen((value) => !value)} style={styles.expandWeekButton}>
+                <Text style={styles.expandWeekText}>{weekOpen ? 'RÉDUIRE LA SEMAINE' : 'DÉROULER MA SEMAINE'}</Text>
+                <Ionicons name={weekOpen ? 'chevron-up' : 'chevron-down'} size={15} color={colors.textMuted} />
+              </Pressable>
+
+              {weekOpen ? (
+                <View style={styles.weekDetails}>
+                  {plannedDays.length > 0 ? plannedDays.map((item, index) => (
+                    <Pressable
+                      key={`detail-${item.key}`}
+                      onPress={() => handleDayPress(item)}
+                      style={[styles.weekDetailRow, index < plannedDays.length - 1 && styles.rowBorder]}
+                    >
+                      <View style={[styles.detailState, item.completed && styles.detailStateDone]}>
+                        <Ionicons
+                          name={item.completed ? 'checkmark' : item.today ? 'radio-button-on' : 'ellipse-outline'}
+                          size={14}
+                          color={item.completed ? colors.brandWhite : colors.primaryLight}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.detailDate}>{formatDayLong(item.dateKey)}</Text>
+                        <Text style={styles.detailTitle}>
+                          {item.completed
+                            ? 'SÉANCE RÉALISÉE'
+                            : `${humanize(item.targetRegion) ?? 'FULL BODY'} · ${humanize(item.focus) ?? 'ENTRAÎNEMENT'}`}
+                        </Text>
+                        {!item.completed && item.progressionIntent ? (
+                          <Text style={styles.detailMeta}>{intentLabel(item.progressionIntent)}</Text>
+                        ) : null}
+                      </View>
+                      {item.completed ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
+                    </Pressable>
+                  )) : (
+                    <Text style={styles.weekEmpty}>UGEROD n’a pas encore de séance recommandée sur cette semaine.</Text>
+                  )}
+                  <Text style={styles.weekHint}>Si ton rythme change, le Coach Engine réorganise la suite sans créer de « dette » d’entraînement.</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>TON PROGRAMME</Text>
+              <Pressable onPress={() => router.push('/(tabs)/program')}>
+                <Text style={styles.sectionLink}>OUVRIR</Text>
+              </Pressable>
+            </View>
+
+            <Pressable onPress={() => router.push('/(tabs)/program')} style={({ pressed }) => [styles.programCard, pressed && styles.pressed]}>
+              <View style={styles.programIcon}>
+                <Ionicons name="navigate-circle-outline" size={23} color={colors.primaryLight} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.programEyebrow}>
+                  {program?.isActive ? `SEMAINE ${block?.currentWeekIndex ?? 1} / ${block?.nominalWeeks ?? 4}` : 'CALIBRATION EN COURS'}
+                </Text>
+                <Text style={styles.programTitle}>{humanize(block?.primaryGoal ?? snapshot?.primaryGoal ?? 'PROGRAMME ADAPTATIF')}</Text>
+                <Text style={styles.programText}>
+                  {nextPlan?.planned_target_region
+                    ? `Prochaine intention : ${humanize(nextPlan.planned_target_region)} · ${humanize(nextPlan.planned_focus)}`
+                    : 'UGEROD construit ta trajectoire à partir de tes objectifs et de tes preuves réelles.'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </Pressable>
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>AJOUTER</Text>
+              <Text style={styles.sectionSubtitle}>CE QUE TU AS FAIT AILLEURS</Text>
+            </View>
+
+            <Pressable onPress={() => setAddOpen(true)} style={({ pressed }) => [styles.addCard, pressed && styles.pressed]}>
+              <View style={styles.addIcon}>
+                <Ionicons name="add" size={24} color={colors.brandWhite} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addTitle}>+ AJOUTER À MON HISTORIQUE</Text>
+                <Text style={styles.addText}>Séance en box, avec un coach, record personnel...</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </Pressable>
+
+            {hasCompletedWorkout ? (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>REPÈRES RAPIDES</Text>
+                  <Pressable onPress={() => router.push('/(tabs)/progression')}>
+                    <Text style={styles.sectionLink}>PROGRESSION</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.quickGrid}>
+                  <QuickMetric label="OBJECTIF SEMAINE" value={`${completedThisWeek}/${weeklyTarget}`} />
+                  <QuickMetric label="SÉRIES DE SEMAINES" value={snapshot?.consecutiveGoalWeeks ?? 0} />
+                  <QuickMetric
+                    label="FORME 7 JOURS"
+                    value={snapshot?.formTrend7d != null && (snapshot?.formSamples7d ?? 0) >= 2 ? `${Number(snapshot.formTrend7d).toFixed(1)}/10` : '—'}
                   />
                 </View>
-              </View>
+              </>
+            ) : null}
 
-              <View style={styles.skeletonButton} />
-            </View>
-
-            <View style={styles.skeletonSectionHeader}>
-              <View>
-                <View
-                  style={[
-                    styles.skeletonLine,
-                    styles.skeletonLineShort,
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.skeletonLine,
-                    styles.skeletonMonth,
-                  ]}
-                />
-              </View>
-
-              <View style={styles.skeletonScore} />
-            </View>
-
-            <View style={styles.skeletonWeek} />
-
-            <View style={styles.skeletonMetrics}>
-              <View style={styles.skeletonMetricCard} />
-              <View style={styles.skeletonMetricCard} />
-            </View>
-          </View>
+            <View style={styles.bottomSpace} />
+          </ScrollView>
         </SafeAreaView>
       </ImageBackground>
+
+      <AddHistoryModal
+        visible={addOpen}
+        onClose={() => setAddOpen(false)}
+        onExternal={() => {
+          setAddOpen(false);
+          router.push('/workout/external');
+        }}
+        onPr={() => {
+          setAddOpen(false);
+          router.push({ pathname: '/progression/records', params: { add: '1' } });
+        }}
+      />
     </View>
   );
 }
 
-function StreakMetricCard({
-  weeks,
-  width,
-}) {
-  const active = weeks > 0;
-
+function QuickMetric({ label, value }) {
   return (
-    <View
-      style={[
-        styles.metricCard,
-        { width },
-      ]}
-    >
-      <View style={styles.streakTopLine}>
-        <View
-          style={[
-            styles.streakIcon,
-            active &&
-              styles.streakIconActive,
-          ]}
-        >
-          <Ionicons
-            name={
-              active
-                ? 'flame'
-                : 'flame-outline'
-            }
-            size={18}
-            color={
-              active
-                ? colors.brandRed
-                : colors.textMuted
-            }
-          />
-        </View>
+    <View style={styles.quickCard}>
+      <Text style={styles.quickValue}>{value}</Text>
+      <Text style={styles.quickLabel}>{label}</Text>
+    </View>
+  );
+}
 
-        <Text
-          style={[
-            styles.metricValue,
-            !active &&
-              styles.metricValueMuted,
-          ]}
-        >
-          {active ? weeks : '—'}
-        </Text>
+function AddHistoryModal({ visible, onClose, onExternal, onPr }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.modalSheet} onPress={() => {}}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalEyebrow}>MON HISTORIQUE</Text>
+              <Text style={styles.modalTitle}>QUE VEUX-TU AJOUTER ?</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.modalClose}>
+              <Ionicons name="close" size={21} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+
+          <AddAction
+            icon="people-outline"
+            title="UNE SÉANCE RÉALISÉE AILLEURS"
+            text="Box, coach ou entraînement personnel."
+            onPress={onExternal}
+          />
+          <AddAction
+            icon="trophy-outline"
+            title="UN RECORD / PR"
+            text="Charge, reps, chrono ou benchmark."
+            onPress={onPr}
+          />
+          <AddAction
+            icon="camera-outline"
+            title="IMPORTER UNE PHOTO"
+            text="Lecture automatique de séance."
+            disabled
+            badge="BIENTÔT"
+          />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function AddAction({ icon, title, text, onPress, disabled, badge }) {
+  return (
+    <Pressable disabled={disabled} onPress={onPress} style={[styles.modalAction, disabled && styles.modalActionDisabled]}>
+      <View style={styles.modalActionIcon}>
+        <Ionicons name={icon} size={20} color={disabled ? colors.textMuted : colors.primaryLight} />
       </View>
-
-      <Text style={styles.metricLabel}>
-        {active
-          ? weeks === 1
-            ? 'SEMAINE D’AFFILÉE'
-            : 'SEMAINES D’AFFILÉE'
-          : 'SÉRIE À CONSTRUIRE'}
-      </Text>
-    </View>
-  );
-}
-
-function PrimaryButton({
-  label,
-  loading,
-  onPress,
-  style,
-}) {
-  return (
-    <Pressable
-      disabled={loading}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.primaryButton,
-        style,
-        pressed && styles.primaryButtonPressed,
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={colors.brandWhite}
-        />
-      ) : (
-        <>
-          <Text style={styles.primaryButtonText}>
-            {label}
-          </Text>
-          <Ionicons
-            name="arrow-forward"
-            size={19}
-            color={colors.brandWhite}
-          />
-        </>
-      )}
+      <View style={{ flex: 1 }}>
+        <View style={styles.modalActionTitleRow}>
+          <Text style={[styles.modalActionTitle, disabled && styles.modalActionTitleDisabled]}>{title}</Text>
+          {badge ? <Text style={styles.soonBadge}>{badge}</Text> : null}
+        </View>
+        <Text style={styles.modalActionText}>{text}</Text>
+      </View>
+      {!disabled ? <Ionicons name="chevron-forward" size={17} color={colors.textMuted} /> : null}
     </Pressable>
   );
 }
 
-function CoachNote({
-  headline,
-  note,
-}) {
-  return (
-    <View style={styles.coachBubble}>
-      <View style={styles.coachBubbleIcon}>
-        <Ionicons
-          name="chatbubble-ellipses-outline"
-          size={20}
-          color={colors.primaryLight}
-        />
-      </View>
-
-      <View style={styles.coachBubbleMain}>
-        <Text style={styles.coachNoteLabel}>
-          {headline}
-        </Text>
-        <Text style={styles.coachNoteText}>
-          {note}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function WeekScore({
-  completed,
-  target,
-  reached,
-}) {
-  return (
-    <View style={styles.weekScore}>
-      <Text
-        style={[
-          styles.weekScoreValue,
-          {
-            color: reached
-              ? colors.primaryLight
-              : colors.brandRed,
-          },
-        ]}
-      >
-        {completed}
-      </Text>
-      <Text style={styles.weekScoreDivider}>/</Text>
-      <Text style={styles.weekScoreTarget}>
-        {target}
-      </Text>
-    </View>
-  );
-}
-
-function WeekCard({
-  week,
-  interactive,
-  onDayPress,
-  compact = false,
-}) {
-  const Wrapper = compact
-    ? styles.firstWeekCard
-    : styles.weekCard;
-
-  return (
-    <View style={Wrapper}>
-      {week.map((item) => (
-        <Pressable
-          key={item.key}
-          disabled={!interactive || !item.completed}
-          onPress={() => onDayPress(item)}
-          style={[
-            styles.dayItem,
-            item.today && styles.dayItemToday,
-          ]}
-        >
-          <Text
-            style={[
-              styles.dayName,
-              item.today && styles.dayNameToday,
-            ]}
-          >
-            {item.day}
-          </Text>
-
-          <View
-            style={[
-              styles.dateCircle,
-              item.completed && styles.dateCircleCompleted,
-              item.today &&
-                !item.completed &&
-                styles.dateCircleToday,
-            ]}
-          >
-            {item.completed ? (
-              <Ionicons
-                name="checkmark"
-                size={17}
-                color={colors.brandWhite}
-              />
-            ) : (
-              <Text
-                style={[
-                  styles.dateText,
-                  item.today && styles.dateTextToday,
-                ]}
-              >
-                {item.date}
-              </Text>
-            )}
-          </View>
-
-          {item.today && (
-            <View style={styles.todayDot} />
-          )}
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
-function MetricCard({
-  value,
-  label,
-  width,
-}) {
-  return (
-    <View
-      style={[
-        styles.metricCard,
-        { width },
-      ]}
-    >
-      <Text style={styles.metricValue}>
-        {value}
-      </Text>
-      <Text style={styles.metricLabel}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function MonthMetricCarousel({
-  months,
-  width,
-}) {
-  const [index, setIndex] =
-    useState(0);
-
-  return (
-    <View
-      style={[
-        styles.monthCarousel,
-        { width },
-      ]}
-    >
-      <ScrollView
-        horizontal
-        pagingEnabled
-        nestedScrollEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(event) => {
-          const next = Math.round(
-            event.nativeEvent.contentOffset.x /
-              width
-          );
-          setIndex(next);
-        }}
-      >
-        {months.map((item) => (
-          <View
-            key={item.monthStart}
-            style={[
-              styles.monthMetricPage,
-              { width },
-            ]}
-          >
-            <Text style={styles.metricValue}>
-              {item.completedSessions}
-            </Text>
-            <Text style={styles.metricLabel}>
-              SÉANCES EN {formatMonthName(item.monthStart)}
-            </Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      {months.length > 1 && (
-        <View style={styles.carouselDots}>
-          {months.slice(0, 6).map((item, dotIndex) => (
-            <View
-              key={`dot-${item.monthStart}`}
-              style={[
-                styles.carouselDot,
-                dotIndex === index && styles.carouselDotActive,
-              ]}
-            />
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function LearningCard({
-  learning,
-  featured = false,
-}) {
-  return (
-    <View
-      style={[
-        styles.learningCard,
-        featured &&
-          styles.learningCardFeatured,
-      ]}
-    >
-      <View style={styles.learningIcon}>
-        <Ionicons
-          name="sparkles-outline"
-          size={20}
-          color={colors.primaryLight}
-        />
-      </View>
-
-      <View style={styles.learningMain}>
-        <Text style={styles.learningTitle}>
-          {learning.title}
-        </Text>
-        <Text style={styles.learningText}>
-          {learning.text}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function FirstStep({
-  number,
-  icon,
-  title,
-  description,
-}) {
-  return (
-    <View style={styles.firstStep}>
-      <View style={styles.firstStepNumber}>
-        <Text style={styles.firstStepNumberText}>
-          {number}
-        </Text>
-      </View>
-      <View style={styles.firstStepIcon}>
-        <Ionicons
-          name={icon}
-          size={18}
-          color={colors.primaryLight}
-        />
-      </View>
-      <View style={styles.firstStepMain}>
-        <Text style={styles.firstStepTitle}>
-          {title}
-        </Text>
-        <Text style={styles.firstStepDescription}>
-          {description}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  background: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  darkOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.26)',
-  },
-  content: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: 12,
-    paddingBottom: 126,
-  },
-  loadingState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skeletonContent: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: 12,
-    paddingBottom: 40,
-  },
-  skeletonHeader: {
-    minHeight: 72,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  skeletonAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-  },
-  skeletonHeaderText: {
-    flex: 1,
-    gap: 8,
-  },
-  skeletonLogo: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  skeletonLine: {
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-  },
-  skeletonLineShort: {
-    width: '34%',
-    height: 9,
-  },
-  skeletonLineMedium: {
-    width: '62%',
-    height: 12,
-  },
-  skeletonLineLong: {
-    width: '90%',
-    height: 11,
-  },
-  skeletonHero: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    borderRadius: 19,
-    backgroundColor: 'rgba(17,21,26,0.88)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  skeletonEyebrow: {
-    width: '28%',
-    height: 10,
-  },
-  skeletonTitle: {
-    width: '78%',
-    height: 25,
-    marginTop: 18,
-  },
-  skeletonTitleSecondary: {
-    width: '58%',
-    height: 25,
-    marginTop: 8,
-  },
-  skeletonCoach: {
-    minHeight: 86,
-    marginTop: 20,
-    borderRadius: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  skeletonCoachIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  skeletonCoachText: {
-    flex: 1,
-    gap: 8,
-  },
-  skeletonButton: {
-    height: 52,
-    marginTop: 22,
-    borderRadius: 12,
-    backgroundColor: 'rgba(8,104,255,0.24)',
-  },
-  skeletonSectionHeader: {
-    marginTop: 32,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  skeletonMonth: {
-    width: 96,
-    height: 17,
-    marginTop: 7,
-  },
-  skeletonScore: {
-    width: 54,
-    height: 27,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.09)',
-  },
-  skeletonWeek: {
-    height: 82,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  skeletonMetrics: {
-    marginTop: 32,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  skeletonMetricCard: {
-    flex: 1,
-    height: 92,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  errorState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    gap: 14,
-  },
-  errorTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 13,
-    letterSpacing: 0.8,
-    color: colors.textPrimary,
-  },
-  retryButton: {
-    minHeight: 40,
-    paddingHorizontal: 18,
-    borderRadius: 11,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  retryButtonText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.7,
-    color: colors.brandWhite,
-  },
-
-  header: {
-    minHeight: 72,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  profileButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerText: {
-    flex: 1,
-  },
-  greeting: {
-    fontFamily: 'Oswald_500Medium',
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 1,
-    color: colors.textSecondary,
-  },
-  name: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 23,
-    lineHeight: 26,
-    letterSpacing: 1.3,
-    color: colors.textPrimary,
-  },
-  brandIcon: {
-    width: 46,
-    height: 46,
-  },
-  blueDot: {
-    color: colors.primary,
-  },
-
-  firstWorkoutCard: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    borderRadius: 19,
-    backgroundColor: 'rgba(17,21,26,0.94)',
-    borderWidth: 1,
-    borderColor: 'rgba(8,104,255,0.28)',
-  },
-  firstWorkoutTop: {
-    flexDirection: 'row',
-  },
-  firstBadge: {
-    minHeight: 28,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  firstBadgeText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 9,
-    letterSpacing: 0.8,
-    color: colors.brandWhite,
-  },
-  firstWorkoutTitle: {
-    ...typography.display,
-    fontSize: 36,
-    lineHeight: 39,
-    letterSpacing: 1.6,
-    color: colors.textPrimary,
-    marginTop: 16,
-  },
-  coachBubble: {
-    marginTop: 20,
-    borderRadius: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(8,104,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(8,104,255,0.22)',
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  coachBubbleIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(8,104,255,0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coachBubbleMain: {
-    flex: 1,
-  },
-  coachNoteText: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 15,
-    lineHeight: 21,
-    color: colors.textPrimary,
-    marginTop: 4,
-  },
-  heroPrimaryButton: {
-    marginTop: 22,
-  },
-
-  workoutCard: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    borderRadius: 19,
-    backgroundColor: 'rgba(17,21,26,0.92)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  workoutTopLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  redMarker: {
-    width: 4,
-    height: 16,
-    borderRadius: 2,
-    backgroundColor: colors.brandRed,
-  },
-  cardEyebrow: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.2,
-    color: colors.brandRed,
-  },
-  workoutTitle: {
-    ...typography.display,
-    fontSize: 36,
-    lineHeight: 39,
-    letterSpacing: 1.7,
-    color: colors.textPrimary,
-    marginTop: 16,
-  },
-  coachNoteLabel: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 0.8,
-    color: colors.primaryLight,
-  },
-  primaryButton: {
-    height: 52,
-    marginTop: 16,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-  },
-  primaryButtonPressed: {
-    backgroundColor: colors.primaryDark,
-    transform: [{ scale: 0.985 }],
-  },
-  primaryButtonText: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 18,
-    letterSpacing: 1.1,
-    color: colors.brandWhite,
-  },
-
-  sectionTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.7,
-    color: colors.textPrimary,
-  },
-  firstCalendarSection: {
-    marginTop: 32,
-  },
-  calendarSection: {
-    marginTop: 32,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  monthLabel: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 20,
-    lineHeight: 22,
-    letterSpacing: 1.2,
-    color: colors.textSecondary,
-  },
-  weekScore: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  weekScoreValue: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 27,
-  },
-  weekScoreDivider: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 14,
-    color: colors.textMuted,
-    marginHorizontal: 3,
-  },
-  weekScoreTarget: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 21,
-    color: colors.textSecondary,
-  },
-  weekCard: {
-    height: 82,
-    borderRadius: 15,
-    backgroundColor: 'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 5,
-    paddingVertical: 8,
-    flexDirection: 'row',
-  },
-  firstWeekCard: {
-    height: 76,
-    borderRadius: 14,
-    backgroundColor: 'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 5,
-    paddingVertical: 7,
-    flexDirection: 'row',
-  },
-  dayItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    borderRadius: 9,
-  },
-  dayItemToday: {
-    backgroundColor: 'rgba(255,59,59,0.06)',
-  },
-  dayName: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.3,
-    color: colors.textMuted,
-  },
-  dayNameToday: {
-    color: colors.brandRed,
-  },
-  dateCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateCircleCompleted: {
-    backgroundColor: colors.primary,
-  },
-  dateCircleToday: {
-    borderWidth: 1.5,
-    borderColor: colors.brandRed,
-  },
-  dateText: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  dateTextToday: {
-    color: colors.brandWhite,
-  },
-  todayDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.brandRed,
-  },
-  weekHint: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
-    color: colors.textMuted,
-    marginTop: 10,
-  },
-  planningShortcut: {
-    minHeight: 34,
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 4,
-  },
-  planningShortcutText: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.6,
-    color: colors.textMuted,
-  },
-
-  regularitySection: {
-    marginTop: 32,
-  },
-  metricsGrid: {
-    marginTop: 12,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  metricCard: {
-    height: 92,
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    justifyContent: 'space-between',
-  },
-  streakTopLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  streakIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  streakIconActive: {
-    backgroundColor: 'rgba(255,59,59,0.10)',
-  },
-  metricValue: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 31,
-    lineHeight: 33,
-    letterSpacing: 1,
-    color: colors.textPrimary,
-  },
-  metricValueMuted: {
-    color: colors.textMuted,
-  },
-  metricLabel: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.4,
-    color: colors.textSecondary,
-  },
-  monthCarousel: {
-    height: 92,
-    borderRadius: 15,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  monthMetricPage: {
-    height: 90,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    justifyContent: 'space-between',
-  },
-  carouselDots: {
-    position: 'absolute',
-    right: 12,
-    top: 12,
-    flexDirection: 'row',
-    gap: 5,
-  },
-  carouselDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  carouselDotActive: {
-    backgroundColor: colors.primaryLight,
-  },
-
-  learningCard: {
-    marginTop: 0,
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    backgroundColor: 'rgba(8,104,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(8,104,255,0.22)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-  },
-  learningCardFeatured: {
-    marginBottom: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-    backgroundColor: 'rgba(8,104,255,0.11)',
-    borderColor: 'rgba(8,104,255,0.30)',
-  },
-  learningIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(8,104,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  learningMain: {
-    flex: 1,
-  },
-  learningTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 0.6,
-    color: colors.textPrimary,
-  },
-  learningText: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-
-  formSection: {
-    marginTop: 32,
-  },
-  formCard: {
-    minHeight: 78,
-    marginTop: 12,
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  formValue: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 31,
-    lineHeight: 34,
-    color: colors.textPrimary,
-  },
-  formTarget: {
-    fontFamily: 'Oswald_500Medium',
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  formLabel: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.6,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-
-  lastWorkoutSection: {
-    marginTop: 32,
-  },
-  lastWorkoutCard: {
-    height: 64,
-    marginTop: 12,
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  lastWorkoutCardPressed: {
-    backgroundColor: 'rgba(23,28,34,0.94)',
-    transform: [{ scale: 0.99 }],
-  },
-  lastWorkoutLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingRight: 10,
-  },
-  lastWorkoutText: {
-    flex: 1,
-  },
-  completedIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lastWorkoutDate: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 13,
-    lineHeight: 17,
-    letterSpacing: 0.5,
-    color: colors.textPrimary,
-  },
-  lastWorkoutStatus: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.7,
-    color: colors.primaryLight,
-    marginTop: 2,
-  },
-  lastWorkoutLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  lastWorkoutLinkText: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.5,
-    color: colors.primaryLight,
-  },
-
-  firstStepsSection: {
-    marginTop: 32,
-  },
-  firstStepsCard: {
-    marginTop: 12,
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(17,21,26,0.91)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  firstStep: {
-    minHeight: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  firstStepDivider: {
-    height: 1,
-    marginLeft: 72,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  firstStepNumber: {
-    width: 23,
-    height: 23,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  firstStepNumberText: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 15,
-    lineHeight: 17,
-    color: colors.brandWhite,
-  },
-  firstStepIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(8,104,255,0.09)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  firstStepMain: {
-    flex: 1,
-  },
-  firstStepTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    lineHeight: 13,
-    letterSpacing: 0.5,
-    color: colors.textPrimary,
-  },
-  firstStepDescription: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 10,
-    lineHeight: 14,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-
-  stickyCtaShell: {
-    position: 'absolute',
-    left: spacing.xl,
-    right: spacing.xl,
-    bottom: 10,
-    paddingTop: 8,
-  },
-  stickyCta: {
-    minHeight: 48,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 9,
-  },
-  stickyCtaText: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 18,
-    letterSpacing: 1.1,
-    color: colors.brandWhite,
-  },
-  pressed: {
-    opacity: 0.65,
-  },
+  screen: { flex: 1, backgroundColor: colors.background },
+  background: { flex: 1 },
+  darkOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,6,9,0.48)' },
+  safeArea: { flex: 1 },
+  content: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 100 },
+  loadingScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: colors.background },
+  loadingLogo: { width: 48, height: 48 },
+  loadingText: { color: colors.textMuted, fontFamily: 'Oswald_500Medium', fontSize: 11, letterSpacing: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+  profileButton: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  headerText: { flex: 1 },
+  greeting: { color: colors.textMuted, fontFamily: 'Oswald_600SemiBold', fontSize: 10, letterSpacing: 1 },
+  headerTitle: { color: colors.textPrimary, fontFamily: 'Oswald_600SemiBold', fontSize: 15, marginTop: 1 },
+  brandIcon: { width: 39, height: 39 },
+  errorCard: { flexDirection: 'row', gap: 10, padding: 13, borderRadius: 14, backgroundColor: 'rgba(180,35,45,0.12)', borderWidth: 1, borderColor: 'rgba(255,90,100,0.18)', marginBottom: 12 },
+  errorText: { flex: 1, color: colors.textSecondary, fontFamily: 'Oswald_400Regular', fontSize: 12 },
+  heroCard: { padding: 20, borderRadius: 21, backgroundColor: 'rgba(10,14,19,0.93)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)' },
+  heroTopLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  redMarker: { width: 4, height: 16, borderRadius: 999, backgroundColor: colors.brandRed },
+  heroEyebrow: { color: colors.textMuted, fontFamily: 'Oswald_600SemiBold', fontSize: 10, letterSpacing: 1.1 },
+  heroTitle: { color: colors.textPrimary, fontFamily: 'BebasNeue_400Regular', fontSize: 34, lineHeight: 38, marginTop: 8 },
+  blueDot: { color: colors.primaryLight },
+  coachNote: { flexDirection: 'row', gap: 11, padding: 13, borderRadius: 14, backgroundColor: 'rgba(73,157,255,0.08)', marginTop: 13 },
+  coachLabel: { color: colors.primaryLight, fontFamily: 'Oswald_600SemiBold', fontSize: 9, letterSpacing: 0.7 },
+  coachText: { color: colors.textSecondary, fontFamily: 'Oswald_400Regular', fontSize: 12, lineHeight: 18, marginTop: 3 },
+  primaryButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 14, backgroundColor: colors.primaryLight, marginTop: 16 },
+  primaryButtonText: { color: colors.brandWhite, fontFamily: 'Oswald_600SemiBold', fontSize: 11, letterSpacing: 0.7 },
+  pressed: { opacity: 0.78 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 25, marginBottom: 9 },
+  sectionTitle: { color: colors.textPrimary, fontFamily: 'Oswald_600SemiBold', fontSize: 14, letterSpacing: 0.7 },
+  sectionSubtitle: { color: colors.textMuted, fontFamily: 'Oswald_500Medium', fontSize: 8, letterSpacing: 0.45 },
+  sectionLink: { color: colors.primaryLight, fontFamily: 'Oswald_600SemiBold', fontSize: 9, letterSpacing: 0.6 },
+  weekScore: { color: colors.textPrimary, fontFamily: 'BebasNeue_400Regular', fontSize: 24 },
+  weekCard: { borderRadius: 18, padding: 14, backgroundColor: 'rgba(11,15,20,0.91)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  weekStrip: { flexDirection: 'row', justifyContent: 'space-between' },
+  dayItem: { flex: 1, alignItems: 'center' },
+  dayLabel: { color: colors.textMuted, fontFamily: 'Oswald_500Medium', fontSize: 8, marginBottom: 7 },
+  dayLabelToday: { color: colors.primaryLight },
+  dayCircle: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.04)' },
+  dayCircleToday: { borderWidth: 1, borderColor: colors.primaryLight, backgroundColor: 'rgba(73,157,255,0.08)' },
+  dayCirclePlanned: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)' },
+  dayCircleCompleted: { backgroundColor: colors.primaryLight },
+  dayNumber: { color: colors.textSecondary, fontFamily: 'Oswald_500Medium', fontSize: 11 },
+  dayNumberToday: { color: colors.primaryLight },
+  planDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primaryLight, marginTop: 7 },
+  planDotGhost: { width: 4, height: 4, marginTop: 7 },
+  expandWeekButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingTop: 13, marginTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
+  expandWeekText: { color: colors.textMuted, fontFamily: 'Oswald_600SemiBold', fontSize: 9, letterSpacing: 0.5 },
+  weekDetails: { marginTop: 8 },
+  weekDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  detailState: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(73,157,255,0.09)' },
+  detailStateDone: { backgroundColor: colors.primaryLight },
+  detailDate: { color: colors.textMuted, fontFamily: 'Oswald_500Medium', fontSize: 8 },
+  detailTitle: { color: colors.textPrimary, fontFamily: 'Oswald_600SemiBold', fontSize: 11, marginTop: 2 },
+  detailMeta: { color: colors.primaryLight, fontFamily: 'Oswald_500Medium', fontSize: 8, marginTop: 2 },
+  weekHint: { color: colors.textMuted, fontFamily: 'Oswald_400Regular', fontSize: 9, lineHeight: 14, marginTop: 9 },
+  weekEmpty: { color: colors.textMuted, fontFamily: 'Oswald_400Regular', fontSize: 11, paddingVertical: 10 },
+  programCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 18, backgroundColor: 'rgba(14,20,27,0.92)', borderWidth: 1, borderColor: 'rgba(73,157,255,0.14)' },
+  programIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(73,157,255,0.10)' },
+  programEyebrow: { color: colors.primaryLight, fontFamily: 'Oswald_600SemiBold', fontSize: 8, letterSpacing: 0.6 },
+  programTitle: { color: colors.textPrimary, fontFamily: 'Oswald_600SemiBold', fontSize: 13, marginTop: 2 },
+  programText: { color: colors.textMuted, fontFamily: 'Oswald_400Regular', fontSize: 10, marginTop: 3 },
+  addCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  addIcon: { width: 39, height: 39, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryLight },
+  addTitle: { color: colors.textPrimary, fontFamily: 'Oswald_600SemiBold', fontSize: 11 },
+  addText: { color: colors.textMuted, fontFamily: 'Oswald_400Regular', fontSize: 10, marginTop: 2 },
+  quickGrid: { flexDirection: 'row', gap: 8 },
+  quickCard: { flex: 1, minHeight: 88, justifyContent: 'center', padding: 11, borderRadius: 15, backgroundColor: 'rgba(11,15,20,0.82)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  quickValue: { color: colors.textPrimary, fontFamily: 'BebasNeue_400Regular', fontSize: 25 },
+  quickLabel: { color: colors.textMuted, fontFamily: 'Oswald_500Medium', fontSize: 7, marginTop: 5 },
+  bottomSpace: { height: 25 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.68)' },
+  modalSheet: { backgroundColor: '#0B0F14', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 30 },
+  modalHandle: { alignSelf: 'center', width: 42, height: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.18)', marginBottom: 15 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  modalEyebrow: { color: colors.textMuted, fontFamily: 'Oswald_600SemiBold', fontSize: 9, letterSpacing: 1 },
+  modalTitle: { color: colors.textPrimary, fontFamily: 'BebasNeue_400Regular', fontSize: 28 },
+  modalClose: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.05)' },
+  modalAction: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  modalActionDisabled: { opacity: 0.45 },
+  modalActionIcon: { width: 39, height: 39, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.05)' },
+  modalActionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  modalActionTitle: { color: colors.textPrimary, fontFamily: 'Oswald_600SemiBold', fontSize: 11 },
+  modalActionTitleDisabled: { color: colors.textMuted },
+  modalActionText: { color: colors.textMuted, fontFamily: 'Oswald_400Regular', fontSize: 10, marginTop: 2 },
+  soonBadge: { color: colors.textMuted, fontFamily: 'Oswald_600SemiBold', fontSize: 7, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.06)' },
 });
