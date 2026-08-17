@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v8-context-recalculation";
+const VERSION = "coach-handler-v9-generation-timeout-guard";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -185,8 +185,20 @@ serve(async (req: Request) => {
       },
     });
   } catch (error) {
-    console.error(VERSION, error);
-    return json({ error: error instanceof Error ? error.message : "Unknown coach error" }, 400);
+    const message = error instanceof Error ? error.message : "Unknown coach error";
+    console.error(VERSION, message);
+
+    if (/statement timeout|canceling statement due to statement timeout/i.test(message)) {
+      return json(
+        {
+          error: "UGEROD a mis plus de temps que prévu à construire ta séance. Réessaie.",
+          code: "GENERATION_TIMEOUT",
+        },
+        503,
+      );
+    }
+
+    return json({ error: message }, 400);
   }
 });
 
