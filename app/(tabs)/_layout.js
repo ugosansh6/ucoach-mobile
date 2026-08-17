@@ -70,6 +70,20 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
+        name="programmes"
+        options={{
+          title: 'Programmes',
+          tabBarIcon: ({ color }) => (
+            <Ionicons
+              name="trophy-outline"
+              size={23}
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="library"
         options={{
           title: 'Bibliothèque',
