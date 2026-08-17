@@ -1,12 +1,12 @@
 import {
-  useMemo,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
   ActivityIndicator,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -26,42 +26,7 @@ import {
 } from '../../contexts/WorkoutContext';
 import {
   generateWorkoutSession,
-  reloadWorkoutSession,
 } from '../../services/workoutService';
-import {
-  adaptSessionExercise,
-} from '../../services/sessionAdaptationService';
-
-const REASON_OPTIONS = [
-  {
-    value: 'too_easy',
-    label: 'TROP FACILE',
-    description:
-      'UGEROD cherche une progression plus exigeante.',
-    icon: 'arrow-up-circle-outline',
-  },
-  {
-    value: 'too_hard',
-    label: 'TROP DIFFICILE',
-    description:
-      'UGEROD cherche une variante plus accessible.',
-    icon: 'arrow-down-circle-outline',
-  },
-  {
-    value: 'environment',
-    label: 'IMPOSSIBLE ICI',
-    description:
-      'Mur, espace, hauteur ou autre contrainte du lieu.',
-    icon: 'location-outline',
-  },
-  {
-    value: 'equipment',
-    label: 'MATÉRIEL INDISPONIBLE',
-    description:
-      'UGEROD cherche une alternative sans ce matériel.',
-    icon: 'construct-outline',
-  },
-];
 
 function normalizeBlock(value) {
   if (value === 'warm_up') {
@@ -69,14 +34,6 @@ function normalizeBlock(value) {
   }
 
   return value ?? null;
-}
-
-function getExerciseKey(exercise) {
-  return (
-    exercise?.sessionExerciseId ??
-    exercise?.session_exercise_id ??
-    exercise?.id
-  );
 }
 
 function getProtectedExerciseIds(workout) {
@@ -143,6 +100,14 @@ function buildPreparationSnapshot(
   };
 }
 
+function painFingerprint(values) {
+  return (Array.isArray(values) ? values : [])
+    .filter(Boolean)
+    .slice()
+    .sort()
+    .join('|');
+}
+
 export default function SessionAdaptationOverlay() {
   const pathname = usePathname();
   const {
@@ -154,188 +119,25 @@ export default function SessionAdaptationOverlay() {
 
   const [visible, setVisible] =
     useState(false);
-  const [view, setView] =
-    useState('root');
-  const [selectedExercise, setSelectedExercise] =
-    useState(null);
-  const [forcedReason, setForcedReason] =
-    useState(null);
   const [loading, setLoading] =
     useState(false);
   const [error, setError] =
     useState('');
 
-  const adaptableExercises = useMemo(() => {
-    const validated = new Set(
-      Array.isArray(workout?.validatedBlocks)
-        ? workout.validatedBlocks
-        : []
-    );
+  const pendingPainAdaptationRef =
+    useRef(null);
 
-    return (workout?.exercises ?? []).filter(
-      (exercise) => {
-        const block = normalizeBlock(
-          exercise?.blockKey ??
-            exercise?.block
-        );
-
-        return (
-          !validated.has(block) &&
-          ![
-            'completed',
-            'not_completed',
-          ].includes(exercise?.status) &&
-          Boolean(
-            exercise?.sessionExerciseId ??
-              exercise?.session_exercise_id
-          )
-        );
-      }
-    );
-  }, [
-    workout?.exercises,
-    workout?.validatedBlocks,
-  ]);
-
-  if (
-    pathname !== '/workout/session' ||
-    !workout?.sessionId
+  async function adaptRemaining(
+    nextPreparation,
+    preparationPatch = null,
+    {
+      reopenOnError = true,
+    } = {}
   ) {
-    return null;
-  }
-
-  function openRoot() {
-    setError('');
-    setForcedReason(null);
-    setSelectedExercise(null);
-    setView('root');
-    setVisible(true);
-  }
-
-  function close() {
-    if (loading) {
-      return;
-    }
-
-    setVisible(false);
-    setError('');
-    setSelectedExercise(null);
-    setForcedReason(null);
-    setView('root');
-  }
-
-  function openExerciseList(reason = null) {
-    setError('');
-    setForcedReason(reason);
-    setSelectedExercise(null);
-    setView('exercise-list');
-  }
-
-  function chooseExercise(exercise) {
-    setSelectedExercise(exercise);
-
-    if (forcedReason) {
-      handleExerciseAdaptation(
-        exercise,
-        forcedReason
-      );
-      return;
-    }
-
-    setView('reason');
-  }
-
-  async function handleExerciseAdaptation(
-    exercise,
-    reason
-  ) {
-    const instanceId =
-      exercise?.sessionExerciseId ??
-      exercise?.session_exercise_id;
-
-    if (!instanceId) {
-      setError(
-        'Impossible d’identifier cet exercice dans la séance.'
-      );
-      return;
-    }
-
     setLoading(true);
     setError('');
 
     try {
-      await adaptSessionExercise({
-        sessionId: workout.sessionId,
-        sessionExerciseId: instanceId,
-        currentExerciseId:
-          exercise?.exerciseId ??
-          exercise?.id,
-        reason,
-      });
-
-      const refreshed =
-        await reloadWorkoutSession({
-          sessionId: workout.sessionId,
-          preparationSnapshot:
-            workout.preparationSnapshot,
-        });
-
-      setGeneratedWorkoutPreservingProgress({
-        ...refreshed,
-        exercises:
-          (refreshed.exercises ?? []).map(
-            (item) =>
-              item.sessionExerciseId ===
-              instanceId
-                ? {
-                    ...item,
-                    status: 'adapted',
-                    adaptationSource:
-                      reason,
-                  }
-                : item
-          ),
-      });
-
-      closeAfterSuccess();
-    } catch (adaptationError) {
-      setError(
-        adaptationError instanceof Error
-          ? adaptationError.message
-          : 'Impossible de trouver une alternative sûre.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function closeAfterSuccess() {
-    setVisible(false);
-    setError('');
-    setSelectedExercise(null);
-    setForcedReason(null);
-    setView('root');
-  }
-
-  async function adaptForFatigue() {
-    setLoading(true);
-    setError('');
-
-    try {
-      const current =
-        buildPreparationSnapshot(
-          preparation,
-          workout
-        );
-      const readiness = Math.max(
-        1,
-        Number(current.readiness ?? 6) - 2
-      );
-      const nextPreparation = {
-        ...current,
-        readiness,
-      };
-
       const generated =
         await generateWorkoutSession(
           nextPreparation,
@@ -357,26 +159,125 @@ export default function SessionAdaptationOverlay() {
         );
       }
 
-      updatePreparation({
-        readiness,
-      });
+      if (preparationPatch) {
+        updatePreparation(
+          preparationPatch
+        );
+      }
+
       setGeneratedWorkoutPreservingProgress(
         generated
       );
-      closeAfterSuccess();
+      setVisible(false);
+      setError('');
     } catch (adaptationError) {
       setError(
         adaptationError instanceof Error
           ? adaptationError.message
           : 'Impossible d’adapter le reste de la séance.'
       );
+
+      if (reopenOnError) {
+        setVisible(true);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  function openInjuries() {
+  useEffect(() => {
+    if (
+      pathname !== '/workout/session' ||
+      !workout?.sessionId ||
+      !pendingPainAdaptationRef.current
+    ) {
+      return;
+    }
+
+    const pending =
+      pendingPainAdaptationRef.current;
+    pendingPainAdaptationRef.current =
+      null;
+
+    const after = painFingerprint(
+      preparation?.painZones
+    );
+
+    if (after === pending.before) {
+      return;
+    }
+
+    const nextPreparation =
+      buildPreparationSnapshot(
+        preparation,
+        workout
+      );
+
+    adaptRemaining(
+      nextPreparation,
+      null,
+      {
+        reopenOnError: true,
+      }
+    );
+  }, [
+    pathname,
+    preparation?.painZones,
+    workout?.sessionId,
+  ]);
+
+  if (
+    pathname !== '/workout/session' ||
+    !workout?.sessionId
+  ) {
+    return null;
+  }
+
+  function open() {
+    setError('');
+    setVisible(true);
+  }
+
+  function close() {
+    if (loading) {
+      return;
+    }
+
     setVisible(false);
+    setError('');
+  }
+
+  async function adaptForFatigue() {
+    const current =
+      buildPreparationSnapshot(
+        preparation,
+        workout
+      );
+    const readiness = Math.max(
+      1,
+      Number(current.readiness ?? 6) - 2
+    );
+
+    await adaptRemaining(
+      {
+        ...current,
+        readiness,
+      },
+      {
+        readiness,
+      }
+    );
+  }
+
+  function openInjuries() {
+    pendingPainAdaptationRef.current = {
+      before: painFingerprint(
+        preparation?.painZones
+      ),
+    };
+
+    setVisible(false);
+    setError('');
     router.push('/workout/injuries');
   }
 
@@ -387,7 +288,7 @@ export default function SessionAdaptationOverlay() {
         style={styles.floatingLayer}
       >
         <Pressable
-          onPress={openRoot}
+          onPress={open}
           style={({ pressed }) => [
             styles.floatingButton,
             pressed &&
@@ -424,17 +325,7 @@ export default function SessionAdaptationOverlay() {
                   COACH UGEROD
                 </Text>
                 <Text style={styles.title}>
-                  {view === 'root' &&
-                    'ADAPTER MA SÉANCE'}
-                  {view === 'exercise-list' &&
-                    'QUEL EXERCICE ?'}
-                  {view === 'reason' &&
-                    String(
-                      selectedExercise?.name ??
-                        'EXERCICE'
-                    ).toUpperCase()}
-                  {view === 'emergency' &&
-                    'ADAPTER LE RESTE'}
+                  ADAPTER LE RESTE
                 </Text>
               </View>
 
@@ -451,6 +342,10 @@ export default function SessionAdaptationOverlay() {
               </Pressable>
             </View>
 
+            <Text style={styles.helper}>
+              UGEROD protège les blocs déjà terminés et recalcule uniquement ce qu’il reste à faire.
+            </Text>
+
             {error ? (
               <View style={styles.errorBox}>
                 <Ionicons
@@ -464,208 +359,23 @@ export default function SessionAdaptationOverlay() {
               </View>
             ) : null}
 
-            {view === 'root' ? (
-              <View style={styles.options}>
-                <ActionRow
-                  icon="swap-horizontal-outline"
-                  title="ADAPTER UN EXERCICE"
-                  description="Trop facile, trop difficile, impossible ici ou matériel indisponible."
-                  onPress={() =>
-                    openExerciseList()
-                  }
-                />
-                <ActionRow
-                  icon="shield-outline"
-                  title="ADAPTER LE RESTE DE MA SÉANCE"
-                  description="Si ton état ou ton contexte a changé pendant l’entraînement."
-                  onPress={() =>
-                    setView('emergency')
-                  }
-                />
-              </View>
-            ) : null}
+            <View style={styles.options}>
+              <ActionRow
+                icon="battery-half-outline"
+                title="JE SUIS PLUS FATIGUÉ QUE PRÉVU"
+                description="UGEROD baisse l’intensité du contexte du jour et adapte les blocs restants."
+                loading={loading}
+                onPress={adaptForFatigue}
+              />
 
-            {view === 'exercise-list' ? (
-              <>
-                <Text style={styles.helper}>
-                  Choisis le premier mouvement qui ne convient plus. UGEROD ne touche pas aux blocs déjà terminés.
-                </Text>
-
-                <ScrollView
-                  style={styles.exerciseList}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {adaptableExercises.map(
-                    (exercise) => (
-                      <Pressable
-                        key={getExerciseKey(
-                          exercise
-                        )}
-                        onPress={() =>
-                          chooseExercise(
-                            exercise
-                          )
-                        }
-                        disabled={loading}
-                        style={({ pressed }) => [
-                          styles.exerciseRow,
-                          pressed &&
-                            styles.rowPressed,
-                        ]}
-                      >
-                        <View
-                          style={styles.exerciseIcon}
-                        >
-                          <Ionicons
-                            name="barbell-outline"
-                            size={18}
-                            color={
-                              colors.primaryLight
-                            }
-                          />
-                        </View>
-                        <View
-                          style={styles.exerciseMain}
-                        >
-                          <Text
-                            style={styles.exerciseName}
-                          >
-                            {String(
-                              exercise?.name ??
-                                'EXERCICE'
-                            ).toUpperCase()}
-                          </Text>
-                          <Text
-                            style={styles.exerciseMeta}
-                          >
-                            {String(
-                              normalizeBlock(
-                                exercise?.blockKey ??
-                                  exercise?.block
-                              ) ?? 'SÉANCE'
-                            ).toUpperCase()}
-                          </Text>
-                        </View>
-                        {loading &&
-                        selectedExercise &&
-                        getExerciseKey(
-                          selectedExercise
-                        ) ===
-                          getExerciseKey(
-                            exercise
-                          ) ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={
-                              colors.primaryLight
-                            }
-                          />
-                        ) : (
-                          <Ionicons
-                            name="chevron-forward"
-                            size={18}
-                            color={colors.textMuted}
-                          />
-                        )}
-                      </Pressable>
-                    )
-                  )}
-                </ScrollView>
-              </>
-            ) : null}
-
-            {view === 'reason' ? (
-              <View style={styles.options}>
-                <Text style={styles.helper}>
-                  Pourquoi veux-tu changer ce mouvement ?
-                </Text>
-
-                {REASON_OPTIONS.map(
-                  (option) => (
-                    <ActionRow
-                      key={option.value}
-                      icon={option.icon}
-                      title={option.label}
-                      description={
-                        option.description
-                      }
-                      loading={loading}
-                      onPress={() =>
-                        handleExerciseAdaptation(
-                          selectedExercise,
-                          option.value
-                        )
-                      }
-                    />
-                  )
-                )}
-              </View>
-            ) : null}
-
-            {view === 'emergency' ? (
-              <View style={styles.options}>
-                <ActionRow
-                  icon="battery-half-outline"
-                  title="JE SUIS PLUS FATIGUÉ QUE PRÉVU"
-                  description="UGEROD réduit la readiness et recalcule uniquement ce qui reste à faire."
-                  loading={loading}
-                  onPress={adaptForFatigue}
-                />
-                <ActionRow
-                  icon="location-outline"
-                  title="MON ENVIRONNEMENT BLOQUE UN EXERCICE"
-                  description="UGEROD identifie la contrainte du mouvement et cherche une alternative réalisable ici."
-                  onPress={() =>
-                    openExerciseList(
-                      'environment'
-                    )
-                  }
-                />
-                <ActionRow
-                  icon="construct-outline"
-                  title="UN MATÉRIEL N’EST PLUS DISPONIBLE"
-                  description="Choisis le mouvement concerné : UGEROD cherchera une alternative sans ce matériel."
-                  onPress={() =>
-                    openExerciseList(
-                      'equipment'
-                    )
-                  }
-                />
-                <ActionRow
-                  icon="medkit-outline"
-                  title="UNE GÊNE EST APPARUE"
-                  description="Mets à jour la zone à protéger avant de poursuivre."
-                  onPress={openInjuries}
-                />
-              </View>
-            ) : null}
-
-            {view !== 'root' ? (
-              <Pressable
-                onPress={() => {
-                  if (loading) {
-                    return;
-                  }
-
-                  setError('');
-                  setForcedReason(null);
-                  setSelectedExercise(null);
-                  setView('root');
-                }}
-                style={styles.backAction}
-              >
-                <Ionicons
-                  name="arrow-back"
-                  size={16}
-                  color={colors.textSecondary}
-                />
-                <Text
-                  style={styles.backActionText}
-                >
-                  RETOUR
-                </Text>
-              </Pressable>
-            ) : null}
+              <ActionRow
+                icon="medkit-outline"
+                title="UNE GÊNE EST APPARUE"
+                description="Indique la zone à protéger : UGEROD recalculera ensuite les mouvements restants."
+                loading={false}
+                onPress={openInjuries}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -677,8 +387,8 @@ function ActionRow({
   icon,
   title,
   description,
+  loading,
   onPress,
-  loading = false,
 }) {
   return (
     <Pressable
@@ -686,10 +396,11 @@ function ActionRow({
       disabled={loading}
       style={({ pressed }) => [
         styles.actionRow,
-        loading && styles.rowDisabled,
+        loading &&
+          styles.actionRowDisabled,
         pressed &&
           !loading &&
-          styles.rowPressed,
+          styles.actionRowPressed,
       ]}
     >
       <View style={styles.actionIcon}>
@@ -729,207 +440,182 @@ const styles = StyleSheet.create({
   floatingLayer: {
     position: 'absolute',
     right: spacing.xl,
-    bottom: 24,
-    zIndex: 30,
+    bottom: 92,
+    zIndex: 80,
   },
+
   floatingButton: {
-    minHeight: 46,
-    paddingHorizontal: 17,
-    borderRadius: 23,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    backgroundColor:
+      'rgba(16,126,255,0.94)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(8,104,255,0.96)',
+    gap: 7,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor:
+      'rgba(255,255,255,0.14)',
   },
+
   floatingButtonPressed: {
-    opacity: 0.82,
+    opacity: 0.78,
     transform: [{ scale: 0.98 }],
   },
+
   floatingButtonText: {
     fontFamily: 'Oswald_700Bold',
     fontSize: 11,
-    letterSpacing: 0.9,
+    letterSpacing: 1.05,
     color: colors.brandWhite,
   },
+
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.48)',
+    backgroundColor:
+      'rgba(0,0,0,0.38)',
   },
+
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
+
   card: {
-    maxHeight: '84%',
-    paddingHorizontal: spacing.xl,
-    paddingTop: 20,
-    paddingBottom: 28,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: '#0D1116',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
+    borderColor: colors.border,
+    paddingHorizontal: spacing.xl,
+    paddingTop: 24,
+    paddingBottom: 34,
   },
+
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 16,
   },
+
   headerMain: {
     flex: 1,
   },
+
   eyebrow: {
     fontFamily: 'Oswald_700Bold',
     fontSize: 10,
     lineHeight: 14,
-    letterSpacing: 1.1,
+    letterSpacing: 1.4,
     color: colors.brandRed,
   },
+
   title: {
-    marginTop: 4,
+    marginTop: 5,
     fontFamily: 'BebasNeue_400Regular',
-    fontSize: 31,
-    lineHeight: 34,
+    fontSize: 35,
+    lineHeight: 39,
     letterSpacing: 1.3,
     color: colors.textPrimary,
   },
+
   closeButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor:
+      'rgba(255,255,255,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceElevated,
   },
+
   helper: {
-    marginTop: 12,
-    marginBottom: 10,
+    marginTop: 14,
     fontFamily: 'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 19,
     color: colors.textSecondary,
   },
+
   errorBox: {
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 13,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: 'rgba(255,59,59,0.08)',
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,59,59,0.20)',
+    borderColor:
+      'rgba(255,61,72,0.36)',
+    backgroundColor:
+      'rgba(255,61,72,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
+
   errorText: {
     flex: 1,
     fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 17,
-    color: colors.textSecondary,
+    color: colors.textPrimary,
   },
+
   options: {
-    marginTop: 16,
-    gap: 9,
+    marginTop: 18,
+    gap: 12,
   },
+
   actionRow: {
-    minHeight: 76,
+    minHeight: 82,
+    borderRadius: 18,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 16,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor:
+      'rgba(255,255,255,0.025)',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    gap: 13,
   },
+
+  actionRowDisabled: {
+    opacity: 0.55,
+  },
+
+  actionRowPressed: {
+    opacity: 0.76,
+  },
+
   actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor:
+      'rgba(16,126,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primaryTransparent,
   },
+
   actionMain: {
     flex: 1,
   },
+
   actionTitle: {
     fontFamily: 'Oswald_700Bold',
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.45,
+    fontSize: 14,
+    lineHeight: 18,
+    letterSpacing: 0.55,
     color: colors.textPrimary,
   },
+
   actionDescription: {
-    marginTop: 3,
+    marginTop: 4,
     fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
-    color: colors.textSecondary,
-  },
-  exerciseList: {
-    maxHeight: 430,
-  },
-  exerciseRow: {
-    minHeight: 68,
-    marginBottom: 8,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    borderRadius: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-  },
-  exerciseIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primaryTransparent,
-  },
-  exerciseMain: {
-    flex: 1,
-  },
-  exerciseName: {
-    fontFamily: 'Oswald_700Bold',
     fontSize: 12,
-    lineHeight: 16,
-    color: colors.textPrimary,
-  },
-  exerciseMeta: {
-    marginTop: 2,
-    fontFamily: 'Oswald_500Medium',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.7,
-    color: colors.textMuted,
-  },
-  backAction: {
-    alignSelf: 'flex-start',
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingVertical: 7,
-  },
-  backActionText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.7,
+    lineHeight: 17,
     color: colors.textSecondary,
-  },
-  rowPressed: {
-    backgroundColor: colors.surfacePressed,
-  },
-  rowDisabled: {
-    opacity: 0.5,
   },
 });
