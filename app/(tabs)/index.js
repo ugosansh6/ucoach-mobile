@@ -38,6 +38,7 @@ import {
   useWorkout,
 } from '../../src/contexts/WorkoutContext';
 import DashboardHistoryCalendar from '../../src/components/dashboard/DashboardHistoryCalendar';
+import AddToUgerodCard from '../../src/components/dashboard/AddToUgerodCard';
 
 const dashboardBackground = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -671,6 +672,8 @@ export default function DashboardScreen() {
                   initialMonthSessions={snapshot?.monthSessions}
                   onCompletedDayPress={handleDayPress}
                 />
+
+                <AddToUgerodCard />
               </>
             ) : (
               <>
@@ -745,6 +748,8 @@ export default function DashboardScreen() {
                     />
                   </View>
                 </View>
+
+                <AddToUgerodCard />
 
                 {formVisible && (
                   <View style={styles.formSection}>
