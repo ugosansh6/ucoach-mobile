@@ -663,36 +663,14 @@ export default function DashboardScreen() {
                   />
                 </View>
 
-                <View style={styles.firstCalendarSection}>
-                  <View style={styles.calendarHeader}>
-                    <View>
-                      <Text style={styles.sectionTitle}>
-                        TON OBJECTIF
-                      </Text>
-
-                      <Text style={styles.monthLabel}>
-                        {monthLabel}
-                      </Text>
-                    </View>
-
-                    <WeekScore
-                      completed={completedSessions}
-                      target={weeklyTarget}
-                      reached={goalReached}
-                    />
-                  </View>
-
-                  <WeekCard
-                    week={week}
-                    interactive={false}
-                    onDayPress={handleDayPress}
-                    compact
-                  />
-
-                  <Text style={styles.weekHint}>
-                    Aucun jour imposé. Lance ta séance quand tu es disponible.
-                  </Text>
-                </View>
+                <DashboardHistoryCalendar
+                  week={week}
+                  completed={completedSessions}
+                  target={weeklyTarget}
+                  reached={goalReached}
+                  initialMonthSessions={snapshot?.monthSessions}
+                  onCompletedDayPress={handleDayPress}
+                />
 
                 <View style={styles.firstStepsSection}>
                   <Text style={styles.sectionTitle}>
