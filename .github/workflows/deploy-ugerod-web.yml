@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -26,20 +26,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Apply targeted swap UI correction
-        shell: bash
-        run: |
-          python scripts/patch-swap-reasons.py
-          if git diff --quiet; then
-            echo "No swap patch to commit"
-          else
-            git config user.name "UGEROD Bot"
-            git config user.email "actions@users.noreply.github.com"
-            git add app/workout/session.js
-            git commit -m "fix(workout): move adaptation reasons to swap action"
-            git push origin HEAD:ux-navigation-coach-v1
-          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
