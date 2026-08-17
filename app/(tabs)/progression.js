@@ -1,11 +1,6 @@
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -20,969 +15,271 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import {
-  colors,
-  spacing,
-  typography,
-} from '../../src/constants';
-
-import {
-  getProgressionDashboard,
-} from '../../src/services/progressionService';
+import { colors, spacing } from '../../src/constants';
+import { getProgressionDashboard } from '../../src/services/progressionService';
+import { getProgressionInsights } from '../../src/services/progressionInsightsService';
+import { getPerformanceRecordBook } from '../../src/services/performanceRecordService';
 
 const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
-const PERIODS = [
-  {
-    id: '4w',
-    label: '4 SEM.',
-  },
-  {
-    id: '3m',
-    label: '3 MOIS',
-  },
-  {
-    id: '1y',
-    label: '1 AN',
-  },
-];
+function experienceLabel(value) {
+  const raw = String(value ?? '').toLowerCase();
+  if (raw.includes('begin') || raw.includes('début')) return 'DÉBUTANT';
+  if (raw.includes('advance') || raw.includes('avanc')) return 'AVANCÉ';
+  return 'INTERMÉDIAIRE';
+}
 
-const DIMENSION_ICONS = {
-  strength: 'barbell-outline',
-  conditioning: 'pulse-outline',
-  power: 'flash-outline',
-  stability: 'git-branch-outline',
-  mobility: 'body-outline',
-};
-
-function formatDelta(value) {
-  if (
-    value == null ||
-    !Number.isFinite(value)
-  ) {
-    return null;
+function signalLabel(value) {
+  switch (value) {
+    case 'PROGRESSING': return 'PROGRESSION À CONFIRMER';
+    case 'RECALIBRATING': return 'RÉFÉRENCE À RECALIBRER';
+    case 'STABLE': return 'RÉFÉRENCE STABLE';
+    default: return 'EN APPRENTISSAGE';
   }
+}
 
-  const percent = Math.round(
-    value * 100
+function confidenceLabel(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  const percent = Math.round(Math.max(0, Math.min(1, number)) * 100);
+  if (percent >= 70) return `confiance forte · ${percent}%`;
+  if (percent >= 45) return `confiance moyenne · ${percent}%`;
+  return `confiance faible · ${percent}%`;
+}
+
+function HubCard({ icon, eyebrow, title, value, text, meta, onPress, accent = 'blue' }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.hubCard, pressed && styles.pressed]}
+    >
+      <View style={[styles.iconBox, accent === 'red' && styles.iconBoxRed]}>
+        <Ionicons
+          name={icon}
+          size={21}
+          color={accent === 'red' ? colors.brandRed : colors.primaryLight}
+        />
+      </View>
+
+      <View style={styles.cardMain}>
+        <Text style={styles.cardEyebrow}>{eyebrow}</Text>
+        <Text style={styles.cardTitle}>{title}</Text>
+        {value ? <Text style={styles.cardValue}>{value}</Text> : null}
+        {text ? <Text style={styles.cardText}>{text}</Text> : null}
+        {meta ? <Text style={styles.cardMeta}>{meta}</Text> : null}
+      </View>
+
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    </Pressable>
   );
-
-  if (percent > 0) {
-    return `+${percent}%`;
-  }
-
-  return `${percent}%`;
-}
-
-function getTrendIcon(value) {
-  if (value > 0.015) {
-    return 'trending-up';
-  }
-
-  if (value < -0.015) {
-    return 'trending-down';
-  }
-
-  return 'remove-outline';
-}
-
-function getTrendLabel(value) {
-  if (value > 0.015) {
-    return 'EN HAUSSE';
-  }
-
-  if (value < -0.015) {
-    return 'EN BAISSE';
-  }
-
-  return 'STABLE';
 }
 
 export default function ProgressionScreen() {
-  const [period, setPeriod] =
-    useState('4w');
+  const [dashboard, setDashboard] = useState(null);
+  const [insights, setInsights] = useState(null);
+  const [recordBook, setRecordBook] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
-  const [dashboard, setDashboard] =
-    useState(null);
+  const load = useCallback(async ({ refresh = false } = {}) => {
+    try {
+      if (refresh) setRefreshing(true);
+      else setLoading(true);
+      setError('');
 
-  const [loading, setLoading] =
-    useState(true);
+      const [dashboardData, insightsData, recordsData] = await Promise.all([
+        getProgressionDashboard('4w'),
+        getProgressionInsights('4w'),
+        getPerformanceRecordBook(),
+      ]);
 
-  const [refreshing, setRefreshing] =
-    useState(false);
-
-  const [error, setError] =
-    useState('');
-
-  const loadDashboard =
-    useCallback(
-      async ({
-        refresh = false,
-      } = {}) => {
-        try {
-          if (refresh) {
-            setRefreshing(true);
-          } else {
-            setLoading(true);
-          }
-
-          setError('');
-
-          const data =
-            await getProgressionDashboard(
-              period
-            );
-
-          setDashboard(data);
-        } catch (loadError) {
-          setError(
-            loadError?.message ??
-              'Impossible de charger ta progression.'
-          );
-        } finally {
-          setLoading(false);
-          setRefreshing(false);
-        }
-      },
-      [period]
-    );
+      setDashboard(dashboardData);
+      setInsights(insightsData);
+      setRecordBook(recordsData);
+    } catch (loadError) {
+      setError(loadError?.message ?? 'Impossible de charger ta progression.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+    load();
+  }, [load]);
 
-  const maxLoad = useMemo(() => {
-    const values =
-      dashboard?.weeklyLoad?.map(
-        (item) => item.load
-      ) ?? [];
+  const movementCapabilities = insights?.intelligence?.movement_capabilities ?? [];
+  const nextMovement = useMemo(
+    () => movementCapabilities.find((item) => item.signal === 'PROGRESSING')
+      ?? movementCapabilities.find((item) => item.signal === 'RECALIBRATING')
+      ?? null,
+    [movementCapabilities]
+  );
 
-    return Math.max(
-      1,
-      ...values
-    );
-  }, [dashboard]);
+  const athleteDimensions = insights?.athleteSummary?.dimensions ?? [];
+  const calibratedDimensions = athleteDimensions.filter((item) => item.calibrated);
+  const trendingDimension = calibratedDimensions.find((item) => item.trend_symbol === '↗')
+    ?? calibratedDimensions[0]
+    ?? null;
 
-  function handleProfile() {
-    router.push('/profile');
-  }
+  const records = recordBook?.current_records ?? recordBook?.currentRecords ?? [];
+  const suggestions = recordBook?.suggestions_to_confirm ?? recordBook?.suggestionsToConfirm ?? [];
 
-  function handlePlanning() {
-    router.push(
-      '/(tabs)/planning'
-    );
-  }
+  const overallState = insights?.intelligence?.overall?.state;
+  const heroTitle = overallState === 'PROGRESSING'
+    ? 'TA PROGRESSION COMMENCE À SE CONFIRMER.'
+    : overallState === 'RECALIBRATING'
+      ? 'UGEROD RECALIBRE CERTAINES RÉFÉRENCES.'
+      : insights?.intelligence?.data_maturity?.stage === 'ESTABLISHED'
+        ? 'TON PROFIL SE CONSOLIDE.'
+        : 'UGEROD APPREND TON PROFIL.';
 
-  function handleExercisePress(
-    exercise
-  ) {
-    router.push(
-      `/exercise/${exercise.id}`
-    );
-  }
+  const heroText = insights?.intelligence?.overall?.text
+    ?? 'Chaque séance enrichit ton profil et rend les prochaines décisions du Coach plus fiables.';
 
-  function handleSessionPress(
-    session
-  ) {
-    router.push(
-      `/workout/${session.id}`
-    );
-  }
-
-  if (
-    loading &&
-    !dashboard
-  ) {
+  if (loading && !dashboard) {
     return (
-      <SafeAreaView
-        style={styles.loadingScreen}
-      >
-        <Image
-          source={brandIcon}
-          style={styles.loadingLogo}
-          resizeMode="contain"
-        />
-
-        <ActivityIndicator
-          size="small"
-          color={colors.primaryLight}
-        />
-
-        <Text
-          style={styles.loadingText}
-        >
-          ANALYSE DE TA PROGRESSION...
-        </Text>
+      <SafeAreaView style={styles.loadingScreen}>
+        <Image source={brandIcon} style={styles.loadingLogo} resizeMode="contain" />
+        <ActivityIndicator size="small" color={colors.primaryLight} />
+        <Text style={styles.loadingText}>ANALYSE DE TA PROGRESSION...</Text>
       </SafeAreaView>
     );
   }
 
   return (
     <View style={styles.screen}>
-      <ImageBackground
-        source={backgroundImage}
-        resizeMode="cover"
-        style={styles.background}
-      >
-        <View
-          style={styles.darkOverlay}
-        />
-
+      <ImageBackground source={backgroundImage} resizeMode="cover" style={styles.background}>
+        <View style={styles.darkOverlay} />
         <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.34)',
-            'rgba(7,9,12,0.56)',
-            'rgba(7,9,12,0.90)',
-            'rgba(7,9,12,0.99)',
-          ]}
-          locations={[
-            0,
-            0.18,
-            0.5,
-            1,
-          ]}
-          style={
-            StyleSheet.absoluteFill
-          }
+          colors={['rgba(7,9,12,0.34)', 'rgba(7,9,12,0.68)', 'rgba(7,9,12,0.96)', 'rgba(7,9,12,1)']}
+          locations={[0, 0.22, 0.55, 1]}
+          style={StyleSheet.absoluteFill}
         />
 
-        <SafeAreaView
-          style={styles.safeArea}
-        >
+        <SafeAreaView style={styles.safeArea}>
           <ScrollView
-            contentContainerStyle={
-              styles.content
-            }
-            showsVerticalScrollIndicator={
-              false
-            }
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
-                refreshing={
-                  refreshing
-                }
-                onRefresh={() =>
-                  loadDashboard({
-                    refresh: true,
-                  })
-                }
-                tintColor={
-                  colors.primaryLight
-                }
+                refreshing={refreshing}
+                onRefresh={() => load({ refresh: true })}
+                tintColor={colors.primaryLight}
               />
             }
           >
-            <View
-              style={styles.header}
-            >
-              <Pressable
-                onPress={
-                  handleProfile
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.profileButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="person-outline"
-                  size={21}
-                  color={
-                    colors.textPrimary
-                  }
-                />
+            <View style={styles.header}>
+              <Pressable onPress={() => router.push('/profile')} style={styles.profileButton}>
+                <Ionicons name="person-outline" size={21} color={colors.textPrimary} />
               </Pressable>
 
-              <View
-                style={
-                  styles.headerText
-                }
-              >
-                <Text
-                  style={
-                    styles.headerEyebrow
-                  }
-                >
-                  TON ÉVOLUTION
+              <View style={styles.headerText}>
+                <Text style={styles.headerEyebrow}>TON PROFIL ATHLÈTE</Text>
+                <Text style={styles.headerTitle}>
+                  {(insights?.profile?.firstname || 'TOI').toUpperCase()}
+                  <Text style={styles.blueDot}>.</Text>
                 </Text>
-
-                <Text
-                  style={
-                    styles.headerTitle
-                  }
-                >
-                  PROGRESSION
-                  <Text
-                    style={
-                      styles.blueDot
-                    }
-                  >
-                    .
-                  </Text>
+                <Text style={styles.headerMeta}>
+                  {experienceLabel(insights?.profile?.experience)} · OBJECTIF {dashboard?.summary?.weeklyTarget ?? insights?.profile?.weekly_session_target ?? 0} SÉANCES / SEM.
                 </Text>
               </View>
 
-              <Image
-                source={brandIcon}
-                style={
-                  styles.brandIcon
-                }
-                resizeMode="contain"
-              />
-            </View>
-
-            <View
-              style={
-                styles.periodRow
-              }
-            >
-              {PERIODS.map(
-                (item) => {
-                  const selected =
-                    item.id ===
-                    period;
-
-                  return (
-                    <Pressable
-                      key={
-                        item.id
-                      }
-                      onPress={() =>
-                        setPeriod(
-                          item.id
-                        )
-                      }
-                      style={[
-                        styles.periodButton,
-                        selected &&
-                          styles.periodButtonSelected,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.periodText,
-                          selected &&
-                            styles.periodTextSelected,
-                        ]}
-                      >
-                        {
-                          item.label
-                        }
-                      </Text>
-                    </Pressable>
-                  );
-                }
-              )}
+              <Image source={brandIcon} style={styles.brandIcon} resizeMode="contain" />
             </View>
 
             {error ? (
-              <View
-                style={
-                  styles.errorCard
-                }
-              >
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={20}
-                  color={
-                    colors.brandRed
-                  }
-                />
-
-                <View
-                  style={{
-                    flex: 1,
-                  }}
-                >
-                  <Text
-                    style={
-                      styles.errorTitle
-                    }
-                  >
-                    DONNÉES INDISPONIBLES
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.errorText
-                    }
-                  >
-                    {error}
-                  </Text>
-                </View>
+              <View style={styles.errorCard}>
+                <Ionicons name="alert-circle-outline" size={19} color={colors.brandRed} />
+                <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
 
-            <View
-              style={
-                styles.summaryGrid
-              }
-            >
-              <SummaryCard
-                icon="checkmark-circle-outline"
-                value={
-                  dashboard?.summary
-                    ?.completedSessions ??
-                  0
-                }
-                label="SÉANCES"
-              />
+            <View style={styles.heroCard}>
+              <Text style={styles.heroEyebrow}>BILAN · 4 DERNIÈRES SEMAINES</Text>
+              <Text style={styles.heroTitle}>{heroTitle}</Text>
+              <Text style={styles.heroText}>{heroText}</Text>
 
-              <SummaryCard
-                icon="time-outline"
-                value={
-                  dashboard?.summary
-                    ?.totalTimeLabel ??
-                  '0 min'
-                }
-                label="TEMPS"
-              />
-
-              <SummaryCard
-                icon="calendar-outline"
-                value={`${
-                  dashboard?.summary
-                    ?.regularityPercent ??
-                  0
-                }%`}
-                label="RÉGULARITÉ"
-              />
-
-              <SummaryCard
-                icon="speedometer-outline"
-                value={
-                  dashboard?.summary
-                    ?.avgRpe != null
-                    ? dashboard
-                        .summary
-                        .avgRpe
-                    : '—'
-                }
-                suffix={
-                  dashboard?.summary
-                    ?.avgRpe != null
-                    ? '/10'
-                    : null
-                }
-                label="RPE MOYEN"
-              />
-            </View>
-
-            <SectionHeader
-              title="CHARGE D’ENTRAÎNEMENT"
-              meta="PAR SEMAINE"
-            />
-
-            <View
-              style={
-                styles.chartCard
-              }
-            >
-              {dashboard?.weeklyLoad
-                ?.length > 0 ? (
-                <>
-                  <View
-                    style={
-                      styles.loadChart
-                    }
-                  >
-                    {dashboard.weeklyLoad.map(
-                      (item) => {
-                        const height =
-                          Math.max(
-                            5,
-                            Math.round(
-                              (item.load /
-                                maxLoad) *
-                                100
-                            )
-                          );
-
-                        return (
-                          <View
-                            key={
-                              item.key
-                            }
-                            style={
-                              styles.loadBarItem
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.loadValue
-                              }
-                            >
-                              {
-                                item.load
-                              }
-                            </Text>
-
-                            <View
-                              style={
-                                styles.loadTrack
-                              }
-                            >
-                              <View
-                                style={[
-                                  styles.loadFill,
-                                  {
-                                    height: `${height}%`,
-                                  },
-                                ]}
-                              />
-                            </View>
-
-                            <Text
-                              style={
-                                styles.loadLabel
-                              }
-                            >
-                              {
-                                item.label
-                              }
-                            </Text>
-                          </View>
-                        );
-                      }
-                    )}
-                  </View>
-
-                  <Text
-                    style={
-                      styles.chartHint
-                    }
-                  >
-                    Charge =
-                    durée × RPE.
-                    UGEROD compare
-                    surtout son
-                    évolution à ton
-                    propre historique.
-                  </Text>
-                </>
-              ) : (
-                <EmptyState
-                  text="Termine une séance pour commencer à suivre ta charge."
-                />
-              )}
-            </View>
-
-            <SectionHeader
-              title="TON PROFIL ATHLÉTIQUE"
-              meta="SCORE + CONFIANCE"
-            />
-
-            <View
-              style={
-                styles.profileCard
-              }
-            >
-              {dashboard
-                ?.athleticProfile
-                ?.length > 0 ? (
-                dashboard.athleticProfile.map(
-                  (
-                    item,
-                    index
-                  ) => (
-                    <AthleticRow
-                      key={
-                        item.dimension
-                      }
-                      item={item}
-                      last={
-                        index ===
-                        dashboard
-                          .athleticProfile
-                          .length -
-                          1
-                      }
-                    />
-                  )
-                )
-              ) : (
-                <EmptyState
-                  text="Le profil athlétique apparaîtra après les premières séances analysées."
-                />
-              )}
-            </View>
-
-            <SectionHeader
-              title="TES MOUVEMENTS"
-              meta="LES PLUS FIABLES"
-            />
-
-            <View
-              style={
-                styles.movementList
-              }
-            >
-              {dashboard?.movements
-                ?.length > 0 ? (
-                dashboard.movements.map(
-                  (movement) => (
-                    <MovementCard
-                      key={
-                        movement.id
-                      }
-                      movement={
-                        movement
-                      }
-                      onPress={() =>
-                        handleExercisePress(
-                          movement
-                        )
-                      }
-                    />
-                  )
-                )
-              ) : (
-                <View
-                  style={
-                    styles.simpleCard
-                  }
-                >
-                  <EmptyState
-                    text="Aucun mouvement n’a encore assez de données."
-                  />
+              <View style={styles.heroStats}>
+                <View>
+                  <Text style={styles.heroStatValue}>{dashboard?.summary?.completedSessions ?? 0}</Text>
+                  <Text style={styles.heroStatLabel}>SÉANCES</Text>
                 </View>
-              )}
-            </View>
-
-            <SectionHeader
-              title="CE QU’UGEROD OBSERVE"
-              meta="COACH"
-            />
-
-            <View
-              style={
-                styles.coachCard
-              }
-            >
-              {dashboard
-                ?.coachObservations
-                ?.map(
-                  (
-                    observation,
-                    index
-                  ) => (
-                    <View
-                      key={`${observation.title}-${index}`}
-                      style={[
-                        styles.observationRow,
-                        index !==
-                          dashboard
-                            .coachObservations
-                            .length -
-                            1 &&
-                          styles.observationBorder,
-                      ]}
-                    >
-                      <View
-                        style={
-                          styles.observationIcon
-                        }
-                      >
-                        <Ionicons
-                          name={
-                            observation.icon
-                          }
-                          size={18}
-                          color={
-                            colors.primaryLight
-                          }
-                        />
-                      </View>
-
-                      <View
-                        style={{
-                          flex: 1,
-                        }}
-                      >
-                        <Text
-                          style={
-                            styles.observationTitle
-                          }
-                        >
-                          {
-                            observation.title
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.observationText
-                          }
-                        >
-                          {
-                            observation.text
-                          }
-                        </Text>
-                      </View>
-                    </View>
-                  )
-                )}
-            </View>
-
-            <SectionHeader
-              title="RÉGULARITÉ"
-              meta={`OBJECTIF ${
-                dashboard?.summary
-                  ?.weeklyTarget ?? 0
-              } / SEM.`}
-            />
-
-            <View
-              style={
-                styles.regularityCard
-              }
-            >
-              <View
-                style={
-                  styles.regularityBars
-                }
-              >
-                {dashboard?.regularity?.map(
-                  (item) => (
-                    <RegularityBar
-                      key={
-                        item.key
-                      }
-                      item={item}
-                    />
-                  )
-                )}
-              </View>
-            </View>
-
-            <View
-              style={
-                styles.historyHeader
-              }
-            >
-              <View>
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }
-                >
-                  HISTORIQUE
-                </Text>
-
-                <Text
-                  style={
-                    styles.historySubtitle
-                  }
-                >
-                  Le calendrier
-                  raconte ce que tu
-                  fais.
-                </Text>
-              </View>
-
-              <Pressable
-                onPress={
-                  handlePlanning
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.calendarButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={16}
-                  color={
-                    colors.primaryLight
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.calendarButtonText
-                  }
-                >
-                  CALENDRIER
-                </Text>
-              </Pressable>
-            </View>
-
-            <View
-              style={
-                styles.sessionsList
-              }
-            >
-              {dashboard
-                ?.recentSessions
-                ?.length > 0 ? (
-                dashboard.recentSessions.map(
-                  (session) => (
-                    <Pressable
-                      key={
-                        session.id
-                      }
-                      onPress={() =>
-                        handleSessionPress(
-                          session
-                        )
-                      }
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.sessionCard,
-                        pressed &&
-                          styles.sessionCardPressed,
-                      ]}
-                    >
-                      <View
-                        style={
-                          styles.sessionCheck
-                        }
-                      >
-                        <Ionicons
-                          name="checkmark"
-                          size={14}
-                          color={
-                            colors.brandWhite
-                          }
-                        />
-                      </View>
-
-                      <View
-                        style={
-                          styles.sessionMain
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.sessionDate
-                          }
-                        >
-                          {
-                            session.date
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.sessionTitle
-                          }
-                        >
-                          {
-                            session.title
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.sessionDuration
-                          }
-                        >
-                          {
-                            session.duration
-                          }
-                        </Text>
-                      </View>
-
-                      <View
-                        style={
-                          styles.sessionStats
-                        }
-                      >
-                        <SessionStat
-                          label="FORME"
-                          value={
-                            session.form ??
-                            '—'
-                          }
-                        />
-
-                        <SessionStat
-                          label="RPE"
-                          value={
-                            session.rpe ??
-                            '—'
-                          }
-                        />
-                      </View>
-
-                      <Ionicons
-                        name="chevron-forward"
-                        size={17}
-                        color={
-                          colors.textMuted
-                        }
-                      />
-                    </Pressable>
-                  )
-                )
-              ) : (
-                <View
-                  style={
-                    styles.simpleCard
-                  }
-                >
-                  <EmptyState
-                    text="Aucune séance terminée sur cette période."
-                  />
+                <View style={styles.heroDivider} />
+                <View>
+                  <Text style={styles.heroStatValue}>{dashboard?.summary?.regularityPercent ?? 0}%</Text>
+                  <Text style={styles.heroStatLabel}>RÉGULARITÉ</Text>
                 </View>
-              )}
-            </View>
-
-            <View
-              style={
-                styles.infoCard
-              }
-            >
-              <Ionicons
-                name="analytics-outline"
-                size={22}
-                color={
-                  colors.primaryLight
-                }
-              />
-
-              <View
-                style={{
-                  flex: 1,
-                }}
-              >
-                <Text
-                  style={
-                    styles.infoTitle
-                  }
-                >
-                  PAS DE SCORE MAGIQUE.
-                </Text>
-
-                <Text
-                  style={
-                    styles.infoText
-                  }
-                >
-                  Chaque score
-                  augmente en
-                  fiabilité à mesure
-                  qu’UGEROD observe
-                  tes performances,
-                  ton RPE et ta
-                  régularité.
-                </Text>
+                <View style={styles.heroDivider} />
+                <View>
+                  <Text style={styles.heroStatValue}>{records.length}</Text>
+                  <Text style={styles.heroStatLabel}>PR</Text>
+                </View>
               </View>
             </View>
 
-            <View
-              style={
-                styles.bottomSpace
-              }
+            <Text style={styles.sectionLabel}>TON TABLEAU DE BORD</Text>
+
+            <HubCard
+              icon="trending-up-outline"
+              eyebrow="ÉVOLUTION"
+              title="VOIR CE QUI CHANGE"
+              value={insights?.intelligence?.overall?.state === 'PROGRESSING' ? 'SIGNAUX POSITIFS' : 'SUIVI EN COURS'}
+              text="Performances réelles, mouvements qui progressent et niveau de fiabilité des conclusions."
+              onPress={() => router.push('/progression/detail?section=evolution')}
             />
+
+            <HubCard
+              icon="navigate-circle-outline"
+              eyebrow="COACH"
+              title="TES PROCHAINES ÉTAPES"
+              value={nextMovement ? `${nextMovement.name}` : 'UGEROD AFFINE TON PROFIL'}
+              text={nextMovement
+                ? `${signalLabel(nextMovement.signal)} · ${nextMovement.valid_evidence_count ?? 0} référence(s) valide(s)`
+                : 'Pas de recommandation forte sans données suffisamment fiables.'}
+              meta={nextMovement ? confidenceLabel(nextMovement.confidence) : null}
+              onPress={() => router.push('/progression/detail?section=coach')}
+              accent="red"
+            />
+
+            <HubCard
+              icon="trophy-outline"
+              eyebrow="TES RÉFÉRENCES"
+              title="CARNET DE PR"
+              value={`${records.length} RECORD${records.length > 1 ? 'S' : ''}`}
+              text={suggestions.length
+                ? `${suggestions.length} nouveau${suggestions.length > 1 ? 'x' : ''} record${suggestions.length > 1 ? 's' : ''} potentiel${suggestions.length > 1 ? 's' : ''} à confirmer.`
+                : 'Tes records confirmés restent distincts des estimations du Coach.'}
+              onPress={() => router.push('/progression/records')}
+            />
+
+            <HubCard
+              icon="calendar-outline"
+              eyebrow="RÉGULARITÉ & ACTIVITÉ"
+              title="TON RYTHME D’ENTRAÎNEMENT"
+              value={`${dashboard?.summary?.regularityPercent ?? 0}% DE TON OBJECTIF`}
+              text={`${dashboard?.summary?.completedSessions ?? 0} séance(s) · ${dashboard?.summary?.totalTimeLabel ?? '0 min'} sur les 4 dernières semaines.`}
+              onPress={() => router.push('/progression/detail?section=activity')}
+            />
+
+            <HubCard
+              icon="analytics-outline"
+              eyebrow="PROFIL ATHLÉTIQUE"
+              title="TES QUALITÉS PHYSIQUES"
+              value={trendingDimension
+                ? `${trendingDimension.label} · ${trendingDimension.level}`
+                : `${calibratedDimensions.length}/5 DIMENSIONS CALIBRÉES`}
+              text={trendingDimension
+                ? `${trendingDimension.trend_symbol} ${trendingDimension.trend_label}. Aucun score arbitraire /100 n’est affiché.`
+                : 'Force fonctionnelle, conditioning, puissance, stabilité et mobilité se calibrent avec tes références réelles.'}
+              onPress={() => router.push('/progression/detail?section=athletic')}
+            />
+
+            <Text style={styles.footerNote}>
+              UGEROD privilégie les preuves observées. Une qualité peu travaillée ou limitée par le matériel n’est pas automatiquement considérée comme une faiblesse.
+            </Text>
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
@@ -990,1336 +287,43 @@ export default function ProgressionScreen() {
   );
 }
 
-function SectionHeader({
-  title,
-  meta,
-}) {
-  return (
-    <View
-      style={
-        styles.sectionHeader
-      }
-    >
-      <Text
-        style={
-          styles.sectionTitle
-        }
-      >
-        {title}
-      </Text>
-
-      <Text
-        style={
-          styles.sectionMeta
-        }
-      >
-        {meta}
-      </Text>
-    </View>
-  );
-}
-
-function SummaryCard({
-  icon,
-  value,
-  suffix,
-  label,
-}) {
-  return (
-    <View
-      style={
-        styles.summaryCard
-      }
-    >
-      <Ionicons
-        name={icon}
-        size={18}
-        color={
-          colors.primaryLight
-        }
-      />
-
-      <Text
-        style={
-          styles.summaryValue
-        }
-      >
-        {value}
-
-        {suffix ? (
-          <Text
-            style={
-              styles.summarySuffix
-            }
-          >
-            {suffix}
-          </Text>
-        ) : null}
-      </Text>
-
-      <Text
-        style={
-          styles.summaryLabel
-        }
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function AthleticRow({
-  item,
-  last,
-}) {
-  const score =
-    item.score ?? null;
-
-  const width =
-    score == null
-      ? 0
-      : Math.max(
-          2,
-          Math.min(
-            100,
-            score
-          )
-        );
-
-  return (
-    <View
-      style={[
-        styles.athleticRow,
-        !last &&
-          styles.athleticBorder,
-      ]}
-    >
-      <View
-        style={
-          styles.athleticTop
-        }
-      >
-        <View
-          style={
-            styles.athleticIdentity
-          }
-        >
-          <Ionicons
-            name={
-              DIMENSION_ICONS[
-                item.dimension
-              ] ??
-              'analytics-outline'
-            }
-            size={17}
-            color={
-              colors.primaryLight
-            }
-          />
-
-          <Text
-            style={
-              styles.athleticLabel
-            }
-          >
-            {item.label}
-          </Text>
-        </View>
-
-        <View
-          style={
-            styles.athleticScoreRow
-          }
-        >
-          <Ionicons
-            name={getTrendIcon(
-              item.trend
-            )}
-            size={14}
-            color={
-              colors.primaryLight
-            }
-          />
-
-          <Text
-            style={
-              styles.athleticScore
-            }
-          >
-            {score ?? '—'}
-          </Text>
-        </View>
-      </View>
-
-      <View
-        style={
-          styles.scoreTrack
-        }
-      >
-        <View
-          style={[
-            styles.scoreFill,
-            {
-              width: `${width}%`,
-            },
-          ]}
-        />
-      </View>
-
-      <View
-        style={
-          styles.athleticBottom
-        }
-      >
-        <Text
-          style={
-            styles.confidenceText
-          }
-        >
-          CONFIANCE{' '}
-          {Math.round(
-            item.confidence
-          )}
-          %
-        </Text>
-
-        <Text
-          style={
-            styles.trendText
-          }
-        >
-          {getTrendLabel(
-            item.trend
-          )}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function MovementCard({
-  movement,
-  onPress,
-}) {
-  const delta =
-    formatDelta(
-      movement.performanceDelta
-    );
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.movementCard,
-        pressed &&
-          styles.cardPressed,
-      ]}
-    >
-      <View
-        style={
-          styles.movementIcon
-        }
-      >
-        <Ionicons
-          name="barbell-outline"
-          size={18}
-          color={
-            colors.primaryLight
-          }
-        />
-      </View>
-
-      <View
-        style={{
-          flex: 1,
-        }}
-      >
-        <Text
-          style={
-            styles.movementName
-          }
-        >
-          {movement.name.toUpperCase()}
-        </Text>
-
-        <Text
-          style={
-            styles.movementState
-          }
-        >
-          {movement.stateLabel}
-        </Text>
-
-        <View
-          style={
-            styles.movementMetaRow
-          }
-        >
-          {movement.currentValue ? (
-            <Text
-              style={
-                styles.movementValue
-              }
-            >
-              {
-                movement.currentValue
-              }
-            </Text>
-          ) : null}
-
-          <Text
-            style={
-              styles.movementConfidence
-            }
-          >
-            CONFIANCE{' '}
-            {
-              movement.confidence
-            }
-            %
-          </Text>
-        </View>
-
-        {movement.recommendationLabel ? (
-          <Text
-            style={
-              styles.recommendationText
-            }
-          >
-            {
-              movement.recommendationLabel
-            }
-          </Text>
-        ) : null}
-      </View>
-
-      {delta ? (
-        <View
-          style={
-            styles.deltaBadge
-          }
-        >
-          <Ionicons
-            name={
-              movement.performanceDelta >=
-              0
-                ? 'trending-up'
-                : 'trending-down'
-            }
-            size={12}
-            color={
-              movement.performanceDelta >=
-              0
-                ? colors.primaryLight
-                : colors.brandRed
-            }
-          />
-
-          <Text
-            style={[
-              styles.deltaText,
-              movement.performanceDelta <
-                0 && {
-                color:
-                  colors.brandRed,
-              },
-            ]}
-          >
-            {delta}
-          </Text>
-        </View>
-      ) : null}
-
-      <Ionicons
-        name="chevron-forward"
-        size={17}
-        color={
-          colors.textMuted
-        }
-      />
-    </Pressable>
-  );
-}
-
-function RegularityBar({
-  item,
-}) {
-  const target =
-    Math.max(
-      1,
-      Number(item.target ?? 1)
-    );
-
-  const reached =
-    item.value >= target;
-
-  const height =
-    Math.max(
-      6,
-      Math.round(
-        Math.min(
-          item.value / target,
-          1
-        ) * 100
-      )
-    );
-
-  return (
-    <View
-      style={
-        styles.regularityItem
-      }
-    >
-      <Text
-        style={[
-          styles.regularityValue,
-          reached && {
-            color:
-              colors.primaryLight,
-          },
-        ]}
-      >
-        {item.value}/{target}
-      </Text>
-
-      <View
-        style={
-          styles.regularityTrack
-        }
-      >
-        <View
-          style={[
-            styles.regularityFill,
-            {
-              height: `${height}%`,
-            },
-          ]}
-        />
-      </View>
-
-      <Text
-        style={
-          styles.regularityLabel
-        }
-      >
-        {item.label}
-      </Text>
-    </View>
-  );
-}
-
-function SessionStat({
-  label,
-  value,
-}) {
-  return (
-    <View
-      style={
-        styles.sessionStat
-      }
-    >
-      <Text
-        style={
-          styles.sessionStatLabel
-        }
-      >
-        {label}
-      </Text>
-
-      <Text
-        style={
-          styles.sessionStatValue
-        }
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function EmptyState({
-  text,
-}) {
-  return (
-    <View
-      style={
-        styles.emptyState
-      }
-    >
-      <Ionicons
-        name="analytics-outline"
-        size={20}
-        color={
-          colors.textMuted
-        }
-      />
-
-      <Text
-        style={
-          styles.emptyText
-        }
-      >
-        {text}
-      </Text>
-    </View>
-  );
-}
-
-const styles =
-  StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor:
-        colors.background,
-    },
-
-    background: {
-      flex: 1,
-    },
-
-    safeArea: {
-      flex: 1,
-    },
-
-    darkOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor:
-        'rgba(0,0,0,0.28)',
-    },
-
-    content: {
-      paddingHorizontal:
-        spacing.xl,
-      paddingTop: 8,
-    },
-
-    loadingScreen: {
-      flex: 1,
-      backgroundColor:
-        colors.background,
-      alignItems: 'center',
-      justifyContent:
-        'center',
-      gap: 14,
-    },
-
-    loadingLogo: {
-      width: 55,
-      height: 55,
-    },
-
-    loadingText: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 11,
-      letterSpacing: 0.8,
-      color:
-        colors.textSecondary,
-    },
-
-    header: {
-      minHeight: 74,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-
-    profileButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor:
-        'rgba(17,21,26,0.90)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.10)',
-      alignItems: 'center',
-      justifyContent:
-        'center',
-    },
-
-    headerText: {
-      flex: 1,
-    },
-
-    headerEyebrow: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 10,
-      lineHeight: 14,
-      letterSpacing: 1,
-      color:
-        colors.textSecondary,
-    },
-
-    headerTitle: {
-      ...typography.display,
-      fontSize: 32,
-      lineHeight: 35,
-      letterSpacing: 1.7,
-      color:
-        colors.textPrimary,
-    },
-
-    blueDot: {
-      color: colors.primary,
-    },
-
-    brandIcon: {
-      width: 46,
-      height: 46,
-    },
-
-    periodRow: {
-      flexDirection: 'row',
-      gap: 8,
-      marginTop: 8,
-    },
-
-    periodButton: {
-      flex: 1,
-      minHeight: 38,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.08)',
-      backgroundColor:
-        'rgba(17,21,26,0.88)',
-      alignItems: 'center',
-      justifyContent:
-        'center',
-    },
-
-    periodButtonSelected: {
-      borderColor:
-        colors.primary,
-      backgroundColor:
-        'rgba(8,104,255,0.12)',
-    },
-
-    periodText: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 9,
-      letterSpacing: 0.5,
-      color:
-        colors.textMuted,
-    },
-
-    periodTextSelected: {
-      color:
-        colors.primaryLight,
-    },
-
-    errorCard: {
-      marginTop: 14,
-      borderRadius: 15,
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,59,59,0.22)',
-      backgroundColor:
-        'rgba(255,59,59,0.08)',
-      padding: 14,
-      flexDirection: 'row',
-      gap: 10,
-      alignItems: 'flex-start',
-    },
-
-    errorTitle: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 10,
-      color:
-        colors.brandRed,
-    },
-
-    errorText: {
-      fontFamily:
-        'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 17,
-      color:
-        colors.textSecondary,
-      marginTop: 3,
-    },
-
-    summaryGrid: {
-      marginTop: 16,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-    },
-
-    summaryCard: {
-      width: '48%',
-      minHeight: 105,
-      borderRadius: 17,
-      padding: 14,
-      backgroundColor:
-        'rgba(17,21,26,0.92)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.08)',
-      justifyContent:
-        'space-between',
-    },
-
-    summaryValue: {
-      fontFamily:
-        'BebasNeue_400Regular',
-      fontSize: 29,
-      lineHeight: 31,
-      color:
-        colors.textPrimary,
-    },
-
-    summarySuffix: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 11,
-      color:
-        colors.textSecondary,
-    },
-
-    summaryLabel: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 9,
-      letterSpacing: 0.5,
-      color:
-        colors.textSecondary,
-    },
-
-    sectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-      marginTop: 29,
-      marginBottom: 10,
-    },
-
-    sectionTitle: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 14,
-      lineHeight: 18,
-      letterSpacing: 0.7,
-      color:
-        colors.textPrimary,
-    },
-
-    sectionMeta: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 9,
-      letterSpacing: 0.6,
-      color:
-        colors.textMuted,
-    },
-
-    chartCard: {
-      borderRadius: 17,
-      padding: 15,
-      backgroundColor:
-        'rgba(17,21,26,0.92)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.08)',
-    },
-
-    loadChart: {
-      minHeight: 170,
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent:
-        'space-between',
-      gap: 5,
-    },
-
-    loadBarItem: {
-      flex: 1,
-      alignItems: 'center',
-      minWidth: 0,
-    },
-
-    loadValue: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 8,
-      color:
-        colors.textSecondary,
-      marginBottom: 5,
-    },
-
-    loadTrack: {
-      width: '68%',
-      height: 110,
-      borderRadius: 8,
-      backgroundColor:
-        'rgba(255,255,255,0.06)',
-      overflow: 'hidden',
-      justifyContent:
-        'flex-end',
-    },
-
-    loadFill: {
-      width: '100%',
-      minHeight: 4,
-      borderRadius: 8,
-      backgroundColor:
-        colors.primary,
-    },
-
-    loadLabel: {
-      fontFamily:
-        'Oswald_500Medium',
-      fontSize: 7,
-      color:
-        colors.textMuted,
-      marginTop: 7,
-      textAlign: 'center',
-    },
-
-    chartHint: {
-      fontFamily:
-        'Oswald_400Regular',
-      fontSize: 10,
-      lineHeight: 16,
-      color:
-        colors.textMuted,
-      textAlign: 'center',
-      marginTop: 13,
-    },
-
-    profileCard: {
-      borderRadius: 17,
-      paddingHorizontal: 15,
-      backgroundColor:
-        'rgba(17,21,26,0.92)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.08)',
-    },
-
-    athleticRow: {
-      paddingVertical: 15,
-    },
-
-    athleticBorder: {
-      borderBottomWidth: 1,
-      borderBottomColor:
-        'rgba(255,255,255,0.06)',
-    },
-
-    athleticTop: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-    },
-
-    athleticIdentity: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-
-    athleticLabel: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 11,
-      letterSpacing: 0.4,
-      color:
-        colors.textPrimary,
-    },
-
-    athleticScoreRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-    },
-
-    athleticScore: {
-      fontFamily:
-        'BebasNeue_400Regular',
-      fontSize: 24,
-      color:
-        colors.textPrimary,
-    },
-
-    scoreTrack: {
-      height: 7,
-      borderRadius: 999,
-      backgroundColor:
-        'rgba(255,255,255,0.06)',
-      overflow: 'hidden',
-      marginTop: 10,
-    },
-
-    scoreFill: {
-      height: '100%',
-      borderRadius: 999,
-      backgroundColor:
-        colors.primary,
-    },
-
-    athleticBottom: {
-      flexDirection: 'row',
-      justifyContent:
-        'space-between',
-      marginTop: 7,
-    },
-
-    confidenceText: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 8,
-      letterSpacing: 0.4,
-      color:
-        colors.textMuted,
-    },
-
-    trendText: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 8,
-      color:
-        colors.primaryLight,
-    },
-
-    movementList: {
-      gap: 9,
-    },
-
-    movementCard: {
-      minHeight: 98,
-      borderRadius: 16,
-      padding: 13,
-      backgroundColor:
-        'rgba(17,21,26,0.92)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.08)',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-
-    movementIcon: {
-      width: 35,
-      height: 35,
-      borderRadius: 18,
-      backgroundColor:
-        'rgba(8,104,255,0.10)',
-      alignItems: 'center',
-      justifyContent:
-        'center',
-    },
-
-    movementName: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 12,
-      color:
-        colors.textPrimary,
-    },
-
-    movementState: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 8,
-      color:
-        colors.textMuted,
-      letterSpacing: 0.4,
-      marginTop: 2,
-    },
-
-    movementMetaRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 9,
-      marginTop: 5,
-    },
-
-    movementValue: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 10,
-      color:
-        colors.textPrimary,
-    },
-
-    movementConfidence: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 8,
-      color:
-        colors.textMuted,
-    },
-
-    recommendationText: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 8,
-      letterSpacing: 0.3,
-      color:
-        colors.primaryLight,
-      marginTop: 5,
-    },
-
-    deltaBadge: {
-      minHeight: 27,
-      borderRadius: 14,
-      paddingHorizontal: 8,
-      backgroundColor:
-        'rgba(8,104,255,0.10)',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
-
-    deltaText: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 9,
-      color:
-        colors.primaryLight,
-    },
-
-    coachCard: {
-      borderRadius: 17,
-      paddingHorizontal: 15,
-      backgroundColor:
-        'rgba(8,104,255,0.08)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(8,104,255,0.24)',
-    },
-
-    observationRow: {
-      minHeight: 88,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 11,
-      paddingVertical: 13,
-    },
-
-    observationBorder: {
-      borderBottomWidth: 1,
-      borderBottomColor:
-        'rgba(255,255,255,0.06)',
-    },
-
-    observationIcon: {
-      width: 35,
-      height: 35,
-      borderRadius: 18,
-      backgroundColor:
-        'rgba(8,104,255,0.12)',
-      alignItems: 'center',
-      justifyContent:
-        'center',
-    },
-
-    observationTitle: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 10,
-      letterSpacing: 0.4,
-      color:
-        colors.textPrimary,
-    },
-
-    observationText: {
-      fontFamily:
-        'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 17,
-      color:
-        colors.textSecondary,
-      marginTop: 3,
-    },
-
-    regularityCard: {
-      borderRadius: 17,
-      padding: 15,
-      backgroundColor:
-        'rgba(17,21,26,0.92)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.08)',
-    },
-
-    regularityBars: {
-      minHeight: 145,
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent:
-        'space-between',
-      gap: 5,
-    },
-
-    regularityItem: {
-      flex: 1,
-      alignItems: 'center',
-      minWidth: 0,
-    },
-
-    regularityValue: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 8,
-      color:
-        colors.textSecondary,
-      marginBottom: 5,
-    },
-
-    regularityTrack: {
-      width: '64%',
-      height: 90,
-      borderRadius: 8,
-      backgroundColor:
-        'rgba(255,255,255,0.06)',
-      overflow: 'hidden',
-      justifyContent:
-        'flex-end',
-    },
-
-    regularityFill: {
-      width: '100%',
-      borderRadius: 8,
-      backgroundColor:
-        colors.primary,
-      minHeight: 4,
-    },
-
-    regularityLabel: {
-      fontFamily:
-        'Oswald_500Medium',
-      fontSize: 7,
-      color:
-        colors.textMuted,
-      marginTop: 7,
-      textAlign: 'center',
-    },
-
-    historyHeader: {
-      marginTop: 29,
-      marginBottom: 10,
-      flexDirection: 'row',
-      justifyContent:
-        'space-between',
-      alignItems: 'center',
-    },
-
-    historySubtitle: {
-      fontFamily:
-        'Oswald_400Regular',
-      fontSize: 10,
-      color:
-        colors.textMuted,
-      marginTop: 2,
-    },
-
-    calendarButton: {
-      minHeight: 38,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      borderWidth: 1,
-      borderColor:
-        'rgba(8,104,255,0.25)',
-      backgroundColor:
-        'rgba(8,104,255,0.10)',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-
-    calendarButtonText: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 9,
-      color:
-        colors.primaryLight,
-      letterSpacing: 0.4,
-    },
-
-    sessionsList: {
-      gap: 9,
-    },
-
-    sessionCard: {
-      minHeight: 88,
-      borderRadius: 16,
-      paddingHorizontal: 13,
-      paddingVertical: 11,
-      backgroundColor:
-        'rgba(17,21,26,0.92)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.08)',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-
-    sessionCardPressed: {
-      backgroundColor:
-        'rgba(23,28,34,0.96)',
-      transform: [
-        {
-          scale: 0.99,
-        },
-      ],
-    },
-
-    sessionCheck: {
-      width: 27,
-      height: 27,
-      borderRadius: 14,
-      backgroundColor:
-        colors.primary,
-      alignItems: 'center',
-      justifyContent:
-        'center',
-    },
-
-    sessionMain: {
-      flex: 1,
-    },
-
-    sessionDate: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 8,
-      color:
-        colors.primaryLight,
-      letterSpacing: 0.5,
-    },
-
-    sessionTitle: {
-      fontFamily:
-        'BebasNeue_400Regular',
-      fontSize: 19,
-      color:
-        colors.textPrimary,
-      marginTop: 1,
-    },
-
-    sessionDuration: {
-      fontFamily:
-        'Oswald_500Medium',
-      fontSize: 9,
-      color:
-        colors.textMuted,
-      marginTop: 1,
-    },
-
-    sessionStats: {
-      flexDirection: 'row',
-      gap: 10,
-    },
-
-    sessionStat: {
-      alignItems: 'center',
-    },
-
-    sessionStatLabel: {
-      fontFamily:
-        'Oswald_600SemiBold',
-      fontSize: 7,
-      color:
-        colors.textMuted,
-    },
-
-    sessionStatValue: {
-      fontFamily:
-        'BebasNeue_400Regular',
-      fontSize: 16,
-      color:
-        colors.textPrimary,
-      marginTop: 2,
-    },
-
-    simpleCard: {
-      borderRadius: 16,
-      padding: 15,
-      backgroundColor:
-        'rgba(17,21,26,0.92)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(255,255,255,0.08)',
-    },
-
-    emptyState: {
-      minHeight: 72,
-      alignItems: 'center',
-      justifyContent:
-        'center',
-      gap: 7,
-      paddingHorizontal: 12,
-    },
-
-    emptyText: {
-      fontFamily:
-        'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 17,
-      color:
-        colors.textMuted,
-      textAlign: 'center',
-    },
-
-    infoCard: {
-      minHeight: 86,
-      marginTop: 28,
-      borderRadius: 16,
-      padding: 14,
-      backgroundColor:
-        'rgba(8,104,255,0.08)',
-      borderWidth: 1,
-      borderColor:
-        'rgba(8,104,255,0.24)',
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 11,
-    },
-
-    infoTitle: {
-      fontFamily:
-        'Oswald_700Bold',
-      fontSize: 10,
-      color:
-        colors.textPrimary,
-      letterSpacing: 0.4,
-    },
-
-    infoText: {
-      fontFamily:
-        'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 17,
-      color:
-        colors.textSecondary,
-      marginTop: 4,
-    },
-
-    cardPressed: {
-      backgroundColor:
-        'rgba(23,28,34,0.96)',
-      transform: [
-        {
-          scale: 0.99,
-        },
-      ],
-    },
-
-    pressed: {
-      opacity: 0.65,
-    },
-
-    bottomSpace: {
-      height: 38,
-    },
-  });
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  background: { flex: 1 },
+  darkOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,6,9,0.60)' },
+  safeArea: { flex: 1 },
+  content: { paddingHorizontal: spacing.xl, paddingTop: 8, paddingBottom: 46 },
+  loadingScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: colors.background },
+  loadingLogo: { width: 42, height: 42 },
+  loadingText: { fontFamily: 'Oswald_600SemiBold', fontSize: 10, letterSpacing: 1, color: colors.textMuted },
+  header: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  profileButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(17,21,26,0.84)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  headerText: { flex: 1 },
+  headerEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 9, letterSpacing: 1.1, color: colors.brandRed },
+  headerTitle: { marginTop: 1, fontFamily: 'BebasNeue_400Regular', fontSize: 31, lineHeight: 33, letterSpacing: 1.3, color: colors.textPrimary },
+  blueDot: { color: colors.primaryLight },
+  headerMeta: { marginTop: 1, fontFamily: 'Oswald_600SemiBold', fontSize: 8, letterSpacing: 0.55, color: colors.textMuted },
+  brandIcon: { width: 34, height: 34, opacity: 0.94 },
+  errorCard: { marginTop: 8, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, backgroundColor: 'rgba(17,21,26,0.92)', borderWidth: 1, borderColor: 'rgba(255,82,82,0.20)' },
+  errorText: { flex: 1, fontFamily: 'Oswald_400Regular', fontSize: 11, color: colors.textSecondary },
+  heroCard: { marginTop: 14, padding: 20, borderRadius: 22, backgroundColor: 'rgba(13,18,25,0.95)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.24)' },
+  heroEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 9, letterSpacing: 1.1, color: colors.primaryLight },
+  heroTitle: { marginTop: 7, fontFamily: 'BebasNeue_400Regular', fontSize: 31, lineHeight: 33, letterSpacing: 1.1, color: colors.textPrimary },
+  heroText: { marginTop: 8, fontFamily: 'Oswald_400Regular', fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  heroStats: { marginTop: 18, paddingTop: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
+  heroStatValue: { textAlign: 'center', fontFamily: 'BebasNeue_400Regular', fontSize: 24, color: colors.textPrimary },
+  heroStatLabel: { marginTop: 1, textAlign: 'center', fontFamily: 'Oswald_600SemiBold', fontSize: 8, letterSpacing: 0.75, color: colors.textMuted },
+  heroDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.08)' },
+  sectionLabel: { marginTop: 25, marginBottom: 9, fontFamily: 'Oswald_700Bold', fontSize: 9, letterSpacing: 1.15, color: colors.textMuted },
+  hubCard: { minHeight: 122, marginBottom: 11, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 19, backgroundColor: 'rgba(17,21,26,0.94)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  pressed: { opacity: 0.72 },
+  iconBox: { width: 43, height: 43, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(8,104,255,0.13)' },
+  iconBoxRed: { backgroundColor: 'rgba(255,59,59,0.11)' },
+  cardMain: { flex: 1 },
+  cardEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 8, letterSpacing: 1, color: colors.textMuted },
+  cardTitle: { marginTop: 2, fontFamily: 'BebasNeue_400Regular', fontSize: 22, lineHeight: 24, letterSpacing: 0.9, color: colors.textPrimary },
+  cardValue: { marginTop: 5, fontFamily: 'Oswald_700Bold', fontSize: 11, lineHeight: 16, color: colors.primaryLight },
+  cardText: { marginTop: 4, fontFamily: 'Oswald_400Regular', fontSize: 10, lineHeight: 15, color: colors.textSecondary },
+  cardMeta: { marginTop: 5, fontFamily: 'Oswald_600SemiBold', fontSize: 8, letterSpacing: 0.5, color: colors.textMuted },
+  footerNote: { marginTop: 12, paddingHorizontal: 8, fontFamily: 'Oswald_400Regular', fontSize: 9, lineHeight: 14, textAlign: 'center', color: colors.textMuted },
+});
