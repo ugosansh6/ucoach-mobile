@@ -40,22 +40,22 @@ export default function WelcomeScreen() {
         {/* Voile sombre global */}
         <View style={styles.darkOverlay} />
 
-        {/* Fondu vertical */}
+        {/* Fondu vertical — référence Dashboard */}
         <LinearGradient
           colors={[
-            'rgba(7, 9, 12, 0.24)',
-            'rgba(7, 9, 12, 0.14)',
-            'rgba(7, 9, 12, 0.56)',
-            'rgba(7, 9, 12, 0.96)',
+            'rgba(7, 9, 12, 0.32)',
+            'rgba(7, 9, 12, 0.20)',
+            'rgba(7, 9, 12, 0.70)',
+            'rgba(7, 9, 12, 0.98)',
           ]}
-          locations={[0, 0.34, 0.66, 1]}
+          locations={[0, 0.3, 0.62, 1]}
           style={StyleSheet.absoluteFill}
         />
 
-        {/* Fondu latéral */}
+        {/* Fondu latéral — référence Dashboard */}
         <LinearGradient
           colors={[
-            'rgba(7, 9, 12, 0.62)',
+            'rgba(7, 9, 12, 0.55)',
             'rgba(7, 9, 12, 0.08)',
           ]}
           start={{ x: 0, y: 0.5 }}
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
 
   darkOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.22)',
+    backgroundColor: 'rgba(0, 0, 0, 0.26)',
   },
 
   safeArea: {
