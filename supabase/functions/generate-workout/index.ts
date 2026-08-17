@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "swap-handler-v7-context-reasons";
+const VERSION = "swap-handler-v8-context-reasons-admin";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -33,10 +33,18 @@ serve(async (req: Request) => {
     const auth = req.headers.get("Authorization");
     const url = Deno.env.get("SUPABASE_URL");
     const anon = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!auth) return json({ error: "Unauthorized" }, 401);
-    if (!url || !anon) throw new Error("Missing Supabase environment variables.");
+    if (!url || !anon || !serviceRole) throw new Error("Missing Supabase environment variables.");
 
     const supabase = createClient(url, anon, { global: { headers: { Authorization: auth } } });
+    const admin = createClient(url, serviceRole, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user) return json({ error: "Unauthorized" }, 401);
     const userId = authData.user.id;
@@ -49,7 +57,7 @@ serve(async (req: Request) => {
         return json({ error: "session_exercise_id requis (ou session_id + current_exercise_id pour compatibilité temporaire)." }, 400);
       }
 
-      const { data: rows, error } = await supabase
+      const { data: rows, error } = await admin
         .from("workout_session_exercises")
         .select("id, session_id, exercise_id, block_key, position, workout_sessions!inner(user_id)")
         .eq("session_id", body.session_id)
@@ -69,7 +77,7 @@ serve(async (req: Request) => {
       instanceId = rows[0].id;
     }
 
-    const { data: target, error: targetError } = await supabase
+    const { data: target, error: targetError } = await admin
       .from("workout_session_exercises")
       .select("id, session_id, exercise_id, workout_sessions!inner(user_id)")
       .eq("id", instanceId)
@@ -77,7 +85,7 @@ serve(async (req: Request) => {
       .single();
     if (targetError || !target) return json({ error: "Exercice de séance introuvable." }, 404);
 
-    const { data: session, error: sessionError } = await supabase
+    const { data: session, error: sessionError } = await admin
       .from("workout_sessions")
       .select("id, planning_context_json")
       .eq("id", target.session_id)
@@ -119,7 +127,7 @@ serve(async (req: Request) => {
 
     if (reason === "environment") {
       const explicit = uniqueStrings(body.unavailable_environment_requirements ?? []);
-      const { data: requirements, error: requirementError } = await supabase
+      const { data: requirements, error: requirementError } = await admin
         .from("exercise_environment_requirements")
         .select("requirement_key, reason")
         .eq("exercise_id", target.exercise_id);
@@ -142,7 +150,7 @@ serve(async (req: Request) => {
     }
 
     if (reason === "equipment") {
-      const { data: equipmentRows, error: equipmentError } = await supabase
+      const { data: equipmentRows, error: equipmentError } = await admin
         .from("exercise_equipment")
         .select("equipment_id")
         .eq("exercise_id", target.exercise_id);
@@ -163,7 +171,7 @@ serve(async (req: Request) => {
     }
 
     if (unavailableEnvironment.length > 0) {
-      const { data: blockedByEnvironment, error: blockedEnvironmentError } = await supabase
+      const { data: blockedByEnvironment, error: blockedEnvironmentError } = await admin
         .from("exercise_environment_requirements")
         .select("exercise_id")
         .in("requirement_key", unavailableEnvironment);
@@ -172,7 +180,7 @@ serve(async (req: Request) => {
     }
 
     if (unavailableEquipmentIds.length > 0) {
-      const { data: blockedByEquipment, error: blockedEquipmentError } = await supabase
+      const { data: blockedByEquipment, error: blockedEquipmentError } = await admin
         .from("exercise_equipment")
         .select("exercise_id")
         .in("equipment_id", unavailableEquipmentIds);
@@ -197,7 +205,7 @@ serve(async (req: Request) => {
         },
       };
 
-      const { error: contextUpdateError } = await supabase
+      const { error: contextUpdateError } = await admin
         .from("workout_sessions")
         .update({ planning_context_json: nextPlanning })
         .eq("id", target.session_id)
@@ -239,7 +247,7 @@ serve(async (req: Request) => {
     const substitute = data.substitute ?? exercises.find((x: any) => x.session_exercise_id === instanceId) ?? null;
 
     if (!body.undo) {
-      const { data: currentRow, error: currentRowError } = await supabase
+      const { data: currentRow, error: currentRowError } = await admin
         .from("workout_session_exercises")
         .select("solver_decision_json")
         .eq("id", instanceId)
@@ -250,7 +258,7 @@ serve(async (req: Request) => {
         ? currentRow.solver_decision_json
         : {};
 
-      const { error: reasonUpdateError } = await supabase
+      const { error: reasonUpdateError } = await admin
         .from("workout_session_exercises")
         .update({
           solver_decision_json: {
