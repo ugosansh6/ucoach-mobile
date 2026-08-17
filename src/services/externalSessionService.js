@@ -28,22 +28,30 @@ export async function searchExternalSessionExercises(query = '') {
   return data ?? [];
 }
 
+function optionalNumber(value) {
+  if (value == null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const number = Number(text.replace(',', '.'));
+  return Number.isFinite(number) ? number : null;
+}
+
 function cleanActual(item) {
   const actual = {
     user_execution_status: 'completed',
   };
 
-  const reps = Number(item.reps);
-  const load = Number(String(item.loadKg ?? '').replace(',', '.'));
-  const duration = Number(item.durationSeconds);
-  const distance = Number(String(item.distanceMeters ?? '').replace(',', '.'));
-  const rpe = Number(item.rpe);
+  const reps = optionalNumber(item.reps);
+  const load = optionalNumber(item.loadKg);
+  const duration = optionalNumber(item.durationSeconds);
+  const distance = optionalNumber(item.distanceMeters);
+  const rpe = optionalNumber(item.rpe);
 
-  if (Number.isFinite(reps) && reps >= 0) actual.reps_completed = reps;
-  if (Number.isFinite(load) && load >= 0) actual.load_kg = load;
-  if (Number.isFinite(duration) && duration >= 0) actual.duration_seconds = duration;
-  if (Number.isFinite(distance) && distance >= 0) actual.distance_meters = distance;
-  if (Number.isFinite(rpe) && rpe >= 1 && rpe <= 10) actual.rpe = rpe;
+  if (reps != null && reps >= 0) actual.reps_completed = reps;
+  if (load != null && load >= 0) actual.load_kg = load;
+  if (duration != null && duration >= 0) actual.duration_seconds = duration;
+  if (distance != null && distance >= 0) actual.distance_meters = distance;
+  if (rpe != null && rpe >= 1 && rpe <= 10) actual.rpe = rpe;
 
   return actual;
 }
@@ -154,13 +162,13 @@ export async function saveStructuredExternalSession({
     mechanic: 'EXTERNAL',
   };
 
-  const globalRpeNumber = Number(globalRpe);
-  if (Number.isFinite(globalRpeNumber) && globalRpeNumber >= 1 && globalRpeNumber <= 10) {
+  const globalRpeNumber = optionalNumber(globalRpe);
+  if (globalRpeNumber != null && globalRpeNumber >= 1 && globalRpeNumber <= 10) {
     sessionMeta.global_rpe = globalRpeNumber;
   }
 
-  const feelingNumber = Number(postWorkoutFeeling);
-  if (Number.isFinite(feelingNumber) && feelingNumber >= 1 && feelingNumber <= 10) {
+  const feelingNumber = optionalNumber(postWorkoutFeeling);
+  if (feelingNumber != null && feelingNumber >= 1 && feelingNumber <= 10) {
     sessionMeta.post_workout_feeling = feelingNumber;
   }
 
