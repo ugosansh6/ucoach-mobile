@@ -1,0 +1,37 @@
+name: PWA QA
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+
+jobs:
+  expo-web-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: qa-placeholder-key
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export Expo web
+        run: npx expo export --platform web
+
+      - name: Verify PWA assets
+        run: |
+          test -f dist/manifest.json
+          test -f dist/ugerod-icon.png
+          grep -q 'rel="manifest"' dist/index.html
+          grep -q 'apple-mobile-web-app-capable' dist/index.html
