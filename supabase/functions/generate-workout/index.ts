@@ -71,7 +71,7 @@ serve(async (req: Request) => {
 
     const { data: target, error: targetError } = await supabase
       .from("workout_session_exercises")
-      .select("id, session_id, exercise_id, solver_decision_json, workout_sessions!inner(user_id)")
+      .select("id, session_id, exercise_id, workout_sessions!inner(user_id)")
       .eq("id", instanceId)
       .eq("workout_sessions.user_id", userId)
       .single();
@@ -239,10 +239,18 @@ serve(async (req: Request) => {
     const substitute = data.substitute ?? exercises.find((x: any) => x.session_exercise_id === instanceId) ?? null;
 
     if (!body.undo) {
-      const solverDecision = target.solver_decision_json && typeof target.solver_decision_json === "object"
-        ? target.solver_decision_json
+      const { data: currentRow, error: currentRowError } = await supabase
+        .from("workout_session_exercises")
+        .select("solver_decision_json")
+        .eq("id", instanceId)
+        .single();
+      if (currentRowError) throw new Error(currentRowError.message);
+
+      const solverDecision = currentRow?.solver_decision_json && typeof currentRow.solver_decision_json === "object"
+        ? currentRow.solver_decision_json
         : {};
-      await supabase
+
+      const { error: reasonUpdateError } = await supabase
         .from("workout_session_exercises")
         .update({
           solver_decision_json: {
@@ -254,6 +262,7 @@ serve(async (req: Request) => {
           },
         })
         .eq("id", instanceId);
+      if (reasonUpdateError) throw new Error(reasonUpdateError.message);
     }
 
     return json({
