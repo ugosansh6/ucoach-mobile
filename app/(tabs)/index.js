@@ -37,6 +37,7 @@ import {
 import {
   useWorkout,
 } from '../../src/contexts/WorkoutContext';
+import DashboardHistoryCalendar from '../../src/components/dashboard/DashboardHistoryCalendar';
 
 const dashboardBackground = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -769,53 +770,14 @@ export default function DashboardScreen() {
                   />
                 </View>
 
-                <View style={styles.calendarSection}>
-                  <View style={styles.calendarHeader}>
-                    <View>
-                      <Text style={styles.sectionTitle}>
-                        CETTE SEMAINE
-                      </Text>
-
-                      <Text style={styles.monthLabel}>
-                        {monthLabel}
-                      </Text>
-                    </View>
-
-                    <WeekScore
-                      completed={completedSessions}
-                      target={weeklyTarget}
-                      reached={goalReached}
-                    />
-                  </View>
-
-                  <WeekCard
-                    week={week}
-                    interactive
-                    onDayPress={handleDayPress}
-                  />
-
-                  <Pressable
-                    onPress={handlePlanning}
-                    style={({ pressed }) => [
-                      styles.planningShortcut,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={14}
-                      color={colors.textMuted}
-                    />
-                    <Text style={styles.planningShortcutText}>
-                      VOIR MON PLANNING
-                    </Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={14}
-                      color={colors.textMuted}
-                    />
-                  </Pressable>
-                </View>
+                <DashboardHistoryCalendar
+                  week={week}
+                  completed={completedSessions}
+                  target={weeklyTarget}
+                  reached={goalReached}
+                  initialMonthSessions={snapshot?.monthSessions}
+                  onCompletedDayPress={handleDayPress}
+                />
 
                 <View style={styles.regularitySection}>
                   <Text style={styles.sectionTitle}>
