@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { setAudioModeAsync } from 'expo-audio';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import {
@@ -17,6 +19,7 @@ import {
 import { colors } from '../src/constants';
 import { OnboardingProvider } from '../src/contexts/OnboardingContext';
 import { WorkoutProvider } from '../src/contexts/WorkoutContext';
+import SessionAdaptationOverlay from '../src/components/workout/SessionAdaptationOverlay';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -26,6 +29,18 @@ export default function RootLayout() {
     Oswald_600SemiBold,
     Oswald_700Bold,
   });
+
+  useEffect(() => {
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: 'mixWithOthers',
+    }).catch((error) => {
+      console.warn(
+        'UGEROD audio mixing mode',
+        error
+      );
+    });
+  }, []);
 
   if (!fontsLoaded) {
     return null;
@@ -45,6 +60,8 @@ export default function RootLayout() {
               },
             }}
           />
+
+          <SessionAdaptationOverlay />
         </WorkoutProvider>
       </OnboardingProvider>
     </SafeAreaProvider>
