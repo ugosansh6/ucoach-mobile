@@ -98,7 +98,15 @@ export async function getExerciseRecordMetricOptions(exerciseId) {
     throw new Error(error.message);
   }
 
-  return data ?? { metrics: [] };
+  const source = data ?? { metrics: [] };
+
+  return {
+    ...source,
+    metrics: (source.metrics ?? []).map((metric) => ({
+      ...metric,
+      canonical_unit: metric.canonical_unit ?? metric.unit ?? null,
+    })),
+  };
 }
 
 export async function saveManualExerciseRecord({
