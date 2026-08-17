@@ -1599,9 +1599,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 24,
     borderRadius: 19,
-    backgroundColor: 'rgba(17,21,26,0.94)',
+    backgroundColor: 'rgba(17,21,26,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(8,104,255,0.28)',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   firstWorkoutTop: {
     flexDirection: 'row',
