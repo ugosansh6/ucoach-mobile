@@ -39,7 +39,7 @@ export default function DashboardHistoryCalendar(props) {
             </View>
 
             <View>
-              <Text style={styles.addEyebrow}>AJOUT RAPIDE</Text>
+              <Text style={styles.addEyebrow}>TU VIENS DE T’ENTRAÎNER ?</Text>
               <Text style={styles.addTitle}>AJOUTER À UGEROD</Text>
             </View>
           </View>
