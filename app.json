@@ -23,7 +23,7 @@
       }
     },
     "web": {
-      "output": "single",
+      "output": "static",
       "name": "UGEROD",
       "shortName": "UGEROD",
       "favicon": "./assets/favicon.png"
