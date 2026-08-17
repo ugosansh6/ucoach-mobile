@@ -1,0 +1,629 @@
+from pathlib import Path
+import re
+
+path = Path('app/workout/session.js')
+text = path.read_text(encoding='utf-8')
+
+if "adaptSessionExercise" in text:
+    print('Swap reason patch already applied')
+    raise SystemExit(0)
+
+
+def exact_replace(source, old, new, label):
+    count = source.count(old)
+    if count != 1:
+        raise SystemExit(f'{label}: expected 1 match, found {count}')
+    return source.replace(old, new, 1)
+
+
+text = exact_replace(
+    text,
+    "import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayer';",
+    "import { adaptSessionExercise } from '../../src/services/sessionAdaptationService';\n\nimport WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayer';",
+    'adapt service import',
+)
+
+text = exact_replace(
+    text,
+    """      !workout.sessionId ||
+      !exercise.sessionExerciseId ||
+      swapAvailability?.[
+        exercise.sessionExerciseId
+      ]?.available !== true""",
+    """      !workout.sessionId ||
+      !exercise.sessionExerciseId""",
+    'open swap availability gate',
+)
+
+new_handle_swap = r'''  async function handleSwap(
+    blockId,
+    exercise,
+    {
+      reason = 'equivalent',
+      undo = false,
+    } = {}
+  ) {
+    const instanceId =
+      exercise?.sessionExerciseId;
+
+    const swapState =
+      instanceId
+        ? swapAvailability?.[
+            instanceId
+          ]
+        : null;
+
+    const directionByReason = {
+      too_easy: 'harder',
+      too_hard: 'easier',
+      environment: 'equivalent',
+      equipment: 'equivalent',
+      equivalent: 'equivalent',
+    };
+
+    const direction =
+      directionByReason[reason] ??
+      'equivalent';
+
+    const directionAvailable =
+      undo
+        ? swapState?.can_undo === true
+        : reason === 'environment' ||
+            reason === 'equipment'
+          ? true
+          : swapState?.directions?.[
+              direction
+            ]?.available === true;
+
+    if (
+      swappingExerciseKey ||
+      validatedBlocks.includes(
+        blockId
+      ) ||
+      !workout.sessionId ||
+      !instanceId ||
+      !directionAvailable
+    ) {
+      return;
+    }
+
+    setSwapError('');
+    setSwappingExerciseKey(
+      exercise._uiKey
+    );
+
+    try {
+      const excludedExerciseIds =
+        undo
+          ? []
+          : swapSeenExerciseIds[
+              instanceId
+            ] ?? [];
+
+      if (undo) {
+        await swapWorkoutExercise({
+          sessionId:
+            workout.sessionId,
+          sessionExerciseId:
+            instanceId,
+          currentExerciseId:
+            exercise.exerciseId ??
+            exercise.id,
+          direction: 'equivalent',
+          undo: true,
+          excludedExerciseIds: [],
+        });
+      } else {
+        await adaptSessionExercise({
+          sessionId:
+            workout.sessionId,
+          sessionExerciseId:
+            instanceId,
+          currentExerciseId:
+            exercise.exerciseId ??
+            exercise.id,
+          reason,
+          excludedExerciseIds,
+        });
+      }
+
+      const previousByInstance =
+        new Map(
+          sourceExercises
+            .filter(
+              (item) =>
+                item.sessionExerciseId
+            )
+            .map((item) => [
+              item.sessionExerciseId,
+              item,
+            ])
+        );
+
+      const refreshed =
+        await reloadWorkoutSession({
+          sessionId:
+            workout.sessionId,
+          preparationSnapshot:
+            workout.preparationSnapshot,
+        });
+
+      const availabilityAfter =
+        await getWorkoutSwapAvailability(
+          workout.sessionId
+        );
+
+      const stillAdaptedAfterUndo =
+        undo
+          ? availabilityAfter?.items?.[
+              instanceId
+            ]?.can_undo === true
+          : true;
+
+      setSwapAvailability(
+        availabilityAfter?.items ?? {}
+      );
+
+      updateWorkout({
+        ...refreshed,
+        exercises:
+          refreshed.exercises.map(
+            (item) => {
+              if (
+                item.sessionExerciseId ===
+                instanceId
+              ) {
+                return {
+                  ...item,
+                  status:
+                    undo &&
+                    !stillAdaptedAfterUndo
+                      ? 'pending'
+                      : 'adapted',
+                  adaptationSource:
+                    undo &&
+                    !stillAdaptedAfterUndo
+                      ? null
+                      : undo
+                        ? 'swap-undo'
+                        : reason,
+                };
+              }
+
+              const previous =
+                previousByInstance.get(
+                  item.sessionExerciseId
+                );
+
+              return previous
+                ? {
+                    ...item,
+                    status:
+                      previous.status,
+                    adaptationSource:
+                      previous.adaptationSource ??
+                      null,
+                  }
+                : item;
+            }
+          ),
+        validatedBlocks,
+      });
+
+      setSwapSeenExerciseIds(
+        (current) => {
+          if (undo) {
+            return {
+              ...current,
+              [instanceId]: [],
+            };
+          }
+
+          const seen = new Set(
+            current[instanceId] ?? []
+          );
+
+          const currentExerciseId =
+            exercise.exerciseId ??
+            exercise.id;
+
+          if (currentExerciseId) {
+            seen.add(
+              currentExerciseId
+            );
+          }
+
+          return {
+            ...current,
+            [instanceId]: [
+              ...seen,
+            ],
+          };
+        }
+      );
+
+      setExpandedExercises(
+        (current) => {
+          const next = {
+            ...current,
+          };
+
+          delete next[
+            exercise._uiKey
+          ];
+
+          return next;
+        }
+      );
+
+      setSwapActionExercise(null);
+    } catch (error) {
+      setSwapError(
+        error?.message ??
+          'Impossible de changer cet exercice.'
+      );
+    } finally {
+      setSwappingExerciseKey(null);
+    }
+  }
+
+  function toggleBlockExerciseSelection('''
+
+text, count = re.subn(
+    r"  async function handleSwap\([\s\S]*?\n  function toggleBlockExerciseSelection\(",
+    lambda _: new_handle_swap,
+    text,
+    count=1,
+)
+if count != 1:
+    raise SystemExit(f'handleSwap: expected 1 match, found {count}')
+
+text = exact_replace(
+    text,
+    """                            const swapAvailable =
+                              swapState?.available ===
+                              true;""",
+    """                            const swapAvailable =
+                              Boolean(
+                                exercise.sessionExerciseId
+                              );""",
+    'swap button availability',
+)
+
+text = exact_replace(
+    text,
+    """        loading={Boolean(
+          swappingExerciseKey
+        )}
+        onClose={""",
+    """        loading={Boolean(
+          swappingExerciseKey
+        )}
+        error={swapError}
+        onClose={""",
+    'swap modal error prop',
+)
+
+text = exact_replace(
+    text,
+    """        onSelect={(
+          direction,
+          undo = false
+        ) =>
+          handleSwap(
+            swapActionExercise
+              ?.blockId,
+            swapActionExercise
+              ?.exercise,
+            {
+              direction,
+              undo,
+            }
+          )
+        }""",
+    """        onSelect={(
+          reason,
+          undo = false
+        ) =>
+          handleSwap(
+            swapActionExercise
+              ?.blockId,
+            swapActionExercise
+              ?.exercise,
+            {
+              reason,
+              undo,
+            }
+          )
+        }""",
+    'swap modal reason callback',
+)
+
+new_swap_modal = r'''function SwapDirectionModal({
+  visible,
+  exercise,
+  availability,
+  loading,
+  error,
+  onClose,
+  onSelect,
+}) {
+  const directions =
+    availability?.directions ?? {};
+
+  const options = [
+    {
+      value: 'too_easy',
+      label: 'TROP FACILE',
+      description:
+        'UGEROD cherche une progression plus exigeante.',
+      icon: 'arrow-up-circle-outline',
+      available:
+        directions?.harder
+          ?.available === true,
+      unavailableText:
+        'Aucune progression sûre disponible.',
+    },
+    {
+      value: 'too_hard',
+      label: 'TROP DIFFICILE',
+      description:
+        'UGEROD cherche une variante plus accessible.',
+      icon: 'arrow-down-circle-outline',
+      available:
+        directions?.easier
+          ?.available === true,
+      unavailableText:
+        'Aucune régression sûre disponible.',
+    },
+    {
+      value: 'environment',
+      label: 'IMPOSSIBLE ICI',
+      description:
+        'Mur, espace, hauteur ou autre contrainte du lieu.',
+      icon: 'location-outline',
+      available: true,
+    },
+    {
+      value: 'equipment',
+      label: 'MATÉRIEL INDISPONIBLE',
+      description:
+        'UGEROD cherche une alternative sans ce matériel.',
+      icon: 'construct-outline',
+      available: true,
+    },
+  ];
+
+  const canUndo =
+    availability?.can_undo === true;
+
+  const undoLabel =
+    availability?.undo_exercise_name
+      ? `REVENIR À ${String(
+          availability.undo_exercise_name
+        ).toUpperCase()}`
+      : 'REVENIR AU PRÉCÉDENT';
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={styles.statusModalOverlay}>
+        <Pressable
+          style={styles.statusModalBackdrop}
+          onPress={onClose}
+        />
+
+        <View style={styles.statusModalCard}>
+          <View style={styles.statusModalHeader}>
+            <View style={styles.statusModalTitleArea}>
+              <Text style={styles.statusModalEyebrow}>
+                COACH UGEROD
+              </Text>
+              <Text style={styles.statusModalTitle}>
+                {String(
+                  exercise?.name ??
+                    'EXERCICE'
+                ).toUpperCase()}
+              </Text>
+              <Text style={styles.statusModalSubtitle}>
+                Pourquoi veux-tu changer ce mouvement ?
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={onClose}
+              disabled={loading}
+              style={styles.closeButton}
+            >
+              <Ionicons
+                name="close"
+                size={21}
+                color={colors.textPrimary}
+              />
+            </Pressable>
+          </View>
+
+          {error ? (
+            <View
+              style={[
+                styles.statusOption,
+                {
+                  marginTop: 14,
+                  borderColor:
+                    'rgba(255,61,72,0.38)',
+                  backgroundColor:
+                    'rgba(255,61,72,0.08)',
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusOptionIcon,
+                  styles.statusOptionIconNotCompleted,
+                ]}
+              >
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color={colors.brandWhite}
+                />
+              </View>
+              <View style={styles.statusOptionMain}>
+                <Text style={styles.statusOptionDescription}>
+                  {error}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.statusOptions}>
+            {options.map((option) => {
+              const disabled =
+                loading ||
+                !option.available;
+
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() =>
+                    onSelect(
+                      option.value,
+                      false
+                    )
+                  }
+                  disabled={disabled}
+                  style={({ pressed }) => [
+                    styles.statusOption,
+                    disabled &&
+                      styles.swapDirectionOptionDisabled,
+                    pressed &&
+                      !disabled &&
+                      styles.pressed,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.statusOptionIcon,
+                      styles.statusOptionIconCompleted,
+                    ]}
+                  >
+                    <Ionicons
+                      name={option.icon}
+                      size={18}
+                      color={colors.brandWhite}
+                    />
+                  </View>
+
+                  <View style={styles.statusOptionMain}>
+                    <Text style={styles.statusOptionLabel}>
+                      {option.label}
+                    </Text>
+                    <Text style={styles.statusOptionDescription}>
+                      {option.available
+                        ? option.description
+                        : option.unavailableText ??
+                          'Aucune option sûre disponible.'}
+                    </Text>
+                  </View>
+
+                  {loading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.primaryLight}
+                    />
+                  ) : option.available ? (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={colors.primaryLight}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="ban-outline"
+                      size={18}
+                      color={colors.textMuted}
+                    />
+                  )}
+                </Pressable>
+              );
+            })}
+
+            {canUndo ? (
+              <Pressable
+                onPress={() =>
+                  onSelect(
+                    'equivalent',
+                    true
+                  )
+                }
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.statusOption,
+                  styles.swapUndoOption,
+                  loading &&
+                    styles.swapDirectionOptionDisabled,
+                  pressed &&
+                    !loading &&
+                    styles.pressed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.statusOptionIcon,
+                    styles.swapUndoIcon,
+                  ]}
+                >
+                  <Ionicons
+                    name="arrow-undo"
+                    size={18}
+                    color={colors.brandWhite}
+                  />
+                </View>
+
+                <View style={styles.statusOptionMain}>
+                  <Text style={styles.statusOptionLabel}>
+                    {undoLabel}
+                  </Text>
+                  <Text style={styles.statusOptionDescription}>
+                    Annule le dernier remplacement de cet exercice.
+                  </Text>
+                </View>
+
+                {loading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.primaryLight}
+                  />
+                ) : (
+                  <Ionicons
+                    name="chevron-back"
+                    size={18}
+                    color={colors.primaryLight}
+                  />
+                )}
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ExerciseStatusModal({'''
+
+text, count = re.subn(
+    r"function SwapDirectionModal\(\{[\s\S]*?\nfunction ExerciseStatusModal\(\{",
+    lambda _: new_swap_modal,
+    text,
+    count=1,
+)
+if count != 1:
+    raise SystemExit(f'SwapDirectionModal: expected 1 match, found {count}')
+
+path.write_text(text, encoding='utf-8')
+print('Swap reason patch applied')
