@@ -671,35 +671,6 @@ export default function DashboardScreen() {
                   initialMonthSessions={snapshot?.monthSessions}
                   onCompletedDayPress={handleDayPress}
                 />
-
-                <View style={styles.firstStepsSection}>
-                  <Text style={styles.sectionTitle}>
-                    COMMENT ÇA MARCHE ?
-                  </Text>
-
-                  <View style={styles.firstStepsCard}>
-                    <FirstStep
-                      number="1"
-                      icon="options-outline"
-                      title="PRÉPARE"
-                      description="Forme, temps et matériel."
-                    />
-                    <View style={styles.firstStepDivider} />
-                    <FirstStep
-                      number="2"
-                      icon="sparkles-outline"
-                      title="UGEROD GÉNÈRE"
-                      description="Une séance adaptée."
-                    />
-                    <View style={styles.firstStepDivider} />
-                    <FirstStep
-                      number="3"
-                      icon="checkmark-circle-outline"
-                      title="VALIDE"
-                      description="Enregistre ta séance."
-                    />
-                  </View>
-                </View>
               </>
             ) : (
               <>
