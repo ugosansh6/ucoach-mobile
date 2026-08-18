@@ -1,0 +1,45 @@
+name: One-time Warmup UI Patch
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[warmup-ui-patch]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Patch warmup structure label
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/workout/session.js')
+          text = path.read_text()
+          old = """  if (\n    blockId === 'unlock' ||\n    blockId === 'warmup'\n  ) {\n"""
+          new = """  if (blockId === 'warmup') {\n    const rounds = firstFiniteNumber(\n      source?.warmupRounds,\n      source?.warmup_rounds,\n      prescription?.warmup_rounds,\n      3\n    );\n\n    return `${formatCompactNumber(rounds ?? 3)} tours · ${formatExerciseCount(exerciseCount)}`;\n  }\n\n  if (blockId === 'unlock') {\n"""
+          if old not in text:
+              raise SystemExit('Expected warmup/unlock structure fragment not found; refusing blind patch')
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+
+      - name: Remove one-time workflow and commit
+        shell: bash
+        run: |
+          git config user.name "UGEROD automation"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/one-time-warmup-ui-patch.yml
+          git add app/workout/session.js
+          git commit -m "feat(ui): show warmup circuit rounds [warmup-ui-patch]"
+          git push origin HEAD:ux-navigation-coach-v1
