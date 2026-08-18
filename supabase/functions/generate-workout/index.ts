@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "swap-handler-v8-context-reasons-admin";
+const VERSION = "swap-handler-v9-equipment-alternatives";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -87,7 +87,7 @@ serve(async (req: Request) => {
 
     const { data: session, error: sessionError } = await admin
       .from("workout_sessions")
-      .select("id, planning_context_json")
+      .select("id, planning_context_json, available_equipment")
       .eq("id", target.session_id)
       .eq("user_id", userId)
       .single();
@@ -124,6 +124,9 @@ serve(async (req: Request) => {
 
     let unavailableEnvironment = uniqueStrings(runtimeEnvironment.unavailable_requirements ?? []);
     let unavailableEquipmentIds = uniqueStrings(runtimeEquipment.unavailable_equipment_ids ?? []);
+    let sessionEquipmentNames = Array.isArray(session.available_equipment)
+      ? uniqueStrings(session.available_equipment)
+      : [];
 
     if (reason === "environment") {
       const explicit = uniqueStrings(body.unavailable_environment_requirements ?? []);
@@ -150,14 +153,27 @@ serve(async (req: Request) => {
     }
 
     if (reason === "equipment") {
-      const { data: equipmentRows, error: equipmentError } = await admin
-        .from("exercise_equipment")
-        .select("equipment_id")
-        .eq("exercise_id", target.exercise_id);
-      if (equipmentError) throw new Error(equipmentError.message);
+      const { data: requirementRows, error: requirementError } = await admin
+        .from("exercise_equipment_requirements_v2")
+        .select("option_group, equipment_id, is_optional")
+        .eq("exercise_id", target.exercise_id)
+        .eq("is_optional", false);
+      if (requirementError) throw new Error(requirementError.message);
 
-      const inferredEquipment = uniqueStrings((equipmentRows ?? []).map((item: any) => item.equipment_id));
-      if (inferredEquipment.length === 0) {
+      let candidateEquipmentIds = uniqueStrings(
+        (requirementRows ?? []).map((item: any) => item.equipment_id),
+      );
+
+      if (candidateEquipmentIds.length === 0) {
+        const { data: legacyRows, error: legacyError } = await admin
+          .from("exercise_equipment")
+          .select("equipment_id")
+          .eq("exercise_id", target.exercise_id);
+        if (legacyError) throw new Error(legacyError.message);
+        candidateEquipmentIds = uniqueStrings((legacyRows ?? []).map((item: any) => item.equipment_id));
+      }
+
+      if (candidateEquipmentIds.length === 0) {
         return json({
           status: "NO_EQUIPMENT_REQUIREMENT_IDENTIFIED",
           code: "NO_EQUIPMENT_REQUIREMENT_IDENTIFIED",
@@ -167,7 +183,77 @@ serve(async (req: Request) => {
         }, 422);
       }
 
-      unavailableEquipmentIds = uniqueStrings([...unavailableEquipmentIds, ...inferredEquipment]);
+      const { data: candidateCatalog, error: candidateCatalogError } = await admin
+        .from("equipment")
+        .select("id, name")
+        .in("id", candidateEquipmentIds);
+      if (candidateCatalogError) throw new Error(candidateCatalogError.message);
+
+      if (sessionEquipmentNames.length === 0) {
+        const { data: inventoryRows, error: inventoryError } = await admin
+          .from("user_equipment_inventory")
+          .select("equipment_id")
+          .eq("user_id", userId)
+          .eq("active", true);
+        if (inventoryError) throw new Error(inventoryError.message);
+
+        const inventoryIds = uniqueStrings((inventoryRows ?? []).map((item: any) => item.equipment_id));
+        if (inventoryIds.length > 0) {
+          const { data: inventoryCatalog, error: inventoryCatalogError } = await admin
+            .from("equipment")
+            .select("id, name")
+            .in("id", inventoryIds);
+          if (inventoryCatalogError) throw new Error(inventoryCatalogError.message);
+          sessionEquipmentNames = uniqueStrings((inventoryCatalog ?? []).map((item: any) => item.name));
+        }
+      }
+
+      const availableKeys = new Set(sessionEquipmentNames.map(normalizeKey));
+      const candidateNameById = new Map<string, string>(
+        (candidateCatalog ?? []).map((item: any) => [String(item.id), String(item.name ?? "")]),
+      );
+      const currentlyAvailableCandidateIds = candidateEquipmentIds.filter((equipmentId) => {
+        const equipmentName = candidateNameById.get(equipmentId) ?? "";
+        return availableKeys.has(normalizeKey(equipmentId)) || availableKeys.has(normalizeKey(equipmentName));
+      });
+
+      let newlyUnavailableEquipment: string[] = [];
+      if (currentlyAvailableCandidateIds.length === 1) {
+        newlyUnavailableEquipment = currentlyAvailableCandidateIds;
+      } else if (candidateEquipmentIds.length === 1) {
+        newlyUnavailableEquipment = candidateEquipmentIds;
+      } else {
+        return json({
+          status: "EQUIPMENT_SELECTION_REQUIRED",
+          code: "EQUIPMENT_SELECTION_REQUIRED",
+          error: "Ce mouvement peut utiliser plusieurs matériels disponibles. Précise lequel est indisponible.",
+          exercise_id: target.exercise_id,
+          equipment_options: (candidateCatalog ?? []).map((item: any) => ({ id: item.id, name: item.name })),
+          version: VERSION,
+        }, 409);
+      }
+
+      unavailableEquipmentIds = uniqueStrings([
+        ...unavailableEquipmentIds,
+        ...newlyUnavailableEquipment,
+      ]);
+
+      const { data: unavailableCatalog, error: unavailableCatalogError } = await admin
+        .from("equipment")
+        .select("id, name")
+        .in("id", unavailableEquipmentIds);
+      if (unavailableCatalogError) throw new Error(unavailableCatalogError.message);
+
+      const unavailableKeys = new Set<string>();
+      for (const item of unavailableCatalog ?? []) {
+        unavailableKeys.add(normalizeKey(item.id));
+        unavailableKeys.add(normalizeKey(item.name));
+      }
+
+      sessionEquipmentNames = sessionEquipmentNames.filter(
+        (item) => !unavailableKeys.has(normalizeKey(item)),
+      );
+      if (sessionEquipmentNames.length === 0) sessionEquipmentNames = ["Aucun"];
     }
 
     if (unavailableEnvironment.length > 0) {
@@ -177,15 +263,6 @@ serve(async (req: Request) => {
         .in("requirement_key", unavailableEnvironment);
       if (blockedEnvironmentError) throw new Error(blockedEnvironmentError.message);
       for (const row of blockedByEnvironment ?? []) excludedIds.add(String(row.exercise_id));
-    }
-
-    if (unavailableEquipmentIds.length > 0) {
-      const { data: blockedByEquipment, error: blockedEquipmentError } = await admin
-        .from("exercise_equipment")
-        .select("exercise_id")
-        .in("equipment_id", unavailableEquipmentIds);
-      if (blockedEquipmentError) throw new Error(blockedEquipmentError.message);
-      for (const row of blockedByEquipment ?? []) excludedIds.add(String(row.exercise_id));
     }
 
     if (reason === "environment" || reason === "equipment") {
@@ -205,9 +282,16 @@ serve(async (req: Request) => {
         },
       };
 
+      const sessionUpdate: Record<string, unknown> = {
+        planning_context_json: nextPlanning,
+      };
+      if (reason === "equipment") {
+        sessionUpdate.available_equipment = sessionEquipmentNames;
+      }
+
       const { error: contextUpdateError } = await admin
         .from("workout_sessions")
-        .update({ planning_context_json: nextPlanning })
+        .update(sessionUpdate)
         .eq("id", target.session_id)
         .eq("user_id", userId);
       if (contextUpdateError) throw new Error(contextUpdateError.message);
@@ -286,6 +370,7 @@ serve(async (req: Request) => {
       adaptation_reason: reason,
       environment_constraints_applied: unavailableEnvironment,
       unavailable_equipment_ids: unavailableEquipmentIds,
+      session_available_equipment: sessionEquipmentNames,
       undo_applied: Boolean(data.undo_applied),
       substitute,
       full_wod_resimulated: Boolean(data.full_wod_resimulated),
@@ -300,6 +385,10 @@ serve(async (req: Request) => {
 
 function uniqueStrings(values: unknown[]): string[] {
   return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)));
+}
+
+function normalizeKey(value: unknown): string {
+  return String(value ?? "").trim().toLocaleLowerCase("fr-FR");
 }
 
 function json(body: unknown, status = 200) {
