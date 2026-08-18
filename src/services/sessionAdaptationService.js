@@ -8,6 +8,31 @@ const REASON_DIRECTIONS = {
   equivalent: 'equivalent',
 };
 
+const DIRECTIONAL_REASONS = new Set([
+  'too_easy',
+  'too_hard',
+]);
+
+function getSafeFallbackMessage(reason) {
+  if (reason === 'too_easy') {
+    return 'Aucune progression sûre disponible pour ce mouvement.';
+  }
+
+  if (reason === 'too_hard') {
+    return 'Aucune régression sûre disponible pour ce mouvement.';
+  }
+
+  if (reason === 'environment') {
+    return 'Aucune alternative sûre disponible dans cet environnement.';
+  }
+
+  if (reason === 'equipment') {
+    return 'Aucune alternative sûre disponible avec le matériel restant.';
+  }
+
+  return 'Impossible de trouver une alternative sûre.';
+}
+
 export async function adaptSessionExercise({
   sessionId,
   sessionExerciseId,
@@ -26,6 +51,23 @@ export async function adaptSessionExercise({
       ? reason
       : 'equivalent';
 
+  // Un choix explicite "trop facile / trop difficile" doit pouvoir
+  // revenir sur une étape adjacente déjà visitée dans la progression.
+  // L’anti-boucle reste utile pour les remplacements équivalents et
+  // contextuels, mais ne doit pas bloquer une progression/régression.
+  const effectiveExcludedExerciseIds =
+    DIRECTIONAL_REASONS.has(
+      adaptationReason
+    )
+      ? []
+      : Array.isArray(
+          excludedExerciseIds
+        )
+        ? excludedExerciseIds.filter(
+            Boolean
+          )
+        : [];
+
   const { data, error } =
     await supabase.functions.invoke(
       'generate-workout',
@@ -43,13 +85,7 @@ export async function adaptSessionExercise({
           adaptation_reason:
             adaptationReason,
           excluded_exercise_ids:
-            Array.isArray(
-              excludedExerciseIds
-            )
-              ? excludedExerciseIds.filter(
-                  Boolean
-                )
-              : [],
+            effectiveExcludedExerciseIds,
           undo: false,
         },
       }
@@ -59,27 +95,49 @@ export async function adaptSessionExercise({
     let detail = null;
 
     try {
+      const context =
+        error?.context?.clone?.() ??
+        error?.context;
+
       detail =
-        await error?.context?.json();
+        await context?.json?.();
     } catch {
       detail = null;
     }
 
+    console.warn(
+      'Session adaptation failed',
+      {
+        reason: adaptationReason,
+        technicalMessage:
+          error?.message ?? null,
+        detail,
+      }
+    );
+
     throw new Error(
       detail?.error ??
         detail?.message ??
-        error?.message ??
-        'Impossible de trouver une alternative sûre.'
+        getSafeFallbackMessage(
+          adaptationReason
+        )
     );
   }
 
   if (data?.error) {
-    throw new Error(data.error);
+    throw new Error(
+      data.error ??
+        getSafeFallbackMessage(
+          adaptationReason
+        )
+    );
   }
 
   if (!data?.substitute?.id) {
     throw new Error(
-      'UGEROD n’a trouvé aucune alternative sûre dans ce contexte.'
+      getSafeFallbackMessage(
+        adaptationReason
+      )
     );
   }
 
