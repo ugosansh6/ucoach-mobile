@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "swap-handler-v9-equipment-alternatives";
+const VERSION = "swap-handler-v10-structural-fallback";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -22,6 +22,7 @@ type Payload = {
   direction?: SwapDirection;
   adaptation_reason?: AdaptationReason;
   unavailable_environment_requirements?: string[];
+  confirm_structural_change?: boolean;
   undo?: boolean;
 };
 
@@ -79,7 +80,7 @@ serve(async (req: Request) => {
 
     const { data: target, error: targetError } = await admin
       .from("workout_session_exercises")
-      .select("id, session_id, exercise_id, workout_sessions!inner(user_id)")
+      .select("id, session_id, exercise_id, block_key, workout_sessions!inner(user_id)")
       .eq("id", instanceId)
       .eq("workout_sessions.user_id", userId)
       .single();
@@ -319,6 +320,63 @@ serve(async (req: Request) => {
     ) {
       direction = "easier";
       data = await invokeSwap(direction);
+    }
+
+    if (
+      !body.undo &&
+      target.block_key === "wod" &&
+      (reason === "environment" || reason === "equipment") &&
+      data?.status !== "APPLIED"
+    ) {
+      const { data: structural, error: structuralError } = await supabase.rpc(
+        "c4_wod_structural_fallback_v1",
+        {
+          p_user_id: userId,
+          p_session_exercise_id: instanceId,
+          p_reason: reason,
+          p_confirm_structure_change: Boolean(body.confirm_structural_change),
+        },
+      );
+      if (structuralError) throw new Error(structuralError.message);
+
+      if (structural?.status === "STRUCTURAL_FALLBACK_APPLIED") {
+        return json({
+          success: true,
+          status: structural.status,
+          version: VERSION,
+          session_id: structural.session_id ?? target.session_id,
+          session_exercise_id: instanceId,
+          block_key: "wod",
+          replaced_exercise_id: target.exercise_id,
+          new_exercise_id: null,
+          adaptation_reason: reason,
+          environment_constraints_applied: unavailableEnvironment,
+          unavailable_equipment_ids: unavailableEquipmentIds,
+          session_available_equipment: sessionEquipmentNames,
+          structural_fallback: true,
+          mechanic_changed: Boolean(structural.mechanic_changed),
+          old_mechanic: structural.old_mechanic ?? null,
+          new_mechanic: structural.new_mechanic ?? null,
+          removed_pattern: structural.removed_pattern ?? null,
+          substitute: null,
+          full_wod_resimulated: true,
+          c4_result: structural,
+        });
+      }
+
+      if (structural?.status === "STRUCTURAL_CHANGE_REQUIRED") {
+        return json({
+          status: structural.status,
+          code: "STRUCTURAL_CHANGE_REQUIRED",
+          error: structural.message ?? "Le WOD doit changer de format pour rester cohérent.",
+          proposed_mechanic: structural.proposed_mechanic ?? null,
+          proposed_parameters: structural.proposed_parameters ?? {},
+          requires_user_confirmation: true,
+          confirmation_mode: structural.confirmation_mode ?? "repeat_same_reason_within_5_minutes",
+          adaptation_reason: reason,
+          version: VERSION,
+        }, 409);
+      }
     }
 
     if (!data || data.status !== "APPLIED") {
