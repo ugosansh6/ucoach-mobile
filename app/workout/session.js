@@ -404,10 +404,18 @@ function buildPreWodBlockStructure({
     return seriesLabel;
   }
 
-  if (
-    blockId === 'unlock' ||
-    blockId === 'warmup'
-  ) {
+  if (blockId === 'warmup') {
+    const rounds = firstFiniteNumber(
+      source?.warmupRounds,
+      source?.warmup_rounds,
+      prescription?.warmup_rounds,
+      3
+    );
+
+    return `${formatCompactNumber(rounds ?? 3)} tours · ${formatExerciseCount(exerciseCount)}`;
+  }
+
+  if (blockId === 'unlock') {
     const safeCount = Math.max(
       1,
       exerciseCount
