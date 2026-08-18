@@ -39,6 +39,7 @@ export async function adaptSessionExercise({
   currentExerciseId,
   reason,
   excludedExerciseIds = [],
+  confirmStructuralChange = false,
 }) {
   if (!sessionId || !sessionExerciseId) {
     throw new Error(
@@ -86,6 +87,8 @@ export async function adaptSessionExercise({
             adaptationReason,
           excluded_exercise_ids:
             effectiveExcludedExerciseIds,
+          confirm_structural_change:
+            Boolean(confirmStructuralChange),
           undo: false,
         },
       }
@@ -133,7 +136,15 @@ export async function adaptSessionExercise({
     );
   }
 
-  if (!data?.substitute?.id) {
+  const structuralFallbackApplied =
+    data?.structural_fallback === true ||
+    data?.status ===
+      'STRUCTURAL_FALLBACK_APPLIED';
+
+  if (
+    !structuralFallbackApplied &&
+    !data?.substitute?.id
+  ) {
     throw new Error(
       getSafeFallbackMessage(
         adaptationReason
