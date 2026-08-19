@@ -1,6 +1,4 @@
 import {
-  useEffect,
-  useRef,
   useState,
 } from 'react';
 import {
@@ -100,14 +98,6 @@ function buildPreparationSnapshot(
   };
 }
 
-function painFingerprint(values) {
-  return (Array.isArray(values) ? values : [])
-    .filter(Boolean)
-    .slice()
-    .sort()
-    .join('|');
-}
-
 export default function SessionAdaptationOverlay() {
   const pathname = usePathname();
   const {
@@ -124,15 +114,9 @@ export default function SessionAdaptationOverlay() {
   const [error, setError] =
     useState('');
 
-  const pendingPainAdaptationRef =
-    useRef(null);
-
   async function adaptRemaining(
     nextPreparation,
-    preparationPatch = null,
-    {
-      reopenOnError = true,
-    } = {}
+    preparationPatch = null
   ) {
     setLoading(true);
     setError('');
@@ -176,55 +160,11 @@ export default function SessionAdaptationOverlay() {
           ? adaptationError.message
           : 'Impossible d’adapter le reste de la séance.'
       );
-
-      if (reopenOnError) {
-        setVisible(true);
-      }
+      setVisible(true);
     } finally {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (
-      pathname !== '/workout/session' ||
-      !workout?.sessionId ||
-      !pendingPainAdaptationRef.current
-    ) {
-      return;
-    }
-
-    const pending =
-      pendingPainAdaptationRef.current;
-    pendingPainAdaptationRef.current =
-      null;
-
-    const after = painFingerprint(
-      preparation?.painZones
-    );
-
-    if (after === pending.before) {
-      return;
-    }
-
-    const nextPreparation =
-      buildPreparationSnapshot(
-        preparation,
-        workout
-      );
-
-    adaptRemaining(
-      nextPreparation,
-      null,
-      {
-        reopenOnError: true,
-      }
-    );
-  }, [
-    pathname,
-    preparation?.painZones,
-    workout?.sessionId,
-  ]);
 
   if (
     pathname !== '/workout/session' ||
@@ -269,16 +209,10 @@ export default function SessionAdaptationOverlay() {
     );
   }
 
-  function openInjuries() {
-    pendingPainAdaptationRef.current = {
-      before: painFingerprint(
-        preparation?.painZones
-      ),
-    };
-
+  function openPreparation() {
     setVisible(false);
     setError('');
-    router.push('/workout/injuries');
+    router.replace('/workout/preparation');
   }
 
   return (
@@ -301,7 +235,7 @@ export default function SessionAdaptationOverlay() {
             color={colors.brandWhite}
           />
           <Text style={styles.floatingButtonText}>
-            ADAPTER
+            ADAPTER LE RESTE
           </Text>
         </Pressable>
       </View>
@@ -343,7 +277,7 @@ export default function SessionAdaptationOverlay() {
             </View>
 
             <Text style={styles.helper}>
-              UGEROD protège les blocs déjà terminés et recalcule uniquement ce qu’il reste à faire.
+              Utilise cette action seulement si ton état global a changé. UGEROD protège les blocs déjà terminés et recalcule uniquement ce qu’il reste à faire.
             </Text>
 
             {error ? (
@@ -363,17 +297,23 @@ export default function SessionAdaptationOverlay() {
               <ActionRow
                 icon="battery-half-outline"
                 title="JE SUIS PLUS FATIGUÉ QUE PRÉVU"
-                description="UGEROD baisse l’intensité du contexte du jour et adapte les blocs restants."
+                description="UGEROD baisse l’intensité du contexte du jour et adapte uniquement les blocs restants."
                 loading={loading}
                 onPress={adaptForFatigue}
               />
 
+              <GuidanceRow
+                icon="swap-horizontal-outline"
+                title="UN EXERCICE ME GÊNE"
+                description="Ferme cette fenêtre et utilise Swap sur l’exercice concerné. Le reste de la séance ne sera pas régénéré inutilement."
+              />
+
               <ActionRow
-                icon="medkit-outline"
-                title="UNE GÊNE EST APPARUE"
-                description="Indique la zone à protéger : UGEROD recalculera ensuite les mouvements restants."
+                icon="create-outline"
+                title="MON CONTEXTE A VRAIMENT CHANGÉ"
+                description="Retourne au check-in si ta durée, ton matériel, ta gêne globale ou ton objectif du jour doit être revu."
                 loading={false}
-                onPress={openInjuries}
+                onPress={openPreparation}
               />
             </View>
           </View>
@@ -433,6 +373,33 @@ function ActionRow({
         />
       )}
     </Pressable>
+  );
+}
+
+function GuidanceRow({
+  icon,
+  title,
+  description,
+}) {
+  return (
+    <View style={styles.guidanceRow}>
+      <View style={styles.guidanceIcon}>
+        <Ionicons
+          name={icon}
+          size={20}
+          color={colors.primaryLight}
+        />
+      </View>
+
+      <View style={styles.actionMain}>
+        <Text style={styles.actionTitle}>
+          {title}
+        </Text>
+        <Text style={styles.actionDescription}>
+          {description}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -581,6 +548,21 @@ const styles = StyleSheet.create({
     gap: 13,
   },
 
+  guidanceRow: {
+    minHeight: 82,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor:
+      'rgba(16,126,255,0.30)',
+    backgroundColor:
+      'rgba(16,126,255,0.07)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+  },
+
   actionRowDisabled: {
     opacity: 0.55,
   },
@@ -590,6 +572,16 @@ const styles = StyleSheet.create({
   },
 
   actionIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor:
+      'rgba(16,126,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  guidanceIcon: {
     width: 46,
     height: 46,
     borderRadius: 23,
