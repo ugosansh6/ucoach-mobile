@@ -39,6 +39,22 @@ const STEPS = [
   'Construction des blocs',
 ];
 
+function getGenerationMessage(elapsedSeconds) {
+  if (elapsedSeconds < 8) {
+    return 'UGEROD analyse ton contexte et prépare les meilleurs blocs pour aujourd’hui.';
+  }
+
+  if (elapsedSeconds < 15) {
+    return 'UGEROD équilibre le skill, le WOD, ton matériel et ta progression.';
+  }
+
+  if (elapsedSeconds < 22) {
+    return 'UGEROD compare plusieurs options pour conserver une séance cohérente et adaptée.';
+  }
+
+  return 'Cette séance demande un peu plus de calcul. UGEROD finalise les ajustements utiles.';
+}
+
 export default function GeneratingScreen() {
   const [
     activeStep,
@@ -60,8 +76,21 @@ export default function GeneratingScreen() {
     setForceRecalculating,
   ] = useState(false);
 
+  const [
+    isGenerating,
+    setIsGenerating,
+  ] = useState(false);
+
+  const [
+    elapsedSeconds,
+    setElapsedSeconds,
+  ] = useState(0);
+
   const generationDone =
     useRef(false);
+
+  const generationStartedAt =
+    useRef(null);
 
   const {
     preparation,
@@ -94,6 +123,42 @@ export default function GeneratingScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isGenerating) {
+      return undefined;
+    }
+
+    const updateElapsed = () => {
+      const startedAt =
+        generationStartedAt.current;
+
+      if (!startedAt) {
+        return;
+      }
+
+      setElapsedSeconds(
+        Math.max(
+          0,
+          Math.floor(
+            (Date.now() - startedAt) /
+              1000
+          )
+        )
+      );
+    };
+
+    updateElapsed();
+
+    const interval = setInterval(
+      updateElapsed,
+      1000
+    );
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isGenerating]);
+
   const runGeneration =
     useCallback(
       async ({
@@ -101,81 +166,89 @@ export default function GeneratingScreen() {
       } = {}) => {
         setGenerationError('');
         setGenerationControl(null);
+        generationStartedAt.current =
+          Date.now();
+        setElapsedSeconds(0);
+        setIsGenerating(true);
 
-        const protectedSessionExerciseIds =
-          (workout.exercises ?? [])
-            .filter(
-              (exercise) =>
-                exercise.sessionExerciseId &&
-                exercise.status !== 'pending'
-            )
-            .map(
-              (exercise) =>
-                exercise.sessionExerciseId
+        try {
+          const protectedSessionExerciseIds =
+            (workout.exercises ?? [])
+              .filter(
+                (exercise) =>
+                  exercise.sessionExerciseId &&
+                  exercise.status !== 'pending'
+              )
+              .map(
+                (exercise) =>
+                  exercise.sessionExerciseId
+              );
+
+          const generatedWorkout =
+            await generateWorkoutSession(
+              preparation,
+              {
+                forceRecalculateStarted,
+                protectedSessionExerciseIds,
+              }
             );
 
-        const generatedWorkout =
-          await generateWorkoutSession(
-            preparation,
-            {
-              forceRecalculateStarted,
-              protectedSessionExerciseIds,
-            }
-          );
-
-        if (generatedWorkout?.controlStatus) {
-          setGenerationControl(
-            generatedWorkout
-          );
-          return;
-        }
-
-        const sameSession =
-          Boolean(workout.sessionId) &&
-          workout.sessionId ===
-            generatedWorkout?.sessionId;
-
-        const preserveProgress =
-          sameSession &&
-          [
-            'resume_existing',
-            'safety_adapted_existing',
-            'safety_adapt_partial_recalc_required',
-          ].includes(
-            generatedWorkout
-              ?.generationControlStatus
-          );
-
-        if (preserveProgress) {
-          setGeneratedWorkoutPreservingProgress(
-            generatedWorkout
-          );
-        } else {
-          setGeneratedWorkout(
-            generatedWorkout
-          );
-        }
-
-        if (
-          generatedWorkout
-            ?.generationControlStatus ===
-          'safety_adapt_partial_recalc_required'
-        ) {
-          setGenerationControl({
-            controlStatus:
-              'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED',
-            sessionId:
-              generatedWorkout.sessionId,
-            safetyAdaptation:
+          if (generatedWorkout?.controlStatus) {
+            setGenerationControl(
               generatedWorkout
-                .safetyAdaptation,
-          });
-          return;
-        }
+            );
+            return;
+          }
 
-        router.replace(
-          '/workout/session'
-        );
+          const sameSession =
+            Boolean(workout.sessionId) &&
+            workout.sessionId ===
+              generatedWorkout?.sessionId;
+
+          const preserveProgress =
+            sameSession &&
+            [
+              'resume_existing',
+              'safety_adapted_existing',
+              'safety_adapt_partial_recalc_required',
+            ].includes(
+              generatedWorkout
+                ?.generationControlStatus
+            );
+
+          if (preserveProgress) {
+            setGeneratedWorkoutPreservingProgress(
+              generatedWorkout
+            );
+          } else {
+            setGeneratedWorkout(
+              generatedWorkout
+            );
+          }
+
+          if (
+            generatedWorkout
+              ?.generationControlStatus ===
+            'safety_adapt_partial_recalc_required'
+          ) {
+            setGenerationControl({
+              controlStatus:
+                'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED',
+              sessionId:
+                generatedWorkout.sessionId,
+              safetyAdaptation:
+                generatedWorkout
+                  .safetyAdaptation,
+            });
+            return;
+          }
+
+          router.replace(
+            '/workout/session'
+          );
+        } finally {
+          setIsGenerating(false);
+        }
       },
       [
         preparation,
@@ -186,28 +259,26 @@ export default function GeneratingScreen() {
       ]
     );
 
+  const launchGeneration =
+    useCallback(() => {
+      if (generationDone.current) {
+        return;
+      }
+
+      generationDone.current = true;
+
+      runGeneration().catch((error) => {
+        setGenerationError(
+          error?.message ??
+            'Impossible de générer la séance.'
+        );
+        generationDone.current = false;
+      });
+    }, [runGeneration]);
+
   useEffect(() => {
-    if (
-      activeStep !==
-        STEPS.length - 1 ||
-      generationDone.current
-    ) {
-      return;
-    }
-
-    generationDone.current = true;
-
-    runGeneration().catch((error) => {
-      setGenerationError(
-        error?.message ??
-          'Impossible de générer la séance.'
-      );
-      generationDone.current = false;
-    });
-  }, [
-    activeStep,
-    runGeneration,
-  ]);
+    launchGeneration();
+  }, [launchGeneration]);
 
   async function handleForceRecalculate() {
     if (forceRecalculating) {
@@ -240,15 +311,7 @@ export default function GeneratingScreen() {
   function handleRetry() {
     setGenerationError('');
     generationDone.current = false;
-    setActiveStep(
-      STEPS.length - 2
-    );
-
-    setTimeout(() => {
-      setActiveStep(
-        STEPS.length - 1
-      );
-    }, 100);
+    launchGeneration();
   }
 
   function handleBack() {
@@ -281,6 +344,9 @@ export default function GeneratingScreen() {
       'STARTED_SESSION_CONFIRM_REQUIRED' ||
     controlStatus ===
       'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED';
+
+  const generationMessage =
+    getGenerationMessage(elapsedSeconds);
 
   return (
     <SafeAreaView
@@ -473,13 +539,13 @@ export default function GeneratingScreen() {
               <Text
                 style={styles.waitText}
               >
-                QUELQUES SECONDES...
+                GÉNÉRATION EN COURS · {elapsedSeconds} S
               </Text>
 
               <Text
                 style={styles.motivation}
               >
-                Le contenu du WOD restera une surprise jusqu’au bon moment.
+                {generationMessage}
               </Text>
             </>
           )}
@@ -823,7 +889,7 @@ const styles = StyleSheet.create({
       colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.sm,
-    maxWidth: 300,
+    maxWidth: 320,
   },
 
   errorText: {
