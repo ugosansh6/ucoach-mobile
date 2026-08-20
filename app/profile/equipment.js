@@ -85,7 +85,7 @@ const EQUIPMENT_LOCATIONS = [
   },
   {
     key: 'GARAGE',
-    label: 'GARAGE',
+    label: 'HOME GYM / GARAGE',
     icon: 'construct-outline',
   },
 ];
@@ -1258,14 +1258,6 @@ export default function ProfileEquipmentScreen() {
                                 ''
                             ).toUpperCase()}
                           </Text>
-
-                          {Number.isFinite(
-                            Number(equipment.exercise_count)
-                          ) && (
-                            <Text style={styles.equipmentCoverage}>
-                              {Number(equipment.exercise_count)} EXERCICE{Number(equipment.exercise_count) > 1 ? 'S' : ''} COMPATIBLE{Number(equipment.exercise_count) > 1 ? 'S' : ''}
-                            </Text>
-                          )}
 
                           {(isBarbell ||
                             supportsFixed ||
@@ -2484,15 +2476,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
     color:
       colors.textPrimary,
-  },
-
-  equipmentCoverage: {
-    marginTop: 2,
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.55,
-    color: colors.textMuted,
   },
 
   equipmentHint: {

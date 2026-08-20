@@ -23,7 +23,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 
 import {
   colors,
@@ -50,7 +49,6 @@ import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayer';
 
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 const workoutBackground = require('../../assets/backgrounds/welcome-default.jpg');
-const tabataBeep = require('../../assets/sounds/tabata-beep.wav');
 
 const BLOCK_ORDER = [
   'unlock',
@@ -4201,44 +4199,6 @@ function TabataTimer({ block }) {
   const [paused, setPaused] =
     useState(false);
 
-  const beepPlayer =
-    useAudioPlayer(tabataBeep);
-
-  useEffect(() => {
-    setAudioModeAsync({
-      playsInSilentMode: true,
-    }).catch((error) => {
-      console.warn(
-        'Tabata audio mode',
-        error
-      );
-    });
-  }, []);
-
-  const playBeep =
-    useCallback(
-      (count = 1) => {
-        for (
-          let index = 0;
-          index < count;
-          index += 1
-        ) {
-          setTimeout(() => {
-            try {
-              beepPlayer.seekTo(0);
-              beepPlayer.play();
-            } catch (error) {
-              console.warn(
-                'Tabata beep',
-                error
-              );
-            }
-          }, index * 170);
-        }
-      },
-      [beepPlayer]
-    );
-
   const lastBuzzSecond =
     useRef(null);
 
@@ -4299,7 +4259,6 @@ function TabataTimer({ block }) {
           if (phase === 'work') {
             setPhase('rest');
             Vibration.vibrate(80);
-            playBeep(1);
             return restSeconds;
           }
 
@@ -4312,7 +4271,6 @@ function TabataTimer({ block }) {
               80,
               120,
             ]);
-            playBeep(3);
             return 0;
           }
 
@@ -4321,7 +4279,6 @@ function TabataTimer({ block }) {
           );
           setPhase('work');
           Vibration.vibrate(80);
-          playBeep(1);
           return workSeconds;
         }
       );
@@ -4337,7 +4294,6 @@ function TabataTimer({ block }) {
     rounds,
     running,
     workSeconds,
-    playBeep,
   ]);
 
   useEffect(() => {
@@ -4364,12 +4320,10 @@ function TabataTimer({ block }) {
     lastBuzzSecond.current =
       remaining;
     Vibration.vibrate(35);
-    playBeep(1);
   }, [
     paused,
     remaining,
     running,
-    playBeep,
   ]);
 
   function start() {
@@ -4379,7 +4333,6 @@ function TabataTimer({ block }) {
     setPaused(false);
     lastBuzzSecond.current = null;
     Vibration.vibrate(60);
-    playBeep(1);
   }
 
   function reset() {
