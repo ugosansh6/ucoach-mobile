@@ -62,6 +62,41 @@ const RESISTANCE_OPTIONS = [
   { value: 'Forte', label: 'FORTE' },
 ];
 
+const EQUIPMENT_LOCATIONS = [
+  {
+    key: 'ALL',
+    label: 'TOUT',
+    icon: 'grid-outline',
+  },
+  {
+    key: 'HOME',
+    label: 'MAISON',
+    icon: 'home-outline',
+  },
+  {
+    key: 'OUTDOOR',
+    label: 'EXTÉRIEUR',
+    icon: 'leaf-outline',
+  },
+  {
+    key: 'GYM_BOX',
+    label: 'SALLE / BOX',
+    icon: 'barbell-outline',
+  },
+  {
+    key: 'GARAGE',
+    label: 'GARAGE',
+    icon: 'construct-outline',
+  },
+];
+
+function normalizeSearchValue(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function makeLocalKey(equipmentId) {
   return `${equipmentId}-${Date.now()}-${Math.random()
     .toString(36)
@@ -293,6 +328,12 @@ export default function ProfileEquipmentScreen() {
   const [saved, setSaved] =
     useState(false);
 
+  const [searchQuery, setSearchQuery] =
+    useState('');
+
+  const [activeLocation, setActiveLocation] =
+    useState('ALL');
+
   const [
     expandedEquipmentIds,
     setExpandedEquipmentIds,
@@ -346,13 +387,52 @@ export default function ProfileEquipmentScreen() {
     };
   }, []);
 
-  const visibleCatalog = useMemo(
+  const visibleCatalog = useMemo(() => {
+    const normalizedQuery =
+      normalizeSearchValue(searchQuery.trim());
+
+    return catalog.filter((equipment) => {
+      if (equipment.id === 'E00') {
+        return false;
+      }
+
+      const locations = Array.isArray(
+        equipment.locations
+      )
+        ? equipment.locations
+        : [];
+
+      if (
+        activeLocation !== 'ALL' &&
+        !locations.includes(activeLocation)
+      ) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return normalizeSearchValue(
+        [
+          equipment.name,
+          equipment.category,
+          equipment.description,
+        ]
+          .filter(Boolean)
+          .join(' ')
+      ).includes(normalizedQuery);
+    });
+  }, [catalog, activeLocation, searchQuery]);
+
+  const selectedEquipmentCount = useMemo(
     () =>
-      catalog.filter(
-        (equipment) =>
-          equipment.id !== 'E00'
-      ),
-    [catalog]
+      new Set(
+        draftInventory.map(
+          (row) => row.equipment_id
+        )
+      ).size,
+    [draftInventory]
   );
 
   const canSave =
@@ -940,6 +1020,94 @@ export default function ProfileEquipmentScreen() {
               </View>
             )}
 
+            <View style={styles.catalogTools}>
+              <View style={styles.searchShell}>
+                <Ionicons
+                  name="search-outline"
+                  size={19}
+                  color={colors.textMuted}
+                />
+
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Rechercher un équipement…"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                />
+
+                {searchQuery.length > 0 && (
+                  <Pressable
+                    onPress={() => setSearchQuery('')}
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={19}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                )}
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.locationTabs}
+              >
+                {EQUIPMENT_LOCATIONS.map((location) => {
+                  const selected =
+                    activeLocation === location.key;
+
+                  return (
+                    <Pressable
+                      key={location.key}
+                      onPress={() =>
+                        setActiveLocation(location.key)
+                      }
+                      style={[
+                        styles.locationTab,
+                        selected &&
+                          styles.locationTabSelected,
+                      ]}
+                    >
+                      <Ionicons
+                        name={location.icon}
+                        size={16}
+                        color={
+                          selected
+                            ? colors.brandWhite
+                            : colors.textSecondary
+                        }
+                      />
+
+                      <Text
+                        style={[
+                          styles.locationTabText,
+                          selected &&
+                            styles.locationTabTextSelected,
+                        ]}
+                      >
+                        {location.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.catalogSummaryRow}>
+                <Text style={styles.catalogSummaryText}>
+                  {visibleCatalog.length} MATÉRIEL{visibleCatalog.length > 1 ? 'S' : ''}
+                </Text>
+                <Text style={styles.catalogSummarySelected}>
+                  {selectedEquipmentCount} SÉLECTIONNÉ{selectedEquipmentCount > 1 ? 'S' : ''}
+                </Text>
+              </View>
+            </View>
+
             {/* INVENTAIRE */}
             <View
               style={
@@ -1090,6 +1258,14 @@ export default function ProfileEquipmentScreen() {
                                 ''
                             ).toUpperCase()}
                           </Text>
+
+                          {Number.isFinite(
+                            Number(equipment.exercise_count)
+                          ) && (
+                            <Text style={styles.equipmentCoverage}>
+                              {Number(equipment.exercise_count)} EXERCICE{Number(equipment.exercise_count) > 1 ? 'S' : ''} COMPATIBLE{Number(equipment.exercise_count) > 1 ? 'S' : ''}
+                            </Text>
+                          )}
 
                           {(isBarbell ||
                             supportsFixed ||
@@ -1379,7 +1555,6 @@ export default function ProfileEquipmentScreen() {
                               )}
                             </View>
                           )}
-
 
                           {supportsFixed &&
                             mode ===
@@ -1773,6 +1948,24 @@ export default function ProfileEquipmentScreen() {
                   );
                 }
               )}
+
+              {visibleCatalog.length === 0 && (
+                <View style={styles.noResultCard}>
+                  <Ionicons
+                    name="search-outline"
+                    size={22}
+                    color={colors.primaryLight}
+                  />
+                  <View style={styles.noResultTextArea}>
+                    <Text style={styles.noResultTitle}>
+                      AUCUN MATÉRIEL TROUVÉ
+                    </Text>
+                    <Text style={styles.noResultText}>
+                      Essaie un autre mot-clé ou change de lieu.
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             {draftInventory.length ===
@@ -1860,7 +2053,6 @@ export default function ProfileEquipmentScreen() {
                 </>
               )}
             </Pressable>
-
 
             <View
               style={styles.bottomSpace}
@@ -2153,6 +2345,86 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
+  catalogTools: {
+    marginTop: 18,
+    gap: 12,
+  },
+
+  searchShell: {
+    minHeight: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.11)',
+    backgroundColor: 'rgba(17,21,26,0.92)',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  searchInput: {
+    flex: 1,
+    paddingVertical: 0,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+
+  locationTabs: {
+    gap: 8,
+    paddingRight: 8,
+  },
+
+  locationTab: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(17,21,26,0.82)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  locationTabSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+
+  locationTabText: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.55,
+    color: colors.textSecondary,
+  },
+
+  locationTabTextSelected: {
+    color: colors.brandWhite,
+  },
+
+  catalogSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+
+  catalogSummaryText: {
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: colors.textMuted,
+  },
+
+  catalogSummarySelected: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: colors.primaryLight,
+  },
+
   equipmentList: {
     marginTop: 18,
     gap: 10,
@@ -2212,6 +2484,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
     color:
       colors.textPrimary,
+  },
+
+  equipmentCoverage: {
+    marginTop: 2,
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 9,
+    lineHeight: 13,
+    letterSpacing: 0.55,
+    color: colors.textMuted,
   },
 
   equipmentHint: {
@@ -2503,6 +2784,36 @@ const styles = StyleSheet.create({
 
   adjustableField: {
     flex: 1,
+  },
+
+  noResultCard: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: 'rgba(8,104,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(8,104,255,0.18)',
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+
+  noResultTextArea: {
+    flex: 1,
+  },
+
+  noResultTitle: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.6,
+    color: colors.textPrimary,
+  },
+
+  noResultText: {
+    marginTop: 3,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.textSecondary,
   },
 
   emptyCard: {
