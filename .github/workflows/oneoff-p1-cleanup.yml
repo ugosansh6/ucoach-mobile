@@ -1,0 +1,152 @@
+name: One-off P1 cleanup
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/workflows/oneoff-p1-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply guarded source changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              return text.replace(old, new, 1)
+
+          equipment_path = Path('app/profile/equipment.js')
+          equipment = equipment_path.read_text(encoding='utf-8')
+
+          equipment = replace_once(
+              equipment,
+              "    label: 'GARAGE',",
+              "    label: 'HOME GYM / GARAGE',",
+              'equipment location label',
+          )
+
+          coverage_block = """                          {Number.isFinite(\n                            Number(equipment.exercise_count)\n                          ) && (\n                            <Text style={styles.equipmentCoverage}>\n                              {Number(equipment.exercise_count)} EXERCICE{Number(equipment.exercise_count) > 1 ? 'S' : ''} COMPATIBLE{Number(equipment.exercise_count) > 1 ? 'S' : ''}\n                            </Text>\n                          )}\n\n"""
+          equipment = replace_once(
+              equipment,
+              coverage_block,
+              '',
+              'equipment exercise coverage UI',
+          )
+
+          coverage_style = """  equipmentCoverage: {\n    marginTop: 2,\n    fontFamily: 'Oswald_600SemiBold',\n    fontSize: 9,\n    lineHeight: 13,\n    letterSpacing: 0.55,\n    color: colors.textMuted,\n  },\n\n"""
+          equipment = replace_once(
+              equipment,
+              coverage_style,
+              '',
+              'equipment exercise coverage style',
+          )
+
+          if 'exercise_count' in equipment:
+              raise SystemExit('equipment: exercise_count still referenced in UI')
+
+          equipment_path.write_text(equipment, encoding='utf-8')
+
+          session_path = Path('app/workout/session.js')
+          session = session_path.read_text(encoding='utf-8')
+          vibration_count_before = session.count('Vibration.vibrate(')
+
+          session = replace_once(
+              session,
+              "import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';\n",
+              '',
+              'expo-audio import',
+          )
+          session = replace_once(
+              session,
+              "const tabataBeep = require('../../assets/sounds/tabata-beep.wav');\n",
+              '',
+              'Tabata beep asset',
+          )
+
+          audio_block = """  const beepPlayer =\n    useAudioPlayer(tabataBeep);\n\n  useEffect(() => {\n    setAudioModeAsync({\n      playsInSilentMode: true,\n    }).catch((error) => {\n      console.warn(\n        'Tabata audio mode',\n        error\n      );\n    });\n  }, []);\n\n  const playBeep =\n    useCallback(\n      (count = 1) => {\n        for (\n          let index = 0;\n          index < count;\n          index += 1\n        ) {\n          setTimeout(() => {\n            try {\n              beepPlayer.seekTo(0);\n              beepPlayer.play();\n            } catch (error) {\n              console.warn(\n                'Tabata beep',\n                error\n              );\n            }\n          }, index * 170);\n        }\n      },\n      [beepPlayer]\n    );\n\n"""
+          session = replace_once(
+              session,
+              audio_block,
+              '',
+              'Tabata audio player block',
+          )
+
+          session, call_count = re.subn(
+              r'^\s*playBeep\(\d+\);\n',
+              '',
+              session,
+              flags=re.MULTILINE,
+          )
+          if call_count != 5:
+              raise SystemExit(f'Tabata beep calls: expected 5, removed {call_count}')
+
+          session, dep_count = re.subn(
+              r'^\s*playBeep,\n',
+              '',
+              session,
+              flags=re.MULTILINE,
+          )
+          if dep_count != 2:
+              raise SystemExit(f'Tabata beep dependencies: expected 2, removed {dep_count}')
+
+          forbidden = [
+              'expo-audio',
+              'tabataBeep',
+              'useAudioPlayer',
+              'setAudioModeAsync',
+              'playBeep',
+          ]
+          leftovers = [token for token in forbidden if token in session]
+          if leftovers:
+              raise SystemExit(f'audio leftovers remain: {leftovers}')
+
+          if session.count('Vibration.vibrate(') != vibration_count_before:
+              raise SystemExit('vibration behavior changed unexpectedly')
+
+          lock_start = session.index('  const [\n    formatLocked,')
+          lock_end = session.index('  const remainingFormatChanges', lock_start)
+          lock_fragment = session[lock_start:lock_end]
+          if 'wodRevealed' in lock_fragment or 'wodRevealedAt' in lock_fragment:
+              raise SystemExit('format lock incorrectly depends on WOD reveal')
+          for required in ('workout.wodStarted', 'workout.wodStartedAt', 'workout.wodRuntime?.started'):
+              if required not in lock_fragment:
+                  raise SystemExit(f'format lock missing start guard: {required}')
+
+          session_path.write_text(session, encoding='utf-8')
+          PY
+
+      - name: Validate diff
+        shell: bash
+        run: |
+          git diff --check
+          grep -q "HOME GYM / GARAGE" app/profile/equipment.js
+          ! grep -q "exercise_count" app/profile/equipment.js
+          ! grep -q "expo-audio\|tabata-beep\|playBeep\|useAudioPlayer\|setAudioModeAsync" app/workout/session.js
+          grep -q "Vibration.vibrate" app/workout/session.js
+
+      - name: Commit source cleanup
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/profile/equipment.js app/workout/session.js
+          git rm .github/workflows/oneoff-p1-cleanup.yml
+          git commit -m "fix(workout): remove Tabata audio and refine equipment label"
+          git push origin HEAD:ux-navigation-coach-v1
