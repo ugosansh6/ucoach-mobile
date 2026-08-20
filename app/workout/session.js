@@ -792,6 +792,11 @@ export default function WorkoutSessionScreen() {
   ] = useState({});
 
   const [
+    swapUndoDisplayNameStacks,
+    setSwapUndoDisplayNameStacks,
+  ] = useState({});
+
+  const [
     formatModalVisible,
     setFormatModalVisible,
   ] = useState(false);
@@ -1433,12 +1438,24 @@ const sessionStartedRef = useRef(false);
           workout.sessionId
         );
 
-      const stillAdaptedAfterUndo =
-        undo
-          ? availabilityAfter?.items?.[
-              instanceId
-            ]?.can_undo === true
-          : true;
+      setSwapUndoDisplayNameStacks(
+        (current) => {
+          const stack = [
+            ...(current[instanceId] ?? []),
+          ];
+
+          if (undo) {
+            stack.pop();
+          } else if (exercise?.name) {
+            stack.push(exercise.name);
+          }
+
+          return {
+            ...current,
+            [instanceId]: stack,
+          };
+        }
+      );
 
       setSwapAvailability(
         availabilityAfter?.items ?? {}
@@ -1455,18 +1472,12 @@ const sessionStartedRef = useRef(false);
               ) {
                 return {
                   ...item,
-                  status:
-                    undo &&
-                    !stillAdaptedAfterUndo
-                      ? 'pending'
-                      : 'adapted',
-                  adaptationSource:
-                    undo &&
-                    !stillAdaptedAfterUndo
+                  status: 'pending',
+                  adaptationSource: null,
+                  swapReason:
+                    undo
                       ? null
-                      : undo
-                        ? 'swap-undo'
-                        : reason,
+                      : reason,
                 };
               }
 
@@ -3319,6 +3330,17 @@ const sessionStartedRef = useRef(false);
           swappingExerciseKey
         )}
         error={swapError}
+        undoDisplayName={
+          swapActionExercise?.exercise
+            ?.sessionExerciseId
+            ? (swapUndoDisplayNameStacks[
+                swapActionExercise
+                  .exercise
+                  .sessionExerciseId
+              ] ?? []).slice(-1)[0] ??
+              null
+            : null
+        }
         onClose={
           closeSwapActions
         }
@@ -3752,6 +3774,7 @@ function SwapDirectionModal({
   availability,
   loading,
   error,
+  undoDisplayName,
   onClose,
   onSelect,
 }) {
@@ -3805,11 +3828,15 @@ function SwapDirectionModal({
     availability?.can_undo === true;
 
   const undoLabel =
-    availability?.undo_exercise_name
+    undoDisplayName
       ? `REVENIR À ${String(
-          availability.undo_exercise_name
+          undoDisplayName
         ).toUpperCase()}`
-      : 'REVENIR AU PRÉCÉDENT';
+      : availability?.undo_exercise_name
+        ? `REVENIR À ${String(
+            availability.undo_exercise_name
+          ).toUpperCase()}`
+        : 'REVENIR AU PRÉCÉDENT';
 
   return (
     <Modal

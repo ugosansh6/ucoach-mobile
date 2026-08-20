@@ -317,6 +317,24 @@ function formatExecutionTargetPrescription(exercise) {
     );
   }
 
+  const bandResistance =
+    prescription.band_resistance_label;
+
+  if (bandResistance) {
+    const bandPrefix =
+      prescription
+        .band_resistance_semantics ===
+      'assistance'
+        ? 'Assistance'
+        : 'Résistance';
+
+    pieces.push(
+      `${bandPrefix} ${String(
+        bandResistance
+      ).toLocaleLowerCase('fr-FR')}`
+    );
+  }
+
   return pieces.join(' · ');
 }
 
@@ -455,6 +473,24 @@ function formatPrescription(exercise) {
 
     pieces.push(
       `${load} kg${scope}`
+    );
+  }
+
+  const bandResistance =
+    prescription.band_resistance_label;
+
+  if (bandResistance) {
+    const bandPrefix =
+      prescription
+        .band_resistance_semantics ===
+      'assistance'
+        ? 'Assistance'
+        : 'Résistance';
+
+    pieces.push(
+      `${bandPrefix} ${String(
+        bandResistance
+      ).toLocaleLowerCase('fr-FR')}`
     );
   }
 
