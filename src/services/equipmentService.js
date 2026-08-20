@@ -26,7 +26,7 @@ export async function getEquipmentCatalog() {
   } = await supabase
     .from('equipment_catalog_v2')
     .select(
-      'id, name, category, description, locations, exercise_count'
+      'id, name, category, description, locations'
     )
     .order('name', { ascending: true });
 
@@ -36,7 +36,6 @@ export async function getEquipmentCatalog() {
       locations: Array.isArray(item.locations)
         ? item.locations
         : [],
-      exercise_count: Number(item.exercise_count ?? 0),
     }));
   }
 
@@ -56,7 +55,6 @@ export async function getEquipmentCatalog() {
   return (data ?? []).map((item) => ({
     ...item,
     locations: [],
-    exercise_count: null,
   }));
 }
 
