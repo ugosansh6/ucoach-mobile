@@ -20,16 +20,44 @@ async function getAuthenticatedUser() {
 }
 
 export async function getEquipmentCatalog() {
+  const {
+    data: categorizedData,
+    error: categorizedError,
+  } = await supabase
+    .from('equipment_catalog_v2')
+    .select(
+      'id, name, category, description, locations, exercise_count'
+    )
+    .order('name', { ascending: true });
+
+  if (!categorizedError) {
+    return (categorizedData ?? []).map((item) => ({
+      ...item,
+      locations: Array.isArray(item.locations)
+        ? item.locations
+        : [],
+      exercise_count: Number(item.exercise_count ?? 0),
+    }));
+  }
+
+  /*
+   * Compatibilité temporaire avec un environnement plus ancien
+   * qui n'aurait pas encore reçu equipment_catalog_v2.
+   */
   const { data, error } = await supabase
     .from('equipment')
-    .select('id, name')
+    .select('id, name, category, description')
     .order('id', { ascending: true });
 
   if (error) {
-    throw error;
+    throw categorizedError ?? error;
   }
 
-  return data ?? [];
+  return (data ?? []).map((item) => ({
+    ...item,
+    locations: [],
+    exercise_count: null,
+  }));
 }
 
 export async function getUserEquipmentInventory() {
