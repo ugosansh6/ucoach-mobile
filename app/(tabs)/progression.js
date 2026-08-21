@@ -28,24 +28,6 @@ function experienceLabel(value) {
   return 'INTERMÉDIAIRE';
 }
 
-function signalLabel(value) {
-  switch (value) {
-    case 'PROGRESSING': return 'PROGRESSION À CONFIRMER';
-    case 'RECALIBRATING': return 'RÉFÉRENCE À RECALIBRER';
-    case 'STABLE': return 'RÉFÉRENCE STABLE';
-    default: return 'EN APPRENTISSAGE';
-  }
-}
-
-function confidenceLabel(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return null;
-  const percent = Math.round(Math.max(0, Math.min(1, number)) * 100);
-  if (percent >= 70) return `confiance forte · ${percent}%`;
-  if (percent >= 45) return `confiance moyenne · ${percent}%`;
-  return `confiance faible · ${percent}%`;
-}
-
 function formatMinutes(value) {
   const total = Math.max(0, Math.round(Number(value ?? 0)));
   const hours = Math.floor(total / 60);
@@ -56,28 +38,267 @@ function formatMinutes(value) {
   return `${hours} h ${minutes}`;
 }
 
-function HubCard({ icon, eyebrow, title, value, text, meta, onPress, accent = 'blue' }) {
+function formatSeconds(value) {
+  const seconds = Math.max(0, Math.round(Number(value ?? 0)));
+  if (!seconds) return null;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (!minutes) return `${rest} s`;
+  return `${minutes} min ${String(rest).padStart(2, '0')} s`;
+}
+
+function confidenceBand(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 'non déterminée';
+  if (number >= 0.7) return 'forte';
+  if (number >= 0.45) return 'moyenne';
+  return 'faible';
+}
+
+function freshnessBand(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 'date inconnue';
+  if (number >= 0.75) return 'récente';
+  if (number >= 0.4) return 'encore exploitable';
+  return 'ancienne';
+}
+
+function humanizeMechanic(value) {
+  return String(value ?? 'WOD')
+    .replaceAll('_', ' ')
+    .trim()
+    .toUpperCase();
+}
+
+function movementMetric(item) {
+  const load = Number(
+    item?.load_envelope?.repeatable?.repeatable_load_kg
+      ?? item?.load_envelope?.fresh?.fresh_load_kg
+  );
+  if (Number.isFinite(load) && load > 0) return `${load} kg`;
+
+  const reps = Number(
+    item?.reps_envelope?.repeatable?.repeatable_reps
+      ?? item?.reps_envelope?.fresh?.fresh_reps
+  );
+  if (Number.isFinite(reps) && reps > 0) return `${Math.round(reps)} reps`;
+
+  const seconds = Number(
+    item?.time_envelope?.repeatable?.repeatable_seconds
+      ?? item?.time_envelope?.fresh?.fresh_seconds
+      ?? item?.time_envelope?.repeatable?.repeatable_time_seconds
+      ?? item?.time_envelope?.fresh?.fresh_time_seconds
+  );
+  if (Number.isFinite(seconds) && seconds > 0) return formatSeconds(seconds);
+
+  const distance = Number(
+    item?.distance_envelope?.repeatable?.repeatable_distance_meters
+      ?? item?.distance_envelope?.fresh?.fresh_distance_meters
+  );
+  if (Number.isFinite(distance) && distance > 0) return `${Math.round(distance)} m`;
+
+  return null;
+}
+
+function movementStatus(item) {
+  switch (item?.signal) {
+    case 'PROGRESSING':
+      return { eyebrow: 'SIGNAL DE PROGRESSION', title: 'À CONFIRMER', accent: 'blue' };
+    case 'RECALIBRATING':
+      return { eyebrow: 'RÉFÉRENCE À REVÉRIFIER', title: 'RECALIBRATION', accent: 'red' };
+    case 'STABLE':
+      return { eyebrow: 'RÉFÉRENCE ÉTABLIE', title: 'STABLE', accent: 'muted' };
+    default:
+      return { eyebrow: 'NOUVELLE RÉFÉRENCE', title: 'EN CONSTRUCTION', accent: 'blue' };
+  }
+}
+
+function movementEvidence(item) {
+  const status = movementStatus(item);
+  const metric = movementMetric(item);
+  const validEvidence = Number(item?.valid_evidence_count ?? item?.evidence_count ?? 0);
+
+  return {
+    id: `movement-${item?.exercise_id ?? item?.name}`,
+    icon: 'barbell-outline',
+    eyebrow: status.eyebrow,
+    title: item?.name ?? 'Mouvement observé',
+    value: metric ?? status.title,
+    text: item?.signal === 'PROGRESSING'
+      ? 'La référence récente monte, mais UGEROD attend encore une confirmation comparable.'
+      : item?.signal === 'RECALIBRATING'
+        ? 'Une observation récente diffère de la référence précédente. Le niveau acquis n’est pas effacé.'
+        : item?.signal === 'STABLE'
+          ? 'Les observations récentes restent cohérentes entre elles.'
+          : 'UGEROD possède une première mesure exploitable mais pas encore assez de recul pour conclure.',
+    detail: `${validEvidence} preuve${validEvidence > 1 ? 's' : ''} valide${validEvidence > 1 ? 's' : ''} · confiance ${confidenceBand(item?.confidence)} · référence ${freshnessBand(item?.freshness)}`,
+    accent: status.accent,
+  };
+}
+
+function protocolEvidence(item) {
+  const outcome = item?.latest_outcome ?? item?.best_outcome ?? {};
+  const completed = outcome?.protocol_completed === true;
+  if (!completed) return null;
+
+  const rounds = Number(outcome?.rounds_completed ?? 0);
+  const stages = Number(outcome?.last_completed_stage ?? 0);
+  const elapsed = formatSeconds(outcome?.elapsed_seconds);
+  const primary = rounds > 0
+    ? `${rounds} TOUR${rounds > 1 ? 'S' : ''}`
+    : stages > 0
+      ? `PALIER ${stages}`
+      : 'FORMAT TERMINÉ';
+
+  return {
+    id: `protocol-${item?.protocol_signature ?? item?.mechanic_key}`,
+    icon: 'timer-outline',
+    eyebrow: 'RÉFÉRENCE DE FORMAT',
+    title: humanizeMechanic(item?.mechanic_key),
+    value: primary,
+    text: elapsed
+      ? `Séance terminée en ${elapsed}. Cette référence reste liée à ce format et à cette structure.`
+      : 'Cette exécution devient une référence comparable pour ce format.',
+    detail: `${Number(item?.valid_evidence_count ?? 0)} preuve valide · confiance ${confidenceBand(item?.confidence)} · référence ${freshnessBand(item?.freshness)}`,
+    accent: 'muted',
+  };
+}
+
+function buildEvidence(progression) {
+  const movements = Array.isArray(progression?.movement_capabilities)
+    ? progression.movement_capabilities
+    : [];
+  const protocols = Array.isArray(progression?.protocol_capabilities)
+    ? progression.protocol_capabilities
+    : [];
+
+  const priority = { PROGRESSING: 0, RECALIBRATING: 1, LEARNING: 2, STABLE: 3 };
+
+  const movementItems = [...movements]
+    .sort((a, b) => {
+      const stateDelta = (priority[a?.signal] ?? 9) - (priority[b?.signal] ?? 9);
+      if (stateDelta !== 0) return stateDelta;
+      const evidenceDelta = Number(b?.valid_evidence_count ?? 0) - Number(a?.valid_evidence_count ?? 0);
+      if (evidenceDelta !== 0) return evidenceDelta;
+      return Number(b?.confidence ?? 0) - Number(a?.confidence ?? 0);
+    })
+    .filter((item) => Number(item?.valid_evidence_count ?? item?.evidence_count ?? 0) > 0)
+    .slice(0, 3)
+    .map(movementEvidence);
+
+  const protocolItem = protocols.map(protocolEvidence).find(Boolean);
+
+  return [...movementItems, ...(protocolItem ? [protocolItem] : [])].slice(0, 4);
+}
+
+function summaryCopy(progression) {
+  const state = progression?.overall?.state;
+  const maturity = progression?.maturity?.stage;
+
+  if (state === 'PROGRESSING') {
+    return {
+      eyebrow: 'EST-CE QUE JE PROGRESSE ?',
+      title: 'OUI, DES SIGNAUX SE CONFIRMENT.',
+      text: progression?.overall?.text ?? 'Plusieurs observations récentes commencent à raconter la même histoire.',
+      badge: 'PROGRESSION EN COURS',
+    };
+  }
+
+  if (state === 'RECALIBRATING') {
+    return {
+      eyebrow: 'EST-CE QUE JE PROGRESSE ?',
+      title: 'CERTAINES RÉFÉRENCES BOUGENT.',
+      text: progression?.overall?.text ?? 'UGEROD vérifie d’abord les changements avant d’augmenter ou de réduire une référence.',
+      badge: 'RECALIBRATION',
+    };
+  }
+
+  if (maturity === 'ESTABLISHED') {
+    return {
+      eyebrow: 'EST-CE QUE JE PROGRESSE ?',
+      title: 'TES RÉFÉRENCES SONT STABLES.',
+      text: progression?.overall?.text ?? 'Aucun changement net n’est confirmé sur la période. Stable ne veut pas dire bloqué.',
+      badge: 'PROFIL ÉTABLI',
+    };
+  }
+
+  return {
+    eyebrow: 'EST-CE QUE JE PROGRESSE ?',
+    title: 'TROP TÔT POUR LE DIRE.',
+    text: progression?.overall?.text ?? 'UGEROD accumule encore des références avant de tirer une conclusion sur ta progression.',
+    badge: 'CALIBRATION EN COURS',
+  };
+}
+
+function coachActionCopy(progression) {
+  const state = progression?.overall?.state;
+  const maturity = progression?.maturity?.stage;
+
+  if (state === 'PROGRESSING') {
+    return {
+      title: 'CONFIRMER AVANT D’AUGMENTER',
+      text: 'Le Coach cherchera une nouvelle exposition comparable avant de transformer un signal positif en référence plus haute.',
+    };
+  }
+
+  if (state === 'RECALIBRATING') {
+    return {
+      title: 'REVÉRIFIER SANS RÉGRESSER AUTOMATIQUEMENT',
+      text: 'UGEROD peut représenter une référence dans une séance cohérente pour vérifier le changement, sans effacer ton niveau acquis sur une seule observation.',
+    };
+  }
+
+  if (maturity === 'ESTABLISHED') {
+    return {
+      title: 'CONSOLIDER ET CHERCHER LE PROCHAIN SIGNAL',
+      text: 'Le Coach conserve les références établies et profite des séances cohérentes pour détecter un nouveau signal utile.',
+    };
+  }
+
+  return {
+    title: 'CONSOLIDER TES PREMIÈRES RÉFÉRENCES',
+    text: 'Quand deux options de séance se valent, UGEROD peut privilégier ponctuellement un mouvement déjà observé afin d’obtenir une deuxième preuve comparable, sans le forcer.',
+  };
+}
+
+function EvidenceCard({ item, showDetails }) {
+  const red = item.accent === 'red';
+  const muted = item.accent === 'muted';
+
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.hubCard, pressed && styles.pressed]}
-    >
-      <View style={[styles.iconBox, accent === 'red' && styles.iconBoxRed]}>
+    <View style={styles.evidenceCard}>
+      <View style={[styles.evidenceIcon, red && styles.evidenceIconRed, muted && styles.evidenceIconMuted]}>
         <Ionicons
-          name={icon}
-          size={21}
-          color={accent === 'red' ? colors.brandRed : colors.primaryLight}
+          name={item.icon}
+          size={20}
+          color={red ? colors.brandRed : muted ? colors.textSecondary : colors.primaryLight}
         />
       </View>
 
-      <View style={styles.cardMain}>
-        <Text style={styles.cardEyebrow}>{eyebrow}</Text>
-        <Text style={styles.cardTitle}>{title}</Text>
-        {value ? <Text style={styles.cardValue}>{value}</Text> : null}
-        {text ? <Text style={styles.cardText}>{text}</Text> : null}
-        {meta ? <Text style={styles.cardMeta}>{meta}</Text> : null}
+      <View style={styles.evidenceMain}>
+        <Text style={styles.evidenceEyebrow}>{item.eyebrow}</Text>
+        <Text style={styles.evidenceTitle}>{item.title}</Text>
+        <Text style={styles.evidenceValue}>{item.value}</Text>
+        <Text style={styles.evidenceText}>{item.text}</Text>
+        {showDetails ? <Text style={styles.evidenceDetail}>{item.detail}</Text> : null}
       </View>
+    </View>
+  );
+}
 
+function LinkCard({ icon, eyebrow, title, text, onPress, accent = 'blue' }) {
+  const red = accent === 'red';
+
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.linkCard, pressed && styles.pressed]}>
+      <View style={[styles.linkIcon, red && styles.linkIconRed]}>
+        <Ionicons name={icon} size={20} color={red ? colors.brandRed : colors.primaryLight} />
+      </View>
+      <View style={styles.linkMain}>
+        <Text style={styles.linkEyebrow}>{eyebrow}</Text>
+        <Text style={styles.linkTitle}>{title}</Text>
+        <Text style={styles.linkText}>{text}</Text>
+      </View>
       <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </Pressable>
   );
@@ -87,6 +308,7 @@ export default function ProgressionScreen() {
   const [progression, setProgression] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async ({ refresh = false } = {}) => {
@@ -109,45 +331,24 @@ export default function ProgressionScreen() {
     load();
   }, [load]);
 
-  const movementCapabilities = progression?.movement_capabilities ?? [];
-  const nextMovement = useMemo(
-    () => movementCapabilities.find((item) => item.signal === 'PROGRESSING')
-      ?? movementCapabilities.find((item) => item.signal === 'RECALIBRATING')
-      ?? null,
-    [movementCapabilities]
-  );
+  const evidence = useMemo(() => buildEvidence(progression), [progression]);
+  const summary = useMemo(() => summaryCopy(progression), [progression]);
+  const coachAction = useMemo(() => coachActionCopy(progression), [progression]);
 
-  const athleteDimensions = progression?.athlete_profile?.dimensions ?? [];
-  const calibratedDimensions = athleteDimensions.filter((item) => item.calibrated);
-  const trendingDimension = calibratedDimensions.find((item) => item.trend_symbol === '↗')
-    ?? calibratedDimensions[0]
-    ?? null;
-
-  const records = progression?.records?.current_records ?? [];
-  const suggestions = progression?.records?.suggestions_to_confirm ?? [];
   const profile = progression?.profile ?? {};
   const activitySummary = progression?.activity?.summary ?? {};
   const currentWeek = progression?.activity?.current_week ?? {};
-  const currentWeekRatio = Number(currentWeek.completion_ratio ?? 0);
-  const currentWeekPercent = Number.isFinite(currentWeekRatio)
-    ? Math.round(Math.max(0, Math.min(1, currentWeekRatio)) * 100)
+  const records = progression?.records?.current_records ?? [];
+  const recordSuggestions = progression?.records?.suggestions_to_confirm ?? [];
+  const athleteDimensions = progression?.athlete_profile?.dimensions ?? [];
+  const calibratedDimensions = athleteDimensions.filter((item) => item?.calibrated);
+
+  const weeklyTarget = Number(currentWeek?.target_sessions ?? profile?.weekly_session_target ?? 0);
+  const currentWeekSessions = Number(currentWeek?.realized_sessions ?? 0);
+  const ratio = Number(currentWeek?.completion_ratio ?? 0);
+  const weekPercent = Number.isFinite(ratio)
+    ? Math.round(Math.max(0, Math.min(1, ratio)) * 100)
     : 0;
-  const weeklyTarget = Number(
-    currentWeek.target_sessions ?? profile.weekly_session_target ?? 0
-  );
-  const currentWeekSessions = Number(currentWeek.realized_sessions ?? 0);
-
-  const overallState = progression?.overall?.state;
-  const heroTitle = overallState === 'PROGRESSING'
-    ? 'TA PROGRESSION COMMENCE À SE CONFIRMER.'
-    : overallState === 'RECALIBRATING'
-      ? 'UGEROD RECALIBRE CERTAINES RÉFÉRENCES.'
-      : progression?.maturity?.stage === 'ESTABLISHED'
-        ? 'TON PROFIL SE CONSOLIDE.'
-        : 'UGEROD APPREND TON PROFIL.';
-
-  const heroText = progression?.overall?.text
-    ?? 'Chaque séance enrichit ton profil et rend les prochaines décisions du Coach plus fiables.';
 
   if (loading && !progression) {
     return (
@@ -164,8 +365,8 @@ export default function ProgressionScreen() {
       <ImageBackground source={backgroundImage} resizeMode="cover" style={styles.background}>
         <View style={styles.darkOverlay} />
         <LinearGradient
-          colors={['rgba(7,9,12,0.34)', 'rgba(7,9,12,0.68)', 'rgba(7,9,12,0.96)', 'rgba(7,9,12,1)']}
-          locations={[0, 0.22, 0.55, 1]}
+          colors={['rgba(7,9,12,0.34)', 'rgba(7,9,12,0.70)', 'rgba(7,9,12,0.97)', 'rgba(7,9,12,1)']}
+          locations={[0, 0.22, 0.56, 1]}
           style={StyleSheet.absoluteFill}
         />
 
@@ -187,13 +388,13 @@ export default function ProgressionScreen() {
               </Pressable>
 
               <View style={styles.headerText}>
-                <Text style={styles.headerEyebrow}>TON PROFIL ATHLÈTE</Text>
+                <Text style={styles.headerEyebrow}>PROGRESSION</Text>
                 <Text style={styles.headerTitle}>
-                  {(profile.firstname || 'TOI').toUpperCase()}
+                  {(profile?.firstname || 'TON PROFIL').toUpperCase()}
                   <Text style={styles.blueDot}>.</Text>
                 </Text>
                 <Text style={styles.headerMeta}>
-                  {experienceLabel(profile.experience)} · OBJECTIF {weeklyTarget} SÉANCES / SEM.
+                  {experienceLabel(profile?.experience)} · {activitySummary?.completed_sessions ?? 0} SÉANCE(S) ANALYSÉE(S)
                 </Text>
               </View>
 
@@ -208,87 +409,145 @@ export default function ProgressionScreen() {
             ) : null}
 
             <View style={styles.heroCard}>
-              <Text style={styles.heroEyebrow}>BILAN · 4 DERNIÈRES SEMAINES</Text>
-              <Text style={styles.heroTitle}>{heroTitle}</Text>
-              <Text style={styles.heroText}>{heroText}</Text>
+              <View style={styles.heroTopRow}>
+                <Text style={styles.heroEyebrow}>{summary.eyebrow}</Text>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>{summary.badge}</Text>
+                </View>
+              </View>
+              <Text style={styles.heroTitle}>{summary.title}</Text>
+              <Text style={styles.heroText}>{summary.text}</Text>
 
               <View style={styles.heroStats}>
-                <View>
-                  <Text style={styles.heroStatValue}>{activitySummary.completed_sessions ?? 0}</Text>
-                  <Text style={styles.heroStatLabel}>SÉANCES</Text>
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>{activitySummary?.completed_sessions ?? 0}</Text>
+                  <Text style={styles.heroStatLabel}>SÉANCES · 4 SEM.</Text>
                 </View>
                 <View style={styles.heroDivider} />
-                <View>
-                  <Text style={styles.heroStatValue}>{currentWeekPercent}%</Text>
-                  <Text style={styles.heroStatLabel}>RYTHME SEMAINE</Text>
-                </View>
-                <View style={styles.heroDivider} />
-                <View>
-                  <Text style={styles.heroStatValue}>{records.length}</Text>
-                  <Text style={styles.heroStatLabel}>PR</Text>
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>{formatMinutes(activitySummary?.total_minutes)}</Text>
+                  <Text style={styles.heroStatLabel}>ENTRAÎNEMENT</Text>
                 </View>
               </View>
             </View>
 
-            <Text style={styles.sectionLabel}>TON TABLEAU DE BORD</Text>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionEyebrow}>SUR QUOI ?</Text>
+                <Text style={styles.sectionTitle}>CE QUI ÉVOLUE</Text>
+              </View>
+              <Pressable
+                onPress={() => setShowDetails((value) => !value)}
+                style={({ pressed }) => [styles.whyButton, pressed && styles.pressed]}
+              >
+                <Ionicons
+                  name={showDetails ? 'chevron-up' : 'information-circle-outline'}
+                  size={16}
+                  color={colors.primaryLight}
+                />
+                <Text style={styles.whyButtonText}>{showDetails ? 'MASQUER' : 'POURQUOI ?'}</Text>
+              </Pressable>
+            </View>
 
-            <HubCard
-              icon="trending-up-outline"
-              eyebrow="ÉVOLUTION"
-              title="VOIR CE QUI CHANGE"
-              value={overallState === 'PROGRESSING' ? 'SIGNAUX POSITIFS' : 'SUIVI EN COURS'}
-              text="Performances réelles, mouvements qui progressent et niveau de fiabilité des conclusions."
+            {evidence.length > 0 ? (
+              evidence.map((item) => <EvidenceCard key={item.id} item={item} showDetails={showDetails} />)
+            ) : (
+              <View style={styles.emptyEvidenceCard}>
+                <Ionicons name="scan-outline" size={23} color={colors.textMuted} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.emptyEvidenceTitle}>PAS ENCORE DE PREUVE COMPARABLE</Text>
+                  <Text style={styles.emptyEvidenceText}>
+                    UGEROD attend des observations mesurables avant d’afficher une évolution. Une absence de donnée n’est pas une faiblesse.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <Pressable
               onPress={() => router.push('/progression/detail?section=evolution')}
+              style={({ pressed }) => [styles.inlineLink, pressed && styles.pressed]}
+            >
+              <Text style={styles.inlineLinkText}>VOIR TOUTES LES RÉFÉRENCES</Text>
+              <Ionicons name="arrow-forward" size={16} color={colors.primaryLight} />
+            </Pressable>
+
+            <Text style={styles.sectionEyebrowStandalone}>CE QUE LE COACH FAIT MAINTENANT</Text>
+            <View style={styles.coachCard}>
+              <View style={styles.coachIcon}>
+                <Ionicons name="navigate-outline" size={22} color={colors.brandRed} />
+              </View>
+              <View style={styles.coachMain}>
+                <Text style={styles.coachTitle}>{coachAction.title}</Text>
+                <Text style={styles.coachText}>{coachAction.text}</Text>
+              </View>
+            </View>
+
+            <View style={styles.capCard}>
+              <View style={styles.capTopRow}>
+                <View style={styles.capIcon}>
+                  <Ionicons name="flag-outline" size={20} color={colors.primaryLight} />
+                </View>
+                <Text style={styles.capEyebrow}>TON PROCHAIN CAP</Text>
+              </View>
+              <Text style={styles.capTitle}>ENCORE EN CALIBRATION</Text>
+              <Text style={styles.capText}>
+                UGEROD n’affiche pas encore de cap précis : il manque des preuves pour identifier un facteur limitant fiable. Il préfère te le dire plutôt que d’inventer un conseil générique.
+              </Text>
+            </View>
+
+            <Text style={styles.sectionEyebrowStandalone}>TON RYTHME</Text>
+            <Pressable
+              onPress={() => router.push('/progression/detail?section=activity')}
+              style={({ pressed }) => [styles.rhythmCard, pressed && styles.pressed]}
+            >
+              <View style={styles.rhythmTop}>
+                <View>
+                  <Text style={styles.rhythmValue}>{currentWeekSessions} / {weeklyTarget}</Text>
+                  <Text style={styles.rhythmLabel}>SÉANCES CETTE SEMAINE</Text>
+                </View>
+                <Text style={styles.rhythmPercent}>{weekPercent}%</Text>
+              </View>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${weekPercent}%` }]} />
+              </View>
+              <Text style={styles.rhythmText}>
+                La semaine repart proprement : aucune séance manquée n’est transformée en dette à rattraper.
+              </Text>
+            </Pressable>
+
+            <Text style={styles.sectionEyebrowStandalone}>PLUS DE DÉTAILS</Text>
+
+            <LinkCard
+              icon="trophy-outline"
+              eyebrow="RÉFÉRENCES / PR"
+              title={`${records.length} RECORD${records.length > 1 ? 'S' : ''} CONFIRMÉ${records.length > 1 ? 'S' : ''}`}
+              text={recordSuggestions.length > 0
+                ? `${recordSuggestions.length} suggestion${recordSuggestions.length > 1 ? 's' : ''} à confirmer. Les estimations restent séparées des vrais PR.`
+                : 'Les PR sont une preuve parmi d’autres : ils ne résument pas toute ta progression.'}
+              onPress={() => router.push('/progression/records')}
             />
 
-            <HubCard
+            <LinkCard
+              icon="analytics-outline"
+              eyebrow="PROFIL ATHLÉTIQUE"
+              title={`${calibratedDimensions.length}/5 DIMENSIONS CALIBRÉES`}
+              text={calibratedDimensions.length > 0
+                ? 'Force fonctionnelle, conditioning, puissance, stabilité et mobilité sont expliqués avec leurs preuves.'
+                : 'Le profil reste volontairement en calibration tant que les preuves sont trop rares.'}
+              onPress={() => router.push('/progression/detail?section=athletic')}
+            />
+
+            <LinkCard
               icon="navigate-circle-outline"
-              eyebrow="COACH"
-              title="TES PROCHAINES ÉTAPES"
-              value={nextMovement ? `${nextMovement.name}` : 'UGEROD AFFINE TON PROFIL'}
-              text={nextMovement
-                ? `${signalLabel(nextMovement.signal)} · ${nextMovement.valid_evidence_count ?? 0} référence(s) valide(s)`
-                : 'Pas de recommandation forte sans données suffisamment fiables.'}
-              meta={nextMovement ? confidenceLabel(nextMovement.confidence) : null}
+              eyebrow="LECTURE COACH"
+              title="VOIR LE RAISONNEMENT DÉTAILLÉ"
+              text="Signaux de progression, recalibration et maturité des références sans score arbitraire unique."
               onPress={() => router.push('/progression/detail?section=coach')}
               accent="red"
             />
 
-            <HubCard
-              icon="trophy-outline"
-              eyebrow="TES RÉFÉRENCES"
-              title="CARNET DE PR"
-              value={`${records.length} RECORD${records.length > 1 ? 'S' : ''}`}
-              text={suggestions.length
-                ? `${suggestions.length} nouveau${suggestions.length > 1 ? 'x' : ''} record${suggestions.length > 1 ? 's' : ''} potentiel${suggestions.length > 1 ? 's' : ''} à confirmer.`
-                : 'Tes records confirmés restent distincts des estimations du Coach.'}
-              onPress={() => router.push('/progression/records')}
-            />
-
-            <HubCard
-              icon="calendar-outline"
-              eyebrow="RÉGULARITÉ & ACTIVITÉ"
-              title="TON RYTHME D’ENTRAÎNEMENT"
-              value={`${currentWeekSessions} / ${weeklyTarget} CETTE SEMAINE`}
-              text={`${activitySummary.completed_sessions ?? 0} séance(s) · ${formatMinutes(activitySummary.total_minutes)} sur les 4 dernières semaines.`}
-              onPress={() => router.push('/progression/detail?section=activity')}
-            />
-
-            <HubCard
-              icon="analytics-outline"
-              eyebrow="PROFIL ATHLÉTIQUE"
-              title="TES QUALITÉS PHYSIQUES"
-              value={trendingDimension
-                ? `${trendingDimension.label} · ${trendingDimension.level}`
-                : `${calibratedDimensions.length}/5 DIMENSIONS CALIBRÉES`}
-              text={trendingDimension
-                ? `${trendingDimension.trend_symbol} ${trendingDimension.trend_label}. Aucun score arbitraire /100 n’est affiché.`
-                : 'Force fonctionnelle, conditioning, puissance, stabilité et mobilité se calibrent avec tes références réelles.'}
-              onPress={() => router.push('/progression/detail?section=athletic')}
-            />
-
             <Text style={styles.footerNote}>
-              UGEROD privilégie les preuves observées. Une qualité peu travaillée ou limitée par le matériel n’est pas automatiquement considérée comme une faiblesse.
+              UGEROD sépare ce qu’il observe, la fiabilité de la preuve et le contexte dans lequel la performance a été réalisée. Une qualité peu observée n’est pas automatiquement une faiblesse.
             </Text>
           </ScrollView>
         </SafeAreaView>
@@ -302,11 +561,11 @@ const styles = StyleSheet.create({
   background: { flex: 1 },
   darkOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,6,9,0.60)' },
   safeArea: { flex: 1 },
-  content: { paddingHorizontal: spacing.xl, paddingTop: 8, paddingBottom: 46 },
+  content: { paddingHorizontal: spacing.xl, paddingTop: 8, paddingBottom: 48 },
   loadingScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: colors.background },
   loadingLogo: { width: 42, height: 42 },
   loadingText: { fontFamily: 'Oswald_600SemiBold', fontSize: 10, letterSpacing: 1, color: colors.textMuted },
-  header: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12 },
   profileButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(17,21,26,0.84)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   headerText: { flex: 1 },
   headerEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 9, letterSpacing: 1.1, color: colors.brandRed },
@@ -316,24 +575,65 @@ const styles = StyleSheet.create({
   brandIcon: { width: 34, height: 34, opacity: 0.94 },
   errorCard: { marginTop: 8, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, backgroundColor: 'rgba(17,21,26,0.92)', borderWidth: 1, borderColor: 'rgba(255,82,82,0.20)' },
   errorText: { flex: 1, fontFamily: 'Oswald_400Regular', fontSize: 11, color: colors.textSecondary },
-  heroCard: { marginTop: 14, padding: 20, borderRadius: 22, backgroundColor: 'rgba(13,18,25,0.95)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.24)' },
-  heroEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 9, letterSpacing: 1.1, color: colors.primaryLight },
-  heroTitle: { marginTop: 7, fontFamily: 'BebasNeue_400Regular', fontSize: 31, lineHeight: 33, letterSpacing: 1.1, color: colors.textPrimary },
+  heroCard: { marginTop: 14, padding: 20, borderRadius: 22, backgroundColor: 'rgba(13,18,25,0.96)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.26)' },
+  heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  heroEyebrow: { flex: 1, fontFamily: 'Oswald_700Bold', fontSize: 9, letterSpacing: 1.1, color: colors.primaryLight },
+  statusBadge: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(29,140,255,0.11)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.22)' },
+  statusBadgeText: { fontFamily: 'Oswald_700Bold', fontSize: 7, letterSpacing: 0.7, color: colors.primaryLight },
+  heroTitle: { marginTop: 9, fontFamily: 'BebasNeue_400Regular', fontSize: 32, lineHeight: 34, letterSpacing: 1.1, color: colors.textPrimary },
   heroText: { marginTop: 8, fontFamily: 'Oswald_400Regular', fontSize: 12, lineHeight: 18, color: colors.textSecondary },
-  heroStats: { marginTop: 18, paddingTop: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
-  heroStatValue: { textAlign: 'center', fontFamily: 'BebasNeue_400Regular', fontSize: 24, color: colors.textPrimary },
-  heroStatLabel: { marginTop: 1, textAlign: 'center', fontFamily: 'Oswald_600SemiBold', fontSize: 8, letterSpacing: 0.75, color: colors.textMuted },
-  heroDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.08)' },
-  sectionLabel: { marginTop: 25, marginBottom: 9, fontFamily: 'Oswald_700Bold', fontSize: 9, letterSpacing: 1.15, color: colors.textMuted },
-  hubCard: { minHeight: 122, marginBottom: 11, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 19, backgroundColor: 'rgba(17,21,26,0.94)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  heroStats: { marginTop: 18, paddingTop: 15, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
+  heroStat: { flex: 1 },
+  heroStatValue: { fontFamily: 'BebasNeue_400Regular', fontSize: 25, lineHeight: 28, color: colors.textPrimary },
+  heroStatLabel: { marginTop: 1, fontFamily: 'Oswald_600SemiBold', fontSize: 7, letterSpacing: 0.65, color: colors.textMuted },
+  heroDivider: { width: 1, height: 30, marginHorizontal: 18, backgroundColor: 'rgba(255,255,255,0.09)' },
+  sectionHeader: { marginTop: 28, marginBottom: 10, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  sectionEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 8, letterSpacing: 0.9, color: colors.brandRed },
+  sectionTitle: { marginTop: 2, fontFamily: 'BebasNeue_400Regular', fontSize: 27, lineHeight: 29, letterSpacing: 1, color: colors.textPrimary },
+  sectionEyebrowStandalone: { marginTop: 27, marginBottom: 9, fontFamily: 'Oswald_700Bold', fontSize: 9, letterSpacing: 1, color: colors.textMuted },
+  whyButton: { minHeight: 34, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, backgroundColor: 'rgba(17,21,26,0.88)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.18)' },
+  whyButtonText: { fontFamily: 'Oswald_700Bold', fontSize: 8, letterSpacing: 0.75, color: colors.primaryLight },
+  evidenceCard: { marginBottom: 9, padding: 15, flexDirection: 'row', gap: 12, borderRadius: 17, backgroundColor: 'rgba(17,21,26,0.93)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  evidenceIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(29,140,255,0.12)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.20)' },
+  evidenceIconRed: { backgroundColor: 'rgba(255,70,70,0.10)', borderColor: 'rgba(255,70,70,0.20)' },
+  evidenceIconMuted: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },
+  evidenceMain: { flex: 1 },
+  evidenceEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 8, letterSpacing: 0.8, color: colors.textMuted },
+  evidenceTitle: { marginTop: 2, fontFamily: 'BebasNeue_400Regular', fontSize: 22, lineHeight: 25, letterSpacing: 0.7, color: colors.textPrimary },
+  evidenceValue: { marginTop: 3, fontFamily: 'Oswald_700Bold', fontSize: 12, color: colors.primaryLight },
+  evidenceText: { marginTop: 5, fontFamily: 'Oswald_400Regular', fontSize: 10.5, lineHeight: 16, color: colors.textSecondary },
+  evidenceDetail: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', fontFamily: 'Oswald_400Regular', fontSize: 9, lineHeight: 14, color: colors.textMuted },
+  emptyEvidenceCard: { padding: 16, flexDirection: 'row', gap: 12, borderRadius: 17, backgroundColor: 'rgba(17,21,26,0.91)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  emptyEvidenceTitle: { fontFamily: 'Oswald_700Bold', fontSize: 10, letterSpacing: 0.8, color: colors.textPrimary },
+  emptyEvidenceText: { marginTop: 4, fontFamily: 'Oswald_400Regular', fontSize: 10, lineHeight: 15, color: colors.textSecondary },
+  inlineLink: { alignSelf: 'flex-start', marginTop: 3, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  inlineLinkText: { fontFamily: 'Oswald_700Bold', fontSize: 8.5, letterSpacing: 0.8, color: colors.primaryLight },
+  coachCard: { padding: 16, flexDirection: 'row', gap: 12, borderRadius: 18, backgroundColor: 'rgba(24,16,18,0.92)', borderWidth: 1, borderColor: 'rgba(255,70,70,0.18)' },
+  coachIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,70,70,0.09)' },
+  coachMain: { flex: 1 },
+  coachTitle: { fontFamily: 'BebasNeue_400Regular', fontSize: 23, lineHeight: 26, letterSpacing: 0.8, color: colors.textPrimary },
+  coachText: { marginTop: 5, fontFamily: 'Oswald_400Regular', fontSize: 10.5, lineHeight: 16, color: colors.textSecondary },
+  capCard: { marginTop: 10, padding: 16, borderRadius: 18, backgroundColor: 'rgba(17,21,26,0.91)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  capTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  capIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(29,140,255,0.09)' },
+  capEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 8.5, letterSpacing: 0.9, color: colors.primaryLight },
+  capTitle: { marginTop: 10, fontFamily: 'BebasNeue_400Regular', fontSize: 23, lineHeight: 26, color: colors.textPrimary },
+  capText: { marginTop: 4, fontFamily: 'Oswald_400Regular', fontSize: 10.5, lineHeight: 16, color: colors.textSecondary },
+  rhythmCard: { padding: 16, borderRadius: 18, backgroundColor: 'rgba(17,21,26,0.92)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  rhythmTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rhythmValue: { fontFamily: 'BebasNeue_400Regular', fontSize: 28, lineHeight: 30, color: colors.textPrimary },
+  rhythmLabel: { fontFamily: 'Oswald_600SemiBold', fontSize: 8, letterSpacing: 0.7, color: colors.textMuted },
+  rhythmPercent: { fontFamily: 'BebasNeue_400Regular', fontSize: 25, color: colors.primaryLight },
+  progressTrack: { marginTop: 12, height: 5, overflow: 'hidden', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  progressFill: { height: '100%', borderRadius: 999, backgroundColor: colors.primaryLight },
+  rhythmText: { marginTop: 10, fontFamily: 'Oswald_400Regular', fontSize: 10, lineHeight: 15, color: colors.textSecondary },
+  linkCard: { marginBottom: 9, minHeight: 92, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 17, backgroundColor: 'rgba(17,21,26,0.91)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  linkIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(29,140,255,0.10)' },
+  linkIconRed: { backgroundColor: 'rgba(255,70,70,0.08)' },
+  linkMain: { flex: 1 },
+  linkEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 7.5, letterSpacing: 0.8, color: colors.textMuted },
+  linkTitle: { marginTop: 2, fontFamily: 'BebasNeue_400Regular', fontSize: 21, lineHeight: 23, color: colors.textPrimary },
+  linkText: { marginTop: 3, fontFamily: 'Oswald_400Regular', fontSize: 9.5, lineHeight: 14, color: colors.textSecondary },
   pressed: { opacity: 0.72 },
-  iconBox: { width: 43, height: 43, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(8,104,255,0.13)' },
-  iconBoxRed: { backgroundColor: 'rgba(255,59,59,0.11)' },
-  cardMain: { flex: 1 },
-  cardEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 8, letterSpacing: 1, color: colors.textMuted },
-  cardTitle: { marginTop: 2, fontFamily: 'BebasNeue_400Regular', fontSize: 22, lineHeight: 24, letterSpacing: 0.9, color: colors.textPrimary },
-  cardValue: { marginTop: 5, fontFamily: 'Oswald_700Bold', fontSize: 11, lineHeight: 16, color: colors.primaryLight },
-  cardText: { marginTop: 4, fontFamily: 'Oswald_400Regular', fontSize: 10, lineHeight: 15, color: colors.textSecondary },
-  cardMeta: { marginTop: 5, fontFamily: 'Oswald_600SemiBold', fontSize: 8, letterSpacing: 0.5, color: colors.textMuted },
-  footerNote: { marginTop: 12, paddingHorizontal: 8, fontFamily: 'Oswald_400Regular', fontSize: 9, lineHeight: 14, textAlign: 'center', color: colors.textMuted },
+  footerNote: { marginTop: 20, paddingHorizontal: 8, textAlign: 'center', fontFamily: 'Oswald_400Regular', fontSize: 9, lineHeight: 14, color: colors.textMuted },
 });
