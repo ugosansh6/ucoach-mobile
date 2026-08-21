@@ -6,6 +6,10 @@ import {
   useState,
 } from 'react';
 
+import {
+  recordSessionExecutionEventQuietly,
+} from '../services/observationService';
+
 const WorkoutContext = createContext(null);
 
 const INITIAL_PREPARATION = {
@@ -60,7 +64,16 @@ function numeric(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function appendUniqueEvent(events, event) {
+function appendUniqueEvent(
+  events,
+  event,
+  {
+    sessionId = null,
+    blockKey = null,
+    sessionExerciseId = null,
+    source = 'user_action',
+  } = {}
+) {
   const list = Array.isArray(events) ? events : [];
   const key = event?.idempotency_key;
 
@@ -72,6 +85,19 @@ function appendUniqueEvent(events, event) {
     )
   ) {
     return list;
+  }
+
+  if (sessionId && event?.event_type) {
+    recordSessionExecutionEventQuietly({
+      sessionId,
+      eventType: event.event_type,
+      payload: event.payload ?? {},
+      source,
+      sessionExerciseId,
+      blockKey,
+      occurredAt: event.occurred_at ?? null,
+      idempotencyKey: key ?? null,
+    });
   }
 
   return [...list, event].slice(-200);
@@ -92,7 +118,8 @@ function runtimeEvent(
 
 function enrichControlledWodRuntime(
   previousRuntime,
-  incomingRuntime
+  incomingRuntime,
+  sessionId
 ) {
   if (!incomingRuntime) {
     return incomingRuntime;
@@ -109,6 +136,12 @@ function enrichControlledWodRuntime(
       Array.isArray(previous.roundSplits)
         ? previous.roundSplits
         : [],
+  };
+
+  const traceOptions = {
+    sessionId,
+    blockKey: 'wod',
+    source: 'ugerod_player',
   };
 
   if (next.started) {
@@ -130,7 +163,8 @@ function enrichControlledWodRuntime(
           mechanic: next.mechanic ?? null,
           variant: next.variant ?? null,
         }
-      )
+      ),
+      traceOptions
     );
   }
 
@@ -149,7 +183,8 @@ function enrichControlledWodRuntime(
         'WOD_PLAYER_PAUSE',
         `wod_pause:${elapsed}`,
         { elapsed_seconds: elapsed }
-      )
+      ),
+      traceOptions
     );
   }
 
@@ -169,7 +204,8 @@ function enrichControlledWodRuntime(
         'WOD_PLAYER_RESUME',
         `wod_resume:${elapsed}`,
         { elapsed_seconds: elapsed }
-      )
+      ),
+      traceOptions
     );
   }
 
@@ -226,7 +262,8 @@ function enrichControlledWodRuntime(
         'ROUND_COMPLETE',
         `round_complete:${nextRounds}`,
         split
-      )
+      ),
+      traceOptions
     );
   }
 
@@ -250,7 +287,8 @@ function enrichControlledWodRuntime(
             next.finishReason ?? null,
           completed_rounds: nextRounds,
         }
-      )
+      ),
+      traceOptions
     );
   }
 
@@ -318,7 +356,13 @@ function appendSkillCompletionEvents(
             exercise_id: exercise.id ?? null,
             source: 'USER_COMPLETION_ACTION',
           }
-        )
+        ),
+        {
+          sessionId: currentWorkout?.sessionId,
+          blockKey: 'skill',
+          sessionExerciseId: instanceId,
+          source: 'user_action',
+        }
       );
     }
   }
@@ -488,7 +532,8 @@ export function WorkoutProvider({ children }) {
           nextValues.wodRuntime =
             enrichControlledWodRuntime(
               current.wodRuntime,
-              values.wodRuntime
+              values.wodRuntime,
+              current.sessionId
             );
         }
 
@@ -572,6 +617,12 @@ export function WorkoutProvider({ children }) {
               provenance_class:
                 'USER_EXPLICIT',
             },
+          },
+          {
+            sessionId: current.sessionId,
+            sessionExerciseId:
+              exerciseId,
+            source: 'user_action',
           }
         ),
       }));
