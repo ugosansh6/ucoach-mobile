@@ -14,6 +14,7 @@ import {
   usePathname,
 } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   colors,
@@ -100,6 +101,7 @@ function buildPreparationSnapshot(
 
 export default function SessionAdaptationOverlay() {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const {
     preparation,
     workout,
@@ -138,8 +140,8 @@ export default function SessionAdaptationOverlay() {
         throw new Error(
           generated.controlStatus ===
           'RECALC_LIMIT_REACHED'
-            ? 'La limite d’adaptations globales de cette séance est atteinte.'
-            : 'UGEROD a besoin d’une nouvelle confirmation avant de recalculer la séance.'
+            ? 'La limite d’ajustements globaux de cette séance est atteinte.'
+            : 'UGEROD a besoin d’une nouvelle confirmation avant d’ajuster la séance.'
         );
       }
 
@@ -158,7 +160,7 @@ export default function SessionAdaptationOverlay() {
       setError(
         adaptationError instanceof Error
           ? adaptationError.message
-          : 'Impossible d’adapter le reste de la séance.'
+          : 'Impossible d’ajuster la séance.'
       );
       setVisible(true);
     } finally {
@@ -219,10 +221,16 @@ export default function SessionAdaptationOverlay() {
     <>
       <View
         pointerEvents="box-none"
-        style={styles.floatingLayer}
+        style={[
+          styles.floatingLayer,
+          { top: insets.top + 24 },
+        ]}
       >
         <Pressable
           onPress={open}
+          accessibilityRole="button"
+          accessibilityLabel="Ajuster ma séance"
+          hitSlop={8}
           style={({ pressed }) => [
             styles.floatingButton,
             pressed &&
@@ -231,12 +239,9 @@ export default function SessionAdaptationOverlay() {
         >
           <Ionicons
             name="options-outline"
-            size={18}
+            size={20}
             color={colors.brandWhite}
           />
-          <Text style={styles.floatingButtonText}>
-            ADAPTER LE RESTE
-          </Text>
         </Pressable>
       </View>
 
@@ -259,7 +264,7 @@ export default function SessionAdaptationOverlay() {
                   COACH UGEROD
                 </Text>
                 <Text style={styles.title}>
-                  ADAPTER LE RESTE
+                  AJUSTER MA SÉANCE
                 </Text>
               </View>
 
@@ -277,7 +282,7 @@ export default function SessionAdaptationOverlay() {
             </View>
 
             <Text style={styles.helper}>
-              Utilise cette action seulement si ton état global a changé. UGEROD protège les blocs déjà terminés et recalcule uniquement ce qu’il reste à faire.
+              Ta forme ou ton contexte a changé ? UGEROD conserve ce qui est déjà fait et ajuste uniquement ce qu’il reste à faire.
             </Text>
 
             {error ? (
@@ -296,8 +301,8 @@ export default function SessionAdaptationOverlay() {
             <View style={styles.options}>
               <ActionRow
                 icon="battery-half-outline"
-                title="JE SUIS PLUS FATIGUÉ QUE PRÉVU"
-                description="UGEROD baisse l’intensité du contexte du jour et adapte uniquement les blocs restants."
+                title="PLUS FATIGUÉ QUE PRÉVU"
+                description="UGEROD baisse l’intensité du contexte du jour et ajuste uniquement les blocs restants."
                 loading={loading}
                 onPress={adaptForFatigue}
               />
@@ -310,7 +315,7 @@ export default function SessionAdaptationOverlay() {
 
               <ActionRow
                 icon="create-outline"
-                title="MON CONTEXTE A VRAIMENT CHANGÉ"
+                title="MON CONTEXTE A CHANGÉ"
                 description="Retourne au check-in si ta durée, ton matériel, ta gêne globale ou ton objectif du jour doit être revu."
                 loading={false}
                 onPress={openPreparation}
@@ -406,21 +411,18 @@ function GuidanceRow({
 const styles = StyleSheet.create({
   floatingLayer: {
     position: 'absolute',
-    right: spacing.xl,
-    bottom: 92,
+    right: spacing.xl + 58,
     zIndex: 80,
   },
 
   floatingButton: {
-    minHeight: 44,
-    paddingHorizontal: 16,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor:
       'rgba(16,126,255,0.94)',
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
     borderWidth: 1,
     borderColor:
       'rgba(255,255,255,0.14)',
@@ -428,14 +430,7 @@ const styles = StyleSheet.create({
 
   floatingButtonPressed: {
     opacity: 0.78,
-    transform: [{ scale: 0.98 }],
-  },
-
-  floatingButtonText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.05,
-    color: colors.brandWhite,
+    transform: [{ scale: 0.96 }],
   },
 
   overlay: {
