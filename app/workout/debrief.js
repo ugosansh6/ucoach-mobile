@@ -17,6 +17,10 @@ import {
   getProgressionDataContract,
   getSessionLearningSnapshot,
 } from '../../src/services/progressionDataService';
+import {
+  getObservationQuestionNeed,
+  submitSkillTechnicalFeedback,
+} from '../../src/services/observationService';
 
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
@@ -157,12 +161,80 @@ function DebriefCard({ icon, eyebrow, text, accent = 'blue' }) {
   );
 }
 
+function SkillQuestionCard({ question, value, saving, error, onSelect }) {
+  if (!question?.should_ask) {
+    return null;
+  }
+
+  const options = Array.isArray(question.options)
+    ? question.options
+    : ['PROPRE', 'LIMITE', 'PAS_ENCORE'];
+
+  return (
+    <View style={styles.questionCard}>
+      <View style={styles.questionHeader}>
+        <View style={styles.questionIcon}>
+          <Ionicons name="eye-outline" size={19} color={colors.primaryLight} />
+        </View>
+        <View style={styles.questionMain}>
+          <Text style={styles.questionEyebrow}>UNE INFO QUE JE NE PEUX PAS VOIR</Text>
+          <Text style={styles.questionTitle}>{question.question_text ?? 'Sur le Skill, ta technique était…'}</Text>
+          <Text style={styles.questionText}>
+            Je te le demande uniquement parce que ta réponse peut changer la prochaine étape du Skill.
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.optionRow}>
+        {options.map((option) => {
+          const selected = value === option;
+          return (
+            <Pressable
+              key={option}
+              disabled={saving}
+              onPress={() => onSelect(option)}
+              style={({ pressed }) => [
+                styles.optionButton,
+                selected && styles.optionButtonSelected,
+                pressed && !saving && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
+                {String(option).replace('_', ' ')}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {saving ? (
+        <View style={styles.questionStatus}>
+          <ActivityIndicator size="small" color={colors.primaryLight} />
+          <Text style={styles.questionStatusText}>J’ENREGISTRE…</Text>
+        </View>
+      ) : null}
+
+      {value && !saving ? (
+        <Text style={styles.questionSaved}>
+          Pris en compte. Cette réponse ne crée pas une performance : elle sert uniquement à éviter une progression technique prématurée.
+        </Text>
+      ) : null}
+
+      {error ? <Text style={styles.questionError}>{error}</Text> : null}
+    </View>
+  );
+}
+
 export default function WorkoutDebriefScreen() {
   const params = useLocalSearchParams();
   const sessionId = firstParam(params?.sessionId);
 
   const [snapshot, setSnapshot] = useState(null);
   const [progression, setProgression] = useState(null);
+  const [skillQuestion, setSkillQuestion] = useState(null);
+  const [skillFeedback, setSkillFeedback] = useState(null);
+  const [skillFeedbackSaving, setSkillFeedbackSaving] = useState(false);
+  const [skillFeedbackError, setSkillFeedbackError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -175,13 +247,18 @@ export default function WorkoutDebriefScreen() {
         throw new Error('Session manquante pour le débrief Coach.');
       }
 
-      const [sessionLearning, progressionData] = await Promise.all([
+      const [sessionLearning, progressionData, questionNeed] = await Promise.all([
         getSessionLearningSnapshot(sessionId),
         getProgressionDataContract('4w'),
+        getObservationQuestionNeed(
+          sessionId,
+          'SKILL_TECHNICAL_QUALITY'
+        ).catch(() => ({ should_ask: false, reason: 'QUESTION_UNAVAILABLE' })),
       ]);
 
       setSnapshot(sessionLearning);
       setProgression(progressionData);
+      setSkillQuestion(questionNeed);
     } catch (loadError) {
       setError(
         loadError?.message ??
@@ -208,6 +285,30 @@ export default function WorkoutDebriefScreen() {
     () => buildChangeText(progression),
     [progression]
   );
+
+  const handleSkillFeedback = useCallback(async (feedback) => {
+    if (!skillQuestion?.session_exercise_id || skillFeedbackSaving) {
+      return;
+    }
+
+    setSkillFeedbackSaving(true);
+    setSkillFeedbackError('');
+
+    try {
+      await submitSkillTechnicalFeedback({
+        sessionExerciseId: skillQuestion.session_exercise_id,
+        feedback,
+      });
+      setSkillFeedback(feedback);
+    } catch (feedbackError) {
+      setSkillFeedbackError(
+        feedbackError?.message ??
+          'Impossible d’enregistrer ce retour.'
+      );
+    } finally {
+      setSkillFeedbackSaving(false);
+    }
+  }, [skillFeedbackSaving, skillQuestion?.session_exercise_id]);
 
   function handleFinish() {
     router.replace('/(tabs)');
@@ -283,6 +384,14 @@ export default function WorkoutDebriefScreen() {
               eyebrow="IMPACT COACH"
               text={changeText}
               accent="red"
+            />
+
+            <SkillQuestionCard
+              question={skillQuestion}
+              value={skillFeedback}
+              saving={skillFeedbackSaving}
+              error={skillFeedbackError}
+              onSelect={handleSkillFeedback}
             />
           </>
         )}
@@ -449,6 +558,98 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: colors.textPrimary,
+  },
+  questionCard: {
+    marginTop: 12,
+    padding: 15,
+    borderRadius: 17,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(8,104,255,0.30)',
+  },
+  questionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 11,
+  },
+  questionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(8,104,255,0.13)',
+  },
+  questionMain: { flex: 1 },
+  questionEyebrow: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 8,
+    letterSpacing: 0.8,
+    color: colors.primaryLight,
+  },
+  questionTitle: {
+    marginTop: 4,
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textPrimary,
+  },
+  questionText: {
+    marginTop: 4,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 10,
+    lineHeight: 15,
+    color: colors.textSecondary,
+  },
+  optionRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 7,
+  },
+  optionButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  optionButtonSelected: {
+    borderColor: 'rgba(8,104,255,0.55)',
+    backgroundColor: 'rgba(8,104,255,0.13)',
+  },
+  optionText: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 9,
+    letterSpacing: 0.45,
+    color: colors.textMuted,
+  },
+  optionTextSelected: { color: colors.primaryLight },
+  questionStatus: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  questionStatusText: {
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 9,
+    color: colors.textMuted,
+  },
+  questionSaved: {
+    marginTop: 10,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 9,
+    lineHeight: 14,
+    color: colors.textSecondary,
+  },
+  questionError: {
+    marginTop: 9,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 9,
+    color: colors.brandRed,
   },
   errorCard: {
     marginTop: 16,
