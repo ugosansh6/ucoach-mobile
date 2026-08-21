@@ -49,7 +49,6 @@ function joinNames(names) {
 function buildLearningText(snapshot) {
   const summary = snapshot?.summary ?? {};
   const references = Number(summary.reference_observations ?? 0);
-  const missingMetric = Number(summary.missing_metric_observations ?? 0);
   const stateSignals = Number(summary.state_signal_observations ?? 0);
   const observations = Array.isArray(snapshot?.observations)
     ? snapshot.observations
@@ -74,10 +73,10 @@ function buildLearningText(snapshot) {
   }
 
   if (stateSignals > 0) {
-    return `UGEROD a surtout enregistré des informations sur ton état et le déroulement de la séance. Elles aideront à adapter la suite sans être prises pour une preuve de niveau.`;
+    return 'UGEROD a surtout enregistré des informations sur ton état et le déroulement de la séance. Elles aideront à adapter la suite sans être prises pour une preuve de niveau.';
   }
 
-  return `La séance enrichit ton historique, mais elle ne fournit pas encore de nouvelle référence suffisamment mesurable pour modifier ton niveau.`;
+  return 'La séance enrichit ton historique, mais elle ne fournit pas encore de nouvelle référence suffisamment mesurable pour modifier ton niveau.';
 }
 
 function buildContextText(snapshot) {
@@ -110,7 +109,7 @@ function buildContextText(snapshot) {
     return `Ce WOD était très concentré sur ${dominant ? `les ${dominant.toLowerCase()}` : 'une même zone musculaire'}. Tes résultats${movementText} sont enregistrés avec ce contexte.`;
   }
 
-  return `UGEROD conserve le format du WOD, la prescription et le contexte d'exécution avec chaque référence afin de comparer des performances réellement comparables.`;
+  return "UGEROD conserve le format du WOD, la prescription et le contexte d'exécution avec chaque référence afin de comparer des performances réellement comparables.";
 }
 
 function buildChangeText(progression) {
@@ -131,10 +130,10 @@ function buildChangeText(progression) {
   }
 
   if (maturity === 'ESTABLISHED') {
-    return `Ton profil est déjà suffisamment établi pour que cette séance affine les prochaines décisions sans provoquer de changement artificiel sur une seule observation.`;
+    return 'Ton profil est déjà suffisamment établi pour que cette séance affine les prochaines décisions sans provoquer de changement artificiel sur une seule observation.';
   }
 
-  return `Trop tôt pour augmenter une référence. UGEROD continue de consolider ton profil avant de faire évoluer la difficulté.`;
+  return 'Trop tôt pour augmenter une référence. UGEROD continue de consolider ton profil avant de faire évoluer la difficulté.';
 }
 
 function DebriefCard({ icon, eyebrow, text, accent = 'blue' }) {
@@ -265,21 +264,23 @@ export default function WorkoutDebriefScreen() {
           </View>
         ) : (
           <>
+            <Text style={styles.groupTitle}>CE QUE JE RETIENS</Text>
             <DebriefCard
               icon="analytics-outline"
-              eyebrow="CE QUE J’AI APPRIS"
+              eyebrow="OBSERVATION"
               text={learningText}
             />
 
             <DebriefCard
               icon="layers-outline"
-              eyebrow="CONTEXTE DE LA PERFORMANCE"
+              eyebrow="CONTEXTE"
               text={contextText}
             />
 
+            <Text style={styles.groupTitle}>POUR LA SUITE</Text>
             <DebriefCard
               icon="navigate-outline"
-              eyebrow="CE QUE ÇA CHANGE"
+              eyebrow="IMPACT COACH"
               text={changeText}
               accent="red"
             />
@@ -401,6 +402,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Oswald_600SemiBold',
     fontSize: 10,
     letterSpacing: 0.8,
+    color: colors.textMuted,
+  },
+  groupTitle: {
+    marginTop: 20,
+    marginBottom: -2,
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 9,
+    letterSpacing: 1,
     color: colors.textMuted,
   },
   card: {
