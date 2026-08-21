@@ -32,30 +32,6 @@ const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
 const DURATIONS = [20, 30, 45, 60, 75, 90];
 
-
-const REGIONS = [
-  {
-    id: null,
-    label: 'UGEROD CHOISIT',
-  },
-  {
-    id: 'Upper',
-    label: 'HAUT DU CORPS',
-  },
-  {
-    id: 'Lower',
-    label: 'BAS DU CORPS',
-  },
-  {
-    id: 'Full Body',
-    label: 'CORPS ENTIER',
-  },
-  {
-    id: 'Core',
-    label: 'CENTRE DU CORPS',
-  },
-];
-
 /*
  * Ces matériels peuvent avoir une charge numérique.
  * Une charge non renseignée n'empêche jamais de les sélectionner.
@@ -224,10 +200,6 @@ export default function PreparationScreen() {
       ? preparation.painZones
       : ['Aucune'];
 
-  const region =
-    preparation.region ?? null;
-
-
   const loadReferenceEquipment =
     useCallback(async () => {
       setEquipmentLoading(true);
@@ -391,21 +363,11 @@ export default function PreparationScreen() {
     updatePreparation({
       equipment: nextEquipment,
     });
-
   }
 
   function handleReadiness(value) {
     updatePreparation({
       readiness: value,
-    });
-  }
-
-  function handleRegion(value) {
-    updatePreparation({
-      region:
-        region === value
-          ? null
-          : value,
     });
   }
 
@@ -427,7 +389,10 @@ export default function PreparationScreen() {
       equipment,
       readiness,
       painZones: injuries,
-      region,
+      // Le focus de la séance appartient désormais au moteur Coach.
+      // On neutralise aussi une ancienne préférence éventuellement
+      // encore présente dans le contexte local.
+      region: null,
     });
 
     router.push(
@@ -812,54 +777,6 @@ export default function PreparationScreen() {
               color={colors.primaryLight}
             />
           </Pressable>
-        </View>
-
-        <SectionTitle
-          title="ENVIE DU JOUR"
-          subtitle="Optionnel. Par défaut, UGEROD choisit selon tes besoins."
-        />
-
-        <View style={styles.regionGrid}>
-          {REGIONS.map((item) => {
-            const selected =
-              region === item.id;
-
-            return (
-              <Pressable
-                key={
-                  item.id ?? 'auto-region'
-                }
-                onPress={() =>
-                  handleRegion(item.id)
-                }
-                style={[
-                  styles.regionButton,
-                  selected &&
-                    styles.regionButtonSelected,
-                ]}
-              >
-                <View style={styles.regionButtonContent}>
-                  <Text
-                    style={[
-                      styles.regionText,
-                      selected &&
-                        styles.regionTextSelected,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-
-                  {selected && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color={colors.primaryLight}
-                    />
-                  )}
-                </View>
-              </Pressable>
-            );
-          })}
         </View>
 
         <Pressable
@@ -1412,7 +1329,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1756,51 +1672,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Oswald_600SemiBold',
     fontSize: 9,
     letterSpacing: 0.4,
-    color: colors.primaryLight,
-  },
-
-  regionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 9,
-  },
-
-  regionButton: {
-    width: '48%',
-    minHeight: 48,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-
-  regionButtonSelected: {
-    backgroundColor:
-      'rgba(8,104,255,0.12)',
-    borderColor: colors.primary,
-  },
-
-  regionButtonContent: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-
-  regionText: {
-    flexShrink: 1,
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 14,
-    lineHeight: 19,
-    letterSpacing: 0.5,
-    color: colors.textSecondary,
-    textAlign: 'left',
-  },
-
-  regionTextSelected: {
     color: colors.primaryLight,
   },
 
