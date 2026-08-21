@@ -34,6 +34,7 @@ const INITIAL_WORKOUT = {
   validatedBlocks: [],
   wodRevealed: false,
   wodRuntime: null,
+  executionEvents: [],
   sessionStarted: false,
   startedAt: null,
   startedLocalDate: null,
@@ -48,10 +49,282 @@ const INITIAL_COMPLETION = {
   formAfter: null,
   rpe: null,
   loads: {},
+  loadMeta: {},
   notes: '',
   exerciseFeedback: {},
   protocolFeedback: {},
 };
+
+function numeric(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function appendUniqueEvent(events, event) {
+  const list = Array.isArray(events) ? events : [];
+  const key = event?.idempotency_key;
+
+  if (
+    key &&
+    list.some(
+      (item) =>
+        item?.idempotency_key === key
+    )
+  ) {
+    return list;
+  }
+
+  return [...list, event].slice(-200);
+}
+
+function runtimeEvent(
+  eventType,
+  idempotencyKey,
+  payload = {}
+) {
+  return {
+    event_type: eventType,
+    idempotency_key: idempotencyKey,
+    occurred_at: new Date().toISOString(),
+    payload,
+  };
+}
+
+function enrichControlledWodRuntime(
+  previousRuntime,
+  incomingRuntime
+) {
+  if (!incomingRuntime) {
+    return incomingRuntime;
+  }
+
+  const previous = previousRuntime ?? {};
+  const next = {
+    ...incomingRuntime,
+    executionEvents:
+      Array.isArray(previous.executionEvents)
+        ? previous.executionEvents
+        : [],
+    roundSplits:
+      Array.isArray(previous.roundSplits)
+        ? previous.roundSplits
+        : [],
+  };
+
+  if (next.started) {
+    next.controlledWindow = true;
+    next.timeQuality = 'CONTROLLED_WINDOW';
+  }
+
+  if (!previous.started && next.started) {
+    next.executionEvents = appendUniqueEvent(
+      next.executionEvents,
+      runtimeEvent(
+        'WOD_PLAYER_START',
+        'wod_player_start',
+        {
+          elapsed_seconds: numeric(
+            next.elapsedSeconds,
+            0
+          ),
+          mechanic: next.mechanic ?? null,
+          variant: next.variant ?? null,
+        }
+      )
+    );
+  }
+
+  if (
+    previous.started &&
+    !previous.paused &&
+    next.paused
+  ) {
+    const elapsed = numeric(
+      next.elapsedSeconds,
+      0
+    );
+    next.executionEvents = appendUniqueEvent(
+      next.executionEvents,
+      runtimeEvent(
+        'WOD_PLAYER_PAUSE',
+        `wod_pause:${elapsed}`,
+        { elapsed_seconds: elapsed }
+      )
+    );
+  }
+
+  if (
+    previous.started &&
+    previous.paused &&
+    next.started &&
+    !next.paused
+  ) {
+    const elapsed = numeric(
+      next.elapsedSeconds,
+      0
+    );
+    next.executionEvents = appendUniqueEvent(
+      next.executionEvents,
+      runtimeEvent(
+        'WOD_PLAYER_RESUME',
+        `wod_resume:${elapsed}`,
+        { elapsed_seconds: elapsed }
+      )
+    );
+  }
+
+  const previousRounds = Math.max(
+    0,
+    numeric(previous.completedRounds, 0)
+  );
+  const nextRounds = Math.max(
+    0,
+    numeric(next.completedRounds, 0)
+  );
+
+  if (
+    previous.started &&
+    next.started &&
+    nextRounds === previousRounds + 1
+  ) {
+    const cumulative = Math.max(
+      0,
+      numeric(next.elapsedSeconds, 0)
+    );
+    const lastSplit =
+      next.roundSplits[
+        next.roundSplits.length - 1
+      ];
+    const previousCumulative = Math.max(
+      0,
+      numeric(
+        lastSplit?.cumulative_seconds,
+        0
+      )
+    );
+    const splitSeconds = Math.max(
+      0,
+      cumulative - previousCumulative
+    );
+
+    const split = {
+      round: nextRounds,
+      split_seconds: splitSeconds,
+      cumulative_seconds: cumulative,
+      source: 'USER_ROUND_COMPLETE',
+      controlled_window: true,
+    };
+
+    next.roundSplits = [
+      ...next.roundSplits,
+      split,
+    ].slice(-100);
+
+    next.executionEvents = appendUniqueEvent(
+      next.executionEvents,
+      runtimeEvent(
+        'ROUND_COMPLETE',
+        `round_complete:${nextRounds}`,
+        split
+      )
+    );
+  }
+
+  if (
+    previous.started &&
+    !previous.finished &&
+    next.finished
+  ) {
+    const elapsed = Math.max(
+      0,
+      numeric(next.elapsedSeconds, 0)
+    );
+    next.executionEvents = appendUniqueEvent(
+      next.executionEvents,
+      runtimeEvent(
+        'WOD_PLAYER_COMPLETE',
+        'wod_player_complete',
+        {
+          elapsed_seconds: elapsed,
+          finish_reason:
+            next.finishReason ?? null,
+          completed_rounds: nextRounds,
+        }
+      )
+    );
+  }
+
+  const recordedRounds =
+    next.roundSplits.length;
+  next.splitCoverage = {
+    recorded_rounds: recordedRounds,
+    completed_rounds: nextRounds,
+    complete:
+      nextRounds > 0 &&
+      recordedRounds === nextRounds,
+    source: 'CONTROLLED_ROUND_INTERACTION',
+  };
+
+  return next;
+}
+
+function appendSkillCompletionEvents(
+  currentWorkout,
+  nextExercises,
+  existingEvents
+) {
+  if (!Array.isArray(nextExercises)) {
+    return existingEvents;
+  }
+
+  const previousByInstance = new Map(
+    (currentWorkout?.exercises ?? [])
+      .filter(
+        (exercise) =>
+          exercise.sessionExerciseId
+      )
+      .map((exercise) => [
+        exercise.sessionExerciseId,
+        exercise,
+      ])
+  );
+
+  let events = existingEvents;
+
+  for (const exercise of nextExercises) {
+    const instanceId =
+      exercise.sessionExerciseId;
+    const blockKey = String(
+      exercise.blockKey ??
+        exercise.block ??
+        ''
+    ).toLowerCase();
+    const previous =
+      previousByInstance.get(instanceId);
+
+    if (
+      instanceId &&
+      blockKey === 'skill' &&
+      previous?.status !== 'completed' &&
+      exercise.status === 'completed'
+    ) {
+      events = appendUniqueEvent(
+        events,
+        runtimeEvent(
+          'SKILL_COMPLETE',
+          `skill_complete:${instanceId}`,
+          {
+            session_exercise_id: instanceId,
+            exercise_id: exercise.id ?? null,
+            source: 'USER_COMPLETION_ACTION',
+          }
+        )
+      );
+    }
+  }
+
+  return events;
+}
 
 export function WorkoutProvider({ children }) {
   const [preparation, setPreparation] =
@@ -178,6 +451,8 @@ export function WorkoutProvider({ children }) {
             ),
           wodRuntime:
             current.wodRuntime,
+          executionEvents:
+            current.executionEvents,
           sessionStarted:
             current.sessionStarted ||
             Boolean(
@@ -197,10 +472,43 @@ export function WorkoutProvider({ children }) {
 
   const updateWorkout =
     useCallback((values) => {
-      setWorkout((current) => ({
-        ...current,
-        ...values,
-      }));
+      setWorkout((current) => {
+        const nextValues = { ...values };
+        let executionEvents =
+          Array.isArray(current.executionEvents)
+            ? current.executionEvents
+            : [];
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            values,
+            'wodRuntime'
+          )
+        ) {
+          nextValues.wodRuntime =
+            enrichControlledWodRuntime(
+              current.wodRuntime,
+              values.wodRuntime
+            );
+        }
+
+        if (
+          Array.isArray(values.exercises)
+        ) {
+          executionEvents =
+            appendSkillCompletionEvents(
+              current,
+              values.exercises,
+              executionEvents
+            );
+        }
+
+        return {
+          ...current,
+          ...nextValues,
+          executionEvents,
+        };
+      });
     }, []);
 
   const updateExercise =
@@ -230,12 +538,42 @@ export function WorkoutProvider({ children }) {
 
   const setExerciseLoad =
     useCallback((exerciseId, value) => {
+      const changedAt =
+        new Date().toISOString();
+
       setCompletion((current) => ({
         ...current,
         loads: {
           ...current.loads,
           [exerciseId]: value,
         },
+        loadMeta: {
+          ...current.loadMeta,
+          [exerciseId]: {
+            source: 'USER_EXPLICIT',
+            changedAt,
+          },
+        },
+      }));
+
+      setWorkout((current) => ({
+        ...current,
+        executionEvents: appendUniqueEvent(
+          current.executionEvents,
+          {
+            event_type: 'LOAD_CHANGE',
+            idempotency_key:
+              `load_change:${exerciseId}:${changedAt}`,
+            occurred_at: changedAt,
+            payload: {
+              session_exercise_id:
+                exerciseId,
+              value,
+              provenance_class:
+                'USER_EXPLICIT',
+            },
+          }
+        ),
       }));
     }, []);
 
