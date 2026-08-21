@@ -11,6 +11,7 @@ import {
   Modal,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -56,41 +57,21 @@ function getGenerationMessage(elapsedSeconds) {
 }
 
 export default function GeneratingScreen() {
-  const [
-    activeStep,
-    setActiveStep,
-  ] = useState(0);
+  const [activeStep, setActiveStep] =
+    useState(0);
+  const [generationError, setGenerationError] =
+    useState('');
+  const [generationControl, setGenerationControl] =
+    useState(null);
+  const [forceRecalculating, setForceRecalculating] =
+    useState(false);
+  const [isGenerating, setIsGenerating] =
+    useState(false);
+  const [elapsedSeconds, setElapsedSeconds] =
+    useState(0);
 
-  const [
-    generationError,
-    setGenerationError,
-  ] = useState('');
-
-  const [
-    generationControl,
-    setGenerationControl,
-  ] = useState(null);
-
-  const [
-    forceRecalculating,
-    setForceRecalculating,
-  ] = useState(false);
-
-  const [
-    isGenerating,
-    setIsGenerating,
-  ] = useState(false);
-
-  const [
-    elapsedSeconds,
-    setElapsedSeconds,
-  ] = useState(0);
-
-  const generationDone =
-    useRef(false);
-
-  const generationStartedAt =
-    useRef(null);
+  const generationDone = useRef(false);
+  const generationStartedAt = useRef(null);
 
   const {
     preparation,
@@ -100,27 +81,15 @@ export default function GeneratingScreen() {
   } = useWorkout();
 
   useEffect(() => {
-    const interval = setInterval(
-      () => {
-        setActiveStep(
-          (current) => {
-            if (
-              current >=
-              STEPS.length - 1
-            ) {
-              return current;
-            }
+    const interval = setInterval(() => {
+      setActiveStep((current) =>
+        current >= STEPS.length - 1
+          ? current
+          : current + 1
+      );
+    }, 850);
 
-            return current + 1;
-          }
-        );
-      },
-      850
-    );
-
-    return () => {
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -129,10 +98,7 @@ export default function GeneratingScreen() {
     }
 
     const updateElapsed = () => {
-      const startedAt =
-        generationStartedAt.current;
-
-      if (!startedAt) {
+      if (!generationStartedAt.current) {
         return;
       }
 
@@ -140,7 +106,7 @@ export default function GeneratingScreen() {
         Math.max(
           0,
           Math.floor(
-            (Date.now() - startedAt) /
+            (Date.now() - generationStartedAt.current) /
               1000
           )
         )
@@ -148,133 +114,116 @@ export default function GeneratingScreen() {
     };
 
     updateElapsed();
-
-    const interval = setInterval(
-      updateElapsed,
-      1000
-    );
-
-    return () => {
-      clearInterval(interval);
-    };
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
   }, [isGenerating]);
 
-  const runGeneration =
-    useCallback(
-      async ({
-        forceRecalculateStarted = false,
-      } = {}) => {
-        setGenerationError('');
-        setGenerationControl(null);
-        generationStartedAt.current =
-          Date.now();
-        setElapsedSeconds(0);
-        setIsGenerating(true);
+  const runGeneration = useCallback(
+    async ({
+      forceRecalculateStarted = false,
+    } = {}) => {
+      setGenerationError('');
+      setGenerationControl(null);
+      generationStartedAt.current = Date.now();
+      setElapsedSeconds(0);
+      setIsGenerating(true);
 
-        try {
-          const protectedSessionExerciseIds =
-            (workout.exercises ?? [])
-              .filter(
-                (exercise) =>
-                  exercise.sessionExerciseId &&
-                  exercise.status !== 'pending'
-              )
-              .map(
-                (exercise) =>
-                  exercise.sessionExerciseId
-              );
-
-          const generatedWorkout =
-            await generateWorkoutSession(
-              preparation,
-              {
-                forceRecalculateStarted,
-                protectedSessionExerciseIds,
-              }
+      try {
+        const protectedSessionExerciseIds =
+          (workout.exercises ?? [])
+            .filter(
+              (exercise) =>
+                exercise.sessionExerciseId &&
+                exercise.status !== 'pending'
+            )
+            .map(
+              (exercise) =>
+                exercise.sessionExerciseId
             );
 
-          if (generatedWorkout?.controlStatus) {
-            setGenerationControl(
-              generatedWorkout
-            );
-            return;
-          }
-
-          const sameSession =
-            Boolean(workout.sessionId) &&
-            workout.sessionId ===
-              generatedWorkout?.sessionId;
-
-          const preserveProgress =
-            sameSession &&
-            [
-              'resume_existing',
-              'safety_adapted_existing',
-              'safety_adapt_partial_recalc_required',
-            ].includes(
-              generatedWorkout
-                ?.generationControlStatus
-            );
-
-          if (preserveProgress) {
-            setGeneratedWorkoutPreservingProgress(
-              generatedWorkout
-            );
-          } else {
-            setGeneratedWorkout(
-              generatedWorkout
-            );
-          }
-
-          if (
-            generatedWorkout
-              ?.generationControlStatus ===
-            'safety_adapt_partial_recalc_required'
-          ) {
-            setGenerationControl({
-              controlStatus:
-                'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED',
-              sessionId:
-                generatedWorkout.sessionId,
-              safetyAdaptation:
-                generatedWorkout
-                  .safetyAdaptation,
-            });
-            return;
-          }
-
-          router.replace(
-            '/workout/session'
+        const generatedWorkout =
+          await generateWorkoutSession(
+            preparation,
+            {
+              forceRecalculateStarted,
+              protectedSessionExerciseIds,
+            }
           );
-        } finally {
-          setIsGenerating(false);
+
+        if (generatedWorkout?.controlStatus) {
+          setGenerationControl(generatedWorkout);
+          return;
         }
-      },
-      [
-        preparation,
-        workout.exercises,
-        workout.sessionId,
-        setGeneratedWorkout,
-        setGeneratedWorkoutPreservingProgress,
-      ]
-    );
 
-  const launchGeneration =
-    useCallback(() => {
-      if (generationDone.current) {
-        return;
+        const sameSession =
+          Boolean(workout.sessionId) &&
+          workout.sessionId ===
+            generatedWorkout?.sessionId;
+
+        const preserveProgress =
+          sameSession &&
+          [
+            'resume_existing',
+            'safety_adapted_existing',
+            'safety_adapt_partial_recalc_required',
+          ].includes(
+            generatedWorkout
+              ?.generationControlStatus
+          );
+
+        if (preserveProgress) {
+          setGeneratedWorkoutPreservingProgress(
+            generatedWorkout
+          );
+        } else {
+          setGeneratedWorkout(generatedWorkout);
+        }
+
+        if (
+          generatedWorkout
+            ?.generationControlStatus ===
+          'safety_adapt_partial_recalc_required'
+        ) {
+          setGenerationControl({
+            controlStatus:
+              'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED',
+            sessionId:
+              generatedWorkout.sessionId,
+            safetyAdaptation:
+              generatedWorkout.safetyAdaptation,
+          });
+          return;
+        }
+
+        router.replace('/workout/session');
+      } finally {
+        setIsGenerating(false);
       }
+    },
+    [
+      preparation,
+      workout.exercises,
+      workout.sessionId,
+      setGeneratedWorkout,
+      setGeneratedWorkoutPreservingProgress,
+    ]
+  );
 
-      generationDone.current = true;
+  const launchGeneration = useCallback(() => {
+    if (generationDone.current) {
+      return;
+    }
 
-      runGeneration().catch((error) => {
-        setGenerationError(
-          error?.message ??
-            'Impossible de générer la séance.'
-        );
-        generationDone.current = false;
-      });
-    }, [runGeneration]);
+    generationDone.current = true;
+
+    runGeneration().catch((error) => {
+      setGenerationError(
+        error?.message ??
+          'Impossible de générer la séance.'
+      );
+      generationDone.current = false;
+    });
+  }, [runGeneration]);
 
   useEffect(() => {
     launchGeneration();
@@ -322,8 +271,7 @@ export default function GeneratingScreen() {
     generationControl?.controlStatus;
 
   const controlTitle =
-    controlStatus ===
-      'RECALC_LIMIT_REACHED'
+    controlStatus === 'RECALC_LIMIT_REACHED'
       ? '3 RECALCULS UTILISÉS'
       : controlStatus ===
           'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED'
@@ -331,8 +279,7 @@ export default function GeneratingScreen() {
         : 'RECALCULER LA SÉANCE ?';
 
   const controlMessage =
-    controlStatus ===
-      'RECALC_LIMIT_REACHED'
+    controlStatus === 'RECALC_LIMIT_REACHED'
       ? 'Tu as utilisé les 3 recalculs volontaires disponibles avant le début. Les adaptations nécessaires pour une nouvelle gêne ou un matériel devenu indisponible restent possibles.'
       : controlStatus ===
           'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED'
@@ -349,18 +296,20 @@ export default function GeneratingScreen() {
     getGenerationMessage(elapsedSeconds);
 
   return (
-    <SafeAreaView
-      style={styles.screen}
-    >
-      <View style={styles.content}>
+    <SafeAreaView style={styles.screen}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         <View style={styles.header}>
           <Pressable
             onPress={handleBack}
             hitSlop={12}
             style={({ pressed }) => [
               styles.backButton,
-              pressed &&
-                styles.pressed,
+              pressed && styles.pressed,
             ]}
           >
             <Ionicons
@@ -370,9 +319,7 @@ export default function GeneratingScreen() {
             />
           </Pressable>
 
-          <View
-            style={styles.headerSpacer}
-          />
+          <View style={styles.headerSpacer} />
 
           <Image
             source={brandIcon}
@@ -381,30 +328,20 @@ export default function GeneratingScreen() {
           />
         </View>
 
-        <View
-          style={styles.progressWrapper}
-        >
+        <View style={styles.progressWrapper}>
           <LinearGradient
             colors={[
               colors.primary,
               colors.brandWhite,
               colors.brandRed,
             ]}
-            start={{
-              x: 0,
-              y: 0.5,
-            }}
-            end={{
-              x: 1,
-              y: 0.5,
-            }}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
             style={styles.progressLine}
           />
         </View>
 
-        <View
-          style={styles.titleArea}
-        >
+        <View style={styles.titleArea}>
           <Text style={styles.eyebrow}>
             UGEROD PRÉPARE TA SÉANCE
           </Text>
@@ -413,162 +350,125 @@ export default function GeneratingScreen() {
             CRÉATION DE
             {'\n'}
             TA SÉANCE
-            <Text
-              style={styles.blueDot}
-            >
-              .
-            </Text>
+            <Text style={styles.blueDot}>.</Text>
           </Text>
 
           <Text style={styles.subtitle}>
-            UGEROD construit une séance adaptée à ton profil, ton matériel et ta forme du jour.
+            {generationMessage}
           </Text>
         </View>
 
         <View style={styles.stepsCard}>
-          {STEPS.map(
-            (step, index) => {
-              const done =
-                index < activeStep;
-              const active =
-                index === activeStep;
-              const future =
-                index > activeStep;
+          {STEPS.map((step, index) => {
+            const done = index < activeStep;
+            const active = index === activeStep;
+            const future = index > activeStep;
 
-              return (
+            return (
+              <View
+                key={step}
+                style={[
+                  styles.stepRow,
+                  index !== STEPS.length - 1 &&
+                    styles.stepRowBorder,
+                ]}
+              >
                 <View
-                  key={step}
                   style={[
-                    styles.stepRow,
-                    index !==
-                      STEPS.length - 1 &&
-                      styles.stepRowBorder,
+                    styles.stepIcon,
+                    done && styles.stepIconDone,
+                    active && styles.stepIconActive,
+                    future && styles.stepIconFuture,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.stepIcon,
-                      done &&
-                        styles.stepIconDone,
-                      active &&
-                        styles.stepIconActive,
-                      future &&
-                        styles.stepIconFuture,
-                    ]}
-                  >
-                    {done ? (
-                      <Ionicons
-                        name="checkmark"
-                        size={15}
-                        color={
-                          colors.brandWhite
-                        }
-                      />
-                    ) : active ? (
-                      <View
-                        style={styles.activeDot}
-                      />
-                    ) : (
-                      <View
-                        style={styles.futureDot}
-                      />
-                    )}
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.stepText,
-                      done &&
-                        styles.stepTextDone,
-                      active &&
-                        styles.stepTextActive,
-                      future &&
-                        styles.stepTextFuture,
-                    ]}
-                  >
-                    {step}
-                  </Text>
+                  {done ? (
+                    <Ionicons
+                      name="checkmark"
+                      size={15}
+                      color={colors.brandWhite}
+                    />
+                  ) : active ? (
+                    <View style={styles.activeDot} />
+                  ) : (
+                    <View style={styles.futureDot} />
+                  )}
                 </View>
-              );
-            }
-          )}
+
+                <Text
+                  style={[
+                    styles.stepText,
+                    done && styles.stepTextDone,
+                    active && styles.stepTextActive,
+                    future && styles.stepTextFuture,
+                  ]}
+                >
+                  {step}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
-        <View style={styles.spacer} />
-
-        <View
-          style={styles.bottomArea}
-        >
-          <View style={styles.loaderDots}>
-            <View
-              style={styles.loaderDotBlue}
-            />
-            <View
-              style={styles.loaderDotWhite}
-            />
-            <View
-              style={styles.loaderDotRed}
-            />
-          </View>
-
+        <View style={styles.bottomArea}>
           {generationError ? (
-            <>
-              <Text
-                style={styles.errorText}
-              >
-                {generationError}
-              </Text>
+            <View style={styles.errorCard}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={21}
+                color={colors.brandRed}
+              />
+
+              <View style={styles.errorMain}>
+                <Text style={styles.errorTitle}>
+                  GÉNÉRATION INTERROMPUE
+                </Text>
+                <Text style={styles.errorText}>
+                  {generationError}
+                </Text>
+              </View>
 
               <Pressable
                 onPress={handleRetry}
                 style={({ pressed }) => [
                   styles.retryButton,
-                  pressed &&
-                    styles.pressed,
+                  pressed && styles.pressed,
                 ]}
               >
-                <Text
-                  style={styles.retryButtonText}
-                >
+                <Ionicons
+                  name="refresh"
+                  size={17}
+                  color={colors.brandWhite}
+                />
+                <Text style={styles.retryButtonText}>
                   RÉESSAYER
                 </Text>
               </Pressable>
-            </>
+            </View>
           ) : (
-            <>
-              <Text
-                style={styles.waitText}
-              >
+            <View style={styles.runningStatus}>
+              <View style={styles.loaderDots}>
+                <View style={styles.loaderDotBlue} />
+                <View style={styles.loaderDotWhite} />
+                <View style={styles.loaderDotRed} />
+              </View>
+
+              <Text style={styles.waitText}>
                 GÉNÉRATION EN COURS · {elapsedSeconds} S
               </Text>
-
-              <Text
-                style={styles.motivation}
-              >
-                {generationMessage}
-              </Text>
-            </>
+            </View>
           )}
         </View>
-      </View>
+      </ScrollView>
 
       <Modal
         visible={Boolean(generationControl)}
         transparent
         animationType="fade"
-        onRequestClose={
-          handleResumeCurrentSession
-        }
+        onRequestClose={handleResumeCurrentSession}
       >
-        <View
-          style={styles.controlModalOverlay}
-        >
-          <View
-            style={styles.controlModalCard}
-          >
-            <View
-              style={styles.controlModalIcon}
-            >
+        <View style={styles.controlModalOverlay}>
+          <View style={styles.controlModalCard}>
+            <View style={styles.controlModalIcon}>
               <Ionicons
                 name={
                   controlStatus ===
@@ -577,28 +477,20 @@ export default function GeneratingScreen() {
                     : 'warning-outline'
                 }
                 size={26}
-                color={
-                  colors.brandRed
-                }
+                color={colors.brandRed}
               />
             </View>
 
-            <Text
-              style={styles.controlModalTitle}
-            >
+            <Text style={styles.controlModalTitle}>
               {controlTitle}
             </Text>
 
-            <Text
-              style={styles.controlModalText}
-            >
+            <Text style={styles.controlModalText}>
               {controlMessage}
             </Text>
 
             <Pressable
-              onPress={
-                handleResumeCurrentSession
-              }
+              onPress={handleResumeCurrentSession}
               disabled={forceRecalculating}
               style={({ pressed }) => [
                 styles.controlPrimaryButton,
@@ -607,20 +499,14 @@ export default function GeneratingScreen() {
                   styles.pressed,
               ]}
             >
-              <Text
-                style={
-                  styles.controlPrimaryButtonText
-                }
-              >
+              <Text style={styles.controlPrimaryButtonText}>
                 REPRENDRE MA SÉANCE
               </Text>
             </Pressable>
 
             {canForceRecalculate ? (
               <Pressable
-                onPress={
-                  handleForceRecalculate
-                }
+                onPress={handleForceRecalculate}
                 disabled={forceRecalculating}
                 style={({ pressed }) => [
                   styles.controlDangerButton,
@@ -629,11 +515,7 @@ export default function GeneratingScreen() {
                     styles.pressed,
                 ]}
               >
-                <Text
-                  style={
-                    styles.controlDangerButtonText
-                  }
-                >
+                <Text style={styles.controlDangerButtonText}>
                   {forceRecalculating
                     ? 'RECALCUL EN COURS...'
                     : 'ABANDONNER ET RECALCULER'}
@@ -650,21 +532,22 @@ export default function GeneratingScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor:
-      colors.background,
+    backgroundColor: colors.background,
+  },
+
+  scroll: {
+    flex: 1,
   },
 
   content: {
-    flex: 1,
-    paddingHorizontal:
-      spacing.xl,
+    flexGrow: 1,
+    paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
-    paddingBottom:
-      spacing.xxl,
+    paddingBottom: 44,
   },
 
   header: {
-    minHeight: 72,
+    minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -673,11 +556,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor:
-      colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor:
-      colors.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -693,8 +574,7 @@ const styles = StyleSheet.create({
 
   progressWrapper: {
     marginTop: spacing.sm,
-    marginBottom:
-      spacing.xxl,
+    marginBottom: spacing.xl,
   },
 
   progressLine: {
@@ -703,18 +583,15 @@ const styles = StyleSheet.create({
   },
 
   titleArea: {
-    marginBottom:
-      spacing.xxl,
+    marginBottom: spacing.xl,
   },
 
   eyebrow: {
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 11,
     lineHeight: 15,
     letterSpacing: 1.1,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   title: {
@@ -722,8 +599,7 @@ const styles = StyleSheet.create({
     fontSize: 44,
     lineHeight: 47,
     letterSpacing: 2.2,
-    color:
-      colors.textPrimary,
+    color: colors.textPrimary,
     marginTop: spacing.sm,
   },
 
@@ -732,30 +608,25 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    fontFamily:
-      'Oswald_400Regular',
+    fontFamily: 'Oswald_400Regular',
     fontSize: 15,
     lineHeight: 22,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: spacing.md,
-    maxWidth: 360,
+    maxWidth: 390,
   },
 
   stepsCard: {
     borderRadius: 18,
-    backgroundColor:
-      colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor:
-      colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
 
   stepRow: {
-    minHeight: 68,
-    paddingHorizontal:
-      spacing.lg,
+    minHeight: 62,
+    paddingHorizontal: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
@@ -763,8 +634,7 @@ const styles = StyleSheet.create({
 
   stepRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor:
-      'rgba(255,255,255,0.05)',
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
 
   stepIcon: {
@@ -776,161 +646,148 @@ const styles = StyleSheet.create({
   },
 
   stepIconDone: {
-    backgroundColor:
-      colors.primary,
+    backgroundColor: colors.primary,
   },
 
   stepIconActive: {
     borderWidth: 2,
-    borderColor:
-      colors.brandWhite,
+    borderColor: colors.brandWhite,
   },
 
   stepIconFuture: {
     borderWidth: 1,
-    borderColor:
-      colors.border,
+    borderColor: colors.border,
   },
 
   activeDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor:
-      colors.brandWhite,
+    backgroundColor: colors.brandWhite,
   },
 
   futureDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor:
-      colors.textMuted,
+    backgroundColor: colors.textMuted,
   },
 
   stepText: {
-    fontFamily:
-      'Oswald_500Medium',
+    fontFamily: 'Oswald_500Medium',
     fontSize: 15,
     lineHeight: 20,
   },
 
   stepTextDone: {
-    color:
-      colors.textPrimary,
+    color: colors.textPrimary,
   },
 
   stepTextActive: {
-    color:
-      colors.brandWhite,
+    color: colors.brandWhite,
   },
 
   stepTextFuture: {
-    color:
-      colors.textMuted,
-  },
-
-  spacer: {
-    flex: 1,
+    color: colors.textMuted,
   },
 
   bottomArea: {
+    marginTop: spacing.xl,
+  },
+
+  runningStatus: {
+    minHeight: 52,
     alignItems: 'center',
-    paddingTop:
-      spacing.xxl,
+    justifyContent: 'center',
   },
 
   loaderDots: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 10,
   },
 
   loaderDotBlue: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor:
-      colors.primary,
+    backgroundColor: colors.primary,
   },
 
   loaderDotWhite: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor:
-      colors.brandWhite,
+    backgroundColor: colors.brandWhite,
   },
 
   loaderDotRed: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor:
-      colors.brandRed,
+    backgroundColor: colors.brandRed,
   },
 
   waitText: {
-    fontFamily:
-      'Oswald_700Bold',
+    fontFamily: 'Oswald_700Bold',
     fontSize: 12,
     lineHeight: 16,
     letterSpacing: 1.2,
-    color:
-      colors.textPrimary,
+    color: colors.textPrimary,
   },
 
-  motivation: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 14,
-    lineHeight: 21,
-    color:
-      colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    maxWidth: 320,
+  errorCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,65,65,0.34)',
+    backgroundColor: 'rgba(255,65,65,0.07)',
+    padding: 13,
+    gap: 10,
+  },
+
+  errorMain: {
+    gap: 3,
+  },
+
+  errorTitle: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 0.8,
+    color: colors.brandRed,
   },
 
   errorText: {
-    fontFamily:
-      'Oswald_500Medium',
-    fontSize: 13,
-    lineHeight: 20,
-    color:
-      colors.brandRed,
-    textAlign: 'center',
-    maxWidth: 330,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
   },
 
   retryButton: {
-    minHeight: 42,
-    marginTop: 14,
-    borderRadius: 12,
-    paddingHorizontal: 22,
-    backgroundColor:
-      colors.primary,
+    minHeight: 43,
+    borderRadius: 11,
+    paddingHorizontal: 16,
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 7,
   },
 
   retryButtonText: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 12,
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 11,
     letterSpacing: 0.8,
-    color:
-      colors.brandWhite,
+    color: colors.brandWhite,
   },
 
   controlModalOverlay: {
     flex: 1,
-    backgroundColor:
-      'rgba(0,0,0,0.82)',
+    backgroundColor: 'rgba(0,0,0,0.82)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal:
-      spacing.xl,
+    paddingHorizontal: spacing.xl,
   },
 
   controlModalCard: {
@@ -938,11 +795,9 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     borderRadius: 20,
     padding: spacing.xl,
-    backgroundColor:
-      colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor:
-      colors.border,
+    borderColor: colors.border,
   },
 
   controlModalIcon: {
@@ -951,28 +806,23 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor:
-      'rgba(255,65,65,0.10)',
+    backgroundColor: 'rgba(255,65,65,0.10)',
     marginBottom: spacing.lg,
   },
 
   controlModalTitle: {
-    fontFamily:
-      'Oswald_700Bold',
+    fontFamily: 'Oswald_700Bold',
     fontSize: 24,
     lineHeight: 30,
     letterSpacing: 0.7,
-    color:
-      colors.textPrimary,
+    color: colors.textPrimary,
   },
 
   controlModalText: {
-    fontFamily:
-      'Oswald_400Regular',
+    fontFamily: 'Oswald_400Regular',
     fontSize: 15,
     lineHeight: 22,
-    color:
-      colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: spacing.md,
     marginBottom: spacing.xl,
   },
@@ -982,17 +832,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor:
-      colors.primary,
+    backgroundColor: colors.primary,
   },
 
   controlPrimaryButtonText: {
-    fontFamily:
-      'Oswald_700Bold',
+    fontFamily: 'Oswald_700Bold',
     fontSize: 13,
     letterSpacing: 0.8,
-    color:
-      colors.brandWhite,
+    color: colors.brandWhite,
   },
 
   controlDangerButton: {
@@ -1002,17 +849,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: spacing.sm,
     borderWidth: 1,
-    borderColor:
-      colors.brandRed,
+    borderColor: colors.brandRed,
   },
 
   controlDangerButtonText: {
-    fontFamily:
-      'Oswald_700Bold',
+    fontFamily: 'Oswald_700Bold',
     fontSize: 12,
     letterSpacing: 0.7,
-    color:
-      colors.brandRed,
+    color: colors.brandRed,
   },
 
   pressed: {
