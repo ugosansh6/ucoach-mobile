@@ -20,6 +20,7 @@ import { colors } from '../src/constants';
 import { OnboardingProvider } from '../src/contexts/OnboardingContext';
 import { WorkoutProvider } from '../src/contexts/WorkoutContext';
 import SessionAdaptationOverlay from '../src/components/workout/SessionAdaptationOverlay';
+import SessionWhyOverlay from '../src/components/workout/SessionWhyOverlay';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -61,6 +62,7 @@ export default function RootLayout() {
             }}
           />
 
+          <SessionWhyOverlay />
           <SessionAdaptationOverlay />
         </WorkoutProvider>
       </OnboardingProvider>
