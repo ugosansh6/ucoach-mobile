@@ -14,16 +14,21 @@ function getLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-export async function getProgressionDataContract(period = '4w', anchorDate = new Date()) {
+async function getAuthenticatedUser() {
   const {
     data: { user },
-    error: userError,
+    error,
   } = await supabase.auth.getUser();
 
-  if (userError || !user?.id) {
+  if (error || !user?.id) {
     throw new Error('Utilisateur non authentifié.');
   }
 
+  return user;
+}
+
+export async function getProgressionDataContract(period = '4w', anchorDate = new Date()) {
+  const user = await getAuthenticatedUser();
   const periodDays = PERIOD_DAYS[period] ?? PERIOD_DAYS['4w'];
 
   const { data, error } = await supabase.rpc('progression_data_contract_v1', {
@@ -51,6 +56,33 @@ export async function getProgressionDataContract(period = '4w', anchorDate = new
     coach_signals: [],
     decision_feed: {},
     authority: {},
+    semantics: {},
+  };
+}
+
+export async function getSessionLearningSnapshot(sessionId) {
+  if (!sessionId) {
+    throw new Error('Session manquante pour le débrief Coach.');
+  }
+
+  await getAuthenticatedUser();
+
+  const { data, error } = await supabase.rpc(
+    'progression_session_learning_snapshot_v1',
+    { p_session_id: sessionId }
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ?? {
+    version: 'w1-session-learning-snapshot-v1',
+    session: {},
+    summary: {},
+    wod_performance_context: {},
+    observations: [],
+    proof_classes: {},
     semantics: {},
   };
 }
