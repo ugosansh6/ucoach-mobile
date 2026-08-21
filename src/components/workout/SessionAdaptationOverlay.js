@@ -92,10 +92,9 @@ function buildPreparationSnapshot(
         : snapshot?.painZones?.length > 0
           ? snapshot.painZones
           : ['Aucune'],
-    region:
-      preparation?.region ??
-      snapshot?.region ??
-      null,
+    // Le focus de séance appartient au moteur Coach.
+    // Une ancienne préférence locale ne doit pas survivre à un ajustement.
+    region: null,
   };
 }
 
@@ -207,6 +206,7 @@ export default function SessionAdaptationOverlay() {
       },
       {
         readiness,
+        region: null,
       }
     );
   }
@@ -316,7 +316,7 @@ export default function SessionAdaptationOverlay() {
               <ActionRow
                 icon="create-outline"
                 title="MON CONTEXTE A CHANGÉ"
-                description="Retourne au check-in si ta durée, ton matériel, ta gêne globale ou ton objectif du jour doit être revu."
+                description="Retourne au check-in si ta durée, ton matériel, ta forme ou une gêne doit être revu."
                 loading={false}
                 onPress={openPreparation}
               />
