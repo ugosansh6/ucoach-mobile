@@ -16,9 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing } from '../../src/constants';
-import { getProgressionDashboard } from '../../src/services/progressionService';
-import { getProgressionInsights } from '../../src/services/progressionInsightsService';
-import { getPerformanceRecordBook } from '../../src/services/performanceRecordService';
+import { getProgressionDataContract } from '../../src/services/progressionDataService';
 
 const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -46,6 +44,16 @@ function confidenceLabel(value) {
   if (percent >= 70) return `confiance forte · ${percent}%`;
   if (percent >= 45) return `confiance moyenne · ${percent}%`;
   return `confiance faible · ${percent}%`;
+}
+
+function formatMinutes(value) {
+  const total = Math.max(0, Math.round(Number(value ?? 0)));
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+
+  if (!hours) return `${minutes} min`;
+  if (!minutes) return `${hours} h`;
+  return `${hours} h ${minutes}`;
 }
 
 function HubCard({ icon, eyebrow, title, value, text, meta, onPress, accent = 'blue' }) {
@@ -76,9 +84,7 @@ function HubCard({ icon, eyebrow, title, value, text, meta, onPress, accent = 'b
 }
 
 export default function ProgressionScreen() {
-  const [dashboard, setDashboard] = useState(null);
-  const [insights, setInsights] = useState(null);
-  const [recordBook, setRecordBook] = useState(null);
+  const [progression, setProgression] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -89,15 +95,8 @@ export default function ProgressionScreen() {
       else setLoading(true);
       setError('');
 
-      const [dashboardData, insightsData, recordsData] = await Promise.all([
-        getProgressionDashboard('4w'),
-        getProgressionInsights('4w'),
-        getPerformanceRecordBook(),
-      ]);
-
-      setDashboard(dashboardData);
-      setInsights(insightsData);
-      setRecordBook(recordsData);
+      const data = await getProgressionDataContract('4w');
+      setProgression(data);
     } catch (loadError) {
       setError(loadError?.message ?? 'Impossible de charger ta progression.');
     } finally {
@@ -110,7 +109,7 @@ export default function ProgressionScreen() {
     load();
   }, [load]);
 
-  const movementCapabilities = insights?.intelligence?.movement_capabilities ?? [];
+  const movementCapabilities = progression?.movement_capabilities ?? [];
   const nextMovement = useMemo(
     () => movementCapabilities.find((item) => item.signal === 'PROGRESSING')
       ?? movementCapabilities.find((item) => item.signal === 'RECALIBRATING')
@@ -118,28 +117,39 @@ export default function ProgressionScreen() {
     [movementCapabilities]
   );
 
-  const athleteDimensions = insights?.athleteSummary?.dimensions ?? [];
+  const athleteDimensions = progression?.athlete_profile?.dimensions ?? [];
   const calibratedDimensions = athleteDimensions.filter((item) => item.calibrated);
   const trendingDimension = calibratedDimensions.find((item) => item.trend_symbol === '↗')
     ?? calibratedDimensions[0]
     ?? null;
 
-  const records = recordBook?.current_records ?? recordBook?.currentRecords ?? [];
-  const suggestions = recordBook?.suggestions_to_confirm ?? recordBook?.suggestionsToConfirm ?? [];
+  const records = progression?.records?.current_records ?? [];
+  const suggestions = progression?.records?.suggestions_to_confirm ?? [];
+  const profile = progression?.profile ?? {};
+  const activitySummary = progression?.activity?.summary ?? {};
+  const currentWeek = progression?.activity?.current_week ?? {};
+  const currentWeekRatio = Number(currentWeek.completion_ratio ?? 0);
+  const currentWeekPercent = Number.isFinite(currentWeekRatio)
+    ? Math.round(Math.max(0, Math.min(1, currentWeekRatio)) * 100)
+    : 0;
+  const weeklyTarget = Number(
+    currentWeek.target_sessions ?? profile.weekly_session_target ?? 0
+  );
+  const currentWeekSessions = Number(currentWeek.realized_sessions ?? 0);
 
-  const overallState = insights?.intelligence?.overall?.state;
+  const overallState = progression?.overall?.state;
   const heroTitle = overallState === 'PROGRESSING'
     ? 'TA PROGRESSION COMMENCE À SE CONFIRMER.'
     : overallState === 'RECALIBRATING'
       ? 'UGEROD RECALIBRE CERTAINES RÉFÉRENCES.'
-      : insights?.intelligence?.data_maturity?.stage === 'ESTABLISHED'
+      : progression?.maturity?.stage === 'ESTABLISHED'
         ? 'TON PROFIL SE CONSOLIDE.'
         : 'UGEROD APPREND TON PROFIL.';
 
-  const heroText = insights?.intelligence?.overall?.text
+  const heroText = progression?.overall?.text
     ?? 'Chaque séance enrichit ton profil et rend les prochaines décisions du Coach plus fiables.';
 
-  if (loading && !dashboard) {
+  if (loading && !progression) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
         <Image source={brandIcon} style={styles.loadingLogo} resizeMode="contain" />
@@ -179,11 +189,11 @@ export default function ProgressionScreen() {
               <View style={styles.headerText}>
                 <Text style={styles.headerEyebrow}>TON PROFIL ATHLÈTE</Text>
                 <Text style={styles.headerTitle}>
-                  {(insights?.profile?.firstname || 'TOI').toUpperCase()}
+                  {(profile.firstname || 'TOI').toUpperCase()}
                   <Text style={styles.blueDot}>.</Text>
                 </Text>
                 <Text style={styles.headerMeta}>
-                  {experienceLabel(insights?.profile?.experience)} · OBJECTIF {dashboard?.summary?.weeklyTarget ?? insights?.profile?.weekly_session_target ?? 0} SÉANCES / SEM.
+                  {experienceLabel(profile.experience)} · OBJECTIF {weeklyTarget} SÉANCES / SEM.
                 </Text>
               </View>
 
@@ -204,13 +214,13 @@ export default function ProgressionScreen() {
 
               <View style={styles.heroStats}>
                 <View>
-                  <Text style={styles.heroStatValue}>{dashboard?.summary?.completedSessions ?? 0}</Text>
+                  <Text style={styles.heroStatValue}>{activitySummary.completed_sessions ?? 0}</Text>
                   <Text style={styles.heroStatLabel}>SÉANCES</Text>
                 </View>
                 <View style={styles.heroDivider} />
                 <View>
-                  <Text style={styles.heroStatValue}>{dashboard?.summary?.regularityPercent ?? 0}%</Text>
-                  <Text style={styles.heroStatLabel}>RÉGULARITÉ</Text>
+                  <Text style={styles.heroStatValue}>{currentWeekPercent}%</Text>
+                  <Text style={styles.heroStatLabel}>RYTHME SEMAINE</Text>
                 </View>
                 <View style={styles.heroDivider} />
                 <View>
@@ -226,7 +236,7 @@ export default function ProgressionScreen() {
               icon="trending-up-outline"
               eyebrow="ÉVOLUTION"
               title="VOIR CE QUI CHANGE"
-              value={insights?.intelligence?.overall?.state === 'PROGRESSING' ? 'SIGNAUX POSITIFS' : 'SUIVI EN COURS'}
+              value={overallState === 'PROGRESSING' ? 'SIGNAUX POSITIFS' : 'SUIVI EN COURS'}
               text="Performances réelles, mouvements qui progressent et niveau de fiabilité des conclusions."
               onPress={() => router.push('/progression/detail?section=evolution')}
             />
@@ -259,8 +269,8 @@ export default function ProgressionScreen() {
               icon="calendar-outline"
               eyebrow="RÉGULARITÉ & ACTIVITÉ"
               title="TON RYTHME D’ENTRAÎNEMENT"
-              value={`${dashboard?.summary?.regularityPercent ?? 0}% DE TON OBJECTIF`}
-              text={`${dashboard?.summary?.completedSessions ?? 0} séance(s) · ${dashboard?.summary?.totalTimeLabel ?? '0 min'} sur les 4 dernières semaines.`}
+              value={`${currentWeekSessions} / ${weeklyTarget} CETTE SEMAINE`}
+              text={`${activitySummary.completed_sessions ?? 0} séance(s) · ${formatMinutes(activitySummary.total_minutes)} sur les 4 dernières semaines.`}
               onPress={() => router.push('/progression/detail?section=activity')}
             />
 
