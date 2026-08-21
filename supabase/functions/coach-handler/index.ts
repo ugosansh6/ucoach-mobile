@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v9-generation-timeout-guard";
+const VERSION = "coach-handler-v10-generation-rejection-observability";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -129,7 +129,35 @@ serve(async (req: Request) => {
     }
 
     if (!generated || generated.status !== "generated" || !generated.session_id) {
-      return json(generated ?? { error: "No safe coherent session" }, 422);
+      const rejectionStatus = String(generated?.status ?? "UNKNOWN");
+      const rejectionReason =
+        generated?.reason ??
+        generated?.code ??
+        generated?.error ??
+        generated?.message ??
+        null;
+
+      console.error(
+        `${VERSION}: generation rejected`,
+        JSON.stringify({
+          status: rejectionStatus,
+          reason: rejectionReason,
+          duration_minutes: duration,
+          readiness,
+          target_region: body.target_region ?? null,
+          equipment_count: equipment.length,
+          injured_zone_count: injuredZones.length,
+        }),
+      );
+
+      return json(
+        {
+          error: "UGEROD n’a pas pu construire une séance suffisamment cohérente avec ce contexte. Réessaie ou ajuste un paramètre.",
+          code: "NO_SAFE_COHERENT_SESSION",
+          generation_status: rejectionStatus,
+        },
+        422,
+      );
     }
 
     let formatResult: any = null;
