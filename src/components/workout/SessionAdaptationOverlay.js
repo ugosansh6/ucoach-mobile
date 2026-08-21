@@ -9,10 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import {
-  router,
-  usePathname,
-} from 'expo-router';
+import { usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -211,12 +208,6 @@ export default function SessionAdaptationOverlay() {
     );
   }
 
-  function openPreparation() {
-    setVisible(false);
-    setError('');
-    router.replace('/workout/preparation');
-  }
-
   return (
     <>
       <View
@@ -282,7 +273,7 @@ export default function SessionAdaptationOverlay() {
             </View>
 
             <Text style={styles.helper}>
-              Ta forme ou ton contexte a changé ? UGEROD conserve ce qui est déjà fait et ajuste uniquement ce qu’il reste à faire.
+              Ta forme a changé en cours de séance ? UGEROD conserve ce qui est déjà fait et ajuste uniquement ce qu’il reste à faire.
             </Text>
 
             {error ? (
@@ -310,15 +301,7 @@ export default function SessionAdaptationOverlay() {
               <GuidanceRow
                 icon="swap-horizontal-outline"
                 title="UN EXERCICE ME GÊNE"
-                description="Ferme cette fenêtre et utilise Swap sur l’exercice concerné. Le reste de la séance ne sera pas régénéré inutilement."
-              />
-
-              <ActionRow
-                icon="create-outline"
-                title="MON CONTEXTE A CHANGÉ"
-                description="Retourne au check-in si ta durée, ton matériel, ta forme ou une gêne doit être revu."
-                loading={false}
-                onPress={openPreparation}
+                description="Ferme cette fenêtre et utilise Swap sur l’exercice concerné. Pour changer durée, matériel ou gêne globale, utilise simplement le bouton retour de la séance."
               />
             </View>
           </View>
