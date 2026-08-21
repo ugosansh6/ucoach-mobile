@@ -16,7 +16,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing } from '../../src/constants';
-import { getProgressionDataContract } from '../../src/services/progressionDataService';
+import {
+  getCoachOpportunitySnapshot,
+  getProgressionDataContract,
+} from '../../src/services/progressionDataService';
 
 const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -261,6 +264,58 @@ function coachActionCopy(progression) {
   };
 }
 
+function equipmentRequirementLabel(item) {
+  const name = String(item?.name ?? '').trim();
+  if (!name) return null;
+
+  const quantity = Math.max(1, Math.round(Number(item?.required_quantity ?? 1)));
+  return quantity > 1 ? `${quantity} × ${name}` : name;
+}
+
+function joinEquipmentLabels(items) {
+  const labels = (Array.isArray(items) ? items : [])
+    .map(equipmentRequirementLabel)
+    .filter(Boolean);
+
+  if (!labels.length) return '';
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} + ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')} + ${labels[labels.length - 1]}`;
+}
+
+function equipmentOpportunityCopy(snapshot) {
+  const topOpportunities = Array.isArray(snapshot?.top_opportunities)
+    ? snapshot.top_opportunities
+    : [];
+  const opportunity = topOpportunities.find((item) => item?.type === 'EQUIPMENT_ACCESS');
+
+  if (!opportunity) return null;
+
+  const equipment = joinEquipmentLabels(opportunity?.equipment_gap?.missing_equipment);
+  if (!equipment) return null;
+
+  const target = opportunity?.target_exercise_name ?? 'ton objectif';
+  const supportType = opportunity?.supports_opportunity_type;
+  const benefit = supportType === 'CALIBRATION'
+    ? `mieux calibrer ${target}`
+    : supportType === 'RETEST'
+      ? `retester ${target}`
+      : supportType === 'SKILL_PROGRESSION'
+        ? `faire progresser ${target}`
+        : supportType === 'SKILL_DEVELOPMENT'
+          ? `développer ${target}`
+          : supportType === 'MOVEMENT_PROGRESSION'
+            ? `faire progresser ${target}`
+            : `travailler ${target}`;
+
+  return {
+    equipment,
+    title: 'UNE SÉANCE MIEUX ÉQUIPÉE PEUT ÊTRE UTILE',
+    text: `Si tu as accès à ${equipment} en salle ou ailleurs, UGEROD pourra ${benefit}. Ce n’est pas une obligation : ton programme continue avec ton matériel actuel.`,
+    detail: `Opportunité détectée pour ${target}. UGEROD recommande un accès ponctuel au matériel, pas un achat.`,
+  };
+}
+
 function EvidenceCard({ item, showDetails }) {
   const red = item.accent === 'red';
   const muted = item.accent === 'muted';
@@ -306,6 +361,7 @@ function LinkCard({ icon, eyebrow, title, text, onPress, accent = 'blue' }) {
 
 export default function ProgressionScreen() {
   const [progression, setProgression] = useState(null);
+  const [coachOpportunitySnapshot, setCoachOpportunitySnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -317,8 +373,13 @@ export default function ProgressionScreen() {
       else setLoading(true);
       setError('');
 
-      const data = await getProgressionDataContract('4w');
+      const [data, opportunitySnapshot] = await Promise.all([
+        getProgressionDataContract('4w'),
+        getCoachOpportunitySnapshot(),
+      ]);
+
       setProgression(data);
+      setCoachOpportunitySnapshot(opportunitySnapshot);
     } catch (loadError) {
       setError(loadError?.message ?? 'Impossible de charger ta progression.');
     } finally {
@@ -334,6 +395,10 @@ export default function ProgressionScreen() {
   const evidence = useMemo(() => buildEvidence(progression), [progression]);
   const summary = useMemo(() => summaryCopy(progression), [progression]);
   const coachAction = useMemo(() => coachActionCopy(progression), [progression]);
+  const equipmentOpportunity = useMemo(
+    () => equipmentOpportunityCopy(coachOpportunitySnapshot),
+    [coachOpportunitySnapshot]
+  );
 
   const profile = progression?.profile ?? {};
   const activitySummary = progression?.activity?.summary ?? {};
@@ -482,6 +547,26 @@ export default function ProgressionScreen() {
               </View>
             </View>
 
+            {equipmentOpportunity ? (
+              <View style={styles.equipmentOpportunityCard}>
+                <View style={styles.equipmentOpportunityTop}>
+                  <View style={styles.equipmentOpportunityIcon}>
+                    <Ionicons name="barbell-outline" size={20} color={colors.primaryLight} />
+                  </View>
+                  <View style={styles.equipmentOpportunityHeading}>
+                    <Text style={styles.equipmentOpportunityEyebrow}>OPPORTUNITÉ MATÉRIEL</Text>
+                    <Text style={styles.equipmentOpportunityEquipment}>{equipmentOpportunity.equipment}</Text>
+                  </View>
+                </View>
+                <Text style={styles.equipmentOpportunityTitle}>{equipmentOpportunity.title}</Text>
+                <Text style={styles.equipmentOpportunityText}>{equipmentOpportunity.text}</Text>
+                <View style={styles.equipmentOpportunityReason}>
+                  <Ionicons name="information-circle-outline" size={15} color={colors.textMuted} />
+                  <Text style={styles.equipmentOpportunityReasonText}>{equipmentOpportunity.detail}</Text>
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.capCard}>
               <View style={styles.capTopRow}>
                 <View style={styles.capIcon}>
@@ -613,6 +698,16 @@ const styles = StyleSheet.create({
   coachMain: { flex: 1 },
   coachTitle: { fontFamily: 'BebasNeue_400Regular', fontSize: 23, lineHeight: 26, letterSpacing: 0.8, color: colors.textPrimary },
   coachText: { marginTop: 5, fontFamily: 'Oswald_400Regular', fontSize: 10.5, lineHeight: 16, color: colors.textSecondary },
+  equipmentOpportunityCard: { marginTop: 10, padding: 16, borderRadius: 18, backgroundColor: 'rgba(13,20,27,0.94)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.24)' },
+  equipmentOpportunityTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  equipmentOpportunityIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(29,140,255,0.10)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.18)' },
+  equipmentOpportunityHeading: { flex: 1 },
+  equipmentOpportunityEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 8, letterSpacing: 0.85, color: colors.primaryLight },
+  equipmentOpportunityEquipment: { marginTop: 2, fontFamily: 'Oswald_600SemiBold', fontSize: 10, lineHeight: 15, color: colors.textPrimary },
+  equipmentOpportunityTitle: { marginTop: 12, fontFamily: 'BebasNeue_400Regular', fontSize: 23, lineHeight: 26, letterSpacing: 0.7, color: colors.textPrimary },
+  equipmentOpportunityText: { marginTop: 5, fontFamily: 'Oswald_400Regular', fontSize: 10.5, lineHeight: 16, color: colors.textSecondary },
+  equipmentOpportunityReason: { marginTop: 11, paddingTop: 9, flexDirection: 'row', alignItems: 'flex-start', gap: 7, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
+  equipmentOpportunityReasonText: { flex: 1, fontFamily: 'Oswald_400Regular', fontSize: 9, lineHeight: 14, color: colors.textMuted },
   capCard: { marginTop: 10, padding: 16, borderRadius: 18, backgroundColor: 'rgba(17,21,26,0.91)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   capTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   capIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(29,140,255,0.09)' },
