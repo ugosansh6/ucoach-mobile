@@ -405,7 +405,12 @@ export default function CompletionScreen() {
           new Date().toISOString(),
       });
 
-      router.replace('/(tabs)');
+      router.replace({
+        pathname: '/workout/debrief',
+        params: {
+          sessionId: workout.sessionId,
+        },
+      });
     } catch (error) {
       setSaveError(
         error?.message ??
