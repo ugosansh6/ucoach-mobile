@@ -68,7 +68,7 @@ export async function getSessionLearningSnapshot(sessionId) {
   await getAuthenticatedUser();
 
   const { data, error } = await supabase.rpc(
-    'progression_session_learning_snapshot_v1',
+    'w2_progression_session_learning_snapshot_v1',
     { p_session_id: sessionId }
   );
 
@@ -77,10 +77,11 @@ export async function getSessionLearningSnapshot(sessionId) {
   }
 
   return data ?? {
-    version: 'w1-session-learning-snapshot-v1',
+    version: 'w2-session-learning-snapshot-v1',
     session: {},
     summary: {},
     wod_performance_context: {},
+    execution_observation: {},
     observations: [],
     proof_classes: {},
     semantics: {},
