@@ -8,7 +8,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { usePathname } from 'expo-router';
+import {
+  router,
+  usePathname,
+} from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -78,6 +81,10 @@ export default function SessionWhyOverlay() {
     setError('');
   }
 
+  function goDashboard() {
+    router.replace('/(tabs)');
+  }
+
   const reasons =
     Array.isArray(why?.reasons)
       ? why.reasons.filter(
@@ -89,6 +96,17 @@ export default function SessionWhyOverlay() {
 
   return (
     <>
+      <Pressable
+        onPress={goDashboard}
+        accessibilityRole="button"
+        accessibilityLabel="Retour au dashboard"
+        hitSlop={4}
+        style={[
+          styles.logoHitTarget,
+          { top: insets.top + 21 },
+        ]}
+      />
+
       <View
         pointerEvents="box-none"
         style={[
@@ -225,6 +243,15 @@ export default function SessionWhyOverlay() {
 }
 
 const styles = StyleSheet.create({
+  logoHitTarget: {
+    position: 'absolute',
+    right: spacing.xl,
+    width: 45,
+    height: 45,
+    borderRadius: 23,
+    zIndex: 78,
+  },
+
   floatingLayer: {
     position: 'absolute',
     right: spacing.xl + 106,
