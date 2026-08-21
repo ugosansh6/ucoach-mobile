@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   colors,
@@ -20,6 +21,7 @@ import { supabase } from '../../lib/supabase';
 
 export default function SessionWhyOverlay() {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const { workout } = useWorkout();
 
   const [visible, setVisible] = useState(false);
@@ -89,10 +91,16 @@ export default function SessionWhyOverlay() {
     <>
       <View
         pointerEvents="box-none"
-        style={styles.floatingLayer}
+        style={[
+          styles.floatingLayer,
+          { top: insets.top + 24 },
+        ]}
       >
         <Pressable
           onPress={open}
+          accessibilityRole="button"
+          accessibilityLabel="Pourquoi cette séance ?"
+          hitSlop={8}
           style={({ pressed }) => [
             styles.floatingButton,
             pressed &&
@@ -101,12 +109,9 @@ export default function SessionWhyOverlay() {
         >
           <Ionicons
             name="help-circle-outline"
-            size={18}
+            size={20}
             color={colors.textPrimary}
           />
-          <Text style={styles.floatingButtonText}>
-            POURQUOI ?
-          </Text>
         </Pressable>
       </View>
 
@@ -222,34 +227,24 @@ export default function SessionWhyOverlay() {
 const styles = StyleSheet.create({
   floatingLayer: {
     position: 'absolute',
-    left: spacing.xl,
-    bottom: 92,
+    right: spacing.xl + 106,
     zIndex: 79,
   },
 
   floatingButton: {
-    minHeight: 44,
-    paddingHorizontal: 16,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(15,18,23,0.94)',
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
   },
 
   floatingButtonPressed: {
     opacity: 0.78,
-    transform: [{ scale: 0.98 }],
-  },
-
-  floatingButtonText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.05,
-    color: colors.textPrimary,
+    transform: [{ scale: 0.96 }],
   },
 
   overlay: {
