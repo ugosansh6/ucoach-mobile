@@ -1352,12 +1352,18 @@ const sessionStartedRef = useRef(false);
       directionByReason[reason] ??
       'equivalent';
 
+    const contextualAlternativeAvailable =
+      swapState?.directions?.equivalent
+        ?.available === true ||
+      swapState?.directions?.easier
+        ?.available === true;
+
     const directionAvailable =
       undo
         ? swapState?.can_undo === true
         : reason === 'environment' ||
             reason === 'equipment'
-          ? true
+          ? contextualAlternativeAvailable
           : swapState?.directions?.[
               direction
             ]?.available === true;
@@ -3783,6 +3789,10 @@ function SwapDirectionModal({
   const directions =
     availability?.directions ?? {};
 
+  const contextualAlternativeAvailable =
+    directions?.equivalent?.available === true ||
+    directions?.easier?.available === true;
+
   const options = [
     {
       value: 'too_easy',
@@ -3814,7 +3824,9 @@ function SwapDirectionModal({
       description:
         'Mur, espace, hauteur ou autre contrainte du lieu.',
       icon: 'location-outline',
-      available: true,
+      available: contextualAlternativeAvailable,
+      unavailableText:
+        'Aucune alternative sûre disponible pour cet exercice.',
     },
     {
       value: 'equipment',
@@ -3822,7 +3834,9 @@ function SwapDirectionModal({
       description:
         'UGEROD cherche une alternative sans ce matériel.',
       icon: 'construct-outline',
-      available: true,
+      available: contextualAlternativeAvailable,
+      unavailableText:
+        'Aucune alternative sûre disponible pour cet exercice.',
     },
   ];
 
