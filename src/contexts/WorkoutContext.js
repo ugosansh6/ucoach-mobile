@@ -238,17 +238,37 @@ function enrichControlledWodRuntime(
         0
       )
     );
-    const splitSeconds = Math.max(
+    const rawLapSeconds = Math.max(
       0,
       cumulative - previousCumulative
+    );
+    const configuredRest = Math.max(
+      0,
+      numeric(
+        next.parameters?.rest_between_rounds_seconds,
+        0
+      )
+    );
+    const prescribedRestExcluded =
+      nextRounds > 1
+        ? Math.min(configuredRest, rawLapSeconds)
+        : 0;
+    const splitSeconds = Math.max(
+      0,
+      rawLapSeconds - prescribedRestExcluded
     );
 
     const split = {
       round: nextRounds,
       split_seconds: splitSeconds,
+      raw_lap_seconds: rawLapSeconds,
+      prescribed_rest_seconds_excluded:
+        prescribedRestExcluded,
       cumulative_seconds: cumulative,
       source: 'USER_ROUND_COMPLETE',
       controlled_window: true,
+      split_semantics:
+        'ACTIVE_ROUND_AFTER_PRESCRIBED_REST_REMOVAL',
     };
 
     next.roundSplits = [
