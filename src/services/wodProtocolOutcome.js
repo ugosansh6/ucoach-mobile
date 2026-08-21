@@ -403,6 +403,22 @@ export function buildWodProtocolCompletion({
   const plannedSeconds =
     derivePlannedSeconds(workout, runtime);
   const actuals = new Map();
+  const executionEvents = Array.isArray(
+    runtime.executionEvents
+  )
+    ? runtime.executionEvents.filter(
+        (event) =>
+          event &&
+          typeof event === 'object' &&
+          typeof event.event_type === 'string' &&
+          event.event_type.trim()
+      )
+    : [];
+  const roundSplits = Array.isArray(
+    runtime.roundSplits
+  )
+    ? runtime.roundSplits
+    : [];
 
   const outcome = {
     mechanic_key: mechanic,
@@ -410,6 +426,13 @@ export function buildWodProtocolCompletion({
     elapsed_seconds: elapsedSeconds,
     planned_duration_seconds: plannedSeconds,
     finish_reason: runtime.finishReason ?? null,
+    source: 'ugerod_session_player',
+    controlled_timing:
+      runtime.controlledWindow === true,
+    execution_trace_version:
+      'w2-execution-events-v1',
+    execution_events: executionEvents,
+    round_splits: roundSplits,
     player_version:
       runtime.version ?? 'fc7-wod-player-v2',
     performance_capture_version: 'm7.2-v1',
