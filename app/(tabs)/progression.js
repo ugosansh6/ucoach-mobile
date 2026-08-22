@@ -19,6 +19,7 @@ import { colors, spacing } from '../../src/constants';
 import {
   getCoachOpportunitySnapshot,
   getProgressionDataContract,
+  getW4ProgressionIntelligence,
 } from '../../src/services/progressionDataService';
 
 const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
@@ -316,6 +317,73 @@ function equipmentOpportunityCopy(snapshot) {
   };
 }
 
+function referenceProgressCopy(snapshot) {
+  if (snapshot?.status !== 'REFERENCE_PROGRESS_AVAILABLE') return null;
+
+  const presentation = snapshot?.presentation ?? {};
+  return {
+    headline: presentation?.headline ?? 'Comparaison disponible sur une séance repère.',
+    metricLabel: presentation?.metric_label ?? 'RÉSULTAT',
+    current: presentation?.current_display ?? '—',
+    reference: presentation?.reference_display ?? '—',
+    currentRpe: presentation?.current_rpe,
+    referenceRpe: presentation?.reference_rpe,
+    contextNote: presentation?.context_note ?? 'Comparaison avec une séance strictement comparable.',
+  };
+}
+
+function goalGapCopy(goalGap) {
+  const target = String(goalGap?.target?.exercise_name ?? '').trim();
+  const requirements = Array.isArray(goalGap?.requirements) ? goalGap.requirements : [];
+
+  if (!target) {
+    return {
+      title: 'CAP EN COURS DE CONSTRUCTION',
+      text: 'UGEROD n’a pas encore de cap Skill suffisamment défini pour afficher un écart fiable.',
+      requirements: [],
+    };
+  }
+
+  switch (goalGap?.status) {
+    case 'TARGET_CALIBRATION_NEEDED':
+      return {
+        title: target.toUpperCase(),
+        text: `UGEROD doit d’abord obtenir une mesure fiable sur ${target} avant de conclure sur le prochain cap. Une donnée manquante n’est pas une faiblesse.`,
+        requirements: [],
+      };
+    case 'CALIBRATION_NEEDED':
+      return {
+        title: target.toUpperCase(),
+        text: 'Le cap est identifié, mais certaines capacités nécessaires doivent encore être mesurées avant de conclure.',
+        requirements,
+      };
+    case 'LIMITING_FACTORS_IDENTIFIED':
+      return {
+        title: target.toUpperCase(),
+        text: 'UGEROD a identifié les capacités qui limitent probablement ce cap à partir de prérequis documentés.',
+        requirements,
+      };
+    case 'REQUIREMENTS_SUPPORTED':
+      return {
+        title: target.toUpperCase(),
+        text: 'Les prérequis documentés connus sont soutenus par les observations disponibles. UGEROD peut poursuivre la progression sans inventer de seuil supplémentaire.',
+        requirements,
+      };
+    default:
+      return {
+        title: target.toUpperCase(),
+        text: 'Ce cap reste actif. Aucun facteur limitant causal fiable n’est identifié pour le moment.',
+        requirements,
+      };
+  }
+}
+
+function requirementStatusLabel(status) {
+  if (status === 'LIMITING') return 'À DÉVELOPPER';
+  if (status === 'TO_CALIBRATE') return 'À CALIBRER';
+  return 'OBSERVÉ';
+}
+
 function EvidenceCard({ item, showDetails }) {
   const red = item.accent === 'red';
   const muted = item.accent === 'muted';
@@ -362,6 +430,7 @@ function LinkCard({ icon, eyebrow, title, text, onPress, accent = 'blue' }) {
 export default function ProgressionScreen() {
   const [progression, setProgression] = useState(null);
   const [coachOpportunitySnapshot, setCoachOpportunitySnapshot] = useState(null);
+  const [w4Intelligence, setW4Intelligence] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -373,13 +442,15 @@ export default function ProgressionScreen() {
       else setLoading(true);
       setError('');
 
-      const [data, opportunitySnapshot] = await Promise.all([
+      const [data, opportunitySnapshot, w4Snapshot] = await Promise.all([
         getProgressionDataContract('4w'),
         getCoachOpportunitySnapshot(),
+        getW4ProgressionIntelligence(),
       ]);
 
       setProgression(data);
       setCoachOpportunitySnapshot(opportunitySnapshot);
+      setW4Intelligence(w4Snapshot);
     } catch (loadError) {
       setError(loadError?.message ?? 'Impossible de charger ta progression.');
     } finally {
@@ -398,6 +469,14 @@ export default function ProgressionScreen() {
   const equipmentOpportunity = useMemo(
     () => equipmentOpportunityCopy(coachOpportunitySnapshot),
     [coachOpportunitySnapshot]
+  );
+  const referenceProgress = useMemo(
+    () => referenceProgressCopy(w4Intelligence?.personal_reference_progress),
+    [w4Intelligence]
+  );
+  const goalGap = useMemo(
+    () => goalGapCopy(w4Intelligence?.goal_gap),
+    [w4Intelligence]
   );
 
   const profile = progression?.profile ?? {};
@@ -536,6 +615,38 @@ export default function ProgressionScreen() {
               <Ionicons name="arrow-forward" size={16} color={colors.primaryLight} />
             </Pressable>
 
+            {referenceProgress ? (
+              <View style={styles.referenceProgressCard}>
+                <View style={styles.referenceProgressTop}>
+                  <View style={styles.referenceProgressIcon}>
+                    <Ionicons name="git-compare-outline" size={20} color={colors.primaryLight} />
+                  </View>
+                  <View style={styles.referenceProgressHeading}>
+                    <Text style={styles.referenceProgressEyebrow}>MOI VS MOI · SÉANCE REPÈRE</Text>
+                    <Text style={styles.referenceProgressHeadline}>{referenceProgress.headline}</Text>
+                  </View>
+                </View>
+                <View style={styles.referenceProgressValues}>
+                  <View style={styles.referenceProgressValueBlock}>
+                    <Text style={styles.referenceProgressValue}>{referenceProgress.reference}</Text>
+                    <Text style={styles.referenceProgressLabel}>AVANT</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={17} color={colors.textMuted} />
+                  <View style={styles.referenceProgressValueBlock}>
+                    <Text style={[styles.referenceProgressValue, styles.referenceProgressValueCurrent]}>{referenceProgress.current}</Text>
+                    <Text style={styles.referenceProgressLabel}>MAINTENANT</Text>
+                  </View>
+                </View>
+                <Text style={styles.referenceProgressMetric}>{referenceProgress.metricLabel}</Text>
+                {(referenceProgress.currentRpe != null || referenceProgress.referenceRpe != null) ? (
+                  <Text style={styles.referenceProgressRpe}>
+                    RPE {referenceProgress.referenceRpe ?? '—'} → {referenceProgress.currentRpe ?? '—'}
+                  </Text>
+                ) : null}
+                <Text style={styles.referenceProgressContext}>{referenceProgress.contextNote}</Text>
+              </View>
+            ) : null}
+
             <Text style={styles.sectionEyebrowStandalone}>CE QUE LE COACH FAIT MAINTENANT</Text>
             <View style={styles.coachCard}>
               <View style={styles.coachIcon}>
@@ -574,10 +685,33 @@ export default function ProgressionScreen() {
                 </View>
                 <Text style={styles.capEyebrow}>TON PROCHAIN CAP</Text>
               </View>
-              <Text style={styles.capTitle}>ENCORE EN CALIBRATION</Text>
-              <Text style={styles.capText}>
-                UGEROD n’affiche pas encore de cap précis : il manque des preuves pour identifier un facteur limitant fiable. Il préfère te le dire plutôt que d’inventer un conseil générique.
-              </Text>
+              <Text style={styles.capTitle}>{goalGap.title}</Text>
+              <Text style={styles.capText}>{goalGap.text}</Text>
+              {goalGap.requirements.length > 0 ? (
+                <View style={styles.capRequirements}>
+                  {goalGap.requirements.map((item) => (
+                    <View key={`${item?.exercise_id}-${item?.status}`} style={styles.capRequirementRow}>
+                      <View style={styles.capRequirementMain}>
+                        <Text style={styles.capRequirementName}>{item?.exercise_name ?? 'Capacité'}</Text>
+                        {item?.source?.source_title ? (
+                          <Text style={styles.capRequirementSource}>{item.source.source_title}</Text>
+                        ) : null}
+                      </View>
+                      <View style={[
+                        styles.capRequirementBadge,
+                        item?.status === 'LIMITING' && styles.capRequirementBadgeRed,
+                      ]}>
+                        <Text style={[
+                          styles.capRequirementBadgeText,
+                          item?.status === 'LIMITING' && styles.capRequirementBadgeTextRed,
+                        ]}>
+                          {requirementStatusLabel(item?.status)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
 
             <Text style={styles.sectionEyebrowStandalone}>TON RYTHME</Text>
@@ -693,6 +827,20 @@ const styles = StyleSheet.create({
   emptyEvidenceText: { marginTop: 4, fontFamily: 'Oswald_400Regular', fontSize: 10, lineHeight: 15, color: colors.textSecondary },
   inlineLink: { alignSelf: 'flex-start', marginTop: 3, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 7 },
   inlineLinkText: { fontFamily: 'Oswald_700Bold', fontSize: 8.5, letterSpacing: 0.8, color: colors.primaryLight },
+  referenceProgressCard: { marginTop: 10, padding: 16, borderRadius: 18, backgroundColor: 'rgba(13,20,27,0.94)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.24)' },
+  referenceProgressTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  referenceProgressIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(29,140,255,0.10)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.18)' },
+  referenceProgressHeading: { flex: 1 },
+  referenceProgressEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 8, letterSpacing: 0.85, color: colors.primaryLight },
+  referenceProgressHeadline: { marginTop: 2, fontFamily: 'Oswald_600SemiBold', fontSize: 11, lineHeight: 16, color: colors.textPrimary },
+  referenceProgressValues: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  referenceProgressValueBlock: { flex: 1 },
+  referenceProgressValue: { fontFamily: 'BebasNeue_400Regular', fontSize: 27, lineHeight: 30, color: colors.textSecondary },
+  referenceProgressValueCurrent: { color: colors.primaryLight },
+  referenceProgressLabel: { fontFamily: 'Oswald_700Bold', fontSize: 7.5, letterSpacing: 0.8, color: colors.textMuted },
+  referenceProgressMetric: { marginTop: 8, fontFamily: 'Oswald_700Bold', fontSize: 8, letterSpacing: 0.8, color: colors.textMuted },
+  referenceProgressRpe: { marginTop: 4, fontFamily: 'Oswald_400Regular', fontSize: 9.5, color: colors.textSecondary },
+  referenceProgressContext: { marginTop: 9, paddingTop: 9, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', fontFamily: 'Oswald_400Regular', fontSize: 9, lineHeight: 14, color: colors.textMuted },
   coachCard: { padding: 16, flexDirection: 'row', gap: 12, borderRadius: 18, backgroundColor: 'rgba(24,16,18,0.92)', borderWidth: 1, borderColor: 'rgba(255,70,70,0.18)' },
   coachIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,70,70,0.09)' },
   coachMain: { flex: 1 },
@@ -714,6 +862,15 @@ const styles = StyleSheet.create({
   capEyebrow: { fontFamily: 'Oswald_700Bold', fontSize: 8.5, letterSpacing: 0.9, color: colors.primaryLight },
   capTitle: { marginTop: 10, fontFamily: 'BebasNeue_400Regular', fontSize: 23, lineHeight: 26, color: colors.textPrimary },
   capText: { marginTop: 4, fontFamily: 'Oswald_400Regular', fontSize: 10.5, lineHeight: 16, color: colors.textSecondary },
+  capRequirements: { marginTop: 12, gap: 8 },
+  capRequirementRow: { paddingTop: 9, flexDirection: 'row', alignItems: 'center', gap: 9, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
+  capRequirementMain: { flex: 1 },
+  capRequirementName: { fontFamily: 'Oswald_600SemiBold', fontSize: 10, lineHeight: 15, color: colors.textPrimary },
+  capRequirementSource: { marginTop: 2, fontFamily: 'Oswald_400Regular', fontSize: 8.5, lineHeight: 13, color: colors.textMuted },
+  capRequirementBadge: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(29,140,255,0.10)', borderWidth: 1, borderColor: 'rgba(29,140,255,0.18)' },
+  capRequirementBadgeRed: { backgroundColor: 'rgba(255,70,70,0.09)', borderColor: 'rgba(255,70,70,0.18)' },
+  capRequirementBadgeText: { fontFamily: 'Oswald_700Bold', fontSize: 7, letterSpacing: 0.6, color: colors.primaryLight },
+  capRequirementBadgeTextRed: { color: colors.brandRed },
   rhythmCard: { padding: 16, borderRadius: 18, backgroundColor: 'rgba(17,21,26,0.92)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
   rhythmTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rhythmValue: { fontFamily: 'BebasNeue_400Regular', fontSize: 28, lineHeight: 30, color: colors.textPrimary },
