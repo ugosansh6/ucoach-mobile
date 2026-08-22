@@ -80,6 +80,26 @@ export async function getCoachOpportunitySnapshot(anchorDate = new Date()) {
   }
 }
 
+export async function getW4ProgressionIntelligence(anchorDate = new Date()) {
+  try {
+    const user = await getAuthenticatedUser();
+    const { data, error } = await supabase.rpc('w4_progression_intelligence_v1', {
+      p_user_id: user.id,
+      p_anchor_date: getLocalDateKey(anchorDate),
+    });
+
+    if (error) {
+      console.warn('W4 progression intelligence unavailable:', error.message);
+      return null;
+    }
+
+    return data ?? null;
+  } catch (error) {
+    console.warn('W4 progression intelligence unavailable:', error?.message ?? error);
+    return null;
+  }
+}
+
 export async function getSessionLearningSnapshot(sessionId) {
   if (!sessionId) {
     throw new Error('Session manquante pour le débrief Coach.');
