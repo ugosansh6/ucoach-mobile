@@ -58,16 +58,16 @@ export const ugerodThemes = {
       background: '#FFFFFF',
       surface: '#F7F8F3',
       surfaceElevated: '#FFFFFF',
-      surfacePressed: '#EEF1E7',
+      surfacePressed: '#EEF1ED',
 
-      // Nouvelle palette claire : kaki + orange.
-      accent: '#66734D',
-      accentStrong: '#4D5938',
-      accentSoft: '#E9EDDF',
+      // Palette claire UGEROD : kaki #646F5E + orange vif #FF6B19.
+      accent: '#646F5E',
+      accentStrong: '#646F5E',
+      accentSoft: 'rgba(100, 111, 94, 0.14)',
 
-      secondaryAccent: '#D86D2B',
-      secondaryAccentStrong: '#B9571F',
-      secondaryAccentSoft: '#FBE9DE',
+      secondaryAccent: '#FF6B19',
+      secondaryAccentStrong: '#FF6B19',
+      secondaryAccentSoft: 'rgba(255, 107, 25, 0.14)',
 
       text: '#171A15',
       textSecondary: '#50584B',
@@ -81,15 +81,15 @@ export const ugerodThemes = {
 
       success: '#527A55',
       successSoft: '#E7F0E5',
-      warning: '#D86D2B',
-      warningSoft: '#FBE9DE',
-      error: '#D86D2B',
-      errorSoft: '#FBE9DE',
+      warning: '#FF6B19',
+      warningSoft: 'rgba(255, 107, 25, 0.14)',
+      error: '#FF6B19',
+      errorSoft: 'rgba(255, 107, 25, 0.14)',
 
-      warningBorder: '#F0C6AA',
-      warningIconBackground: '#FFF6EF',
-      logoutBorder: '#E9B793',
-      logoutPressed: '#F8DDCA',
+      warningBorder: 'rgba(255, 107, 25, 0.30)',
+      warningIconBackground: 'rgba(255, 107, 25, 0.08)',
+      logoutBorder: 'rgba(255, 107, 25, 0.34)',
+      logoutPressed: 'rgba(255, 107, 25, 0.20)',
       shadow: '#000000',
     },
   },
