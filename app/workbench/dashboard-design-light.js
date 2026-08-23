@@ -20,8 +20,9 @@ import { getDashboardSnapshot } from '../../src/services/weeklyPlanService';
 import { getCurrentProfile } from '../../src/services/profileService';
 import { reloadWorkoutSession } from '../../src/services/workoutService';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
+import dashboardHero from '../../src/assets/dashboard-light-hero';
 
-const dashboardBackground = require('../../assets/backgrounds/welcome-default.jpg');
+const dashboardBackground = dashboardHero;
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
 const KHAKI = '#646F5E';
