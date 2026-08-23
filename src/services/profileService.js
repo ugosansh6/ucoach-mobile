@@ -89,6 +89,24 @@ function normalizeStartingProfile(startingProfile) {
   };
 }
 
+function normalizeGender(gender) {
+  if (gender === null || gender === undefined || gender === '') {
+    return null;
+  }
+
+  const normalized = String(gender).trim().toLowerCase();
+
+  if (['male', 'm', 'homme', 'man'].includes(normalized)) {
+    return 'male';
+  }
+
+  if (['female', 'f', 'femme', 'woman'].includes(normalized)) {
+    return 'female';
+  }
+
+  throw new Error('Choisis Homme ou Femme pour le sexe.');
+}
+
 export async function saveOnboardingProfile({
   level,
   weeklyTarget,
@@ -180,6 +198,7 @@ export async function updatePersonalInformation({
   firstname,
   lastname,
   birthdate,
+  gender,
   height,
   weight,
 }) {
@@ -191,6 +210,7 @@ export async function updatePersonalInformation({
       firstname: firstname?.trim() || null,
       lastname: lastname?.trim() || null,
       birthdate: birthdate || null,
+      gender: normalizeGender(gender),
       height:
         height !== null && height !== undefined
           ? Number(height)
