@@ -146,10 +146,22 @@ const SECTIONS = [
     icon: 'apps-outline',
     pages: [
       {
-        title: 'Dashboard',
-        subtitle: 'Accueil principal',
+        title: 'Dashboard · actuel',
+        subtitle: 'Accueil principal actuel',
         route: '/(tabs)',
         icon: 'grid-outline',
+      },
+      {
+        title: 'Dashboard · test sombre',
+        subtitle: 'Nouvelle direction fitness home premium',
+        route: '/dashboard-test',
+        icon: 'moon-outline',
+      },
+      {
+        title: 'Dashboard · test clair',
+        subtitle: 'Kaki #646F5E · orange #FF6B19',
+        route: '/dashboard-test-light',
+        icon: 'sunny-outline',
       },
       {
         title: 'Planning',
