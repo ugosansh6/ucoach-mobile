@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import {
   ActivityIndicator,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,13 +13,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 import {
-  colors,
   spacing,
   typography,
+  uxLightColors,
 } from '../../src/constants';
 
 import {
@@ -30,13 +28,14 @@ import {
 
 import { supabase } from '../../src/lib/supabase';
 
-const backgroundImage = require(
-  '../../assets/backgrounds/welcome-default.jpg'
-);
-
 const brandIcon = require(
   '../../assets/branding/ugerod-icon.png'
 );
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'HOMME' },
+  { value: 'female', label: 'FEMME' },
+];
 
 function isoToFrenchDate(value) {
   if (!value) {
@@ -72,46 +71,27 @@ function frenchDateToIso(value) {
   const day = Number(match[1]);
   const month = Number(match[2]);
   const year = Number(match[3]);
-
   const currentYear = new Date().getFullYear();
 
   if (year < 1900 || year > currentYear) {
-    throw new Error(
-      'L’année de naissance indiquée est invalide.'
-    );
+    throw new Error('L’année de naissance indiquée est invalide.');
   }
 
   if (month < 1 || month > 12) {
-    throw new Error(
-      'Le mois de naissance indiqué est invalide.'
-    );
+    throw new Error('Le mois de naissance indiqué est invalide.');
   }
 
-  const daysInMonth = new Date(
-    year,
-    month,
-    0
-  ).getDate();
+  const daysInMonth = new Date(year, month, 0).getDate();
 
   if (day < 1 || day > daysInMonth) {
-    throw new Error(
-      'Le jour de naissance indiqué est invalide.'
-    );
+    throw new Error('Le jour de naissance indiqué est invalide.');
   }
 
-  const formattedMonth =
-    String(month).padStart(2, '0');
-
-  const formattedDay =
-    String(day).padStart(2, '0');
-
-  return `${year}-${formattedMonth}-${formattedDay}`;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function formatBirthdateInput(value) {
-  const digits = value
-    .replace(/\D/g, '')
-    .slice(0, 8);
+  const digits = value.replace(/\D/g, '').slice(0, 8);
 
   if (digits.length <= 2) {
     return digits;
@@ -124,36 +104,32 @@ function formatBirthdateInput(value) {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
+function normalizeGenderValue(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  if (['male', 'm', 'homme', 'man'].includes(normalized)) {
+    return 'male';
+  }
+
+  if (['female', 'f', 'femme', 'woman'].includes(normalized)) {
+    return 'female';
+  }
+
+  return null;
+}
+
 export default function PersonalInformationScreen() {
-  const [firstName, setFirstName] =
-    useState('');
-
-  const [lastName, setLastName] =
-    useState('');
-
-  const [email, setEmail] =
-    useState('');
-
-  const [birthdate, setBirthdate] =
-    useState('');
-
-  const [height, setHeight] =
-    useState('');
-
-  const [weight, setWeight] =
-    useState('');
-
-  const [isLoading, setIsLoading] =
-    useState(true);
-
-  const [isSaving, setIsSaving] =
-    useState(false);
-
-  const [saved, setSaved] =
-    useState(false);
-
-  const [errorMessage, setErrorMessage] =
-    useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [gender, setGender] = useState(null);
+  const [birthdate, setBirthdate] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     async function loadData() {
@@ -161,10 +137,7 @@ export default function PersonalInformationScreen() {
         setIsLoading(true);
         setErrorMessage('');
 
-        const [
-          profile,
-          userResult,
-        ] = await Promise.all([
+        const [profile, userResult] = await Promise.all([
           getCurrentProfile(),
           supabase.auth.getUser(),
         ]);
@@ -173,51 +146,30 @@ export default function PersonalInformationScreen() {
           throw userResult.error;
         }
 
-        setFirstName(
-          profile?.firstname ?? ''
-        );
-
-        setLastName(
-          profile?.lastname ?? ''
-        );
-
-        setBirthdate(
-          isoToFrenchDate(
-            profile?.birthdate
-          )
-        );
-
+        setFirstName(profile?.firstname ?? '');
+        setLastName(profile?.lastname ?? '');
+        setGender(normalizeGenderValue(profile?.gender));
+        setBirthdate(isoToFrenchDate(profile?.birthdate));
         setHeight(
-          profile?.height !== null &&
-          profile?.height !== undefined
+          profile?.height !== null && profile?.height !== undefined
             ? String(profile.height)
             : ''
         );
-
         setWeight(
-          profile?.weight !== null &&
-          profile?.weight !== undefined
+          profile?.weight !== null && profile?.weight !== undefined
             ? String(profile.weight)
             : ''
         );
-
-        setEmail(
-          userResult.data?.user?.email ??
-            ''
-        );
+        setEmail(userResult.data?.user?.email ?? '');
       } catch (error) {
-        console.log(
-          'PERSONAL INFORMATION LOAD ERROR',
-          {
-            message: error?.message,
-            code: error?.code,
-            details: error?.details,
-          }
-        );
+        console.log('PERSONAL INFORMATION LOAD ERROR', {
+          message: error?.message,
+          code: error?.code,
+          details: error?.details,
+        });
 
         setErrorMessage(
-          error?.message ??
-            'Impossible de charger tes informations.'
+          error?.message ?? 'Impossible de charger tes informations.'
         );
       } finally {
         setIsLoading(false);
@@ -226,18 +178,6 @@ export default function PersonalInformationScreen() {
 
     loadData();
   }, []);
-
-  function handleBack() {
-    if (isSaving) {
-      return;
-    }
-
-    router.back();
-  }
-
-  function handleChangePassword() {
-    router.push('/profile/security');
-  }
 
   async function handleSave() {
     if (isSaving) {
@@ -249,87 +189,49 @@ export default function PersonalInformationScreen() {
       setSaved(false);
       setErrorMessage('');
 
-      const parsedBirthdate =
-        frenchDateToIso(birthdate);
-
-      const parsedHeight =
-        height.trim()
-          ? Number(height)
-          : null;
-
-      const parsedWeight =
-        weight
-          .trim()
-          .replace(',', '.')
-          ? Number(
-              weight
-                .trim()
-                .replace(',', '.')
-            )
-          : null;
+      const parsedBirthdate = frenchDateToIso(birthdate);
+      const parsedHeight = height.trim() ? Number(height) : null;
+      const normalizedWeight = weight.trim().replace(',', '.');
+      const parsedWeight = normalizedWeight ? Number(normalizedWeight) : null;
 
       if (
         parsedHeight !== null &&
-        (
-          Number.isNaN(parsedHeight) ||
-          parsedHeight < 100 ||
-          parsedHeight > 250
-        )
+        (Number.isNaN(parsedHeight) || parsedHeight < 100 || parsedHeight > 250)
       ) {
-        throw new Error(
-          'Indique une taille valide en centimètres.'
-        );
+        throw new Error('Indique une taille valide en centimètres.');
       }
 
       if (
         parsedWeight !== null &&
-        (
-          Number.isNaN(parsedWeight) ||
-          parsedWeight < 30 ||
-          parsedWeight > 300
-        )
+        (Number.isNaN(parsedWeight) || parsedWeight < 30 || parsedWeight > 300)
       ) {
-        throw new Error(
-          'Indique un poids valide en kilogrammes.'
-        );
+        throw new Error('Indique un poids valide en kilogrammes.');
       }
 
       await updatePersonalInformation({
-        firstname:
-          firstName.trim(),
-        lastname:
-          lastName.trim(),
-        birthdate:
-          parsedBirthdate,
-        height:
-          parsedHeight,
-        weight:
-          parsedWeight,
+        firstname: firstName.trim(),
+        lastname: lastName.trim(),
+        birthdate: parsedBirthdate,
+        gender,
+        height: parsedHeight,
+        weight: parsedWeight,
       });
-
-      console.log(
-        'PERSONAL INFORMATION — sauvegardé'
-      );
 
       setSaved(true);
 
       setTimeout(() => {
         router.back();
-      }, 600);
+      }, 500);
     } catch (error) {
-      console.log(
-        'PERSONAL INFORMATION SAVE ERROR',
-        {
-          message: error?.message,
-          code: error?.code,
-          details: error?.details,
-          hint: error?.hint,
-        }
-      );
+      console.log('PERSONAL INFORMATION SAVE ERROR', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+      });
 
       setErrorMessage(
-        error?.message ??
-          'Impossible d’enregistrer tes informations.'
+        error?.message ?? 'Impossible d’enregistrer tes informations.'
       );
     } finally {
       setIsSaving(false);
@@ -339,491 +241,221 @@ export default function PersonalInformationScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator
-          size="large"
-          color={colors.primary}
-        />
-
-        <Text style={styles.loadingText}>
-          CHARGEMENT DE TES INFORMATIONS...
-        </Text>
+        <ActivityIndicator size="large" color={uxLightColors.khaki} />
+        <Text style={styles.loadingText}>CHARGEMENT DE TES INFORMATIONS...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.screen}>
-      <ImageBackground
-        source={backgroundImage}
-        resizeMode="cover"
-        style={styles.background}
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.darkOverlay} />
-
-        <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.45)',
-            'rgba(7,9,12,0.72)',
-            'rgba(7,9,12,0.95)',
-            'rgba(7,9,12,1)',
-          ]}
-          locations={[
-            0,
-            0.26,
-            0.68,
-            1,
-          ]}
-          style={
-            StyleSheet.absoluteFill
-          }
-        />
-
-        <SafeAreaView
-          style={styles.safeArea}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.content}
         >
-          <KeyboardAvoidingView
-            style={
-              styles.keyboardView
-            }
-            behavior={
-              Platform.OS === 'ios'
-                ? 'padding'
-                : undefined
-            }
-          >
-            <ScrollView
-              showsVerticalScrollIndicator={
-                false
-              }
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={
-                styles.content
-              }
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => !isSaving && router.back()}
+              hitSlop={12}
+              style={({ pressed }) => [
+                styles.headerButton,
+                pressed && styles.pressed,
+              ]}
             >
-              {/* HEADER */}
-              <View style={styles.header}>
-                <Pressable
-                  onPress={handleBack}
-                  hitSlop={12}
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.backButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Ionicons
-                    name="arrow-back"
-                    size={22}
-                    color={
-                      colors.textPrimary
-                    }
-                  />
-                </Pressable>
-
-                <View
-                  style={
-                    styles.headerText
-                  }
-                >
-                  <Text
-                    style={
-                      styles.headerEyebrow
-                    }
-                  >
-                    TON COMPTE
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.headerTitle
-                    }
-                  >
-                    TES INFOS
-                    <Text
-                      style={
-                        styles.blueDot
-                      }
-                    >
-                      .
-                    </Text>
-                  </Text>
-                </View>
-
-                <Image
-                  source={brandIcon}
-                  style={
-                    styles.brandIcon
-                  }
-                  resizeMode="contain"
-                />
-              </View>
-
-              {/* INTRO */}
-              <View style={styles.intro}>
-                <Text
-                  style={
-                    styles.introTitle
-                  }
-                >
-                  INFORMATIONS PERSONNELLES
-                </Text>
-
-                <Text
-                  style={
-                    styles.introText
-                  }
-                >
-                  Ces informations permettent
-                  à UGEROD de personnaliser
-                  ton profil et de mieux
-                  suivre ton évolution.
-                </Text>
-              </View>
-
-              {/* ERREUR */}
-              {!!errorMessage && (
-                <View
-                  style={
-                    styles.errorCard
-                  }
-                >
-                  <Ionicons
-                    name="alert-circle-outline"
-                    size={20}
-                    color="#FF6B6B"
-                  />
-
-                  <Text
-                    style={
-                      styles.errorText
-                    }
-                  >
-                    {errorMessage}
-                  </Text>
-                </View>
-              )}
-
-              {/* IDENTITÉ */}
-              <SectionTitle
-                title="IDENTITÉ"
-                subtitle="Les informations principales de ton compte."
+              <Ionicons
+                name="arrow-back"
+                size={23}
+                color={uxLightColors.text}
               />
+            </Pressable>
 
-              <View
-                style={
-                  styles.formCard
-                }
-              >
-                <Field
-                  label="PRÉNOM"
-                  value={firstName}
-                  onChangeText={
-                    setFirstName
-                  }
-                  placeholder="Ton prénom"
-                  icon="person-outline"
+            <Text style={styles.headerTitle}>TES INFOS</Text>
+
+            <Image
+              source={brandIcon}
+              style={styles.brandIcon}
+              resizeMode="contain"
+            />
+          </View>
+
+          <Text style={styles.pageIntro}>
+            Renseigne uniquement les données utiles à ton suivi.
+          </Text>
+
+          {!!errorMessage && (
+            <View style={styles.errorCard}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={22}
+                color={uxLightColors.orangeDark}
+              />
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          )}
+
+          <SectionTitle
+            title="IDENTITÉ"
+            subtitle="Les informations principales de ton compte."
+          />
+
+          <View style={styles.formCard}>
+            <Field
+              label="PRÉNOM"
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="Ton prénom"
+              icon="person-outline"
+            />
+
+            <Field
+              label="NOM"
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder="Ton nom"
+              icon="person-outline"
+            />
+
+            <View style={[styles.field, styles.fieldLast]}>
+              <Text style={styles.label}>EMAIL</Text>
+              <View style={[styles.inputWrapper, styles.inputWrapperDisabled]}>
+                <Ionicons
+                  name="mail-outline"
+                  size={20}
+                  color={uxLightColors.textMuted}
                 />
-
-                <Field
-                  label="NOM"
-                  value={lastName}
-                  onChangeText={
-                    setLastName
-                  }
-                  placeholder="Ton nom"
-                  icon="person-outline"
+                <Text style={styles.disabledInputText} numberOfLines={1}>
+                  {email || 'EMAIL NON DISPONIBLE'}
+                </Text>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={16}
+                  color={uxLightColors.textMuted}
                 />
+              </View>
+            </View>
+          </View>
 
-                <View style={styles.field}>
-                  <Text
-                    style={styles.label}
-                  >
-                    EMAIL
-                  </Text>
+          <SectionTitle
+            title="REPÈRES PHYSIQUES"
+            subtitle="Utilisés seulement quand ils apportent quelque chose au coaching."
+          />
 
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      styles.inputWrapperDisabled,
-                    ]}
-                  >
-                    <Ionicons
-                      name="mail-outline"
-                      size={19}
-                      color={
-                        colors.textMuted
-                      }
-                    />
+          <View style={styles.formCard}>
+            <View style={styles.field}>
+              <Text style={styles.label}>SEXE</Text>
+              <View style={styles.segmentedControl}>
+                {GENDER_OPTIONS.map((option) => {
+                  const selected = gender === option.value;
 
-                    <Text
-                      style={[
-                        styles.input,
-                        styles.disabledInputText,
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => setGender(option.value)}
+                      style={({ pressed }) => [
+                        styles.segment,
+                        selected && styles.segmentSelected,
+                        pressed && styles.pressed,
                       ]}
                     >
-                      {email ||
-                        'EMAIL NON DISPONIBLE'}
-                    </Text>
-
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={15}
-                      color={
-                        colors.textMuted
-                      }
-                    />
-                  </View>
-
-                  <Text
-                    style={
-                      styles.fieldHelp
-                    }
-                  >
-                    L’adresse email est liée
-                    à ton compte UGEROD.
-                  </Text>
-                </View>
+                      <Ionicons
+                        name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={19}
+                        color={
+                          selected
+                            ? uxLightColors.textOnAccent
+                            : uxLightColors.textMuted
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.segmentText,
+                          selected && styles.segmentTextSelected,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
+              <Text style={styles.fieldHelp}>
+                Utilisé pour les repères de performance lorsque les seuils diffèrent.
+              </Text>
+            </View>
 
-              {/* DONNÉES PHYSIQUES */}
-              <SectionTitle
-                title="DONNÉES PHYSIQUES"
-                subtitle="Utilisées pour personnaliser ton suivi."
-              />
+            <Field
+              label="DATE DE NAISSANCE"
+              value={birthdate}
+              onChangeText={(value) => {
+                setBirthdate(formatBirthdateInput(value));
+              }}
+              placeholder="JJ/MM/AAAA"
+              icon="calendar-outline"
+              keyboardType="number-pad"
+            />
 
-              <View
-                style={
-                  styles.formCard
-                }
-              >
-                <Field
-                  label="DATE DE NAISSANCE"
-                  value={birthdate}
-                  onChangeText={(value) => {
-                    setBirthdate(
-                      formatBirthdateInput(value)
-                    );
-                  }}
-                  placeholder="JJ/MM/AAAA"
-                  icon="calendar-outline"
-                  keyboardType="number-pad"
-                />
+            <Field
+              label="TAILLE"
+              value={height}
+              onChangeText={setHeight}
+              placeholder="Ex : 178"
+              icon="resize-outline"
+              keyboardType="number-pad"
+              unit="CM"
+            />
 
-                <Field
-                  label="TAILLE"
-                  value={height}
-                  onChangeText={
-                    setHeight
-                  }
-                  placeholder="Ex : 178"
-                  icon="resize-outline"
-                  keyboardType="number-pad"
-                  unit="CM"
-                />
+            <Field
+              label="POIDS"
+              value={weight}
+              onChangeText={setWeight}
+              placeholder="Ex : 82"
+              icon="scale-outline"
+              keyboardType="decimal-pad"
+              unit="KG"
+              last
+            />
+          </View>
 
-                <Field
-                  label="POIDS"
-                  value={weight}
-                  onChangeText={
-                    setWeight
-                  }
-                  placeholder="Ex : 82"
-                  icon="scale-outline"
-                  keyboardType="decimal-pad"
-                  unit="KG"
-                  last
-                />
-              </View>
-
-              {/* INFO */}
-              <View
-                style={styles.infoCard}
-              >
+          <Pressable
+            onPress={handleSave}
+            disabled={isSaving || saved}
+            style={({ pressed }) => [
+              styles.saveButton,
+              pressed && !isSaving && !saved && styles.saveButtonPressed,
+              (isSaving || saved) && styles.saveButtonDisabled,
+            ]}
+          >
+            {isSaving ? (
+              <ActivityIndicator color={uxLightColors.textOnAccent} />
+            ) : (
+              <>
                 <Ionicons
-                  name="analytics-outline"
+                  name={saved ? 'checkmark-circle' : 'save-outline'}
                   size={21}
-                  color={
-                    colors.primaryLight
-                  }
+                  color={uxLightColors.textOnAccent}
                 />
-
-                <Text
-                  style={
-                    styles.infoText
-                  }
-                >
-                  Ces données pourront
-                  aider UGEROD à enrichir
-                  le suivi de ta progression
-                  et l’adaptation de tes
-                  séances.
+                <Text style={styles.saveButtonText}>
+                  {saved ? 'ENREGISTRÉ' : 'ENREGISTRER'}
                 </Text>
-              </View>
-
-              {/* SÉCURITÉ */}
-              <SectionTitle
-                title="SÉCURITÉ"
-                subtitle="Gère l’accès à ton compte."
-              />
-
-              <Pressable
-                onPress={
-                  handleChangePassword
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.securityCard,
-                  pressed &&
-                    styles.cardPressed,
-                ]}
-              >
-                <View
-                  style={
-                    styles.securityIcon
-                  }
-                >
-                  <Ionicons
-                    name="lock-closed-outline"
-                    size={20}
-                    color={
-                      colors.textPrimary
-                    }
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.securityMain
-                  }
-                >
-                  <Text
-                    style={
-                      styles.securityTitle
-                    }
-                  >
-                    MODIFIER MON MOT DE PASSE
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.securitySubtitle
-                    }
-                  >
-                    Accéder aux paramètres
-                    de sécurité
-                  </Text>
-                </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={
-                    colors.textMuted
-                  }
-                />
-              </Pressable>
-
-              {/* CTA */}
-              <Pressable
-                onPress={handleSave}
-                disabled={
-                  isSaving || saved
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.saveButton,
-                  saved &&
-                    styles.saveButtonDone,
-                  pressed &&
-                    !saved &&
-                    !isSaving &&
-                    styles.saveButtonPressed,
-                  isSaving &&
-                    styles.saveButtonDisabled,
-                ]}
-              >
-                {isSaving ? (
-                  <>
-                    <ActivityIndicator
-                      size="small"
-                      color={
-                        colors.brandWhite
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.saveButtonText
-                      }
-                    >
-                      ENREGISTREMENT...
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Text
-                      style={
-                        styles.saveButtonText
-                      }
-                    >
-                      {saved
-                        ? 'INFORMATIONS ENREGISTRÉES'
-                        : 'ENREGISTRER'}
-                    </Text>
-
-                    <Ionicons
-                      name={
-                        saved
-                          ? 'checkmark-circle'
-                          : 'checkmark-circle-outline'
-                      }
-                      size={21}
-                      color={
-                        colors.brandWhite
-                      }
-                    />
-                  </>
-                )}
-              </Pressable>
-
-              <View
-                style={
-                  styles.bottomSpace
-                }
-              />
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </ImageBackground>
-    </View>
+              </>
+            )}
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
-function SectionTitle({
-  title,
-  subtitle,
-}) {
+function SectionTitle({ title, subtitle }) {
   return (
-    <View
-      style={styles.sectionHeader}
-    >
-      <Text
-        style={styles.sectionTitle}
-      >
-        {title}
-      </Text>
-
-      <Text
-        style={
-          styles.sectionSubtitle
-        }
-      >
-        {subtitle}
-      </Text>
+    <View style={styles.sectionTitleArea}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {!!subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}
     </View>
   );
 }
@@ -839,442 +471,239 @@ function Field({
   last = false,
 }) {
   return (
-    <View
-      style={[
-        styles.field,
-        !last &&
-          styles.fieldBorder,
-      ]}
-    >
-      <Text style={styles.label}>
-        {label}
-      </Text>
-
-      <View
-        style={styles.inputWrapper}
-      >
-        <Ionicons
-          name={icon}
-          size={19}
-          color={colors.textMuted}
-        />
-
+    <View style={[styles.field, last && styles.fieldLast]}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.inputWrapper}>
+        <Ionicons name={icon} size={20} color={uxLightColors.khakiDark} />
         <TextInput
           value={value}
-          onChangeText={
-            onChangeText
-          }
-          placeholder={
-            placeholder
-          }
-          placeholderTextColor={
-            colors.textMuted
-          }
-          keyboardType={
-            keyboardType
-          }
-          autoCorrect={false}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={uxLightColors.textDisabled}
+          keyboardType={keyboardType}
           style={styles.input}
+          selectionColor={uxLightColors.khaki}
+          autoCapitalize="sentences"
         />
-
-        {unit ? (
-          <Text
-            style={
-              styles.inputUnit
-            }
-          >
-            {unit}
-          </Text>
-        ) : null}
+        {!!unit && <Text style={styles.unit}>{unit}</Text>}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor:
-      colors.background,
-  },
-
-  loadingScreen: {
-    flex: 1,
-    backgroundColor:
-      colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-  },
-
-  loadingText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 11,
-    letterSpacing: 0.8,
-    color:
-      colors.textSecondary,
-  },
-
-  background: {
-    flex: 1,
-  },
-
   safeArea: {
     flex: 1,
+    backgroundColor: uxLightColors.background,
   },
-
   keyboardView: {
     flex: 1,
   },
-
-  darkOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor:
-      'rgba(0,0,0,0.30)',
-  },
-
   content: {
-    paddingHorizontal:
-      spacing.xl,
-    paddingTop: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: 48,
   },
-
-  header: {
-    minHeight: 74,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor:
-      'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.10)',
+  loadingScreen: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.md,
+    backgroundColor: uxLightColors.background,
   },
-
-  headerText: {
-    flex: 1,
+  loadingText: {
+    ...typography.body,
+    fontSize: 16,
+    lineHeight: 23,
+    color: uxLightColors.textSecondary,
   },
-
-  headerEyebrow: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 1,
-    color:
-      colors.textSecondary,
-  },
-
-  headerTitle: {
-    ...typography.display,
-    fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: 1.7,
-    color:
-      colors.textPrimary,
-  },
-
-  blueDot: {
-    color:
-      colors.primary,
-  },
-
-  brandIcon: {
-    width: 45,
-    height: 45,
-  },
-
-  intro: {
-    marginTop: 25,
-  },
-
-  introTitle: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 31,
-    lineHeight: 34,
-    letterSpacing: 1.4,
-    color:
-      colors.textPrimary,
-  },
-
-  introText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 13,
-    lineHeight: 20,
-    color:
-      colors.textSecondary,
-    marginTop: 6,
-    maxWidth: 345,
-  },
-
-  errorCard: {
-    minHeight: 58,
-    marginTop: 16,
-    borderRadius: 14,
-    padding: 12,
-    backgroundColor:
-      'rgba(255,107,107,0.08)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,107,107,0.25)',
+  header: {
+    minHeight: 60,
     flexDirection: 'row',
-    gap: 9,
     alignItems: 'center',
-  },
-
-  errorText: {
-    flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
-    color:
-      colors.textSecondary,
-  },
-
-  sectionHeader: {
-    marginTop: 27,
-    marginBottom: 10,
-  },
-
-  sectionTitle: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.7,
-    color:
-      colors.textPrimary,
-  },
-
-  sectionSubtitle: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
-    color:
-      colors.textMuted,
-    marginTop: 3,
-  },
-
-  formCard: {
-    borderRadius: 17,
-    paddingHorizontal: 15,
-    backgroundColor:
-      'rgba(17,21,26,0.92)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.09)',
-    overflow: 'hidden',
-  },
-
-  field: {
-    paddingVertical: 14,
-  },
-
-  fieldBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor:
-      'rgba(255,255,255,0.06)',
-  },
-
-  label: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.8,
-    color:
-      colors.textSecondary,
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
-
-  inputWrapper: {
-    minHeight: 48,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    backgroundColor:
-      'rgba(7,9,12,0.60)',
+  headerButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: uxLightColors.surface,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.08)',
+    borderColor: uxLightColors.border,
+  },
+  headerTitle: {
+    ...typography.screenTitle,
+    fontSize: 32,
+    lineHeight: 35,
+    color: uxLightColors.text,
+  },
+  brandIcon: {
+    width: 38,
+    height: 38,
+    tintColor: uxLightColors.khakiDark,
+  },
+  pageIntro: {
+    ...typography.bodyLarge,
+    fontSize: 17,
+    lineHeight: 25,
+    color: uxLightColors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  errorCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-  },
-
-  inputWrapperDisabled: {
-    opacity: 0.7,
-  },
-
-  input: {
-    flex: 1,
-    fontFamily:
-      'Oswald_500Medium',
-    fontSize: 13,
-    color:
-      colors.textPrimary,
-    paddingVertical: 0,
-  },
-
-  disabledInputText: {
-    color:
-      colors.textSecondary,
-  },
-
-  inputUnit: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 9,
-    letterSpacing: 0.6,
-    color:
-      colors.textMuted,
-  },
-
-  fieldHelp: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 9,
-    lineHeight: 14,
-    color:
-      colors.textMuted,
-    marginTop: 7,
-  },
-
-  infoCard: {
-    minHeight: 82,
-    marginTop: 16,
-    borderRadius: 15,
-    padding: 14,
-    backgroundColor:
-      'rgba(8,104,255,0.08)',
+    gap: spacing.sm,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: 16,
+    backgroundColor: uxLightColors.orangeSoft,
     borderWidth: 1,
-    borderColor:
-      'rgba(8,104,255,0.25)',
+    borderColor: '#F0C6AA',
+  },
+  errorText: {
+    ...typography.body,
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 23,
+    color: uxLightColors.orangeDark,
+  },
+  sectionTitleArea: {
+    marginTop: 26,
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    ...typography.sectionTitle,
+    fontSize: 20,
+    lineHeight: 26,
+    color: uxLightColors.text,
+  },
+  sectionSubtitle: {
+    ...typography.body,
+    marginTop: 3,
+    fontSize: 15,
+    lineHeight: 22,
+    color: uxLightColors.textSecondary,
+  },
+  formCard: {
+    borderRadius: 20,
+    backgroundColor: uxLightColors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: uxLightColors.border,
+    overflow: 'hidden',
+  },
+  field: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: uxLightColors.border,
+  },
+  fieldLast: {
+    borderBottomWidth: 0,
+  },
+  label: {
+    ...typography.label,
+    marginBottom: 8,
+    fontSize: 14,
+    lineHeight: 19,
+    color: uxLightColors.text,
+  },
+  inputWrapper: {
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-
-  infoText: {
-    flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
-    color:
-      colors.textSecondary,
-  },
-
-  securityCard: {
-    minHeight: 78,
-    borderRadius: 16,
     paddingHorizontal: 14,
-    backgroundColor:
-      'rgba(17,21,26,0.92)',
+    borderRadius: 16,
+    backgroundColor: uxLightColors.surface,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.09)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    borderColor: uxLightColors.border,
   },
-
-  securityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor:
-      'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  inputWrapperDisabled: {
+    backgroundColor: '#F1F2EE',
   },
-
-  securityMain: {
+  input: {
+    ...typography.bodyLarge,
     flex: 1,
+    paddingVertical: 0,
+    fontSize: 17,
+    lineHeight: 24,
+    color: uxLightColors.text,
   },
-
-  securityTitle: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 12,
-    lineHeight: 17,
-    color:
-      colors.textPrimary,
+  disabledInputText: {
+    ...typography.body,
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 23,
+    color: uxLightColors.textMuted,
   },
-
-  securitySubtitle: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 10,
-    lineHeight: 15,
-    color:
-      colors.textMuted,
-    marginTop: 2,
+  unit: {
+    ...typography.label,
+    fontSize: 13,
+    lineHeight: 18,
+    color: uxLightColors.textMuted,
   },
-
-  cardPressed: {
-    backgroundColor:
-      'rgba(25,30,36,0.96)',
+  fieldHelp: {
+    ...typography.body,
+    marginTop: 8,
+    fontSize: 15,
+    lineHeight: 22,
+    color: uxLightColors.textSecondary,
   },
-
-  saveButton: {
-    minHeight: 56,
-    marginTop: 26,
-    borderRadius: 14,
-    backgroundColor:
-      colors.primary,
+  segmentedControl: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  segment: {
+    minHeight: 50,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: uxLightColors.borderStrong,
+    backgroundColor: uxLightColors.surface,
   },
-
-  saveButtonDone: {
-    backgroundColor:
-      colors.primaryDark,
+  segmentSelected: {
+    backgroundColor: uxLightColors.khaki,
+    borderColor: uxLightColors.khaki,
   },
-
+  segmentText: {
+    ...typography.label,
+    fontSize: 15,
+    lineHeight: 20,
+    color: uxLightColors.textSecondary,
+  },
+  segmentTextSelected: {
+    color: uxLightColors.textOnAccent,
+  },
+  saveButton: {
+    minHeight: 58,
+    marginTop: 28,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: uxLightColors.khaki,
+  },
   saveButtonPressed: {
-    backgroundColor:
-      colors.primaryDark,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
+    backgroundColor: uxLightColors.khakiDark,
   },
-
   saveButtonDisabled: {
-    opacity: 0.65,
+    opacity: 0.72,
   },
-
   saveButtonText: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 20,
+    ...typography.button,
+    fontSize: 19,
     lineHeight: 23,
-    letterSpacing: 1.1,
-    color:
-      colors.brandWhite,
+    color: uxLightColors.textOnAccent,
   },
-
-  bottomSpace: {
-    height: 42,
-  },
-
   pressed: {
-    opacity: 0.65,
+    opacity: 0.72,
   },
 });
