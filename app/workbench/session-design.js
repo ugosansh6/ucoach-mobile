@@ -1,10 +1,8 @@
 import { useMemo } from 'react';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import {
   Image,
-  ImageBackground,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -17,7 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 
-const heroImage = require('../../assets/backgrounds/welcome-default.jpg');
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
@@ -25,9 +22,9 @@ const BLOCK_ORDER = ['unlock', 'tabata', 'warmup', 'skill', 'wod'];
 
 const BLOCK_LABELS = {
   unlock: 'UNLOCK',
-  tabata: 'TABATA CORE',
+  tabata: 'TABATA',
   warmup: 'WARM-UP',
-  skill: 'SKILL & FORCE',
+  skill: 'SKILL',
   wod: 'WOD',
 };
 
@@ -36,31 +33,38 @@ const FALLBACK_BLOCKS = [
     id: 'unlock',
     duration: 4,
     structure: '1 série · mobilité ciblée',
-    exercises: ['Shoulder CARs', 'Hip opener'],
+    exercises: [{ name: 'Shoulder CARs', prescription: '45 sec / côté' }],
   },
   {
     id: 'tabata',
     duration: 4,
     structure: '8 séries · 20s travail / 10s repos',
-    exercises: ['Dead Bug', 'Shoulder Tap'],
+    exercises: [
+      { name: 'Shoulder Tap', prescription: '20 sec' },
+      { name: 'Dead Bug', prescription: '20 sec' },
+    ],
   },
   {
     id: 'warmup',
     duration: 10,
-    structure: '3 tours · montée progressive',
-    exercises: ['Air Squat', 'Scapular Push-up', 'Good Morning'],
+    structure: '3 tours · 3 exercices',
+    exercises: [
+      { name: 'Air Squat', prescription: '12 reps' },
+      { name: 'Scapular Push-up', prescription: '10 reps' },
+      { name: 'Good Morning', prescription: '12 reps' },
+    ],
   },
   {
     id: 'skill',
     duration: 15,
     structure: '4 séries · progression technique',
-    exercises: ['Pull-up progression'],
+    exercises: [{ name: 'Pull-up progression', prescription: '4 × 5' }],
   },
   {
     id: 'wod',
     duration: 42,
     structure: 'Format surprise',
-    exercises: ['À découvrir au démarrage'],
+    exercises: [{ name: 'À découvrir', prescription: '' }],
   },
 ];
 
@@ -75,23 +79,14 @@ function normalizeBlockId(value) {
   return normalized;
 }
 
-function humanize(value) {
-  if (!value) return null;
-
-  return String(value)
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
-}
-
 function readBlockSource(workout, blockId) {
   const blocks = workout?.blocks;
 
   if (Array.isArray(blocks)) {
     return (
-      blocks.find((block) =>
-        normalizeBlockId(block?.block_key ?? block?.key ?? block?.id) === blockId
+      blocks.find(
+        (block) =>
+          normalizeBlockId(block?.block_key ?? block?.key ?? block?.id) === blockId
       ) ?? null
     );
   }
@@ -110,13 +105,11 @@ function readBlockSource(workout, blockId) {
 function readExercises(workout, blockId) {
   const items = Array.isArray(workout?.exercises) ? workout.exercises : [];
 
-  return items.filter((exercise) =>
-    normalizeBlockId(exercise?.blockKey ?? exercise?.block_key ?? exercise?.block) === blockId
+  return items.filter(
+    (exercise) =>
+      normalizeBlockId(exercise?.blockKey ?? exercise?.block_key ?? exercise?.block) ===
+      blockId
   );
-}
-
-function readExerciseName(exercise) {
-  return exercise?.name ?? exercise?.exercise_name ?? exercise?.title ?? null;
 }
 
 function readDuration(source) {
@@ -151,9 +144,14 @@ function buildPreviewBlocks(workout) {
     return FALLBACK_BLOCKS.map((block) => ({
       ...block,
       title: BLOCK_LABELS[block.id],
+      validated: false,
       demo: true,
     }));
   }
+
+  const validatedBlocks = Array.isArray(workout?.validatedBlocks)
+    ? workout.validatedBlocks
+    : [];
 
   return BLOCK_ORDER.map((blockId) => {
     const source = readBlockSource(workout, blockId);
@@ -161,32 +159,73 @@ function buildPreviewBlocks(workout) {
 
     if (!source && exercises.length === 0) return null;
 
-    const names = exercises.map(readExerciseName).filter(Boolean);
-    const duration = readDuration(source);
-
     return {
       id: blockId,
       title: BLOCK_LABELS[blockId],
-      duration,
+      duration: readDuration(source),
       structure: readStructure(source, exercises.length),
-      exercises: names,
+      exercises,
+      validated: validatedBlocks.includes(blockId),
       demo: false,
     };
   }).filter(Boolean);
 }
 
-function readEquipment(workout) {
-  const equipment = workout?.preparationSnapshot?.equipment;
-  if (!Array.isArray(equipment) || equipment.length === 0) return null;
+function readExerciseName(exercise) {
+  return exercise?.name ?? exercise?.exercise_name ?? exercise?.title ?? 'Exercice';
+}
 
-  return equipment
-    .map((item) => {
-      if (typeof item === 'string') return humanize(item);
-      return humanize(item?.name ?? item?.label ?? item?.equipment_name);
-    })
-    .filter(Boolean)
-    .slice(0, 3)
-    .join(' · ');
+function readExercisePrescription(exercise) {
+  if (typeof exercise?.prescription === 'string') return exercise.prescription;
+
+  return (
+    exercise?.prescriptionLabel ??
+    exercise?.prescription_label ??
+    exercise?.expectedOutcome?.label ??
+    'Prescription UGEROD'
+  );
+}
+
+function getTimerCopy(blockId) {
+  if (blockId === 'tabata') {
+    return {
+      time: '00:20',
+      state: 'TRAVAIL',
+      action: 'DÉMARRER LE TIMER',
+    };
+  }
+
+  if (blockId === 'wod') {
+    return {
+      time: '00:00',
+      state: 'PLAYER WOD',
+      action: 'DÉMARRER LE WOD',
+    };
+  }
+
+  return {
+    time: '00:00',
+    state: 'TIMER',
+    action: 'DÉMARRER LE TIMER',
+  };
+}
+
+function ExerciseVisualPlaceholder({ compact = false, colors, styles }) {
+  return (
+    <View style={compact ? styles.thumbnailPlaceholder : styles.exerciseVisual}>
+      <Ionicons
+        name="image-outline"
+        size={compact ? 20 : 32}
+        color={colors.textMuted}
+      />
+      {!compact ? (
+        <>
+          <Text style={styles.exerciseVisualTitle}>VISUEL EXERCICE</Text>
+          <Text style={styles.exerciseVisualHint}>EMPLACEMENT PRÉVU POUR L’IMAGE</Text>
+        </>
+      ) : null}
+    </View>
+  );
 }
 
 export default function SessionDesignPilotScreen() {
@@ -195,8 +234,8 @@ export default function SessionDesignPilotScreen() {
 
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const blocks = useMemo(() => buildPreviewBlocks(workout), [workout]);
-
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
+
   const hasGeneratedWorkout = Boolean(
     workout?.sessionId ||
       (Array.isArray(workout?.exercises) && workout.exercises.length > 0)
@@ -207,32 +246,28 @@ export default function SessionDesignPilotScreen() {
     0
   );
 
-  const duration = Number(
-    workout?.plannedDuration ??
-      workout?.preparationSnapshot?.duration ??
-      blockVolume ??
-      75
-  ) || blockVolume || 75;
+  const plannedDuration =
+    Number(
+      workout?.plannedDuration ??
+        workout?.preparationSnapshot?.duration ??
+        blockVolume
+    ) || blockVolume || 75;
 
-  const title =
-    humanize(
-      workout?.title ??
-        workout?.meta?.target_region ??
-        workout?.preparationSnapshot?.region
-    ) ?? 'FULL BODY';
+  const firstPendingIndex = blocks.findIndex((block) => !block.validated);
+  const activeBlockIndex = firstPendingIndex >= 0 ? firstPendingIndex : Math.max(0, blocks.length - 1);
+  const activeBlock = blocks[activeBlockIndex] ?? null;
+  const activeExercise =
+    activeBlock?.exercises?.find((exercise) => exercise?.status === 'pending') ??
+    activeBlock?.exercises?.[0] ??
+    null;
 
-  const format =
-    humanize(workout?.format ?? workout?.mechanic) ?? 'FUNCTIONAL FITNESS';
+  const completedBlockCount = blocks.filter((block) => block.validated).length;
+  const progress = blocks.length > 0 ? completedBlockCount / blocks.length : 0;
+  const progressWidth = `${Math.round(progress * 100)}%`;
+  const timer = getTimerCopy(activeBlock?.id);
+  const wodConcealed = activeBlock?.id === 'wod' && !workout?.wodRevealed;
 
-  const focus =
-    humanize(
-      workout?.meta?.focus ??
-        workout?.meta?.primary_goal ??
-        workout?.meta?.primaryGoal
-    ) ?? 'FORCE · CONDITIONING';
-
-  const equipment = readEquipment(workout) ?? 'MATÉRIEL DU JOUR';
-  const wodRevealed = Boolean(workout?.wodRevealed);
+  const nextBlocks = blocks.slice(activeBlockIndex + 1);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -251,126 +286,211 @@ export default function SessionDesignPilotScreen() {
             <Ionicons name="arrow-back" size={22} color={colors.text} />
           </Pressable>
 
-          <View style={styles.prototypePill}>
-            <View style={styles.prototypeDot} />
-            <Text style={styles.prototypeText}>PILOTE DESIGN</Text>
-          </View>
+          <Text style={styles.headerTitle}>TA SÉANCE</Text>
 
           <Image source={brandIcon} style={styles.logo} resizeMode="contain" />
         </View>
 
-        <Text style={styles.eyebrow}>SÉANCE DU JOUR</Text>
-        <Text style={styles.title}>{title}</Text>
-
-        <View style={styles.metaLine}>
-          <Text style={styles.metaStrong}>{duration} MIN</Text>
-          <View style={styles.metaDot} />
-          <Text style={styles.meta}>{format}</Text>
-          <View style={styles.metaDot} />
-          <Text style={styles.meta}>{focus}</Text>
-        </View>
-
-        <Text style={styles.equipment}>{equipment}</Text>
-
-        <View style={styles.heroWrap}>
-          <ImageBackground source={heroImage} style={styles.hero} resizeMode="cover">
-            <LinearGradient
-              colors={['rgba(7,9,12,0.08)', 'rgba(7,9,12,0.28)', 'rgba(7,9,12,0.88)']}
-              locations={[0, 0.5, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-
-            <View style={styles.heroTop}>
-              <View style={styles.heroBadge}>
-                <Text style={styles.heroBadgeText}>UGEROD COACH</Text>
-              </View>
-            </View>
-
-            <View style={styles.heroBottom}>
-              <Text style={styles.heroCaption}>TA STRUCTURE. TON RYTHME.</Text>
-              <Text style={styles.heroBigNumber}>{duration}</Text>
-              <Text style={styles.heroMinutes}>MIN</Text>
-            </View>
-          </ImageBackground>
-        </View>
-
-        <View style={styles.sectionIntro}>
+        <View style={styles.sessionIntro}>
           <View>
-            <Text style={styles.sectionEyebrow}>PROGRAMME</Text>
-            <Text style={styles.sectionTitle}>TA SÉANCE</Text>
+            <Text style={styles.sessionEyebrow}>SÉANCE EN COURS</Text>
+            <Text style={styles.sessionDuration}>{plannedDuration} MIN</Text>
           </View>
-          <Text style={styles.blockCount}>{blocks.length} BLOCS</Text>
+
+          <View style={styles.prototypePill}>
+            <View style={styles.prototypeDot} />
+            <Text style={styles.prototypeText}>PILOTE DESIGN</Text>
+          </View>
         </View>
 
-        <View style={styles.blockList}>
-          {blocks.map((block, index) => {
-            const isWod = block.id === 'wod';
-            const concealed = isWod && !wodRevealed;
-            const exercisePreview = concealed
-              ? 'Le contenu reste surprise jusqu’au moment prévu.'
-              : block.exercises.slice(0, 3).join(' · ') || 'Détail dans la séance';
+        <View style={styles.progressSection}>
+          <View style={styles.progressTopRow}>
+            <Text style={styles.progressLabel}>PROGRESSION</Text>
+            <Text style={styles.progressValue}>
+              {blocks.length > 0
+                ? `BLOC ${activeBlockIndex + 1} / ${blocks.length}`
+                : '—'}
+            </Text>
+          </View>
 
-            return (
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: progressWidth }]} />
+            {blocks.length > 0 ? (
               <View
-                key={block.id}
                 style={[
-                  styles.blockRow,
-                  index < blocks.length - 1 && styles.blockDivider,
+                  styles.progressCursor,
+                  {
+                    left: `${Math.min(
+                      100,
+                      Math.max(0, ((activeBlockIndex + 0.5) / blocks.length) * 100)
+                    )}%`,
+                  },
                 ]}
-              >
-                <View style={styles.blockIndexColumn}>
-                  <Text style={[styles.blockIndex, isWod && styles.blockIndexWod]}>
-                    {String(index + 1).padStart(2, '0')}
-                  </Text>
-                  <View style={[styles.blockRail, isWod && styles.blockRailWod]} />
-                </View>
-
-                <View style={styles.blockMain}>
-                  <View style={styles.blockTopLine}>
-                    <Text style={styles.blockTitle}>{block.title}</Text>
-                    {block.duration > 0 ? (
-                      <Text style={styles.blockDuration}>{block.duration} MIN</Text>
-                    ) : null}
-                  </View>
-
-                  <Text style={styles.blockStructure} numberOfLines={2}>
-                    {concealed ? 'FORMAT SURPRISE' : block.structure || 'STRUCTURE DE SÉANCE'}
-                  </Text>
-
-                  <Text style={styles.blockExercises} numberOfLines={2}>
-                    {exercisePreview}
-                  </Text>
-                </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={isWod ? colors.secondaryAccent : colors.textMuted}
-                />
-              </View>
-            );
-          })}
-        </View>
-
-        <View style={styles.summaryLine}>
-          <Text style={styles.summaryLabel}>VOLUME PLANIFIÉ</Text>
-          <View style={styles.summaryRule} />
-          <Text style={styles.summaryValue}>{duration} MIN</Text>
-        </View>
-
-        <Pressable
-          onPress={() => {}}
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-        >
-          <View style={styles.playCircle}>
-            <Ionicons name="play" size={17} color={colors.textOnAccent} />
+              />
+            ) : null}
           </View>
-          <Text style={styles.primaryButtonText}>DÉMARRER LA SÉANCE</Text>
-          <Ionicons name="arrow-forward" size={20} color={colors.textOnAccent} />
-        </Pressable>
+
+          <Text style={styles.progressCurrent}>
+            {activeBlock ? `EN COURS · ${activeBlock.title}` : 'SÉANCE TERMINÉE'}
+          </Text>
+        </View>
+
+        {activeBlock ? (
+          <View style={styles.activeBlock}>
+            <View style={styles.activeBlockHeader}>
+              <View>
+                <Text style={styles.activeBlockEyebrow}>BLOC ACTIF</Text>
+                <Text style={styles.activeBlockTitle}>{activeBlock.title}</Text>
+              </View>
+              {activeBlock.duration > 0 ? (
+                <Text style={styles.activeBlockDuration}>{activeBlock.duration} MIN</Text>
+              ) : null}
+            </View>
+
+            {activeBlock.structure ? (
+              <Text style={styles.activeBlockStructure}>{activeBlock.structure}</Text>
+            ) : null}
+
+            {wodConcealed ? (
+              <View style={styles.secretVisual}>
+                <Ionicons name="lock-closed-outline" size={28} color={colors.textMuted} />
+                <Text style={styles.secretTitle}>WOD SURPRISE</Text>
+                <Text style={styles.secretText}>
+                  Le contenu reste caché jusqu’au moment prévu.
+                </Text>
+              </View>
+            ) : (
+              <ExerciseVisualPlaceholder colors={colors} styles={styles} />
+            )}
+
+            {!wodConcealed ? (
+              <>
+                <View style={styles.exerciseHeading}>
+                  <View style={styles.exerciseTextArea}>
+                    <Text style={styles.exerciseCounter}>
+                      EXERCICE {Math.max(1, activeBlock.exercises.indexOf(activeExercise) + 1)} /{' '}
+                      {Math.max(1, activeBlock.exercises.length)}
+                    </Text>
+                    <Text style={styles.exerciseName}>
+                      {String(readExerciseName(activeExercise)).toUpperCase()}
+                    </Text>
+                    <Text style={styles.exercisePrescription}>
+                      {readExercisePrescription(activeExercise)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.timerArea}>
+                  <Text style={styles.timerState}>{timer.state}</Text>
+                  <Text style={styles.timerValue}>{timer.time}</Text>
+
+                  <View style={styles.timerActions}>
+                    <Pressable
+                      onPress={() => {}}
+                      style={({ pressed }) => [
+                        styles.timerPrimaryButton,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Ionicons name="play" size={17} color={colors.textOnAccent} />
+                      <Text style={styles.timerPrimaryText}>{timer.action}</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {}}
+                      style={({ pressed }) => [
+                        styles.timerSecondaryButton,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Ionicons name="refresh" size={18} color={colors.textSecondary} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <View style={styles.exerciseActions}>
+                  <Pressable
+                    onPress={() => {}}
+                    style={({ pressed }) => [styles.statusButton, pressed && styles.pressed]}
+                  >
+                    <Ionicons name="checkmark-circle-outline" size={20} color={colors.accent} />
+                    <Text style={styles.statusButtonText}>RÉALISÉ</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {}}
+                    style={({ pressed }) => [styles.swapButton, pressed && styles.pressed]}
+                  >
+                    <Ionicons name="swap-horizontal-outline" size={21} color={colors.accent} />
+                    <Text style={styles.swapButtonText}>REMPLACER</Text>
+                  </Pressable>
+                </View>
+
+                <Pressable
+                  onPress={() => {}}
+                  style={({ pressed }) => [styles.detailButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.detailButtonText}>VOIR LES DÉTAILS TECHNIQUES</Text>
+                  <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
+        {nextBlocks.length > 0 ? (
+          <View style={styles.nextSection}>
+            <View style={styles.nextHeader}>
+              <Text style={styles.nextEyebrow}>PROGRAMME</Text>
+              <Text style={styles.nextTitle}>À SUIVRE</Text>
+            </View>
+
+            <View style={styles.nextList}>
+              {nextBlocks.map((block, index) => {
+                const concealed = block.id === 'wod' && !workout?.wodRevealed;
+                const preview = concealed
+                  ? 'Surprise'
+                  : block.exercises
+                      .slice(0, 2)
+                      .map((exercise) => readExerciseName(exercise))
+                      .join(' · ') || block.structure || 'Détail dans la séance';
+
+                return (
+                  <View
+                    key={block.id}
+                    style={[
+                      styles.nextRow,
+                      index < nextBlocks.length - 1 && styles.nextDivider,
+                    ]}
+                  >
+                    <ExerciseVisualPlaceholder compact colors={colors} styles={styles} />
+
+                    <View style={styles.nextMain}>
+                      <View style={styles.nextTopLine}>
+                        <Text style={styles.nextBlockTitle}>{block.title}</Text>
+                        {block.duration > 0 ? (
+                          <Text style={styles.nextDuration}>{block.duration} MIN</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.nextPreview} numberOfLines={2}>
+                        {preview}
+                      </Text>
+                    </View>
+
+                    <Ionicons
+                      name={concealed ? 'lock-closed-outline' : 'chevron-forward'}
+                      size={18}
+                      color={concealed ? colors.secondaryAccent : colors.textMuted}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
 
         <Text style={styles.prototypeNote}>
-          Prototype visuel uniquement · aucun démarrage de séance déclenché.
+          Prototype visuel uniquement · la vraie page Session et ses comportements ne sont pas modifiés.
           {!hasGeneratedWorkout ? ' Données de démonstration affichées.' : ''}
         </Text>
       </ScrollView>
@@ -381,6 +501,7 @@ export default function SessionDesignPilotScreen() {
 function createStyles(colors, isDark) {
   const divider = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(23,26,21,0.10)';
   const subtle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(23,26,21,0.035)';
+  const raised = isDark ? 'rgba(255,255,255,0.055)' : 'rgba(23,26,21,0.045)';
 
   return StyleSheet.create({
     screen: {
@@ -390,14 +511,14 @@ function createStyles(colors, isDark) {
     content: {
       paddingHorizontal: 22,
       paddingTop: 8,
-      paddingBottom: 46,
+      paddingBottom: 48,
     },
     header: {
-      height: 56,
+      height: 58,
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 28,
+      gap: 14,
+      marginBottom: 20,
     },
     headerAction: {
       width: 42,
@@ -409,12 +530,45 @@ function createStyles(colors, isDark) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: divider,
     },
+    headerTitle: {
+      flex: 1,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 34,
+      lineHeight: 37,
+      letterSpacing: 1.4,
+      color: colors.text,
+    },
+    logo: {
+      width: 42,
+      height: 42,
+    },
+    sessionIntro: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+    },
+    sessionEyebrow: {
+      fontFamily: 'Oswald_600SemiBold',
+      fontSize: 10,
+      lineHeight: 14,
+      letterSpacing: 1.1,
+      color: colors.textMuted,
+    },
+    sessionDuration: {
+      marginTop: 2,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 42,
+      lineHeight: 44,
+      letterSpacing: 1.1,
+      color: colors.text,
+    },
     prototypePill: {
-      minHeight: 28,
+      minHeight: 27,
+      marginBottom: 5,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 7,
-      paddingHorizontal: 11,
+      paddingHorizontal: 10,
       borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: divider,
@@ -427,140 +581,318 @@ function createStyles(colors, isDark) {
     },
     prototypeText: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 10,
-      letterSpacing: 0.9,
+      fontSize: 9,
+      letterSpacing: 0.8,
       color: colors.textSecondary,
     },
-    logo: {
-      width: 40,
-      height: 40,
+    progressSection: {
+      marginTop: 20,
+      paddingTop: 16,
+      paddingBottom: 18,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: divider,
     },
-    eyebrow: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 12,
-      lineHeight: 17,
-      letterSpacing: 1.4,
-      color: colors.accent,
-    },
-    title: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 58,
-      lineHeight: 61,
-      letterSpacing: 1.2,
-      color: colors.text,
-      marginTop: 5,
-    },
-    metaLine: {
-      marginTop: 10,
+    progressTopRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    metaStrong: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 14,
-      lineHeight: 20,
-      color: colors.text,
-    },
-    meta: {
-      fontFamily: 'Oswald_400Regular',
-      fontSize: 14,
-      lineHeight: 20,
-      color: colors.textSecondary,
-    },
-    metaDot: {
-      width: 3,
-      height: 3,
-      borderRadius: 2,
-      backgroundColor: colors.textMuted,
-    },
-    equipment: {
-      marginTop: 7,
-      fontFamily: 'Oswald_400Regular',
-      fontSize: 12,
-      lineHeight: 18,
-      color: colors.textMuted,
-      letterSpacing: 0.2,
-    },
-    heroWrap: {
-      marginTop: 24,
-      borderRadius: 24,
-      overflow: 'hidden',
-      backgroundColor: colors.surface,
-    },
-    hero: {
-      height: 306,
       justifyContent: 'space-between',
     },
-    heroTop: {
-      padding: 18,
-      flexDirection: 'row',
-      justifyContent: 'flex-start',
-    },
-    heroBadge: {
-      minHeight: 28,
-      paddingHorizontal: 10,
-      borderRadius: 999,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'rgba(7,9,12,0.62)',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: 'rgba(255,255,255,0.22)',
-    },
-    heroBadgeText: {
+    progressLabel: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 10,
-      letterSpacing: 1,
-      color: '#FFFFFF',
+      fontSize: 11,
+      lineHeight: 16,
+      letterSpacing: 1.1,
+      color: colors.textSecondary,
     },
-    heroBottom: {
-      minHeight: 112,
-      paddingHorizontal: 19,
-      paddingBottom: 17,
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-    },
-    heroCaption: {
-      position: 'absolute',
-      left: 20,
-      bottom: 84,
+    progressValue: {
       fontFamily: 'Oswald_600SemiBold',
       fontSize: 11,
-      letterSpacing: 1,
-      color: 'rgba(255,255,255,0.76)',
+      lineHeight: 16,
+      letterSpacing: 0.8,
+      color: colors.accent,
     },
-    heroBigNumber: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 72,
-      lineHeight: 74,
-      color: '#FFFFFF',
+    progressTrack: {
+      position: 'relative',
+      height: 4,
+      marginTop: 12,
+      borderRadius: 2,
+      backgroundColor: colors.accentSoft,
+      overflow: 'visible',
     },
-    heroMinutes: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 16,
-      lineHeight: 24,
-      color: '#FFFFFF',
-      marginLeft: 7,
-      marginBottom: 9,
+    progressFill: {
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.accent,
     },
-    sectionIntro: {
-      marginTop: 36,
-      paddingBottom: 14,
+    progressCursor: {
+      position: 'absolute',
+      top: -4,
+      width: 12,
+      height: 12,
+      marginLeft: -6,
+      borderRadius: 6,
+      backgroundColor: colors.accent,
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    progressCurrent: {
+      marginTop: 11,
+      fontFamily: 'Oswald_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      letterSpacing: 0.6,
+      color: colors.textMuted,
+    },
+    activeBlock: {
+      marginTop: 30,
+    },
+    activeBlockHeader: {
       flexDirection: 'row',
       alignItems: 'flex-end',
       justifyContent: 'space-between',
-      borderBottomWidth: 1,
-      borderBottomColor: divider,
+      gap: 14,
     },
-    sectionEyebrow: {
+    activeBlockEyebrow: {
       fontFamily: 'Oswald_600SemiBold',
       fontSize: 10,
       lineHeight: 14,
       letterSpacing: 1.2,
       color: colors.accent,
     },
-    sectionTitle: {
+    activeBlockTitle: {
+      marginTop: 2,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 46,
+      lineHeight: 49,
+      letterSpacing: 1,
+      color: colors.text,
+    },
+    activeBlockDuration: {
+      marginBottom: 7,
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.textSecondary,
+    },
+    activeBlockStructure: {
+      marginTop: 6,
+      fontFamily: 'Oswald_400Regular',
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.textMuted,
+    },
+    exerciseVisual: {
+      height: 248,
+      marginTop: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 20,
+      backgroundColor: raised,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: divider,
+    },
+    exerciseVisualTitle: {
+      marginTop: 11,
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 12,
+      lineHeight: 17,
+      letterSpacing: 1,
+      color: colors.textSecondary,
+    },
+    exerciseVisualHint: {
+      marginTop: 3,
+      fontFamily: 'Oswald_400Regular',
+      fontSize: 9,
+      lineHeight: 14,
+      letterSpacing: 0.7,
+      color: colors.textMuted,
+    },
+    secretVisual: {
+      minHeight: 190,
+      marginTop: 20,
+      paddingHorizontal: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 20,
+      backgroundColor: raised,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: divider,
+    },
+    secretTitle: {
+      marginTop: 12,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 30,
+      lineHeight: 33,
+      letterSpacing: 1,
+      color: colors.text,
+    },
+    secretText: {
+      marginTop: 4,
+      fontFamily: 'Oswald_400Regular',
+      fontSize: 12,
+      lineHeight: 18,
+      textAlign: 'center',
+      color: colors.textMuted,
+    },
+    exerciseHeading: {
+      marginTop: 20,
+    },
+    exerciseTextArea: {
+      flex: 1,
+    },
+    exerciseCounter: {
+      fontFamily: 'Oswald_600SemiBold',
+      fontSize: 10,
+      lineHeight: 14,
+      letterSpacing: 1,
+      color: colors.accent,
+    },
+    exerciseName: {
+      marginTop: 3,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 38,
+      lineHeight: 41,
+      letterSpacing: 0.8,
+      color: colors.text,
+    },
+    exercisePrescription: {
+      marginTop: 3,
+      fontFamily: 'Oswald_500Medium',
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.textSecondary,
+    },
+    timerArea: {
+      marginTop: 24,
+      paddingVertical: 20,
+      alignItems: 'center',
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: divider,
+    },
+    timerState: {
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 11,
+      lineHeight: 16,
+      letterSpacing: 1.6,
+      color: colors.secondaryAccent,
+    },
+    timerValue: {
+      marginTop: 2,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 72,
+      lineHeight: 76,
+      letterSpacing: 2,
+      color: colors.text,
+    },
+    timerActions: {
+      width: '100%',
+      marginTop: 12,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    timerPrimaryButton: {
+      flex: 1,
+      minHeight: 52,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.accent,
+    },
+    timerPrimaryText: {
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 12,
+      lineHeight: 17,
+      letterSpacing: 0.5,
+      color: colors.textOnAccent,
+    },
+    timerSecondaryButton: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: divider,
+      backgroundColor: subtle,
+    },
+    exerciseActions: {
+      marginTop: 18,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    statusButton: {
+      flex: 1,
+      minHeight: 50,
+      paddingHorizontal: 14,
+      borderRadius: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.accentSoft,
+    },
+    statusButtonText: {
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 12,
+      lineHeight: 17,
+      color: colors.accent,
+    },
+    swapButton: {
+      flex: 1,
+      minHeight: 50,
+      paddingHorizontal: 14,
+      borderRadius: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: divider,
+      backgroundColor: subtle,
+    },
+    swapButtonText: {
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 12,
+      lineHeight: 17,
+      color: colors.textSecondary,
+    },
+    detailButton: {
+      minHeight: 48,
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: divider,
+    },
+    detailButtonText: {
+      fontFamily: 'Oswald_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      letterSpacing: 0.5,
+      color: colors.textMuted,
+    },
+    nextSection: {
+      marginTop: 38,
+    },
+    nextHeader: {
+      paddingBottom: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: divider,
+    },
+    nextEyebrow: {
+      fontFamily: 'Oswald_600SemiBold',
+      fontSize: 10,
+      lineHeight: 14,
+      letterSpacing: 1.2,
+      color: colors.accent,
+    },
+    nextTitle: {
       marginTop: 2,
       fontFamily: 'BebasNeue_400Regular',
       fontSize: 34,
@@ -568,144 +900,61 @@ function createStyles(colors, isDark) {
       letterSpacing: 0.8,
       color: colors.text,
     },
-    blockCount: {
-      fontFamily: 'Oswald_600SemiBold',
-      fontSize: 11,
-      lineHeight: 16,
-      letterSpacing: 0.8,
-      color: colors.textMuted,
-      marginBottom: 4,
-    },
-    blockList: {
+    nextList: {
       marginTop: 2,
     },
-    blockRow: {
-      minHeight: 118,
+    nextRow: {
+      minHeight: 98,
+      paddingVertical: 14,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 13,
-      paddingVertical: 18,
+      gap: 12,
     },
-    blockDivider: {
+    nextDivider: {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: divider,
     },
-    blockIndexColumn: {
-      width: 29,
-      alignSelf: 'stretch',
+    thumbnailPlaceholder: {
+      width: 68,
+      height: 68,
+      borderRadius: 14,
       alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: raised,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: divider,
     },
-    blockIndex: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 20,
-      lineHeight: 22,
-      color: colors.accent,
-    },
-    blockIndexWod: {
-      color: colors.secondaryAccent,
-    },
-    blockRail: {
-      width: 2,
-      flex: 1,
-      marginTop: 8,
-      borderRadius: 1,
-      backgroundColor: colors.accentSoft,
-    },
-    blockRailWod: {
-      backgroundColor: colors.secondaryAccentSoft,
-    },
-    blockMain: {
+    nextMain: {
       flex: 1,
     },
-    blockTopLine: {
+    nextTopLine: {
       flexDirection: 'row',
       alignItems: 'baseline',
       justifyContent: 'space-between',
-      gap: 12,
+      gap: 10,
     },
-    blockTitle: {
+    nextBlockTitle: {
       flex: 1,
       fontFamily: 'Oswald_700Bold',
-      fontSize: 18,
-      lineHeight: 24,
+      fontSize: 16,
+      lineHeight: 22,
       color: colors.text,
     },
-    blockDuration: {
+    nextDuration: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 12,
-      lineHeight: 18,
+      fontSize: 11,
+      lineHeight: 16,
       color: colors.textSecondary,
     },
-    blockStructure: {
-      marginTop: 6,
-      fontFamily: 'Oswald_500Medium',
-      fontSize: 14,
-      lineHeight: 20,
-      color: colors.textSecondary,
-    },
-    blockExercises: {
+    nextPreview: {
       marginTop: 4,
       fontFamily: 'Oswald_400Regular',
       fontSize: 12,
       lineHeight: 18,
       color: colors.textMuted,
     },
-    summaryLine: {
-      marginTop: 20,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    summaryLabel: {
-      fontFamily: 'Oswald_600SemiBold',
-      fontSize: 10,
-      lineHeight: 15,
-      letterSpacing: 0.9,
-      color: colors.textMuted,
-    },
-    summaryRule: {
-      flex: 1,
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: divider,
-    },
-    summaryValue: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 22,
-      lineHeight: 24,
-      color: colors.text,
-    },
-    primaryButton: {
-      minHeight: 64,
-      marginTop: 26,
-      borderRadius: 20,
-      paddingHorizontal: 18,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      backgroundColor: colors.accent,
-    },
-    primaryButtonPressed: {
-      opacity: 0.84,
-      transform: [{ scale: 0.995 }],
-    },
-    playCircle: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)',
-    },
-    primaryButtonText: {
-      flex: 1,
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 17,
-      lineHeight: 22,
-      letterSpacing: 0.4,
-      color: colors.textOnAccent,
-    },
     prototypeNote: {
-      marginTop: 12,
+      marginTop: 30,
       fontFamily: 'Oswald_400Regular',
       fontSize: 10,
       lineHeight: 15,
@@ -713,7 +962,7 @@ function createStyles(colors, isDark) {
       textAlign: 'center',
     },
     pressed: {
-      opacity: 0.65,
+      opacity: 0.62,
     },
   });
 }
