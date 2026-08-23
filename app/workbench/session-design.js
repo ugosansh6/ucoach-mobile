@@ -21,43 +21,48 @@ const heroImage = require('../../assets/backgrounds/welcome-default.jpg');
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
-const BLOCK_ORDER = ['unlock', 'warmup', 'tabata', 'skill', 'wod'];
+const BLOCK_ORDER = ['unlock', 'tabata', 'warmup', 'skill', 'wod'];
 
 const BLOCK_LABELS = {
   unlock: 'UNLOCK',
-  warmup: 'WARM-UP',
   tabata: 'TABATA CORE',
+  warmup: 'WARM-UP',
   skill: 'SKILL & FORCE',
   wod: 'WOD',
 };
 
-const FALLBACK_BLOCKS = {
-  unlock: {
+const FALLBACK_BLOCKS = [
+  {
+    id: 'unlock',
     duration: 4,
     structure: '1 série · mobilité ciblée',
     exercises: ['Shoulder CARs', 'Hip opener'],
   },
-  warmup: {
-    duration: 8,
-    structure: '3 tours · montée progressive',
-    exercises: ['Air Squat', 'Scapular Push-up', 'Good Morning'],
-  },
-  tabata: {
+  {
+    id: 'tabata',
     duration: 4,
     structure: '8 séries · 20s travail / 10s repos',
     exercises: ['Dead Bug', 'Shoulder Tap'],
   },
-  skill: {
+  {
+    id: 'warmup',
+    duration: 10,
+    structure: '3 tours · montée progressive',
+    exercises: ['Air Squat', 'Scapular Push-up', 'Good Morning'],
+  },
+  {
+    id: 'skill',
     duration: 15,
     structure: '4 séries · progression technique',
     exercises: ['Pull-up progression'],
   },
-  wod: {
-    duration: 32,
+  {
+    id: 'wod',
+    duration: 42,
     structure: 'Format surprise',
     exercises: ['À découvrir au démarrage'],
   },
-};
+];
 
 function normalizeBlockId(value) {
   const normalized = String(value ?? '')
@@ -102,11 +107,6 @@ function readBlockSource(workout, blockId) {
   return null;
 }
 
-function readDuration(source, fallback) {
-  const value = Number(source?.duration ?? source?.duration_minutes);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
 function readExercises(workout, blockId) {
   const items = Array.isArray(workout?.exercises) ? workout.exercises : [];
 
@@ -116,15 +116,15 @@ function readExercises(workout, blockId) {
 }
 
 function readExerciseName(exercise) {
-  return (
-    exercise?.name ??
-    exercise?.exercise_name ??
-    exercise?.title ??
-    null
-  );
+  return exercise?.name ?? exercise?.exercise_name ?? exercise?.title ?? null;
 }
 
-function readStructure(source, exerciseCount, fallback) {
+function readDuration(source) {
+  const value = Number(source?.duration ?? source?.duration_minutes);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function readStructure(source, exerciseCount) {
   const explicit =
     source?.structure ??
     source?.mechanicLabel ??
@@ -133,33 +133,46 @@ function readStructure(source, exerciseCount, fallback) {
     null;
 
   if (explicit) return String(explicit);
+
   if (exerciseCount > 0) {
     return `${exerciseCount} exercice${exerciseCount > 1 ? 's' : ''}`;
   }
 
-  return fallback;
+  return '';
 }
 
 function buildPreviewBlocks(workout) {
   const hasGeneratedWorkout = Boolean(
-    workout?.sessionId || (Array.isArray(workout?.exercises) && workout.exercises.length > 0)
+    workout?.sessionId ||
+      (Array.isArray(workout?.exercises) && workout.exercises.length > 0)
   );
 
+  if (!hasGeneratedWorkout) {
+    return FALLBACK_BLOCKS.map((block) => ({
+      ...block,
+      title: BLOCK_LABELS[block.id],
+      demo: true,
+    }));
+  }
+
   return BLOCK_ORDER.map((blockId) => {
-    const fallback = FALLBACK_BLOCKS[blockId];
     const source = readBlockSource(workout, blockId);
     const exercises = readExercises(workout, blockId);
+
+    if (!source && exercises.length === 0) return null;
+
     const names = exercises.map(readExerciseName).filter(Boolean);
+    const duration = readDuration(source);
 
     return {
       id: blockId,
       title: BLOCK_LABELS[blockId],
-      duration: readDuration(source, fallback.duration),
-      structure: readStructure(source, exercises.length, fallback.structure),
-      exercises: names.length > 0 ? names : fallback.exercises,
-      demo: !hasGeneratedWorkout,
+      duration,
+      structure: readStructure(source, exercises.length),
+      exercises: names,
+      demo: false,
     };
-  }).filter((block) => block.duration > 0);
+  }).filter(Boolean);
 }
 
 function readEquipment(workout) {
@@ -185,14 +198,21 @@ export default function SessionDesignPilotScreen() {
 
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
   const hasGeneratedWorkout = Boolean(
-    workout?.sessionId || (Array.isArray(workout?.exercises) && workout.exercises.length > 0)
+    workout?.sessionId ||
+      (Array.isArray(workout?.exercises) && workout.exercises.length > 0)
+  );
+
+  const blockVolume = blocks.reduce(
+    (sum, block) => sum + (Number(block.duration) || 0),
+    0
   );
 
   const duration = Number(
     workout?.plannedDuration ??
       workout?.preparationSnapshot?.duration ??
+      blockVolume ??
       75
-  );
+  ) || blockVolume || 75;
 
   const title =
     humanize(
@@ -288,7 +308,7 @@ export default function SessionDesignPilotScreen() {
             const concealed = isWod && !wodRevealed;
             const exercisePreview = concealed
               ? 'Le contenu reste surprise jusqu’au moment prévu.'
-              : block.exercises.slice(0, 3).join(' · ');
+              : block.exercises.slice(0, 3).join(' · ') || 'Détail dans la séance';
 
             return (
               <View
@@ -308,11 +328,13 @@ export default function SessionDesignPilotScreen() {
                 <View style={styles.blockMain}>
                   <View style={styles.blockTopLine}>
                     <Text style={styles.blockTitle}>{block.title}</Text>
-                    <Text style={styles.blockDuration}>{block.duration} MIN</Text>
+                    {block.duration > 0 ? (
+                      <Text style={styles.blockDuration}>{block.duration} MIN</Text>
+                    ) : null}
                   </View>
 
                   <Text style={styles.blockStructure} numberOfLines={2}>
-                    {concealed ? 'FORMAT SURPRISE' : block.structure}
+                    {concealed ? 'FORMAT SURPRISE' : block.structure || 'STRUCTURE DE SÉANCE'}
                   </Text>
 
                   <Text style={styles.blockExercises} numberOfLines={2}>
