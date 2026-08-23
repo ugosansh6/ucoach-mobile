@@ -3,65 +3,64 @@ export const UGEROD_THEME_MODES = {
   LIGHT: 'light',
 };
 
-const shared = {
-  accentName: 'kaki',
-  secondaryAccentName: 'orange',
-};
-
 export const ugerodThemes = {
   dark: {
-    ...shared,
     mode: UGEROD_THEME_MODES.DARK,
     isDark: true,
+    accentName: 'bleu',
+    secondaryAccentName: 'rouge',
     colors: {
       background: '#07090C',
       surface: '#11151A',
       surfaceElevated: '#171C22',
       surfacePressed: '#1E252D',
 
-      accent: '#66734D',
-      accentStrong: '#9AA77D',
-      accentSoft: '#252C1E',
+      // Palette historique UGEROD : bleu + rouge.
+      accent: '#0868FF',
+      accentStrong: '#1D8CFF',
+      accentSoft: 'rgba(8, 104, 255, 0.14)',
 
-      secondaryAccent: '#D86D2B',
-      secondaryAccentStrong: '#F09A61',
-      secondaryAccentSoft: '#2D1B12',
+      secondaryAccent: '#FF3B3B',
+      secondaryAccentStrong: '#FF6B6B',
+      secondaryAccentSoft: 'rgba(255, 59, 59, 0.14)',
 
-      text: '#F7F9F4',
-      textSecondary: '#C0C7BA',
-      textMuted: '#8C9587',
-      textDisabled: '#626A5F',
+      text: '#F7F9FC',
+      textSecondary: '#98A2B3',
+      textMuted: '#667085',
+      textDisabled: '#475467',
       textOnAccent: '#FFFFFF',
 
-      border: '#2B3328',
-      borderStrong: '#3B4537',
-      inputDisabled: '#0D1013',
+      border: '#29313A',
+      borderStrong: '#3A4550',
+      inputDisabled: '#0B0E12',
 
-      success: '#7E9B72',
-      successSoft: '#1C281A',
-      warning: '#E18449',
-      warningSoft: '#2D1B12',
-      error: '#E18449',
-      errorSoft: '#2D1B12',
+      success: '#24C875',
+      successSoft: 'rgba(36, 200, 117, 0.14)',
+      warning: '#F5A623',
+      warningSoft: 'rgba(245, 166, 35, 0.14)',
+      error: '#FF3B3B',
+      errorSoft: 'rgba(255, 59, 59, 0.14)',
 
-      warningBorder: '#6A3C22',
-      warningIconBackground: '#382218',
-      logoutBorder: '#6A3C22',
-      logoutPressed: '#382218',
+      warningBorder: '#6B4A19',
+      warningIconBackground: '#2A2112',
+      logoutBorder: '#6D2A2A',
+      logoutPressed: '#351818',
       shadow: '#000000',
     },
   },
 
   light: {
-    ...shared,
     mode: UGEROD_THEME_MODES.LIGHT,
     isDark: false,
+    accentName: 'kaki',
+    secondaryAccentName: 'orange',
     colors: {
       background: '#FFFFFF',
       surface: '#F7F8F3',
       surfaceElevated: '#FFFFFF',
       surfacePressed: '#EEF1E7',
 
+      // Nouvelle palette claire : kaki + orange.
       accent: '#66734D',
       accentStrong: '#4D5938',
       accentSoft: '#E9EDDF',
