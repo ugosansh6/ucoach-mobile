@@ -8,10 +8,10 @@ Il ne doit jamais exister une version `light` et une version `dark` d'un même �
 
 ## Modes
 
-- `dark` : fond sombre, accents kaki et orange.
-- `light` : fond blanc/clair, accents kaki et orange.
+- `dark` : palette historique UGEROD, fond sombre, accent principal bleu, accent secondaire rouge.
+- `light` : fond blanc/clair, accent principal kaki, accent secondaire orange.
 
-Le bleu historique n'est plus une couleur d'accent de la nouvelle UI. Le rouge historique est remplacé par l'orange pour la nouvelle UI, y compris dans le thème sombre.
+Le thème sombre doit rester visuellement cohérent avec le reste de l'application tant que les autres pages n'ont pas été reprises : bleu/rouge historiques conservés. Le thème clair est la déclinaison blanc/kaki/orange.
 
 ## Source d'autorité
 
@@ -26,6 +26,10 @@ Toute correction faite sur une page — contenu, hiérarchie, taille de police, 
 
 Aucune nouvelle fonctionnalité ne doit être implémentée uniquement pour un thème.
 
+Une évolution de design commune peut changer tailles, espacements ou composants pour les deux modes. En revanche, les couleurs restent propres au mode : bleu/rouge en sombre, kaki/orange en clair.
+
 ## Migration progressive
 
-La passe UX reste page par page. Les pages non encore auditées peuvent conserver temporairement le thème historique. Quand une page est reprise, elle est migrée vers les tokens partagés clair/sombre dans le même chantier.
+La passe UX reste page par page. Les pages non encore auditées conservent temporairement leur thème sombre historique et leurs tailles actuelles. On ne modifie pas globalement leurs tailles ou leur structure avant leur audit dédié.
+
+Quand une page est reprise, elle est migrée vers les tokens partagés clair/sombre dans le même chantier, avec un seul code d'interface.
