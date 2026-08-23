@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Image,
@@ -15,22 +16,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import {
-  spacing,
-  typography,
-  uxLightColors,
-} from '../../src/constants';
-
+import { spacing, typography } from '../../src/constants';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import {
   getCurrentProfile,
   updatePersonalInformation,
 } from '../../src/services/profileService';
-
 import { supabase } from '../../src/lib/supabase';
 
-const brandIcon = require(
-  '../../assets/branding/ugerod-icon.png'
-);
+const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
 const GENDER_OPTIONS = [
   { value: 'male', label: 'HOMME' },
@@ -58,9 +52,7 @@ function frenchDateToIso(value) {
     return null;
   }
 
-  const match = trimmed.match(
-    /^(\d{2})\/(\d{2})\/(\d{4})$/
-  );
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
 
   if (!match) {
     throw new Error(
@@ -119,6 +111,9 @@ function normalizeGenderValue(value) {
 }
 
 export default function PersonalInformationScreen() {
+  const { colors, isDark } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -241,7 +236,8 @@ export default function PersonalInformationScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={uxLightColors.khaki} />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <ActivityIndicator size="large" color={colors.accent} />
         <Text style={styles.loadingText}>CHARGEMENT DE TES INFORMATIONS...</Text>
       </View>
     );
@@ -249,6 +245,8 @@ export default function PersonalInformationScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -267,11 +265,7 @@ export default function PersonalInformationScreen() {
                 pressed && styles.pressed,
               ]}
             >
-              <Ionicons
-                name="arrow-back"
-                size={23}
-                color={uxLightColors.text}
-              />
+              <Ionicons name="arrow-back" size={23} color={colors.text} />
             </Pressable>
 
             <Text style={styles.headerTitle}>TES INFOS</Text>
@@ -292,7 +286,7 @@ export default function PersonalInformationScreen() {
               <Ionicons
                 name="alert-circle-outline"
                 size={22}
-                color={uxLightColors.orangeDark}
+                color={colors.secondaryAccentStrong}
               />
               <Text style={styles.errorText}>{errorMessage}</Text>
             </View>
@@ -301,6 +295,7 @@ export default function PersonalInformationScreen() {
           <SectionTitle
             title="IDENTITÉ"
             subtitle="Les informations principales de ton compte."
+            styles={styles}
           />
 
           <View style={styles.formCard}>
@@ -310,6 +305,8 @@ export default function PersonalInformationScreen() {
               onChangeText={setFirstName}
               placeholder="Ton prénom"
               icon="person-outline"
+              styles={styles}
+              colors={colors}
             />
 
             <Field
@@ -318,6 +315,8 @@ export default function PersonalInformationScreen() {
               onChangeText={setLastName}
               placeholder="Ton nom"
               icon="person-outline"
+              styles={styles}
+              colors={colors}
             />
 
             <View style={[styles.field, styles.fieldLast]}>
@@ -326,7 +325,7 @@ export default function PersonalInformationScreen() {
                 <Ionicons
                   name="mail-outline"
                   size={20}
-                  color={uxLightColors.textMuted}
+                  color={colors.textMuted}
                 />
                 <Text style={styles.disabledInputText} numberOfLines={1}>
                   {email || 'EMAIL NON DISPONIBLE'}
@@ -334,7 +333,7 @@ export default function PersonalInformationScreen() {
                 <Ionicons
                   name="lock-closed-outline"
                   size={16}
-                  color={uxLightColors.textMuted}
+                  color={colors.textMuted}
                 />
               </View>
             </View>
@@ -343,6 +342,7 @@ export default function PersonalInformationScreen() {
           <SectionTitle
             title="REPÈRES PHYSIQUES"
             subtitle="Utilisés seulement quand ils apportent quelque chose au coaching."
+            styles={styles}
           />
 
           <View style={styles.formCard}>
@@ -367,8 +367,8 @@ export default function PersonalInformationScreen() {
                         size={19}
                         color={
                           selected
-                            ? uxLightColors.textOnAccent
-                            : uxLightColors.textMuted
+                            ? colors.textOnAccent
+                            : colors.textMuted
                         }
                       />
                       <Text
@@ -397,6 +397,8 @@ export default function PersonalInformationScreen() {
               placeholder="JJ/MM/AAAA"
               icon="calendar-outline"
               keyboardType="number-pad"
+              styles={styles}
+              colors={colors}
             />
 
             <Field
@@ -407,6 +409,8 @@ export default function PersonalInformationScreen() {
               icon="resize-outline"
               keyboardType="number-pad"
               unit="CM"
+              styles={styles}
+              colors={colors}
             />
 
             <Field
@@ -418,6 +422,8 @@ export default function PersonalInformationScreen() {
               keyboardType="decimal-pad"
               unit="KG"
               last
+              styles={styles}
+              colors={colors}
             />
           </View>
 
@@ -431,13 +437,13 @@ export default function PersonalInformationScreen() {
             ]}
           >
             {isSaving ? (
-              <ActivityIndicator color={uxLightColors.textOnAccent} />
+              <ActivityIndicator color={colors.textOnAccent} />
             ) : (
               <>
                 <Ionicons
                   name={saved ? 'checkmark-circle' : 'save-outline'}
                   size={21}
-                  color={uxLightColors.textOnAccent}
+                  color={colors.textOnAccent}
                 />
                 <Text style={styles.saveButtonText}>
                   {saved ? 'ENREGISTRÉ' : 'ENREGISTRER'}
@@ -451,7 +457,7 @@ export default function PersonalInformationScreen() {
   );
 }
 
-function SectionTitle({ title, subtitle }) {
+function SectionTitle({ title, subtitle, styles }) {
   return (
     <View style={styles.sectionTitleArea}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -469,20 +475,22 @@ function Field({
   keyboardType = 'default',
   unit,
   last = false,
+  styles,
+  colors,
 }) {
   return (
     <View style={[styles.field, last && styles.fieldLast]}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputWrapper}>
-        <Ionicons name={icon} size={20} color={uxLightColors.khakiDark} />
+        <Ionicons name={icon} size={20} color={colors.accentStrong} />
         <TextInput
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={uxLightColors.textDisabled}
+          placeholderTextColor={colors.textDisabled}
           keyboardType={keyboardType}
           style={styles.input}
-          selectionColor={uxLightColors.khaki}
+          selectionColor={colors.accent}
           autoCapitalize="sentences"
         />
         {!!unit && <Text style={styles.unit}>{unit}</Text>}
@@ -491,219 +499,221 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: uxLightColors.background,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: 48,
-  },
-  loadingScreen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
-    backgroundColor: uxLightColors.background,
-  },
-  loadingText: {
-    ...typography.body,
-    fontSize: 16,
-    lineHeight: 23,
-    color: uxLightColors.textSecondary,
-  },
-  header: {
-    minHeight: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: uxLightColors.surface,
-    borderWidth: 1,
-    borderColor: uxLightColors.border,
-  },
-  headerTitle: {
-    ...typography.screenTitle,
-    fontSize: 32,
-    lineHeight: 35,
-    color: uxLightColors.text,
-  },
-  brandIcon: {
-    width: 38,
-    height: 38,
-    tintColor: uxLightColors.khakiDark,
-  },
-  pageIntro: {
-    ...typography.bodyLarge,
-    fontSize: 17,
-    lineHeight: 25,
-    color: uxLightColors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  errorCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderRadius: 16,
-    backgroundColor: uxLightColors.orangeSoft,
-    borderWidth: 1,
-    borderColor: '#F0C6AA',
-  },
-  errorText: {
-    ...typography.body,
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 23,
-    color: uxLightColors.orangeDark,
-  },
-  sectionTitleArea: {
-    marginTop: 26,
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    ...typography.sectionTitle,
-    fontSize: 20,
-    lineHeight: 26,
-    color: uxLightColors.text,
-  },
-  sectionSubtitle: {
-    ...typography.body,
-    marginTop: 3,
-    fontSize: 15,
-    lineHeight: 22,
-    color: uxLightColors.textSecondary,
-  },
-  formCard: {
-    borderRadius: 20,
-    backgroundColor: uxLightColors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: uxLightColors.border,
-    overflow: 'hidden',
-  },
-  field: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: uxLightColors.border,
-  },
-  fieldLast: {
-    borderBottomWidth: 0,
-  },
-  label: {
-    ...typography.label,
-    marginBottom: 8,
-    fontSize: 14,
-    lineHeight: 19,
-    color: uxLightColors.text,
-  },
-  inputWrapper: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: uxLightColors.surface,
-    borderWidth: 1,
-    borderColor: uxLightColors.border,
-  },
-  inputWrapperDisabled: {
-    backgroundColor: '#F1F2EE',
-  },
-  input: {
-    ...typography.bodyLarge,
-    flex: 1,
-    paddingVertical: 0,
-    fontSize: 17,
-    lineHeight: 24,
-    color: uxLightColors.text,
-  },
-  disabledInputText: {
-    ...typography.body,
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 23,
-    color: uxLightColors.textMuted,
-  },
-  unit: {
-    ...typography.label,
-    fontSize: 13,
-    lineHeight: 18,
-    color: uxLightColors.textMuted,
-  },
-  fieldHelp: {
-    ...typography.body,
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
-    color: uxLightColors.textSecondary,
-  },
-  segmentedControl: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  segment: {
-    minHeight: 50,
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: uxLightColors.borderStrong,
-    backgroundColor: uxLightColors.surface,
-  },
-  segmentSelected: {
-    backgroundColor: uxLightColors.khaki,
-    borderColor: uxLightColors.khaki,
-  },
-  segmentText: {
-    ...typography.label,
-    fontSize: 15,
-    lineHeight: 20,
-    color: uxLightColors.textSecondary,
-  },
-  segmentTextSelected: {
-    color: uxLightColors.textOnAccent,
-  },
-  saveButton: {
-    minHeight: 58,
-    marginTop: 28,
-    borderRadius: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: uxLightColors.khaki,
-  },
-  saveButtonPressed: {
-    backgroundColor: uxLightColors.khakiDark,
-  },
-  saveButtonDisabled: {
-    opacity: 0.72,
-  },
-  saveButtonText: {
-    ...typography.button,
-    fontSize: 19,
-    lineHeight: 23,
-    color: uxLightColors.textOnAccent,
-  },
-  pressed: {
-    opacity: 0.72,
-  },
-});
+function createStyles(colors) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    keyboardView: {
+      flex: 1,
+    },
+    content: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: 48,
+    },
+    loadingScreen: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.background,
+    },
+    loadingText: {
+      ...typography.body,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.textSecondary,
+    },
+    header: {
+      minHeight: 60,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    headerButton: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    headerTitle: {
+      ...typography.screenTitle,
+      fontSize: 32,
+      lineHeight: 35,
+      color: colors.text,
+    },
+    brandIcon: {
+      width: 38,
+      height: 38,
+      tintColor: colors.accentStrong,
+    },
+    pageIntro: {
+      ...typography.bodyLarge,
+      fontSize: 17,
+      lineHeight: 25,
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+    },
+    errorCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+      borderRadius: 16,
+      backgroundColor: colors.errorSoft,
+      borderWidth: 1,
+      borderColor: colors.warningBorder,
+    },
+    errorText: {
+      ...typography.body,
+      flex: 1,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.secondaryAccentStrong,
+    },
+    sectionTitleArea: {
+      marginTop: 26,
+      marginBottom: 10,
+    },
+    sectionTitle: {
+      ...typography.sectionTitle,
+      fontSize: 20,
+      lineHeight: 26,
+      color: colors.text,
+    },
+    sectionSubtitle: {
+      ...typography.body,
+      marginTop: 3,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.textSecondary,
+    },
+    formCard: {
+      borderRadius: 20,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    field: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    fieldLast: {
+      borderBottomWidth: 0,
+    },
+    label: {
+      ...typography.label,
+      marginBottom: 8,
+      fontSize: 14,
+      lineHeight: 19,
+      color: colors.text,
+    },
+    inputWrapper: {
+      minHeight: 54,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    inputWrapperDisabled: {
+      backgroundColor: colors.inputDisabled,
+    },
+    input: {
+      ...typography.bodyLarge,
+      flex: 1,
+      paddingVertical: 0,
+      fontSize: 17,
+      lineHeight: 24,
+      color: colors.text,
+    },
+    disabledInputText: {
+      ...typography.body,
+      flex: 1,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.textMuted,
+    },
+    unit: {
+      ...typography.label,
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.textMuted,
+    },
+    fieldHelp: {
+      ...typography.body,
+      marginTop: 8,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.textSecondary,
+    },
+    segmentedControl: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    segment: {
+      minHeight: 50,
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surface,
+    },
+    segmentSelected: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    segmentText: {
+      ...typography.label,
+      fontSize: 15,
+      lineHeight: 20,
+      color: colors.textSecondary,
+    },
+    segmentTextSelected: {
+      color: colors.textOnAccent,
+    },
+    saveButton: {
+      minHeight: 58,
+      marginTop: 28,
+      borderRadius: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      backgroundColor: colors.accent,
+    },
+    saveButtonPressed: {
+      opacity: 0.86,
+    },
+    saveButtonDisabled: {
+      opacity: 0.72,
+    },
+    saveButtonText: {
+      ...typography.button,
+      fontSize: 19,
+      lineHeight: 23,
+      color: colors.textOnAccent,
+    },
+    pressed: {
+      opacity: 0.72,
+    },
+  });
+}
