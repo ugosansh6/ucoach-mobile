@@ -21,8 +21,9 @@ import { getCurrentProfile } from '../../src/services/profileService';
 import { reloadWorkoutSession } from '../../src/services/workoutService';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import DashboardHistoryCalendarBase from '../../src/components/dashboard/DashboardHistoryCalendarBase';
+import dashboardHero from '../../src/assets/dashboard-dark-hero';
 
-const dashboardBackground = require('../../assets/backgrounds/welcome-default.jpg');
+const dashboardBackground = dashboardHero;
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
 const DAY_LABELS = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM'];
