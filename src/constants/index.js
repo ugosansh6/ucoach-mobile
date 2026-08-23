@@ -4,3 +4,4 @@ export * from './spacing';
 export * from './typography';
 export * from './theme';
 export * from './uxLightTheme';
+export * from './uxTheme';
