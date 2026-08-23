@@ -27,7 +27,8 @@ import { signOut } from '../../src/services/authService';
 import { supabase } from '../../src/lib/supabase';
 
 const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
-const brandIcon = require('../../assets/branding/ugerod-icon.png');
+const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
+const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
 const EXPERIENCE_LABELS = {
   beginner: 'DÉBUTANT',
@@ -67,6 +68,7 @@ const THEME_OPTIONS = [
 export default function ProfileScreen() {
   const { mode, colors, isDark, setThemeMode } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
 
   const [profile, setProfile] = useState(null);
   const [goal, setGoal] = useState(null);
