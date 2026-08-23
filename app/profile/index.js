@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Image,
+  ImageBackground,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -24,6 +26,7 @@ import { getCurrentPrimaryGoal } from '../../src/services/goalsService';
 import { signOut } from '../../src/services/authService';
 import { supabase } from '../../src/lib/supabase';
 
+const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
 const EXPERIENCE_LABELS = {
@@ -173,7 +176,7 @@ export default function ProfileScreen() {
     );
   }
 
-  return (
+  const profileContent = (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
@@ -374,7 +377,7 @@ export default function ProfileScreen() {
           <Ionicons
             name="log-out-outline"
             size={21}
-            color={colors.secondaryAccentStrong}
+            color={isDark ? colors.text : colors.secondaryAccentStrong}
           />
           <Text style={styles.logoutText}>SE DÉCONNECTER</Text>
         </Pressable>
@@ -389,6 +392,46 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+
+  if (!isDark) {
+    return profileContent;
+  }
+
+  return (
+    <View style={styles.screen}>
+      <ImageBackground
+        source={backgroundImage}
+        style={styles.background}
+        resizeMode="cover"
+      >
+        <View style={styles.darkOverlay} />
+
+        <LinearGradient
+          colors={[
+            'rgba(7,9,12,0.42)',
+            'rgba(7,9,12,0.60)',
+            'rgba(7,9,12,0.88)',
+            'rgba(7,9,12,0.99)',
+          ]}
+          locations={[0, 0.22, 0.58, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <LinearGradient
+          colors={[
+            'rgba(7,9,12,0.46)',
+            'rgba(7,9,12,0.05)',
+            'rgba(7,9,12,0.30)',
+          ]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
+        />
+
+        {profileContent}
+      </ImageBackground>
+    </View>
   );
 }
 
@@ -521,9 +564,20 @@ function ThemeSetting({ mode, setThemeMode, styles, colors }) {
 
 function createStyles(colors, isDark) {
   return StyleSheet.create({
-    safeArea: {
+    screen: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    background: {
+      flex: 1,
+    },
+    darkOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.30)',
+    },
+    safeArea: {
+      flex: 1,
+      backgroundColor: isDark ? 'transparent' : colors.background,
     },
     content: {
       paddingHorizontal: spacing.lg,
@@ -556,9 +610,9 @@ function createStyles(colors, isDark) {
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 14,
-      backgroundColor: colors.surface,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.90)' : colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
     },
     headerTitle: {
       ...typography.screenTitle,
@@ -569,7 +623,6 @@ function createStyles(colors, isDark) {
     brandIcon: {
       width: 38,
       height: 38,
-      tintColor: colors.accentStrong,
     },
     errorCard: {
       flexDirection: 'row',
@@ -580,7 +633,7 @@ function createStyles(colors, isDark) {
       marginBottom: spacing.md,
       backgroundColor: colors.errorSoft,
       borderWidth: 1,
-      borderColor: colors.warningBorder,
+      borderColor: isDark ? 'rgba(255,107,107,0.25)' : colors.warningBorder,
     },
     errorText: {
       ...typography.body,
@@ -594,9 +647,9 @@ function createStyles(colors, isDark) {
       alignItems: 'center',
       padding: spacing.lg,
       borderRadius: 22,
-      backgroundColor: colors.surfaceElevated,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: isDark ? 'rgba(255,255,255,0.09)' : colors.border,
       shadowColor: colors.shadow,
       shadowOpacity: isDark ? 0.18 : 0.06,
       shadowRadius: 14,
@@ -640,7 +693,7 @@ function createStyles(colors, isDark) {
       borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.accentSoft,
+      backgroundColor: isDark ? 'rgba(8,104,255,0.10)' : colors.accentSoft,
     },
     completionCard: {
       marginTop: spacing.md,
@@ -688,9 +741,9 @@ function createStyles(colors, isDark) {
     settingsCard: {
       overflow: 'hidden',
       borderRadius: 20,
-      backgroundColor: colors.surfaceElevated,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
     },
     row: {
       minHeight: 76,
@@ -701,11 +754,11 @@ function createStyles(colors, isDark) {
       gap: 12,
     },
     rowPressed: {
-      backgroundColor: colors.surfacePressed,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : colors.surfacePressed,
     },
     rowBorder: {
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border,
     },
     rowIcon: {
       width: 42,
@@ -713,7 +766,7 @@ function createStyles(colors, isDark) {
       borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.accentSoft,
+      backgroundColor: isDark ? 'rgba(8,104,255,0.10)' : colors.accentSoft,
     },
     rowMain: {
       flex: 1,
@@ -783,8 +836,8 @@ function createStyles(colors, isDark) {
       gap: 7,
       borderRadius: 14,
       borderWidth: 1,
-      borderColor: colors.borderStrong,
-      backgroundColor: colors.surface,
+      borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.borderStrong,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.90)' : colors.surface,
     },
     themeSegmentSelected: {
       backgroundColor: colors.accent,
@@ -807,17 +860,17 @@ function createStyles(colors, isDark) {
       gap: 10,
       borderRadius: 18,
       borderWidth: 1,
-      borderColor: colors.logoutBorder,
-      backgroundColor: colors.secondaryAccentSoft,
+      borderColor: isDark ? 'rgba(255,255,255,0.09)' : colors.logoutBorder,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.secondaryAccentSoft,
     },
     logoutButtonPressed: {
-      backgroundColor: colors.logoutPressed,
+      backgroundColor: isDark ? 'rgba(25,30,36,0.96)' : colors.logoutPressed,
     },
     logoutText: {
       ...typography.button,
       fontSize: 18,
       lineHeight: 22,
-      color: colors.secondaryAccentStrong,
+      color: isDark ? colors.text : colors.secondaryAccentStrong,
     },
     versionArea: {
       marginTop: 34,
@@ -827,7 +880,6 @@ function createStyles(colors, isDark) {
     versionLogo: {
       width: 30,
       height: 30,
-      tintColor: colors.textMuted,
       opacity: 0.72,
     },
     versionText: {
