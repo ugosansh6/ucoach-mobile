@@ -18,6 +18,7 @@ import {
 
 import { colors } from '../src/constants';
 import { OnboardingProvider } from '../src/contexts/OnboardingContext';
+import { UgerodThemeProvider } from '../src/contexts/UgerodThemeContext';
 import { WorkoutProvider } from '../src/contexts/WorkoutContext';
 import SessionAdaptationOverlay from '../src/components/workout/SessionAdaptationOverlay';
 import SessionWhyOverlay from '../src/components/workout/SessionWhyOverlay';
@@ -36,10 +37,7 @@ export default function RootLayout() {
       playsInSilentMode: true,
       interruptionMode: 'mixWithOthers',
     }).catch((error) => {
-      console.warn(
-        'UGEROD audio mixing mode',
-        error
-      );
+      console.warn('UGEROD audio mixing mode', error);
     });
   }, []);
 
@@ -49,23 +47,30 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <OnboardingProvider>
-        <WorkoutProvider>
-          <StatusBar style="light" />
+      <UgerodThemeProvider>
+        <OnboardingProvider>
+          <WorkoutProvider>
+            {/*
+             * Les écrans migrés gèrent leur StatusBar selon le thème.
+             * La valeur racine reste sombre tant que la passe UX globale
+             * n'a pas migré les anciens écrans vers le thème partagé.
+             */}
+            <StatusBar style="light" />
 
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: {
-                backgroundColor: colors.background,
-              },
-            }}
-          />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: {
+                  backgroundColor: colors.background,
+                },
+              }}
+            />
 
-          <SessionWhyOverlay />
-          <SessionAdaptationOverlay />
-        </WorkoutProvider>
-      </OnboardingProvider>
+            <SessionWhyOverlay />
+            <SessionAdaptationOverlay />
+          </WorkoutProvider>
+        </OnboardingProvider>
+      </UgerodThemeProvider>
     </SafeAreaProvider>
   );
 }
