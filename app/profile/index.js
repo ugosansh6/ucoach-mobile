@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Image,
@@ -15,26 +16,15 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   spacing,
   typography,
-  uxLightColors,
+  UGEROD_THEME_MODES,
 } from '../../src/constants';
-
-import {
-  getCurrentProfile,
-} from '../../src/services/profileService';
-
-import {
-  getCurrentPrimaryGoal,
-} from '../../src/services/goalsService';
-
-import {
-  signOut,
-} from '../../src/services/authService';
-
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
+import { getCurrentProfile } from '../../src/services/profileService';
+import { getCurrentPrimaryGoal } from '../../src/services/goalsService';
+import { signOut } from '../../src/services/authService';
 import { supabase } from '../../src/lib/supabase';
 
-const brandIcon = require(
-  '../../assets/branding/ugerod-icon.png'
-);
+const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
 const EXPERIENCE_LABELS = {
   beginner: 'DÉBUTANT',
@@ -58,7 +48,23 @@ const GENDER_LABELS = {
   femme: 'FEMME',
 };
 
+const THEME_OPTIONS = [
+  {
+    value: UGEROD_THEME_MODES.DARK,
+    label: 'SOMBRE',
+    icon: 'moon-outline',
+  },
+  {
+    value: UGEROD_THEME_MODES.LIGHT,
+    label: 'CLAIR',
+    icon: 'sunny-outline',
+  },
+];
+
 export default function ProfileScreen() {
+  const { mode, colors, isDark, setThemeMode } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const [profile, setProfile] = useState(null);
   const [goal, setGoal] = useState(null);
   const [email, setEmail] = useState('');
@@ -160,7 +166,8 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={uxLightColors.khaki} />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <ActivityIndicator size="large" color={colors.accent} />
         <Text style={styles.loadingText}>CHARGEMENT DU PROFIL...</Text>
       </View>
     );
@@ -168,6 +175,8 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -181,11 +190,7 @@ export default function ProfileScreen() {
               pressed && styles.pressed,
             ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={23}
-              color={uxLightColors.text}
-            />
+            <Ionicons name="arrow-back" size={23} color={colors.text} />
           </Pressable>
 
           <Text style={styles.headerTitle}>PROFIL</Text>
@@ -202,7 +207,7 @@ export default function ProfileScreen() {
             <Ionicons
               name="alert-circle-outline"
               size={22}
-              color={uxLightColors.orange}
+              color={colors.secondaryAccentStrong}
             />
             <Text style={styles.errorText}>{errorMessage}</Text>
           </View>
@@ -230,7 +235,7 @@ export default function ProfileScreen() {
             <Ionicons
               name="pencil-outline"
               size={19}
-              color={uxLightColors.khakiDark}
+              color={colors.accentStrong}
             />
           </View>
         </Pressable>
@@ -247,7 +252,7 @@ export default function ProfileScreen() {
               <Ionicons
                 name="person-add-outline"
                 size={21}
-                color={uxLightColors.orangeDark}
+                color={colors.secondaryAccentStrong}
               />
             </View>
             <View style={styles.completionMain}>
@@ -259,12 +264,12 @@ export default function ProfileScreen() {
             <Ionicons
               name="chevron-forward"
               size={21}
-              color={uxLightColors.orangeDark}
+              color={colors.secondaryAccentStrong}
             />
           </Pressable>
         )}
 
-        <SectionTitle title="PROFIL SPORTIF" />
+        <SectionTitle title="PROFIL SPORTIF" styles={styles} />
 
         <View style={styles.settingsCard}>
           <ProfileRow
@@ -272,24 +277,32 @@ export default function ProfileScreen() {
             label="EXPÉRIENCE"
             value={experienceLabel}
             onPress={() => router.push('/profile/level')}
+            styles={styles}
+            colors={colors}
           />
           <ProfileRow
             icon="flag-outline"
             label="OBJECTIF"
             value={goalLabel}
             onPress={() => router.push('/profile/goal')}
+            styles={styles}
+            colors={colors}
           />
           <ProfileRow
             icon="calendar-outline"
             label="RYTHME HEBDO"
             value={frequencyLabel}
             onPress={() => router.push('/profile/frequency')}
+            styles={styles}
+            colors={colors}
           />
           <ProfileRow
             icon="barbell-outline"
             label="MATÉRIEL"
             value="GÉRER MON INVENTAIRE"
             onPress={() => router.push('/profile/equipment')}
+            styles={styles}
+            colors={colors}
           />
           <ProfileRow
             icon="medical-outline"
@@ -301,27 +314,31 @@ export default function ProfileScreen() {
             }
             onPress={() => router.push('/profile/precautions')}
             last
+            styles={styles}
+            colors={colors}
           />
         </View>
 
-        <SectionTitle title="INFORMATIONS" />
+        <SectionTitle title="INFORMATIONS" styles={styles} />
 
         <View style={styles.settingsCard}>
           <SimpleRow
             icon="person-circle-outline"
             label="INFORMATIONS PERSONNELLES"
-            subtitle={
-              physicalSummary || 'Sexe, date de naissance, taille, poids'
-            }
+            subtitle={physicalSummary || 'Sexe, date de naissance, taille, poids'}
             value={!personalInfoComplete ? 'À COMPLÉTER' : null}
             valueTone={!personalInfoComplete ? 'warning' : 'default'}
             onPress={() => router.push('/profile/personal-information')}
+            styles={styles}
+            colors={colors}
           />
           <SimpleRow
             icon="lock-closed-outline"
             label="MOT DE PASSE"
             subtitle="Sécurité du compte"
             onPress={() => router.push('/profile/security')}
+            styles={styles}
+            colors={colors}
           />
           <SimpleRow
             icon="help-circle-outline"
@@ -329,10 +346,23 @@ export default function ProfileScreen() {
             subtitle="Questions et assistance"
             onPress={() => router.push('/profile/help')}
             last
+            styles={styles}
+            colors={colors}
           />
         </View>
 
-        <SectionTitle title="COMPTE" />
+        <SectionTitle title="PARAMÈTRES" styles={styles} />
+
+        <View style={styles.settingsCard}>
+          <ThemeSetting
+            mode={mode}
+            setThemeMode={setThemeMode}
+            styles={styles}
+            colors={colors}
+          />
+        </View>
+
+        <SectionTitle title="COMPTE" styles={styles} />
 
         <Pressable
           onPress={handleLogout}
@@ -344,7 +374,7 @@ export default function ProfileScreen() {
           <Ionicons
             name="log-out-outline"
             size={21}
-            color={uxLightColors.orangeDark}
+            color={colors.secondaryAccentStrong}
           />
           <Text style={styles.logoutText}>SE DÉCONNECTER</Text>
         </Pressable>
@@ -362,10 +392,8 @@ export default function ProfileScreen() {
   );
 }
 
-function SectionTitle({ title }) {
-  return (
-    <Text style={styles.sectionTitle}>{title}</Text>
-  );
+function SectionTitle({ title, styles }) {
+  return <Text style={styles.sectionTitle}>{title}</Text>;
 }
 
 function ProfileRow({
@@ -374,6 +402,8 @@ function ProfileRow({
   value,
   onPress,
   last = false,
+  styles,
+  colors,
 }) {
   return (
     <Pressable
@@ -385,17 +415,13 @@ function ProfileRow({
       ]}
     >
       <View style={styles.rowIcon}>
-        <Ionicons name={icon} size={21} color={uxLightColors.khakiDark} />
+        <Ionicons name={icon} size={21} color={colors.accentStrong} />
       </View>
       <View style={styles.rowMain}>
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.rowValue}>{value}</Text>
       </View>
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={uxLightColors.textMuted}
-      />
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
     </Pressable>
   );
 }
@@ -408,6 +434,8 @@ function SimpleRow({
   valueTone = 'default',
   onPress,
   last = false,
+  styles,
+  colors,
 }) {
   return (
     <Pressable
@@ -419,7 +447,7 @@ function SimpleRow({
       ]}
     >
       <View style={styles.rowIcon}>
-        <Ionicons name={icon} size={21} color={uxLightColors.khakiDark} />
+        <Ionicons name={icon} size={21} color={colors.accentStrong} />
       </View>
       <View style={styles.rowMain}>
         <View style={styles.simpleRowTitleLine}>
@@ -437,295 +465,383 @@ function SimpleRow({
         </View>
         <Text style={styles.rowSubtitle}>{subtitle}</Text>
       </View>
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={uxLightColors.textMuted}
-      />
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: uxLightColors.background,
-  },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: 48,
-  },
-  loadingScreen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
-    backgroundColor: uxLightColors.background,
-  },
-  loadingText: {
-    ...typography.body,
-    fontSize: 16,
-    lineHeight: 23,
-    color: uxLightColors.textSecondary,
-  },
-  header: {
-    minHeight: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: uxLightColors.surface,
-    borderWidth: 1,
-    borderColor: uxLightColors.border,
-  },
-  headerTitle: {
-    ...typography.screenTitle,
-    fontSize: 32,
-    lineHeight: 35,
-    color: uxLightColors.text,
-  },
-  brandIcon: {
-    width: 38,
-    height: 38,
-    tintColor: uxLightColors.khakiDark,
-  },
-  errorCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: 16,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    backgroundColor: uxLightColors.orangeSoft,
-    borderWidth: 1,
-    borderColor: '#F0C6AA',
-  },
-  errorText: {
-    ...typography.body,
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 23,
-    color: uxLightColors.orangeDark,
-  },
-  identityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.lg,
-    borderRadius: 22,
-    backgroundColor: uxLightColors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: uxLightColors.border,
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  avatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: uxLightColors.khaki,
-  },
-  avatarText: {
-    ...typography.screenTitle,
-    fontSize: 30,
-    lineHeight: 33,
-    color: uxLightColors.textOnAccent,
-  },
-  identityMain: {
-    flex: 1,
-    paddingHorizontal: spacing.md,
-  },
-  identityName: {
-    ...typography.cardTitle,
-    fontSize: 20,
-    lineHeight: 26,
-    color: uxLightColors.text,
-  },
-  identityEmail: {
-    ...typography.body,
-    marginTop: 3,
-    fontSize: 15,
-    lineHeight: 22,
-    color: uxLightColors.textSecondary,
-  },
-  editButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: uxLightColors.khakiSoft,
-  },
-  completionCard: {
-    marginTop: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: 18,
-    backgroundColor: uxLightColors.orangeSoft,
-    borderWidth: 1,
-    borderColor: '#F0C6AA',
-  },
-  completionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF6EF',
-  },
-  completionMain: {
-    flex: 1,
-  },
-  completionTitle: {
-    ...typography.label,
-    fontSize: 14,
-    lineHeight: 19,
-    color: uxLightColors.orangeDark,
-  },
-  completionText: {
-    ...typography.body,
-    marginTop: 2,
-    fontSize: 15,
-    lineHeight: 22,
-    color: uxLightColors.textSecondary,
-  },
-  sectionTitle: {
-    ...typography.sectionTitle,
-    marginTop: 30,
-    marginBottom: 10,
-    fontSize: 20,
-    lineHeight: 26,
-    color: uxLightColors.text,
-  },
-  settingsCard: {
-    overflow: 'hidden',
-    borderRadius: 20,
-    backgroundColor: uxLightColors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: uxLightColors.border,
-  },
-  row: {
-    minHeight: 76,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  rowPressed: {
-    backgroundColor: uxLightColors.surfacePressed,
-  },
-  rowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: uxLightColors.border,
-  },
-  rowIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: uxLightColors.khakiSoft,
-  },
-  rowMain: {
-    flex: 1,
-  },
-  rowLabel: {
-    ...typography.label,
-    fontSize: 14,
-    lineHeight: 19,
-    color: uxLightColors.text,
-  },
-  rowValue: {
-    ...typography.body,
-    marginTop: 3,
-    fontSize: 16,
-    lineHeight: 23,
-    color: uxLightColors.textSecondary,
-  },
-  rowSubtitle: {
-    ...typography.body,
-    marginTop: 3,
-    fontSize: 15,
-    lineHeight: 22,
-    color: uxLightColors.textSecondary,
-  },
-  simpleRowTitleLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  rowBadge: {
-    ...typography.caption,
-    fontSize: 12,
-    lineHeight: 17,
-    color: uxLightColors.khakiDark,
-    backgroundColor: uxLightColors.khakiSoft,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  rowBadgeWarning: {
-    color: uxLightColors.orangeDark,
-    backgroundColor: uxLightColors.orangeSoft,
-  },
-  logoutButton: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E9B793',
-    backgroundColor: uxLightColors.orangeSoft,
-  },
-  logoutButtonPressed: {
-    backgroundColor: '#F8DDCA',
-  },
-  logoutText: {
-    ...typography.button,
-    fontSize: 18,
-    lineHeight: 22,
-    color: uxLightColors.orangeDark,
-  },
-  versionArea: {
-    marginTop: 34,
-    alignItems: 'center',
-    gap: 8,
-  },
-  versionLogo: {
-    width: 30,
-    height: 30,
-    tintColor: uxLightColors.textMuted,
-    opacity: 0.72,
-  },
-  versionText: {
-    ...typography.caption,
-    fontSize: 13,
-    lineHeight: 18,
-    color: uxLightColors.textMuted,
-  },
-  cardPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.995 }],
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});
+function ThemeSetting({ mode, setThemeMode, styles, colors }) {
+  return (
+    <View style={styles.themeRow}>
+      <View style={styles.rowIcon}>
+        <Ionicons name="contrast-outline" size={21} color={colors.accentStrong} />
+      </View>
+
+      <View style={styles.themeMain}>
+        <Text style={styles.rowLabel}>APPARENCE</Text>
+        <Text style={styles.rowSubtitle}>
+          Même interface, palette claire ou sombre.
+        </Text>
+
+        <View style={styles.themeSegmentedControl}>
+          {THEME_OPTIONS.map((option) => {
+            const selected = mode === option.value;
+
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => setThemeMode(option.value)}
+                style={({ pressed }) => [
+                  styles.themeSegment,
+                  selected && styles.themeSegmentSelected,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name={option.icon}
+                  size={18}
+                  color={selected ? colors.textOnAccent : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.themeSegmentText,
+                    selected && styles.themeSegmentTextSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function createStyles(colors, isDark) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: 48,
+    },
+    loadingScreen: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.background,
+    },
+    loadingText: {
+      ...typography.body,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.textSecondary,
+    },
+    header: {
+      minHeight: 60,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.lg,
+    },
+    headerButton: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    headerTitle: {
+      ...typography.screenTitle,
+      fontSize: 32,
+      lineHeight: 35,
+      color: colors.text,
+    },
+    brandIcon: {
+      width: 38,
+      height: 38,
+      tintColor: colors.accentStrong,
+    },
+    errorCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderRadius: 16,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+      backgroundColor: colors.errorSoft,
+      borderWidth: 1,
+      borderColor: colors.warningBorder,
+    },
+    errorText: {
+      ...typography.body,
+      flex: 1,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.secondaryAccentStrong,
+    },
+    identityCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.lg,
+      borderRadius: 22,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: colors.shadow,
+      shadowOpacity: isDark ? 0.18 : 0.06,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 2,
+    },
+    avatar: {
+      width: 58,
+      height: 58,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+    },
+    avatarText: {
+      ...typography.screenTitle,
+      fontSize: 30,
+      lineHeight: 33,
+      color: colors.textOnAccent,
+    },
+    identityMain: {
+      flex: 1,
+      paddingHorizontal: spacing.md,
+    },
+    identityName: {
+      ...typography.cardTitle,
+      fontSize: 20,
+      lineHeight: 26,
+      color: colors.text,
+    },
+    identityEmail: {
+      ...typography.body,
+      marginTop: 3,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.textSecondary,
+    },
+    editButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accentSoft,
+    },
+    completionCard: {
+      marginTop: spacing.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 18,
+      backgroundColor: colors.warningSoft,
+      borderWidth: 1,
+      borderColor: colors.warningBorder,
+    },
+    completionIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.warningIconBackground,
+    },
+    completionMain: {
+      flex: 1,
+    },
+    completionTitle: {
+      ...typography.label,
+      fontSize: 14,
+      lineHeight: 19,
+      color: colors.secondaryAccentStrong,
+    },
+    completionText: {
+      ...typography.body,
+      marginTop: 2,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.textSecondary,
+    },
+    sectionTitle: {
+      ...typography.sectionTitle,
+      marginTop: 30,
+      marginBottom: 10,
+      fontSize: 20,
+      lineHeight: 26,
+      color: colors.text,
+    },
+    settingsCard: {
+      overflow: 'hidden',
+      borderRadius: 20,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    row: {
+      minHeight: 76,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      gap: 12,
+    },
+    rowPressed: {
+      backgroundColor: colors.surfacePressed,
+    },
+    rowBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    rowIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accentSoft,
+    },
+    rowMain: {
+      flex: 1,
+    },
+    rowLabel: {
+      ...typography.label,
+      fontSize: 14,
+      lineHeight: 19,
+      color: colors.text,
+    },
+    rowValue: {
+      ...typography.body,
+      marginTop: 3,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.textSecondary,
+    },
+    rowSubtitle: {
+      ...typography.body,
+      marginTop: 3,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.textSecondary,
+    },
+    simpleRowTitleLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    rowBadge: {
+      ...typography.caption,
+      fontSize: 12,
+      lineHeight: 17,
+      color: colors.accentStrong,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    rowBadgeWarning: {
+      color: colors.secondaryAccentStrong,
+      backgroundColor: colors.secondaryAccentSoft,
+    },
+    themeRow: {
+      minHeight: 126,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      paddingHorizontal: spacing.md,
+      paddingVertical: 16,
+      gap: 12,
+    },
+    themeMain: {
+      flex: 1,
+    },
+    themeSegmentedControl: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 12,
+    },
+    themeSegment: {
+      minHeight: 46,
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surface,
+    },
+    themeSegmentSelected: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    themeSegmentText: {
+      ...typography.label,
+      fontSize: 14,
+      lineHeight: 19,
+      color: colors.textSecondary,
+    },
+    themeSegmentTextSelected: {
+      color: colors.textOnAccent,
+    },
+    logoutButton: {
+      minHeight: 54,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.logoutBorder,
+      backgroundColor: colors.secondaryAccentSoft,
+    },
+    logoutButtonPressed: {
+      backgroundColor: colors.logoutPressed,
+    },
+    logoutText: {
+      ...typography.button,
+      fontSize: 18,
+      lineHeight: 22,
+      color: colors.secondaryAccentStrong,
+    },
+    versionArea: {
+      marginTop: 34,
+      alignItems: 'center',
+      gap: 8,
+    },
+    versionLogo: {
+      width: 30,
+      height: 30,
+      tintColor: colors.textMuted,
+      opacity: 0.72,
+    },
+    versionText: {
+      ...typography.caption,
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.textMuted,
+    },
+    cardPressed: {
+      opacity: 0.82,
+      transform: [{ scale: 0.995 }],
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+  });
+}
