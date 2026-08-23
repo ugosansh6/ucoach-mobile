@@ -179,59 +179,59 @@ const SECTIONS = [
   },
 
   {
-  title: 'PROFIL & RÉGLAGES',
-  icon: 'person-circle-outline',
-  pages: [
-    {
-      title: 'Profil',
-      subtitle: 'Vue principale du profil',
-      route: '/profile',
-      icon: 'person-outline',
-    },
-    {
-      title: 'Niveau',
-      subtitle: 'Modifier le niveau sportif',
-      route: '/profile/level',
-      icon: 'speedometer-outline',
-    },
-    {
-      title: 'Objectif',
-      subtitle: 'Modifier l’objectif principal',
-      route: '/profile/goal',
-      icon: 'trophy-outline',
-    },
-    {
-      title: 'Rythme',
-      subtitle: 'Objectif de séances par semaine',
-      route: '/profile/frequency',
-      icon: 'calendar-outline',
-    },
-    {
-      title: 'Gênes',
-      subtitle: 'Zones à prendre en compte',
-      route: '/profile/precautions',
-      icon: 'medkit-outline',
-    },
-    {
-      title: 'Informations personnelles',
-      subtitle: 'Données personnelles du compte',
-      route: '/profile/personal-information',
-      icon: 'id-card-outline',
-    },
-    {
-      title: 'Sécurité',
-      subtitle: 'Mot de passe et sécurité',
-      route: '/profile/security',
-      icon: 'shield-checkmark-outline',
-    },
-    {
-      title: 'Aide',
-      subtitle: 'Aide et support',
-      route: '/profile/help',
-      icon: 'help-circle-outline',
-    },
-  ],
-},
+    title: 'PROFIL & RÉGLAGES',
+    icon: 'person-circle-outline',
+    pages: [
+      {
+        title: 'Profil',
+        subtitle: 'Vue principale du profil',
+        route: '/profile',
+        icon: 'person-outline',
+      },
+      {
+        title: 'Niveau',
+        subtitle: 'Modifier le niveau sportif',
+        route: '/profile/level',
+        icon: 'speedometer-outline',
+      },
+      {
+        title: 'Objectif',
+        subtitle: 'Modifier l’objectif principal',
+        route: '/profile/goal',
+        icon: 'trophy-outline',
+      },
+      {
+        title: 'Rythme',
+        subtitle: 'Objectif de séances par semaine',
+        route: '/profile/frequency',
+        icon: 'calendar-outline',
+      },
+      {
+        title: 'Gênes',
+        subtitle: 'Zones à prendre en compte',
+        route: '/profile/precautions',
+        icon: 'medkit-outline',
+      },
+      {
+        title: 'Informations personnelles',
+        subtitle: 'Données personnelles du compte',
+        route: '/profile/personal-information',
+        icon: 'id-card-outline',
+      },
+      {
+        title: 'Sécurité',
+        subtitle: 'Mot de passe et sécurité',
+        route: '/profile/security',
+        icon: 'shield-checkmark-outline',
+      },
+      {
+        title: 'Aide',
+        subtitle: 'Aide et support',
+        route: '/profile/help',
+        icon: 'help-circle-outline',
+      },
+    ],
+  },
 
   {
     title: 'ENTRAÎNEMENT',
@@ -254,6 +254,12 @@ const SECTIONS = [
         subtitle: 'WOD complet et validation',
         route: '/workout/session',
         icon: 'flash-outline',
+      },
+      {
+        title: 'Séance · pilote design',
+        subtitle: 'Nouvelle direction éditoriale premium',
+        route: '/workbench/session-design',
+        icon: 'color-palette-outline',
       },
       {
         title: 'Fin de séance',
