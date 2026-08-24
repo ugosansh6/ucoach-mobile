@@ -23,6 +23,7 @@ import { useWorkout } from '../../src/contexts/WorkoutContext';
 import dashboardHero from '../../src/assets/dashboard-light-hero';
 
 const dashboardBackground = dashboardHero;
+const externalBackground = require('../../assets/backgrounds/welcome-default.jpg');
 const brandIcon = require('../../assets/branding/ugerod-icon.png');
 
 const KHAKI = '#646F5E';
@@ -193,7 +194,7 @@ function CoachCard({ headline, note }) {
   return (
     <View style={styles.coachCard}>
       <View style={styles.coachIcon}>
-        <Ionicons name="chatbubble-ellipses-outline" size={21} color={KHAKI} />
+        <Ionicons name="chatbubble-ellipses-outline" size={21} color={ORANGE} />
       </View>
 
       <View style={styles.coachCopy}>
@@ -201,7 +202,7 @@ function CoachCard({ headline, note }) {
         <Text style={styles.coachNote} numberOfLines={3}>{note}</Text>
       </View>
 
-      <Ionicons name="chevron-forward" size={19} color={TEXT_MUTED} />
+      <Ionicons name="chevron-forward" size={19} color={ORANGE} />
     </View>
   );
 }
@@ -217,7 +218,7 @@ function ExternalWorkoutCard() {
         onPress={() => setOpen((current) => !current)}
         style={({ pressed }) => [styles.externalCard, pressed && styles.pressed]}
       >
-        <Image source={dashboardBackground} style={styles.externalImage} resizeMode="cover" />
+        <Image source={externalBackground} style={styles.externalImage} resizeMode="cover" />
 
         <View style={styles.externalContent}>
           <View style={styles.externalTitleRow}>
@@ -229,8 +230,8 @@ function ExternalWorkoutCard() {
 
         <Ionicons
           name={open ? 'chevron-up' : 'chevron-down'}
-          size={19}
-          color={TEXT_MUTED}
+          size={20}
+          color={ORANGE}
         />
       </Pressable>
 
@@ -263,7 +264,7 @@ function ExternalWorkoutCard() {
               <Text style={styles.actionTitle}>RECORD / PR</Text>
               <Text style={styles.actionDescription}>Charge, reps, chrono ou référence.</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={TEXT_MUTED} />
+            <Ionicons name="chevron-forward" size={18} color={ORANGE} />
           </Pressable>
         </View>
       )}
@@ -413,7 +414,7 @@ function LightHistoryCalendar({
             <Ionicons
               name={calendarOpen ? 'close' : 'calendar-outline'}
               size={21}
-              color={calendarOpen ? KHAKI : TEXT_SECONDARY}
+              color={calendarOpen ? KHAKI : ORANGE}
             />
           </Pressable>
         </View>
@@ -735,7 +736,10 @@ export default function DashboardDesignLightWorkbench() {
                 <Text style={styles.greeting}>
                   {firstName ? `BONJOUR ${firstName.toUpperCase()}` : 'BONJOUR'}
                 </Text>
-                <View style={styles.greetingLine} />
+                <View style={styles.greetingAccentRow}>
+                  <View style={styles.greetingLine} />
+                  <View style={styles.greetingDot} />
+                </View>
                 <Text style={styles.heroTitle}>PRÊT À{`\n`}T’ENTRAÎNER ?</Text>
               </View>
 
@@ -869,12 +873,23 @@ const styles = StyleSheet.create({
     letterSpacing: 1.7,
     color: TEXT_SECONDARY,
   },
+  greetingAccentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
   greetingLine: {
     width: 34,
     height: 3,
-    marginTop: 8,
     borderRadius: 2,
     backgroundColor: KHAKI,
+  },
+  greetingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: ORANGE,
   },
   heroTitle: {
     marginTop: 16,
@@ -895,9 +910,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.86)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
     borderWidth: 1,
-    borderColor: 'rgba(100,111,94,0.20)',
+    borderColor: 'rgba(255,107,25,0.24)',
   },
   coachIcon: {
     width: 44,
@@ -905,7 +920,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: KHAKI_SOFT,
+    backgroundColor: ORANGE_SOFT,
   },
   coachCopy: {
     flex: 1,
@@ -958,9 +973,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: SURFACE,
+    backgroundColor: '#FFFDFC',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: 'rgba(255,107,25,0.30)',
     paddingRight: 14,
   },
   externalImage: {
@@ -979,9 +994,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   orangeAccent: {
-    width: 18,
-    height: 2,
-    borderRadius: 1,
+    width: 26,
+    height: 3,
+    borderRadius: 2,
     backgroundColor: ORANGE,
   },
   externalTitle: {
@@ -990,7 +1005,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
     letterSpacing: 0.65,
-    color: TEXT,
+    color: ORANGE,
   },
   externalDescription: {
     marginTop: 6,
@@ -1005,7 +1020,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: SURFACE,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: 'rgba(255,107,25,0.18)',
   },
   actionRow: {
     minHeight: 69,
@@ -1103,9 +1118,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: SURFACE,
+    backgroundColor: ORANGE_SOFT,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: 'rgba(255,107,25,0.30)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1162,12 +1177,12 @@ const styles = StyleSheet.create({
     color: TEXT_SECONDARY,
   },
   dayNumberToday: {
-    color: TEXT,
+    color: ORANGE,
   },
   todayDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: ORANGE,
   },
   fullCalendar: {
@@ -1210,7 +1225,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     lineHeight: 11,
     letterSpacing: 0.75,
-    color: KHAKI,
+    color: ORANGE,
   },
   calendarWeekLabels: {
     flexDirection: 'row',
