@@ -41,6 +41,10 @@ export default function PreparationScreen() {
     router.replace('/workout/session');
   }
 
+  function handleManualBuilder() {
+    router.push('/workout/builder');
+  }
+
   return (
     <View style={styles.screen}>
       <PreparationScreenContent />
@@ -90,7 +94,40 @@ export default function PreparationScreen() {
             />
           </Pressable>
         </View>
-      ) : null}
+      ) : (
+        <View style={styles.manualDock}>
+          <View style={styles.manualDockText}>
+            <Text style={styles.manualDockEyebrow}>
+              TU VEUX GARDER LA MAIN ?
+            </Text>
+            <Text style={styles.manualDockDescription}>
+              Compose toi-même les blocs, exercices, séries et charges.
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={handleManualBuilder}
+            style={({ pressed }) => [
+              styles.manualButton,
+              pressed && styles.resumeButtonPressed,
+            ]}
+          >
+            <Ionicons
+              name="construct-outline"
+              size={19}
+              color={colors.primaryLight}
+            />
+            <Text style={styles.manualButtonText}>
+              CRÉER MA SÉANCE
+            </Text>
+            <Ionicons
+              name="arrow-forward"
+              size={17}
+              color={colors.primaryLight}
+            />
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -172,5 +209,58 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     letterSpacing: 0.7,
     color: colors.brandWhite,
+  },
+
+  manualDock: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  manualDockText: {
+    flex: 1,
+  },
+
+  manualDockEyebrow: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 9,
+    lineHeight: 13,
+    letterSpacing: 0.55,
+    color: colors.textPrimary,
+  },
+
+  manualDockDescription: {
+    marginTop: 2,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 9,
+    lineHeight: 13,
+    color: colors.textMuted,
+  },
+
+  manualButton: {
+    minHeight: 42,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primaryTransparent,
+    borderWidth: 1,
+    borderColor: 'rgba(29,140,255,0.28)',
+  },
+
+  manualButtonText: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 9,
+    lineHeight: 13,
+    letterSpacing: 0.5,
+    color: colors.primaryLight,
   },
 });
