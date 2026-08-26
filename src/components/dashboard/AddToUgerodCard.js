@@ -17,6 +17,49 @@ export default function AddToUgerodCard() {
     <View style={styles.addSection}>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel="Créer ma séance"
+        onPress={() => router.push('/workout/builder')}
+        style={({ pressed }) => [
+          styles.manualCard,
+          pressed && styles.manualCardPressed,
+        ]}
+      >
+        <View style={styles.manualTopLine}>
+          <View style={styles.blueMarker} />
+          <Text style={styles.manualEyebrow}>SÉANCE PERSONNALISÉE</Text>
+        </View>
+
+        <View style={styles.manualTitleRow}>
+          <Text style={styles.manualTitle}>
+            CRÉER MA SÉANCE
+            <Text style={styles.blueDot}>.</Text>
+          </Text>
+
+          <View style={styles.manualIcon}>
+            <Ionicons
+              name="construct-outline"
+              size={22}
+              color={colors.brandWhite}
+            />
+          </View>
+        </View>
+
+        <Text style={styles.manualDescription}>
+          Choisis ton environnement, tes blocs et tes exercices. Ugerod contrôle la cohérence avant de démarrer.
+        </Text>
+
+        <View style={styles.manualCtaRow}>
+          <Text style={styles.manualCtaText}>CONSTRUIRE MA SÉANCE</Text>
+          <Ionicons
+            name="arrow-forward"
+            size={18}
+            color={colors.primaryLight}
+          />
+        </View>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
         accessibilityState={{ expanded: addOpen }}
         onPress={() => setAddOpen((current) => !current)}
         style={({ pressed }) => [
@@ -131,6 +174,83 @@ export default function AddToUgerodCard() {
 const styles = StyleSheet.create({
   addSection: {
     marginTop: 28,
+    gap: 10,
+  },
+  manualCard: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderRadius: 19,
+    backgroundColor: 'rgba(8,104,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(29,140,255,0.28)',
+  },
+  manualCardPressed: {
+    backgroundColor: 'rgba(8,104,255,0.16)',
+    transform: [{ scale: 0.992 }],
+  },
+  manualTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  blueMarker: {
+    width: 4,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: colors.primaryLight,
+  },
+  manualEyebrow: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 1.2,
+    color: colors.primaryLight,
+  },
+  manualTitleRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  manualTitle: {
+    flex: 1,
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 32,
+    lineHeight: 35,
+    letterSpacing: 1.5,
+    color: colors.textPrimary,
+  },
+  manualIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manualDescription: {
+    marginTop: 10,
+    maxWidth: 320,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  manualCtaRow: {
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(29,140,255,0.16)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  manualCtaText: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.8,
+    color: colors.primaryLight,
   },
   addCard: {
     paddingHorizontal: 20,
@@ -215,7 +335,6 @@ const styles = StyleSheet.create({
     color: colors.primaryLight,
   },
   addActions: {
-    marginTop: 8,
     overflow: 'hidden',
     borderRadius: 16,
     backgroundColor: 'rgba(13,17,22,0.97)',
