@@ -1,1 +1,1 @@
-export { default } from './dashboard-light-hero-v2';
+export { default } from './dashboard-dark-hero-v2';
