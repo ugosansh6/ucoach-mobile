@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v10-generation-rejection-observability";
+const VERSION = "coach-handler-v11-environment-gateway";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -25,6 +25,10 @@ type Payload = {
   local_date?: string | null;
   force_recalculate_started?: boolean;
   protected_session_exercise_ids?: string[];
+  environment_code?: string | null;
+  surface_code?: string | null;
+  environment_format_code?: string | null;
+  gym_execution_style?: string | null;
 };
 
 serve(async (req: Request) => {
@@ -52,6 +56,7 @@ serve(async (req: Request) => {
     const injuredZones = unique(body.injured_zones ?? []);
     const localDate = normalizeLocalDate(body.local_date);
     const protectedSessionExerciseIds = unique(body.protected_session_exercise_ids ?? []);
+    const environmentCode = normalizeEnvironment(body.environment_code);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles").select("experience").eq("id", userId).maybeSingle();
@@ -64,6 +69,83 @@ serve(async (req: Request) => {
       { p_user_id: userId, p_selected_names: equipment, p_policy_key: "c4-final-default" },
     );
     if (inventoryError) throw new Error(inventoryError.message);
+
+    if (environmentCode === "GYM" || environmentCode === "OUTDOOR") {
+      const { data: environmentGenerated, error: environmentError } = await supabase.rpc(
+        "generate_environment_session_v1",
+        {
+          p_user_id: userId,
+          p_environment_code: environmentCode,
+          p_surface_code: body.surface_code ?? null,
+          p_requested_format_code: body.environment_format_code ?? null,
+          p_execution_style: body.gym_execution_style ?? null,
+          p_user_focus: focusOverride ?? "General Fitness",
+          p_duration_minutes: duration,
+          p_readiness: readiness,
+          p_target_region: body.target_region ?? null,
+          p_progression_intent: normalizeIntent(body.progression_intent),
+          p_zone_terms: injuredZones,
+          p_inventory: inventory ?? [],
+          p_available_equipment: equipment,
+          p_max_complexity: maxComplexity,
+          p_max_difficulty: experience,
+          p_candidate_count: 20,
+          p_policy_key: "c4-final-default",
+          p_start_now: false,
+        },
+      );
+      if (environmentError) throw new Error(environmentError.message);
+
+      if (environmentGenerated?.status === "ENVIRONMENT_GENERATION_NOT_READY") {
+        return json(
+          {
+            error: "Ce mode d’entraînement n’est pas encore activé pour la génération automatique.",
+            code: "ENVIRONMENT_GENERATION_NOT_READY",
+            environment_code: environmentCode,
+            environment_policy: environmentGenerated?.policy ?? null,
+            version: VERSION,
+          },
+          409,
+        );
+      }
+
+      if (!["GENERATED", "STARTED"].includes(String(environmentGenerated?.status ?? ""))) {
+        return json(
+          {
+            error: "UGEROD n’a pas pu construire une séance suffisamment cohérente avec ce contexte.",
+            code: "NO_SAFE_COHERENT_SESSION",
+            generation_status: environmentGenerated?.status ?? "UNKNOWN",
+            environment_code: environmentCode,
+            version: VERSION,
+          },
+          422,
+        );
+      }
+
+      const workout = environmentGenerated?.generated_workout ?? {};
+      const sessionId = environmentGenerated?.session_id ?? null;
+      const coachNote = sessionId ? await getSessionCoachNote(supabase, sessionId) : null;
+
+      return json({
+        session_id: sessionId,
+        status: "generated",
+        version: VERSION,
+        ...(workout ?? {}),
+        generation_control_status: null,
+        context_recalculation_count: 0,
+        context_recalculation_limit: 0,
+        meta: {
+          ...(workout?.meta ?? {}),
+          backend_authority: "environment_session_generator_v1",
+          legacy_scaffold_authority: false,
+          environment_code: environmentCode,
+          environment_format_code: environmentGenerated?.format_code ?? body.environment_format_code ?? null,
+          gym_execution_style: body.gym_execution_style ?? workout?.meta?.execution_style?.style_code ?? null,
+          coach_note: coachNote,
+          format_preference_result: null,
+        },
+      });
+    }
 
     const { data: generated, error: generateError } = await supabase.rpc(
       "d_generate_adaptive_session_v2",
@@ -89,10 +171,7 @@ serve(async (req: Request) => {
     if (generateError) throw new Error(generateError.message);
 
     if (["STARTED_SESSION_CONFIRM_REQUIRED", "RECALC_LIMIT_REACHED"].includes(generated?.status)) {
-      return json({
-        ...(generated ?? {}),
-        version: VERSION,
-      });
+      return json({ ...(generated ?? {}), version: VERSION });
     }
 
     if (
@@ -130,13 +209,7 @@ serve(async (req: Request) => {
 
     if (!generated || generated.status !== "generated" || !generated.session_id) {
       const rejectionStatus = String(generated?.status ?? "UNKNOWN");
-      const rejectionReason =
-        generated?.reason ??
-        generated?.code ??
-        generated?.error ??
-        generated?.message ??
-        null;
-
+      const rejectionReason = generated?.reason ?? generated?.code ?? generated?.error ?? generated?.message ?? null;
       console.error(
         `${VERSION}: generation rejected`,
         JSON.stringify({
@@ -147,9 +220,9 @@ serve(async (req: Request) => {
           target_region: body.target_region ?? null,
           equipment_count: equipment.length,
           injured_zone_count: injuredZones.length,
+          environment_code: environmentCode,
         }),
       );
-
       return json(
         {
           error: "UGEROD n’a pas pu construire une séance suffisamment cohérente avec ce contexte. Réessaie ou ajuste un paramètre.",
@@ -215,7 +288,6 @@ serve(async (req: Request) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown coach error";
     console.error(VERSION, message);
-
     if (/statement timeout|canceling statement due to statement timeout/i.test(message)) {
       return json(
         {
@@ -225,15 +297,12 @@ serve(async (req: Request) => {
         503,
       );
     }
-
     return json({ error: message }, 400);
   }
 });
 
 async function getSessionCoachNote(supabase: any, sessionId: string) {
-  const { data, error } = await supabase.rpc("e_session_coach_note", {
-    p_session_id: sessionId,
-  });
+  const { data, error } = await supabase.rpc("e_session_coach_note", { p_session_id: sessionId });
   if (error) {
     console.error(`${VERSION}: coach note non-blocking`, error.message);
     return null;
@@ -243,21 +312,29 @@ async function getSessionCoachNote(supabase: any, sessionId: string) {
 
 function normalizeIntent(value: string | null | undefined) {
   const v = String(value ?? "").trim().toUpperCase();
-  return ["MAINTAIN","PROGRESS","CONSOLIDATE","DELOAD","RECALIBRATE","EXPLORE"].includes(v) ? v : null;
+  return ["MAINTAIN", "PROGRESS", "CONSOLIDATE", "DELOAD", "RECALIBRATE", "EXPLORE"].includes(v) ? v : null;
 }
 function normalizeFocus(value: string | null | undefined) {
   const v = String(value ?? "").trim();
-  return ["General Fitness","Fat Loss","Muscle Gain","Strength","Conditioning"].includes(v) ? v : null;
+  return ["General Fitness", "Fat Loss", "Muscle Gain", "Strength", "Conditioning"].includes(v) ? v : null;
 }
 function normalizeLocalDate(value: string | null | undefined) {
   const v = String(value ?? "").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 }
+function normalizeEnvironment(value: string | null | undefined) {
+  const v = String(value ?? "").trim().toUpperCase();
+  if (["HOME", "HOUSE", "MAISON"].includes(v)) return "HOME";
+  if (["BOX", "CROSSFIT", "CROSSFIT_BOX"].includes(v)) return "BOX";
+  if (["GYM", "GYM_BOX", "SALLE", "SALLE_DE_SPORT"].includes(v)) return "GYM";
+  if (["OUTDOOR", "EXTERIEUR", "EXTÉRIEUR"].includes(v)) return "OUTDOOR";
+  return "UNKNOWN";
+}
 function normalizeMechanic(value: string | null | undefined) {
   const raw = String(value ?? "").trim();
-  if (!raw || ["auto","automatic","automatique"].includes(raw.toLowerCase())) return null;
+  if (!raw || ["auto", "automatic", "automatique"].includes(raw.toLowerCase())) return null;
   const n = raw.toUpperCase().replace(/[\s\/-]+/g, "_");
-  const aliases: Record<string,string> = {
+  const aliases: Record<string, string> = {
     FORTIME: "FOR_TIME", FOR_TIME: "FOR_TIME", MUSCULATION: "STRENGTH",
     EVERY_X_MIN: "EVERY_X_MINUTES", EVERY_X_MINUTES: "EVERY_X_MINUTES",
     ODD_EVEN: "ODD_EVEN", REP_TARGET: "REP_TARGET", PROGRESSIVE: "PROGRESSIVE_INTERVAL",
@@ -274,8 +351,8 @@ function normalizeExperience(value: unknown) {
 function normalizeReadiness(value: number | string | undefined) {
   if (typeof value === "number" && Number.isFinite(value)) return clampInt(Math.round(value), 1, 10);
   const n = normalize(String(value ?? "normal"));
-  if (["faible","low"].includes(n)) return 3;
-  if (["olympique","high"].includes(n)) return 9;
+  if (["faible", "low"].includes(n)) return 3;
+  if (["olympique", "high"].includes(n)) return 9;
   const parsed = Number(n);
   return Number.isFinite(parsed) ? clampInt(parsed, 1, 10) : 6;
 }
