@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v11-environment-gateway";
+const VERSION = "coach-handler-v12-environment-lifecycle";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -72,7 +72,7 @@ serve(async (req: Request) => {
 
     if (environmentCode === "GYM" || environmentCode === "OUTDOOR") {
       const { data: environmentGenerated, error: environmentError } = await supabase.rpc(
-        "generate_environment_session_v1",
+        "generate_environment_session_v2",
         {
           p_user_id: userId,
           p_environment_code: environmentCode,
@@ -92,11 +92,14 @@ serve(async (req: Request) => {
           p_candidate_count: 20,
           p_policy_key: "c4-final-default",
           p_start_now: false,
+          p_anchor_date: localDate,
         },
       );
       if (environmentError) throw new Error(environmentError.message);
 
-      if (environmentGenerated?.status === "ENVIRONMENT_GENERATION_NOT_READY") {
+      const environmentStatus = String(environmentGenerated?.status ?? "");
+
+      if (environmentStatus === "ENVIRONMENT_GENERATION_NOT_READY") {
         return json(
           {
             error: "Ce mode d’entraînement n’est pas encore activé pour la génération automatique.",
@@ -109,12 +112,36 @@ serve(async (req: Request) => {
         );
       }
 
-      if (!["GENERATED", "STARTED"].includes(String(environmentGenerated?.status ?? ""))) {
+      if (environmentStatus === "ACTIVE_SESSION_CONFIRM_REQUIRED") {
+        return json(
+          {
+            ...environmentGenerated,
+            code: "ACTIVE_SESSION_CONFIRM_REQUIRED",
+            error: "Une séance est déjà en cours. Reprends-la avant de créer une nouvelle séance.",
+            version: VERSION,
+          },
+          409,
+        );
+      }
+
+      if (environmentStatus === "EXISTING_GENERATED_SESSION_CONFLICT") {
+        return json(
+          {
+            ...environmentGenerated,
+            code: "EXISTING_GENERATED_SESSION_CONFLICT",
+            error: "Une séance non commencée existe déjà pour aujourd’hui avec un autre contexte.",
+            version: VERSION,
+          },
+          409,
+        );
+      }
+
+      if (!["GENERATED", "STARTED", "RESUME_EXISTING"].includes(environmentStatus)) {
         return json(
           {
             error: "UGEROD n’a pas pu construire une séance suffisamment cohérente avec ce contexte.",
             code: "NO_SAFE_COHERENT_SESSION",
-            generation_status: environmentGenerated?.status ?? "UNKNOWN",
+            generation_status: environmentStatus || "UNKNOWN",
             environment_code: environmentCode,
             version: VERSION,
           },
@@ -125,22 +152,25 @@ serve(async (req: Request) => {
       const workout = environmentGenerated?.generated_workout ?? {};
       const sessionId = environmentGenerated?.session_id ?? null;
       const coachNote = sessionId ? await getSessionCoachNote(supabase, sessionId) : null;
+      const resumedExisting = environmentStatus === "RESUME_EXISTING";
 
       return json({
         session_id: sessionId,
         status: "generated",
         version: VERSION,
         ...(workout ?? {}),
-        generation_control_status: null,
+        generation_control_status: resumedExisting ? "resume_existing" : null,
         context_recalculation_count: 0,
         context_recalculation_limit: 0,
         meta: {
           ...(workout?.meta ?? {}),
-          backend_authority: "environment_session_generator_v1",
+          backend_authority: "environment_session_generator_v2",
           legacy_scaffold_authority: false,
           environment_code: environmentCode,
           environment_format_code: environmentGenerated?.format_code ?? body.environment_format_code ?? null,
           gym_execution_style: body.gym_execution_style ?? workout?.meta?.execution_style?.style_code ?? null,
+          resumed_existing_session: resumedExisting,
+          generation_control_status: resumedExisting ? "resume_existing" : null,
           coach_note: coachNote,
           format_preference_result: null,
         },
