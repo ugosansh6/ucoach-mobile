@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -10,52 +11,44 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '../../constants';
 
+const trainingImage = require('../../../assets/backgrounds/welcome-default.jpg');
+
 export default function AddToUgerodCard() {
   const [addOpen, setAddOpen] = useState(false);
 
   return (
-    <View style={styles.addSection}>
+    <View style={styles.section}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Créer ma séance"
         onPress={() => router.push('/workout/builder')}
         style={({ pressed }) => [
-          styles.manualCard,
-          pressed && styles.manualCardPressed,
+          styles.card,
+          pressed && styles.cardPressed,
         ]}
       >
-        <View style={styles.manualTopLine}>
-          <View style={styles.blueMarker} />
-          <Text style={styles.manualEyebrow}>SÉANCE PERSONNALISÉE</Text>
-        </View>
+        <Image
+          source={trainingImage}
+          style={styles.image}
+          resizeMode="cover"
+        />
 
-        <View style={styles.manualTitleRow}>
-          <Text style={styles.manualTitle}>
-            CRÉER MA SÉANCE
-            <Text style={styles.blueDot}>.</Text>
-          </Text>
-
-          <View style={styles.manualIcon}>
-            <Ionicons
-              name="construct-outline"
-              size={22}
-              color={colors.brandWhite}
-            />
+        <View style={styles.content}>
+          <View style={styles.titleRow}>
+            <View style={styles.blueAccent} />
+            <Text style={styles.title}>CRÉER MA SÉANCE</Text>
           </View>
+
+          <Text style={styles.description}>
+            Compose toi-même tes blocs et tes exercices.
+          </Text>
         </View>
 
-        <Text style={styles.manualDescription}>
-          Choisis ton environnement, tes blocs et tes exercices. Ugerod contrôle la cohérence avant de démarrer.
-        </Text>
-
-        <View style={styles.manualCtaRow}>
-          <Text style={styles.manualCtaText}>CONSTRUIRE MA SÉANCE</Text>
-          <Ionicons
-            name="arrow-forward"
-            size={18}
-            color={colors.primaryLight}
-          />
-        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={19}
+          color={colors.textMuted}
+        />
       </Pressable>
 
       <Pressable
@@ -63,49 +56,37 @@ export default function AddToUgerodCard() {
         accessibilityState={{ expanded: addOpen }}
         onPress={() => setAddOpen((current) => !current)}
         style={({ pressed }) => [
-          styles.addCard,
-          addOpen && styles.addCardOpen,
-          pressed && styles.addCardPressed,
+          styles.card,
+          addOpen && styles.cardOpen,
+          pressed && styles.cardPressed,
         ]}
       >
-        <View style={styles.addTopLine}>
-          <View style={styles.redMarker} />
-          <Text style={styles.addEyebrow}>AJOUTER À UGEROD</Text>
-        </View>
+        <Image
+          source={trainingImage}
+          style={styles.image}
+          resizeMode="cover"
+        />
 
-        <View style={styles.addTitleRow}>
-          <Text style={styles.addTitle}>
-            TU VIENS DE{`\n`}T’ENTRAÎNER
-            <Text style={styles.blueDot}>.</Text>
-          </Text>
-
-          <View style={styles.addToggleIcon}>
-            <Ionicons
-              name={addOpen ? 'chevron-up' : 'add'}
-              size={22}
-              color={colors.brandWhite}
-            />
+        <View style={styles.content}>
+          <View style={styles.titleRow}>
+            <View style={styles.redAccent} />
+            <Text style={styles.title}>TU VIENS DE T’ENTRAÎNER ?</Text>
           </View>
-        </View>
 
-        <Text style={styles.addDescription}>
-          Enregistre une séance réalisée ailleurs ou un nouveau record.
-        </Text>
-
-        <View style={styles.addCtaRow}>
-          <Text style={styles.addCtaText}>
-            {addOpen ? 'FERMER' : 'AJOUTER UNE PERFORMANCE'}
+          <Text style={styles.description}>
+            Ajoute une séance réalisée ailleurs.
           </Text>
-          <Ionicons
-            name={addOpen ? 'chevron-up' : 'chevron-down'}
-            size={17}
-            color={colors.primaryLight}
-          />
         </View>
+
+        <Ionicons
+          name={addOpen ? 'chevron-up' : 'chevron-down'}
+          size={19}
+          color={colors.textMuted}
+        />
       </Pressable>
 
       {addOpen && (
-        <View style={styles.addActions}>
+        <View style={styles.actions}>
           <Pressable
             onPress={() => router.push('/workout/external')}
             style={({ pressed }) => [
@@ -116,7 +97,7 @@ export default function AddToUgerodCard() {
             <View style={styles.actionIcon}>
               <Ionicons
                 name="barbell-outline"
-                size={20}
+                size={19}
                 color={colors.primaryLight}
               />
             </View>
@@ -147,7 +128,7 @@ export default function AddToUgerodCard() {
             <View style={[styles.actionIcon, styles.recordIcon]}>
               <Ionicons
                 name="trophy-outline"
-                size={20}
+                size={19}
                 color={colors.brandRed}
               />
             </View>
@@ -172,169 +153,71 @@ export default function AddToUgerodCard() {
 }
 
 const styles = StyleSheet.create({
-  addSection: {
+  section: {
     marginTop: 28,
-    gap: 10,
-  },
-  manualCard: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderRadius: 19,
-    backgroundColor: 'rgba(8,104,255,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(29,140,255,0.28)',
-  },
-  manualCardPressed: {
-    backgroundColor: 'rgba(8,104,255,0.16)',
-    transform: [{ scale: 0.992 }],
-  },
-  manualTopLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
   },
-  blueMarker: {
-    width: 4,
-    height: 16,
-    borderRadius: 2,
-    backgroundColor: colors.primaryLight,
-  },
-  manualEyebrow: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 1.2,
-    color: colors.primaryLight,
-  },
-  manualTitleRow: {
-    marginTop: 14,
+  card: {
+    minHeight: 92,
+    overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  manualTitle: {
-    flex: 1,
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: 1.5,
-    color: colors.textPrimary,
-  },
-  manualIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  manualDescription: {
-    marginTop: 10,
-    maxWidth: 320,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  manualCtaRow: {
-    marginTop: 18,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(29,140,255,0.16)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  manualCtaText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.8,
-    color: colors.primaryLight,
-  },
-  addCard: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderRadius: 19,
-    backgroundColor: 'rgba(17,21,26,0.92)',
+    borderRadius: 18,
+    backgroundColor: 'rgba(17,21,26,0.94)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.09)',
+    paddingRight: 14,
   },
-  addCardOpen: {
+  cardOpen: {
     borderColor: 'rgba(8,104,255,0.24)',
   },
-  addCardPressed: {
-    backgroundColor: 'rgba(23,28,34,0.94)',
+  cardPressed: {
+    opacity: 0.86,
     transform: [{ scale: 0.992 }],
   },
-  addTopLine: {
+  image: {
+    alignSelf: 'stretch',
+    width: 112,
+    minHeight: 92,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  redMarker: {
-    width: 4,
-    height: 16,
-    borderRadius: 2,
+  blueAccent: {
+    width: 18,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.primaryLight,
+  },
+  redAccent: {
+    width: 18,
+    height: 2,
+    borderRadius: 1,
     backgroundColor: colors.brandRed,
   },
-  addEyebrow: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 1.2,
-    color: colors.brandRed,
-  },
-  addTitleRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  addTitle: {
+  title: {
     flex: 1,
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: 1.5,
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 13,
+    lineHeight: 17,
+    letterSpacing: 0.65,
     color: colors.textPrimary,
   },
-  blueDot: {
-    color: colors.primary,
-  },
-  addToggleIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addDescription: {
-    marginTop: 10,
-    maxWidth: 310,
+  description: {
+    marginTop: 6,
     fontFamily: 'Oswald_400Regular',
     fontSize: 12,
-    lineHeight: 18,
-    color: colors.textSecondary,
+    lineHeight: 17,
+    color: colors.textMuted,
   },
-  addCtaRow: {
-    marginTop: 18,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.07)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  addCtaText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.8,
-    color: colors.primaryLight,
-  },
-  addActions: {
+  actions: {
     overflow: 'hidden',
     borderRadius: 16,
     backgroundColor: 'rgba(13,17,22,0.97)',
@@ -342,23 +225,23 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.09)',
   },
   actionRow: {
-    minHeight: 72,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    minHeight: 69,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   actionRowPressed: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
   },
   actionIcon: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(8,104,255,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(8,104,255,0.10)',
   },
   recordIcon: {
     backgroundColor: 'rgba(255,59,59,0.08)',
@@ -367,22 +250,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   actionTitle: {
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: 'Oswald_600SemiBold',
     fontSize: 12,
     lineHeight: 16,
-    letterSpacing: 0.6,
+    letterSpacing: 0.55,
     color: colors.textPrimary,
   },
   actionDescription: {
     marginTop: 3,
     fontFamily: 'Oswald_400Regular',
     fontSize: 11,
-    lineHeight: 16,
+    lineHeight: 15,
     color: colors.textMuted,
   },
   actionDivider: {
     height: 1,
-    marginLeft: 65,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginLeft: 64,
+    backgroundColor: 'rgba(255,255,255,0.055)',
   },
 });
