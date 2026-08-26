@@ -1,1 +1,1 @@
-export { default } from './workbench/dashboard-design';
+export { default } from '../src/components/dashboard/DarkDashboardScreen';
