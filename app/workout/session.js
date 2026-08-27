@@ -121,7 +121,7 @@ export default function SessionScreen() {
     <View style={styles.root}>
       <SessionCore />
 
-      {canChangeSkill ? (
+      {canUsePlanB ? (
         <Pressable
           onPress={() => setSheetOpen(true)}
           style={({ pressed }) => [
@@ -193,7 +193,9 @@ export default function SessionScreen() {
             </View>
 
             <Text style={styles.explanation}>
-              Aucun besoin de déclarer une gêne. Ton choix vaut pour aujourd’hui : il ne baisse pas ton niveau et ne crée aucune séance à rattraper.
+              {hasSkill
+                ? 'Aucun besoin de déclarer une gêne. Ton choix vaut pour aujourd’hui : il ne baisse pas ton niveau et ne crée aucune séance à rattraper.'
+                : 'Tu peux demander une autre proposition avant de commencer. Le même check-in est conservé et aucune séance à rattraper n’est créée.'}
             </Text>
 
             <ScrollView
@@ -201,121 +203,157 @@ export default function SessionScreen() {
               contentContainerStyle={styles.optionsContent}
               showsVerticalScrollIndicator={false}
             >
-              <Pressable
-                disabled={Boolean(busyAction)}
-                onPress={() =>
-                  applySkillPlanB('ALTERNATE_SKILL')
-                }
-                style={({ pressed }) => [
-                  styles.option,
-                  styles.primaryOption,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.optionIcon}>
-                  {busyAction === 'ALTERNATE_SKILL' ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={colors.brandWhite}
-                    />
-                  ) : (
+              {hasSkill ? (
+                <>
+                  <Pressable
+                    disabled={Boolean(busyAction)}
+                    onPress={() =>
+                      applySkillPlanB('ALTERNATE_SKILL')
+                    }
+                    style={({ pressed }) => [
+                      styles.option,
+                      styles.primaryOption,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={styles.optionIcon}>
+                      {busyAction === 'ALTERNATE_SKILL' ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.brandWhite}
+                        />
+                      ) : (
+                        <Ionicons
+                          name="swap-horizontal"
+                          size={20}
+                          color={colors.brandWhite}
+                        />
+                      )}
+                    </View>
+                    <View style={styles.optionCopy}>
+                      <Text style={styles.primaryOptionTitle}>
+                        UN AUTRE SKILL AUJOURD’HUI
+                      </Text>
+                      <Text style={styles.primaryOptionBody}>
+                        UGEROD choisit un autre parcours compatible et reconstruit l’échauffement spécifique.
+                      </Text>
+                    </View>
                     <Ionicons
-                      name="swap-horizontal"
-                      size={20}
+                      name="chevron-forward"
+                      size={18}
                       color={colors.brandWhite}
                     />
-                  )}
-                </View>
-                <View style={styles.optionCopy}>
-                  <Text style={styles.primaryOptionTitle}>
-                    UN AUTRE SKILL AUJOURD’HUI
-                  </Text>
-                  <Text style={styles.primaryOptionBody}>
-                    UGEROD choisit un autre parcours compatible et reconstruit l’échauffement spécifique.
-                  </Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={colors.brandWhite}
-                />
-              </Pressable>
+                  </Pressable>
 
-              <Pressable
-                disabled={Boolean(busyAction)}
-                onPress={() =>
-                  applySkillPlanB('SKIP_SKILL')
-                }
-                style={({ pressed }) => [
-                  styles.option,
-                  styles.secondaryOption,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.secondaryIcon}>
-                  {busyAction === 'SKIP_SKILL' ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={colors.textPrimary}
-                    />
-                  ) : (
+                  <Pressable
+                    disabled={Boolean(busyAction)}
+                    onPress={() =>
+                      applySkillPlanB('SKIP_SKILL')
+                    }
+                    style={({ pressed }) => [
+                      styles.option,
+                      styles.secondaryOption,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={styles.secondaryIcon}>
+                      {busyAction === 'SKIP_SKILL' ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.textPrimary}
+                        />
+                      ) : (
+                        <Ionicons
+                          name="remove-circle-outline"
+                          size={20}
+                          color={colors.textPrimary}
+                        />
+                      )}
+                    </View>
+                    <View style={styles.optionCopy}>
+                      <Text style={styles.secondaryOptionTitle}>
+                        PAS DE SKILL AUJOURD’HUI
+                      </Text>
+                      <Text style={styles.secondaryOptionBody}>
+                        Le bloc disparaît. Le reste de la séance est réorganisé uniquement si cela reste cohérent et sûr.
+                      </Text>
+                    </View>
                     <Ionicons
-                      name="remove-circle-outline"
-                      size={20}
-                      color={colors.textPrimary}
+                      name="chevron-forward"
+                      size={18}
+                      color={colors.textMuted}
                     />
-                  )}
-                </View>
-                <View style={styles.optionCopy}>
-                  <Text style={styles.secondaryOptionTitle}>
-                    PAS DE SKILL AUJOURD’HUI
-                  </Text>
-                  <Text style={styles.secondaryOptionBody}>
-                    Le bloc disparaît. Le reste de la séance est réorganisé uniquement si cela reste cohérent et sûr.
-                  </Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={colors.textMuted}
-                />
-              </Pressable>
+                  </Pressable>
+                </>
+              ) : null}
 
               <Pressable
                 disabled={Boolean(busyAction)}
                 onPress={applyWholePlanB}
                 style={({ pressed }) => [
                   styles.option,
-                  styles.secondaryOption,
+                  hasSkill
+                    ? styles.secondaryOption
+                    : styles.primaryOption,
                   pressed && styles.pressed,
                 ]}
               >
-                <View style={styles.secondaryIcon}>
+                <View
+                  style={
+                    hasSkill
+                      ? styles.secondaryIcon
+                      : styles.optionIcon
+                  }
+                >
                   {busyAction === 'ALTERNATE_SESSION' ? (
                     <ActivityIndicator
                       size="small"
-                      color={colors.textPrimary}
+                      color={
+                        hasSkill
+                          ? colors.textPrimary
+                          : colors.brandWhite
+                      }
                     />
                   ) : (
                     <Ionicons
                       name="refresh-outline"
                       size={20}
-                      color={colors.textPrimary}
+                      color={
+                        hasSkill
+                          ? colors.textPrimary
+                          : colors.brandWhite
+                      }
                     />
                   )}
                 </View>
                 <View style={styles.optionCopy}>
-                  <Text style={styles.secondaryOptionTitle}>
+                  <Text
+                    style={
+                      hasSkill
+                        ? styles.secondaryOptionTitle
+                        : styles.primaryOptionTitle
+                    }
+                  >
                     UNE AUTRE SÉANCE
                   </Text>
-                  <Text style={styles.secondaryOptionBody}>
+                  <Text
+                    style={
+                      hasSkill
+                        ? styles.secondaryOptionBody
+                        : styles.primaryOptionBody
+                    }
+                  >
                     Même durée, matériel et forme du jour. UGEROD reconstruit une proposition suffisamment différente.
                   </Text>
                 </View>
                 <Ionicons
                   name="chevron-forward"
                   size={18}
-                  color={colors.textMuted}
+                  color={
+                    hasSkill
+                      ? colors.textMuted
+                      : colors.brandWhite
+                  }
                 />
               </Pressable>
             </ScrollView>
