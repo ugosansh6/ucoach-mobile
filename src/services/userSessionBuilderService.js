@@ -222,7 +222,7 @@ export async function validateUserSessionDraft(
   draftId
 ) {
   const { data, error } = await supabase.rpc(
-    'validate_user_session_draft_v1',
+    'validate_user_session_draft_v2',
     {
       p_draft_id: draftId,
       p_max_complexity: 3,
@@ -244,7 +244,7 @@ export async function commitUserSessionDraft({
   acceptWarnings = false,
 }) {
   const { data, error } = await supabase.rpc(
-    'commit_user_session_draft_v1',
+    'commit_user_session_draft_v2',
     {
       p_draft_id: draftId,
       p_start_now: startNow,
