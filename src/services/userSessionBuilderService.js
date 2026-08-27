@@ -170,10 +170,13 @@ export async function getUserSessionBuilderExercises({
   draftId,
   moduleCode,
   query = null,
-  limit = 60,
+  limit = 80,
+  trainingCategory = null,
+  bodyRegion = null,
+  includeUnavailable = false,
 }) {
   const { data, error } = await supabase.rpc(
-    'get_user_session_builder_exercises_v1',
+    'get_user_session_builder_exercises_v2',
     {
       p_draft_id: draftId,
       p_module_code: moduleCode,
@@ -181,6 +184,9 @@ export async function getUserSessionBuilderExercises({
       p_limit: limit,
       p_max_complexity: 3,
       p_max_difficulty: 'Intermédiaire',
+      p_training_category: trainingCategory,
+      p_body_region: bodyRegion,
+      p_include_unavailable: Boolean(includeUnavailable),
     }
   );
 
@@ -192,6 +198,24 @@ export async function getUserSessionBuilderExercises({
   return data ?? {
     results: [],
   };
+}
+
+export async function suggestUserSessionBuilderWodDuration(
+  draftId
+) {
+  const { data, error } = await supabase.rpc(
+    'suggest_user_session_builder_wod_duration_v1',
+    {
+      p_draft_id: draftId,
+    }
+  );
+
+  throwRpcError(
+    error,
+    'Impossible de proposer une durée de WOD.'
+  );
+
+  return data ?? null;
 }
 
 export async function validateUserSessionDraft(
