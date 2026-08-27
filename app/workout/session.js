@@ -5,6 +5,7 @@ import {
   Modal,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -14,7 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import SessionCore from './session-core';
 import { colors, spacing } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
-import { changeWorkoutSkillPlan } from '../../src/services/skillPlanService';
+import {
+  changeWholeWorkoutPlan,
+  changeWorkoutSkillPlan,
+} from '../../src/services/skillPlanService';
 
 export default function SessionScreen() {
   const {
@@ -48,13 +52,15 @@ export default function SessionScreen() {
     [workout.exercises, workout.rawBlocks]
   );
 
-  const canChangeSkill =
+  const canUsePlanB =
     Boolean(workout.sessionId) &&
-    hasSkill &&
     !workout.sessionStarted &&
     workout.status !== 'in_progress';
 
-  async function applyPlanB(action) {
+  const canChangeSkill =
+    canUsePlanB && hasSkill;
+
+  async function applySkillPlanB(action) {
     if (busyAction || !canChangeSkill) {
       return;
     }
@@ -83,6 +89,34 @@ export default function SessionScreen() {
     }
   }
 
+  async function applyWholePlanB() {
+    if (busyAction || !canUsePlanB) {
+      return;
+    }
+
+    try {
+      setBusyAction('ALTERNATE_SESSION');
+
+      const { workout: nextWorkout } =
+        await changeWholeWorkoutPlan({
+          sessionId: workout.sessionId,
+          preparationSnapshot:
+            workout.preparationSnapshot ?? null,
+        });
+
+      setGeneratedWorkout(nextWorkout);
+      setSheetOpen(false);
+    } catch (error) {
+      Alert.alert(
+        'Impossible de proposer une autre séance',
+        error?.message ??
+          'Aucune autre proposition suffisamment différente n’a été trouvée.'
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <View style={styles.root}>
       <SessionCore />
@@ -101,7 +135,7 @@ export default function SessionScreen() {
             color={colors.textPrimary}
           />
           <Text style={styles.changeSkillText}>
-            CHANGER LE SKILL
+            PLAN B
           </Text>
         </Pressable>
       ) : null}
@@ -140,7 +174,7 @@ export default function SessionScreen() {
                   PLAN B
                 </Text>
                 <Text style={styles.title}>
-                  PAS CE SKILL AUJOURD’HUI ?
+                  ENVIE D’AUTRE CHOSE AUJOURD’HUI ?
                 </Text>
               </View>
 
@@ -159,88 +193,132 @@ export default function SessionScreen() {
             </View>
 
             <Text style={styles.explanation}>
-              Aucun besoin de déclarer une gêne. Ce choix vaut uniquement pour aujourd’hui : il ne change ni ton niveau, ni ton cycle de progression.
+              Aucun besoin de déclarer une gêne. Ton choix vaut pour aujourd’hui : il ne baisse pas ton niveau et ne crée aucune séance à rattraper.
             </Text>
 
-            <Pressable
-              disabled={Boolean(busyAction)}
-              onPress={() =>
-                applyPlanB('ALTERNATE_SKILL')
-              }
-              style={({ pressed }) => [
-                styles.option,
-                styles.primaryOption,
-                pressed && styles.pressed,
-              ]}
+            <ScrollView
+              style={styles.optionsScroll}
+              contentContainerStyle={styles.optionsContent}
+              showsVerticalScrollIndicator={false}
             >
-              <View style={styles.optionIcon}>
-                {busyAction === 'ALTERNATE_SKILL' ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.brandWhite}
-                  />
-                ) : (
-                  <Ionicons
-                    name="swap-horizontal"
-                    size={20}
-                    color={colors.brandWhite}
-                  />
-                )}
-              </View>
-              <View style={styles.optionCopy}>
-                <Text style={styles.primaryOptionTitle}>
-                  UN AUTRE SKILL AUJOURD’HUI
-                </Text>
-                <Text style={styles.primaryOptionBody}>
-                  UGEROD choisit un autre parcours compatible et reconstruit l’échauffement spécifique.
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={colors.brandWhite}
-              />
-            </Pressable>
+              <Pressable
+                disabled={Boolean(busyAction)}
+                onPress={() =>
+                  applySkillPlanB('ALTERNATE_SKILL')
+                }
+                style={({ pressed }) => [
+                  styles.option,
+                  styles.primaryOption,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.optionIcon}>
+                  {busyAction === 'ALTERNATE_SKILL' ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.brandWhite}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="swap-horizontal"
+                      size={20}
+                      color={colors.brandWhite}
+                    />
+                  )}
+                </View>
+                <View style={styles.optionCopy}>
+                  <Text style={styles.primaryOptionTitle}>
+                    UN AUTRE SKILL AUJOURD’HUI
+                  </Text>
+                  <Text style={styles.primaryOptionBody}>
+                    UGEROD choisit un autre parcours compatible et reconstruit l’échauffement spécifique.
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={colors.brandWhite}
+                />
+              </Pressable>
 
-            <Pressable
-              disabled={Boolean(busyAction)}
-              onPress={() =>
-                applyPlanB('SKIP_SKILL')
-              }
-              style={({ pressed }) => [
-                styles.option,
-                styles.secondaryOption,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.secondaryIcon}>
-                {busyAction === 'SKIP_SKILL' ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.textPrimary}
-                  />
-                ) : (
-                  <Ionicons
-                    name="remove-circle-outline"
-                    size={20}
-                    color={colors.textPrimary}
-                  />
-                )}
-              </View>
-              <View style={styles.optionCopy}>
-                <Text style={styles.secondaryOptionTitle}>
-                  PAS DE SKILL AUJOURD’HUI
-                </Text>
-                <Text style={styles.secondaryOptionBody}>
-                  Le bloc disparaît. Les minutes libérées ne sont réutilisées que si la séance reste cohérente et sûre.
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={colors.textMuted}
-              />
-            </Pressable>
+              <Pressable
+                disabled={Boolean(busyAction)}
+                onPress={() =>
+                  applySkillPlanB('SKIP_SKILL')
+                }
+                style={({ pressed }) => [
+                  styles.option,
+                  styles.secondaryOption,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.secondaryIcon}>
+                  {busyAction === 'SKIP_SKILL' ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.textPrimary}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="remove-circle-outline"
+                      size={20}
+                      color={colors.textPrimary}
+                    />
+                  )}
+                </View>
+                <View style={styles.optionCopy}>
+                  <Text style={styles.secondaryOptionTitle}>
+                    PAS DE SKILL AUJOURD’HUI
+                  </Text>
+                  <Text style={styles.secondaryOptionBody}>
+                    Le bloc disparaît. Le reste de la séance est réorganisé uniquement si cela reste cohérent et sûr.
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={colors.textMuted}
+                />
+              </Pressable>
+
+              <Pressable
+                disabled={Boolean(busyAction)}
+                onPress={applyWholePlanB}
+                style={({ pressed }) => [
+                  styles.option,
+                  styles.secondaryOption,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.secondaryIcon}>
+                  {busyAction === 'ALTERNATE_SESSION' ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.textPrimary}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="refresh-outline"
+                      size={20}
+                      color={colors.textPrimary}
+                    />
+                  )}
+                </View>
+                <View style={styles.optionCopy}>
+                  <Text style={styles.secondaryOptionTitle}>
+                    UNE AUTRE SÉANCE
+                  </Text>
+                  <Text style={styles.secondaryOptionBody}>
+                    Même durée, matériel et forme du jour. UGEROD reconstruit une proposition suffisamment différente.
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={colors.textMuted}
+                />
+              </Pressable>
+            </ScrollView>
 
             <Pressable
               disabled={Boolean(busyAction)}
@@ -251,7 +329,7 @@ export default function SessionScreen() {
               ]}
             >
               <Text style={styles.keepText}>
-                GARDER CE SKILL
+                GARDER LA SÉANCE
               </Text>
             </Pressable>
           </View>
@@ -298,6 +376,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.72)',
   },
   sheet: {
+    maxHeight: '84%',
     paddingHorizontal: spacing.xl,
     paddingTop: 9,
     paddingBottom: 18,
@@ -339,8 +418,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: 'BebasNeue_400Regular',
-    fontSize: 24,
-    lineHeight: 27,
+    fontSize: 22,
+    lineHeight: 25,
     letterSpacing: 1,
     color: colors.textPrimary,
   },
@@ -361,9 +440,15 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: colors.textSecondary,
   },
+  optionsScroll: {
+    marginTop: 2,
+  },
+  optionsContent: {
+    paddingBottom: 2,
+  },
   option: {
     minHeight: 82,
-    marginTop: 12,
+    marginTop: 10,
     borderRadius: 15,
     paddingHorizontal: 13,
     paddingVertical: 12,
