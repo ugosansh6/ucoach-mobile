@@ -1881,7 +1881,7 @@ function ExercisePicker({
           <Text style={styles.filterLabel}>ZONE</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             {REGION_FILTERS.map(([key, label]) => (
-              <Chip key={key} label={label} selected={regionFilter === key} onPress={() => onTrainingFilter(key)} />
+              <Chip key={key} label={label} selected={regionFilter === key} onPress={() => onRegionFilter(key)} />
             ))}
           </ScrollView>
 
