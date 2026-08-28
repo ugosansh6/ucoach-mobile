@@ -47,6 +47,33 @@ const AUTO_MODULES = new Set(['UNLOCK', 'WARMUP']);
 const LOAD_CAPABLE_EQUIPMENT_IDS = new Set(['E03', 'E04', 'E09', 'E14']);
 const PRIMARY_WOD_MECHANICS = new Set(['AMRAP', 'FOR_TIME', 'EMOM', 'CIRCUIT']);
 
+const CONDITIONING_MODES = [
+  {
+    mechanic_key: 'RUN_CONTINUOUS',
+    label_fr: 'Allure modérée',
+    description_fr: 'Course continue à un rythme confortable : tu peux encore parler.',
+    requires_intervals: false,
+  },
+  {
+    mechanic_key: 'RUN_INTERVALS',
+    label_fr: 'Intervalles',
+    description_fr: 'Alterne des temps d’effort et de récupération que tu définis.',
+    requires_intervals: true,
+  },
+  {
+    mechanic_key: 'RUN_FARTLEK',
+    label_fr: 'Fartlek',
+    description_fr: 'Alterne des phases plus vives et des phases à allure modérée.',
+    requires_intervals: true,
+  },
+];
+
+const RUNNING_FAMILY_BY_MECHANIC = {
+  RUN_CONTINUOUS: 'EASY_CONTINUOUS',
+  RUN_INTERVALS: 'MEDIUM_INTERVALS',
+  RUN_FARTLEK: 'GUIDED_FARTLEK',
+};
+
 const ENVIRONMENT_ICONS = {
   HOME: 'home-outline',
   BOX: 'flash-outline',
@@ -72,7 +99,7 @@ const MODULE_META = {
   STRENGTH: ['Musculation', 'Séries · reps · charge · repos', 'barbell-outline'],
   WOD: ['WOD', 'AMRAP · For Time · EMOM · Circuit', 'flash-outline'],
   CARDIO: ['Cardio', 'Machine ou effort continu', 'heart-outline'],
-  CONDITIONING: ['Conditioning', 'Effort cardio / métabolique', 'pulse-outline'],
+  CONDITIONING: ['Conditioning', 'Course · intervalles · fartlek', 'pulse-outline'],
 };
 
 const TRAINING_FILTERS = [
@@ -103,6 +130,11 @@ const ISSUE_LABELS = {
   BLOCK_EMPTY: 'Un bloc ne contient encore aucun exercice.',
   DUPLICATE_EXERCISE: 'Un même exercice apparaît plusieurs fois dans la séance.',
   MODULE_NOT_ALLOWED: 'Ce type de bloc n’est pas disponible dans ce contexte.',
+  CONDITIONING_MODE_REQUIRED: 'Choisis un type de conditioning.',
+  CONDITIONING_MODE_NOT_AVAILABLE: 'Ce type de conditioning n’est pas disponible ici.',
+  RUNNING_CONDITIONING_REQUIRES_COURSE: 'Ce mode de conditioning utilise la course comme mouvement de référence.',
+  RUNNING_INTERVAL_STRUCTURE_REQUIRED: 'Renseigne le nombre de répétitions, le temps d’effort et la récupération.',
+  RUNNING_BLOCK_TOO_SHORT: 'Prévois au moins 8 minutes pour ce bloc de course.',
 };
 
 function readinessFromScore(score) {
@@ -200,6 +232,9 @@ function createBlock(moduleCode, gymStyles, wodMechanics) {
   if (moduleCode === 'WOD') {
     settings.mechanic_key = defaultWodMechanic(wodMechanics);
   }
+  if (moduleCode === 'CONDITIONING') {
+    settings.mechanic_key = 'RUN_CONTINUOUS';
+  }
   if (moduleCode === 'TABATA' || moduleCode === 'TABATA_ABS') {
     settings.rounds = 8;
     settings.work_seconds = 20;
@@ -239,6 +274,20 @@ function semanticExerciseText(item) {
     .join(' · ');
 }
 
+function conditioningTotalSeconds(block) {
+  const mechanic = block.settings?.mechanic_key;
+  if (mechanic === 'RUN_CONTINUOUS') {
+    const minutes = toNumber(block.duration_minutes);
+    return minutes != null ? Math.round(minutes * 60) : null;
+  }
+
+  const repeats = toNumber(block.settings?.repeats);
+  const work = toNumber(block.settings?.work_seconds);
+  const recovery = toNumber(block.settings?.recovery_seconds);
+  if (repeats == null || work == null || recovery == null) return null;
+  return Math.round(repeats * (work + recovery));
+}
+
 function buildPrescription(block, item) {
   const source = item.prescription ?? {};
   const prescription = {};
@@ -267,6 +316,23 @@ function buildPrescription(block, item) {
       rest_seconds: 10,
     };
     return prescription;
+  }
+
+  if (block.module_code === 'CONDITIONING') {
+    const mechanic = block.settings?.mechanic_key ?? null;
+    const totalSeconds = conditioningTotalSeconds(block);
+    const mode = CONDITIONING_MODES.find((entry) => entry.mechanic_key === mechanic);
+
+    prescription.mechanic = mechanic;
+    prescription.running_family_code = RUNNING_FAMILY_BY_MECHANIC[mechanic] ?? null;
+    if (totalSeconds != null) prescription.duration_seconds = totalSeconds;
+    prescription.text = totalSeconds != null
+      ? `${Math.round((totalSeconds / 60) * 10) / 10} min · ${mode?.label_fr ?? 'Conditioning'}`
+      : mode?.label_fr ?? 'Conditioning';
+
+    return Object.fromEntries(
+      Object.entries(prescription).filter(([, value]) => value != null && value !== '')
+    );
   }
 
   const semantic = semanticExerciseText(item);
@@ -511,6 +577,9 @@ export default function UserSessionBuilderV3() {
   const wodMechanics = (bootstrap?.wod_mechanics ?? []).filter((item) =>
     PRIMARY_WOD_MECHANICS.has(item.mechanic_key)
   );
+  const conditioningModes = bootstrap?.outdoor_conditioning_modes?.length
+    ? bootstrap.outdoor_conditioning_modes
+    : CONDITIONING_MODES;
 
   const manualMinutes = blocks.reduce(
     (total, block) => total + (toNumber(block.duration_minutes) ?? 0),
@@ -615,6 +684,13 @@ export default function UserSessionBuilderV3() {
         }
       } catch {
         // Le WOD reste éditable même si la suggestion de durée n'est pas disponible.
+      }
+    }
+
+    if (moduleCode === 'CONDITIONING' && environmentCode === 'OUTDOOR') {
+      const runningExercise = bootstrap?.outdoor_conditioning_exercise;
+      if (runningExercise?.exercise_id) {
+        nextBlock.items = [exerciseFromResult(runningExercise)];
       }
     }
 
@@ -863,6 +939,7 @@ export default function UserSessionBuilderV3() {
             automaticModules={automaticModules}
             gymStyles={gymStyles}
             wodMechanics={wodMechanics}
+            conditioningModes={conditioningModes}
             sessionMinutes={durationMinutes}
             manualMinutes={manualMinutes}
             onAddBlock={addBlock}
@@ -1110,6 +1187,7 @@ function BuildStep({
   automaticModules,
   gymStyles,
   wodMechanics,
+  conditioningModes,
   sessionMinutes,
   manualMinutes,
   onAddBlock,
@@ -1180,6 +1258,7 @@ function BuildStep({
           total={blocks.length}
           gymStyles={gymStyles}
           wodMechanics={wodMechanics}
+          conditioningModes={conditioningModes}
           onPatch={(patch) => onPatchBlock(blockIndex, patch)}
           onSettings={(patch) => onPatchBlockSettings(blockIndex, patch)}
           onRemove={() => onRemoveBlock(blockIndex)}
@@ -1202,6 +1281,7 @@ function DraggableBlock({
   total,
   gymStyles,
   wodMechanics,
+  conditioningModes,
   onPatch,
   onSettings,
   onRemove,
@@ -1233,6 +1313,8 @@ function DraggableBlock({
     [index, total, onReorder, translateY]
   );
 
+  const isConditioning = block.module_code === 'CONDITIONING';
+
   return (
     <Animated.View style={[styles.blockCard, { transform: [{ translateY }] }]}>
       <View style={styles.blockHeader}>
@@ -1255,6 +1337,13 @@ function DraggableBlock({
         <WodSettingsEditor
           block={block}
           wodMechanics={wodMechanics}
+          onPatch={onPatch}
+          onSettings={onSettings}
+        />
+      ) : isConditioning ? (
+        <ConditioningSettingsEditor
+          block={block}
+          modes={conditioningModes}
           onPatch={onPatch}
           onSettings={onSettings}
         />
@@ -1297,24 +1386,140 @@ function DraggableBlock({
         />
       )}
 
-      {block.items.map((item, itemIndex) => (
-        <ExerciseEditor
-          key={item.clientId}
-          block={block}
-          item={item}
-          itemIndex={itemIndex}
-          itemCount={block.items.length}
-          onPrescription={(key, value) => onPatchPrescription(itemIndex, key, value)}
-          onRemove={() => onRemoveItem(itemIndex)}
-          onReorder={(offset) => onReorderItem(itemIndex, offset)}
-        />
-      ))}
+      {isConditioning ? (
+        <View style={styles.fixedProtocolCard}>
+          <Ionicons name="walk-outline" size={20} color={colors.primaryLight} />
+          <View style={styles.flex}>
+            <Text style={styles.fixedProtocolTitle}>COURSE</Text>
+            <Text style={styles.muted}>UGEROD utilise le mouvement Course pour ce bloc et enregistre uniquement ce que tu réalises.</Text>
+          </View>
+        </View>
+      ) : (
+        block.items.map((item, itemIndex) => (
+          <ExerciseEditor
+            key={item.clientId}
+            block={block}
+            item={item}
+            itemIndex={itemIndex}
+            itemCount={block.items.length}
+            onPrescription={(key, value) => onPatchPrescription(itemIndex, key, value)}
+            onRemove={() => onRemoveItem(itemIndex)}
+            onReorder={(offset) => onReorderItem(itemIndex, offset)}
+          />
+        ))
+      )}
 
-      <Pressable onPress={onAddExercise} style={styles.addExerciseButton}>
-        <Ionicons name="add" size={20} color={colors.primaryLight} />
-        <Text style={styles.addExerciseText}>AJOUTER UN EXERCICE</Text>
-      </Pressable>
+      {!isConditioning ? (
+        <Pressable onPress={onAddExercise} style={styles.addExerciseButton}>
+          <Ionicons name="add" size={20} color={colors.primaryLight} />
+          <Text style={styles.addExerciseText}>AJOUTER UN EXERCICE</Text>
+        </Pressable>
+      ) : null}
     </Animated.View>
+  );
+}
+
+function ConditioningSettingsEditor({ block, modes, onPatch, onSettings }) {
+  const mechanic = block.settings?.mechanic_key ?? 'RUN_CONTINUOUS';
+  const mode = modes.find((entry) => entry.mechanic_key === mechanic) ?? modes[0];
+  const intervalMode = mechanic === 'RUN_INTERVALS' || mechanic === 'RUN_FARTLEK';
+
+  function selectMode(next) {
+    onSettings({
+      mechanic_key: next,
+      repeats: '',
+      work_seconds: '',
+      recovery_seconds: '',
+    });
+    onPatch({ duration_minutes: '' });
+  }
+
+  function patchInterval(key, value) {
+    const next = {
+      ...(block.settings ?? {}),
+      [key]: value,
+    };
+    onSettings({ [key]: value });
+
+    const repeats = toNumber(next.repeats);
+    const work = toNumber(next.work_seconds);
+    const recovery = toNumber(next.recovery_seconds);
+    if (repeats != null && work != null && recovery != null) {
+      const totalMinutes = Math.ceil((repeats * (work + recovery)) / 60);
+      onPatch({ duration_minutes: String(totalMinutes) });
+    } else {
+      onPatch({ duration_minutes: '' });
+    }
+  }
+
+  return (
+    <View>
+      <Text style={styles.fieldLabel}>TYPE DE CONDITIONING</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mechanicRow}>
+        {modes.map((entry) => (
+          <Chip
+            key={entry.mechanic_key}
+            label={entry.label_fr.toUpperCase()}
+            selected={mechanic === entry.mechanic_key}
+            onPress={() => selectMode(entry.mechanic_key)}
+          />
+        ))}
+      </ScrollView>
+
+      {mode?.description_fr ? (
+        <Text style={styles.mechanicDescription}>{mode.description_fr}</Text>
+      ) : null}
+
+      {!intervalMode ? (
+        <Field
+          label="DURÉE TOTALE"
+          value={block.duration_minutes}
+          onChangeText={(value) => onPatch({ duration_minutes: value })}
+          placeholder="ex. 20"
+          keyboardType="numeric"
+        />
+      ) : (
+        <>
+          <View style={styles.fieldGrid}>
+            <Field
+              label={mechanic === 'RUN_FARTLEK' ? 'RELANCES' : 'RÉPÉTITIONS'}
+              value={String(block.settings?.repeats ?? '')}
+              onChangeText={(value) => patchInterval('repeats', value)}
+              placeholder="ex. 5"
+              keyboardType="numeric"
+              compact
+            />
+            <Field
+              label={mechanic === 'RUN_FARTLEK' ? 'PHASE VIVE S' : 'EFFORT S'}
+              value={String(block.settings?.work_seconds ?? '')}
+              onChangeText={(value) => patchInterval('work_seconds', value)}
+              placeholder="ex. 120"
+              keyboardType="numeric"
+              compact
+            />
+            <Field
+              label={mechanic === 'RUN_FARTLEK' ? 'ALLURE MODÉRÉE S' : 'RÉCUPÉRATION S'}
+              value={String(block.settings?.recovery_seconds ?? '')}
+              onChangeText={(value) => patchInterval('recovery_seconds', value)}
+              placeholder="ex. 60"
+              keyboardType="numeric"
+              compact
+            />
+            <View style={[styles.field, styles.fieldCompact]}>
+              <Text style={styles.fieldLabel}>DURÉE CALCULÉE</Text>
+              <View style={styles.readOnlyField}>
+                <Text style={styles.readOnlyValue}>{block.duration_minutes ? `${block.duration_minutes} MIN` : '—'}</Text>
+              </View>
+            </View>
+          </View>
+        </>
+      )}
+
+      <View style={styles.semanticHint}>
+        <Ionicons name="analytics-outline" size={18} color={colors.primaryLight} />
+        <Text style={styles.semanticHintText}>LA DISTANCE EST OPTIONNELLE · UGEROD APPREND SUR LE TEMPS RÉELLEMENT EFFECTUÉ</Text>
+      </View>
+    </View>
   );
 }
 
@@ -1676,7 +1881,7 @@ function ExercisePicker({
           <Text style={styles.filterLabel}>ZONE</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             {REGION_FILTERS.map(([key, label]) => (
-              <Chip key={key} label={label} selected={regionFilter === key} onPress={() => onRegionFilter(key)} />
+              <Chip key={key} label={label} selected={regionFilter === key} onPress={() => onTrainingFilter(key)} />
             ))}
           </ScrollView>
 
@@ -1907,6 +2112,8 @@ const styles = StyleSheet.create({
   fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   fieldLabel: { marginTop: 12, marginBottom: 7, fontFamily: 'Oswald_600SemiBold', fontSize: 9, letterSpacing: 0.7, color: colors.textSecondary },
   input: { minHeight: 48, paddingHorizontal: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, color: colors.textPrimary, fontFamily: 'Oswald_500Medium', fontSize: 13 },
+  readOnlyField: { minHeight: 48, paddingHorizontal: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, justifyContent: 'center' },
+  readOnlyValue: { fontFamily: 'Oswald_700Bold', fontSize: 12, color: colors.primaryLight },
   mechanicRow: { gap: 8, paddingRight: 10 },
   mechanicDescription: { marginTop: 10, fontFamily: 'Oswald_400Regular', fontSize: 10.5, lineHeight: 15, color: colors.textMuted },
   semanticHint: { marginTop: 10, padding: 11, borderRadius: 12, backgroundColor: 'rgba(8,104,255,0.07)', flexDirection: 'row', alignItems: 'center', gap: 8 },
