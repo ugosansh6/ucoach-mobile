@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import SessionCore from './session-core';
 import EnvironmentSessionCore from './environment-session-core';
+import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
 import { colors, spacing } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
@@ -142,9 +143,12 @@ export default function SessionScreen() {
 
   if (isEnvironmentSession) {
     return (
-      <EnvironmentSessionCore
-        environmentCode={environmentCode}
-      />
+      <View style={styles.root}>
+        <EnvironmentSessionCore
+          environmentCode={environmentCode}
+        />
+        <EnvironmentSwapOverlay />
+      </View>
     );
   }
 
