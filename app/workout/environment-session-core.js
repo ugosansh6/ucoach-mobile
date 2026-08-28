@@ -84,7 +84,7 @@ function runFamilyLabel(mechanic, block) {
   );
 
   const labels = {
-    EASY_CONTINUOUS: 'Course facile',
+    EASY_CONTINUOUS: 'Course continue — allure modérée',
     SHORT_INTERVALS: 'Intervalles courts',
     MEDIUM_INTERVALS: 'Intervalles moyens',
     GUIDED_FARTLEK: 'Fartlek guidé',
@@ -95,6 +95,7 @@ function runFamilyLabel(mechanic, block) {
     return labels[family];
   }
 
+  if (mechanic === 'RUN_CONTINUOUS') return 'Course continue — allure modérée';
   if (mechanic === 'RUN_FARTLEK') return 'Fartlek guidé';
   if (mechanic === 'RUN_INTERVALS') return 'Intervalles';
   if (mechanic === 'RUN_CALIBRATION') return 'Calibration';
