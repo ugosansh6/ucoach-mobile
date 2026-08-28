@@ -66,7 +66,11 @@ function directionAvailable(item, direction) {
 }
 
 export default function EnvironmentSwapOverlay() {
-  const { workout, setGeneratedWorkout } = useWorkout();
+  const {
+    workout,
+    updateWorkout,
+    setGeneratedWorkoutPreservingProgress,
+  } = useWorkout();
   const [availability, setAvailability] = useState({});
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -93,11 +97,13 @@ export default function EnvironmentSwapOverlay() {
 
     try {
       const hydrated = await hydrateEnvironmentSessionExerciseIds(workout);
-      setGeneratedWorkout(hydrated);
+      if (hydrated !== workout) {
+        updateWorkout({ exercises: hydrated.exercises });
+      }
     } catch (error) {
       console.warn('Environment session instance hydration', error);
     }
-  }, [setGeneratedWorkout, workout]);
+  }, [updateWorkout, workout]);
 
   useEffect(() => {
     hydrate();
@@ -129,11 +135,6 @@ export default function EnvironmentSwapOverlay() {
     if (!swapExercise?.sessionExerciseId || busy) return;
 
     const oldExerciseId = swapExercise.exerciseId ?? swapExercise.id;
-    const previousByInstance = new Map(
-      (workout.exercises ?? [])
-        .filter((exercise) => exercise.sessionExerciseId)
-        .map((exercise) => [exercise.sessionExerciseId, exercise])
-    );
 
     try {
       setBusy(true);
@@ -156,34 +157,22 @@ export default function EnvironmentSwapOverlay() {
       });
       const hydrated = await hydrateEnvironmentSessionExerciseIds(refreshed);
 
-      setGeneratedWorkout({
+      setGeneratedWorkoutPreservingProgress({
         ...hydrated,
-        exercises: (hydrated.exercises ?? []).map((exercise) => {
-          const previous = previousByInstance.get(exercise.sessionExerciseId);
-          if (!previous || exercise.sessionExerciseId === swapExercise.sessionExerciseId) {
-            return {
-              ...exercise,
-              status: 'pending',
-              userExecutionStatus: null,
-              repsCompleted: null,
-              durationSeconds: null,
-              distanceMeters: null,
-              rpe: null,
-              performanceActualJson: null,
-            };
-          }
-
-          return {
-            ...exercise,
-            status: previous.status,
-            userExecutionStatus: previous.userExecutionStatus,
-            repsCompleted: previous.repsCompleted,
-            durationSeconds: previous.durationSeconds,
-            distanceMeters: previous.distanceMeters,
-            rpe: previous.rpe,
-            performanceActualJson: previous.performanceActualJson,
-          };
-        }),
+        exercises: (hydrated.exercises ?? []).map((exercise) =>
+          exercise.sessionExerciseId === swapExercise.sessionExerciseId
+            ? {
+                ...exercise,
+                status: 'pending',
+                userExecutionStatus: null,
+                repsCompleted: null,
+                durationSeconds: null,
+                distanceMeters: null,
+                rpe: null,
+                performanceActualJson: null,
+              }
+            : exercise
+        ),
       });
 
       setVisible(false);
@@ -224,8 +213,7 @@ export default function EnvironmentSwapOverlay() {
         };
       });
 
-      setGeneratedWorkout({
-        ...workout,
+      updateWorkout({
         sessionStarted: true,
         status: 'in_progress',
         startedAt: workout.startedAt ?? new Date().toISOString(),
