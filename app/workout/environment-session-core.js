@@ -28,6 +28,12 @@ function numberOr(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function optionalNumber(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const parsed = Number(String(value).replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function positiveInt(value, fallback = 0) {
   return Math.max(0, Math.round(numberOr(value, fallback)));
 }
@@ -41,6 +47,10 @@ function formatClock(totalSeconds) {
 
 function blockKey(block) {
   return String(block?.block_key ?? block?.blockKey ?? block?.key ?? '').toLowerCase();
+}
+
+function blockTitle(block, fallback = 'Préparation') {
+  return block?.label_fr ?? block?.label ?? block?.title ?? block?.block_name ?? fallback;
 }
 
 function blockMechanic(block) {
@@ -63,6 +73,14 @@ function blockParameters(block) {
 
 function exerciseKey(exercise) {
   return exercise?.sessionExerciseId ?? exercise?.id;
+}
+
+function exerciseTrackingModes(exercise) {
+  if (Array.isArray(exercise?.trackingModes)) return exercise.trackingModes;
+  if (Array.isArray(exercise?.prescriptionJson?.tracking_modes)) {
+    return exercise.prescriptionJson.tracking_modes;
+  }
+  return [];
 }
 
 function isRunMechanic(mechanic) {
@@ -91,10 +109,7 @@ function runFamilyLabel(mechanic, block) {
     CALIBRATION: 'Calibration',
   };
 
-  if (labels[family]) {
-    return labels[family];
-  }
-
+  if (labels[family]) return labels[family];
   if (mechanic === 'RUN_CONTINUOUS') return 'Course continue — allure modérée';
   if (mechanic === 'RUN_FARTLEK') return 'Fartlek guidé';
   if (mechanic === 'RUN_INTERVALS') return 'Intervalles';
@@ -105,6 +120,8 @@ function runFamilyLabel(mechanic, block) {
 function statusValue(exercise) {
   if (exercise?.userExecutionStatus) return exercise.userExecutionStatus;
   if (exercise?.status === 'skipped') return 'not_completed';
+  if (exercise?.status === 'not_completed') return 'not_completed';
+  if (exercise?.status === 'adapted') return 'adapted';
   if (exercise?.status === 'completed') return 'completed';
   return 'pending';
 }
@@ -130,20 +147,13 @@ function getSetCount(exercise, block) {
   }
 
   return positiveInt(
-    prescription?.block_parameters?.sets ??
-      prescription?.sets ??
-      params?.sets,
+    prescription?.block_parameters?.sets ?? prescription?.sets ?? params?.sets,
     0
   );
 }
 
 function usesLoad(exercise) {
-  const modes = Array.isArray(exercise?.trackingModes)
-    ? exercise.trackingModes
-    : Array.isArray(exercise?.prescriptionJson?.tracking_modes)
-      ? exercise.prescriptionJson.tracking_modes
-      : [];
-  return modes.includes('load');
+  return exerciseTrackingModes(exercise).includes('load');
 }
 
 function initialSetDrafts(exercises, block) {
@@ -178,9 +188,7 @@ function initialSetDrafts(exercises, block) {
 function SimpleBlock({ block, exercises, onComplete }) {
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>
-        {block?.label_fr ?? block?.label ?? 'Préparation'}
-      </Text>
+      <Text style={styles.cardTitle}>{blockTitle(block)}</Text>
       {exercises.map((exercise) => (
         <View key={exerciseKey(exercise)} style={styles.exerciseRow}>
           <View style={styles.bullet} />
@@ -215,9 +223,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>
-        {block?.label_fr ?? 'Musculation / Gym'}
-      </Text>
+      <Text style={styles.cardTitle}>{blockTitle(block, 'Musculation / Gym')}</Text>
       <Text style={styles.cardMeta}>
         {isCircuit ? 'Circuit · saisis chaque tour réalisé' : 'Saisis les séries réellement réalisées'}
       </Text>
@@ -230,9 +236,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
         return (
           <View key={key} style={styles.strengthExercise}>
             <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {exercise.prescription ? (
-              <Text style={styles.prescription}>{exercise.prescription}</Text>
-            ) : null}
+            {exercise.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
 
             {rows.length === 0 ? (
               <Text style={styles.warningText}>
@@ -241,9 +245,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
             ) : (
               rows.map((row, index) => (
                 <View key={`${key}:${row.setIndex}`} style={styles.setRow}>
-                  <Text style={styles.setLabel}>
-                    {isCircuit ? 'T' : 'S'}{row.setIndex}
-                  </Text>
+                  <Text style={styles.setLabel}>{isCircuit ? 'T' : 'S'}{row.setIndex}</Text>
                   <TextInput
                     value={row.reps}
                     onChangeText={(value) => updateDraft(exercise, index, 'reps', value)}
@@ -284,6 +286,256 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
   );
 }
 
+function ManualGymBlock({ block, exercises, onComplete }) {
+  const [drafts, setDrafts] = useState(() =>
+    Object.fromEntries(
+      exercises.map((exercise) => [
+        exerciseKey(exercise),
+        {
+          reps: exercise?.repsCompleted != null ? String(exercise.repsCompleted) : '',
+          seconds: exercise?.durationSeconds != null ? String(exercise.durationSeconds) : '',
+          rpe: exercise?.rpe != null ? String(exercise.rpe) : '',
+        },
+      ])
+    )
+  );
+
+  function patch(exercise, field, value) {
+    const key = exerciseKey(exercise);
+    setDrafts((current) => ({
+      ...current,
+      [key]: { ...(current[key] ?? {}), [field]: value },
+    }));
+  }
+
+  function finish() {
+    const updates = {};
+
+    for (const exercise of exercises) {
+      const key = exerciseKey(exercise);
+      const draft = drafts[key] ?? {};
+      const modes = exerciseTrackingModes(exercise);
+      const wantsReps = modes.includes('reps') || modes.length === 0;
+      const wantsTime = modes.includes('time');
+      const reps = optionalNumber(draft.reps);
+      const seconds = optionalNumber(draft.seconds);
+      const exerciseRpe = optionalNumber(draft.rpe);
+
+      if ((wantsReps || wantsTime) && reps == null && seconds == null) {
+        Alert.alert(
+          'Performance manquante',
+          `Renseigne ce que tu as réellement réalisé pour ${exercise.name}.`
+        );
+        return;
+      }
+
+      updates[key] = {
+        status: 'completed',
+        userExecutionStatus: 'completed',
+        repsCompleted: wantsReps ? reps : null,
+        durationSeconds: wantsTime ? seconds : null,
+        rpe: exerciseRpe,
+        performanceActualJson: {
+          ...(exercise.performanceActualJson ?? {}),
+          source: 'ugerod_environment_gym_manual',
+          controlled_entry: true,
+        },
+      };
+    }
+
+    onComplete(updates);
+  }
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{blockTitle(block, 'Gym')}</Text>
+      <Text style={styles.cardMeta}>Renseigne uniquement ce que tu as réellement réalisé.</Text>
+
+      {exercises.map((exercise) => {
+        const key = exerciseKey(exercise);
+        const draft = drafts[key] ?? {};
+        const modes = exerciseTrackingModes(exercise);
+        const showReps = modes.includes('reps') || modes.length === 0;
+        const showTime = modes.includes('time');
+
+        return (
+          <View key={key} style={styles.strengthExercise}>
+            <Text style={styles.exerciseName}>{exercise.name}</Text>
+            {exercise.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
+            <View style={styles.setRow}>
+              {showReps ? (
+                <TextInput
+                  value={draft.reps ?? ''}
+                  onChangeText={(value) => patch(exercise, 'reps', value)}
+                  placeholder="reps réelles"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              ) : null}
+              {showTime ? (
+                <TextInput
+                  value={draft.seconds ?? ''}
+                  onChangeText={(value) => patch(exercise, 'seconds', value)}
+                  placeholder="secondes"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              ) : null}
+              <TextInput
+                value={draft.rpe ?? ''}
+                onChangeText={(value) => patch(exercise, 'rpe', value)}
+                placeholder="RPE"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numeric"
+                style={styles.input}
+              />
+            </View>
+          </View>
+        );
+      })}
+
+      <Pressable onPress={finish} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+        <Text style={styles.primaryButtonText}>VALIDER GYM</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function TabataBlock({ block, exercises, onComplete }) {
+  const firstProtocol = exercises?.[0]?.prescriptionJson?.protocol ?? {};
+  const settings = block?.settings ?? {};
+  const rounds = positiveInt(settings.rounds ?? firstProtocol.rounds, 0);
+  const workSeconds = positiveInt(settings.work_seconds ?? firstProtocol.work_seconds, 0);
+  const restSeconds = positiveInt(settings.rest_seconds ?? firstProtocol.rest_seconds, 0);
+  const cycleSeconds = workSeconds + restSeconds;
+  const totalSeconds = rounds > 0 && workSeconds > 0 ? rounds * cycleSeconds : 0;
+
+  const [started, setStarted] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!started || paused || totalSeconds <= 0 || elapsed >= totalSeconds) return undefined;
+    const timer = setInterval(() => {
+      setElapsed((current) => Math.min(totalSeconds, current + 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [elapsed, paused, started, totalSeconds]);
+
+  const phase = useMemo(() => {
+    if (totalSeconds <= 0 || cycleSeconds <= 0) {
+      return { label: 'PROTOCOLE INCOMPLET', remaining: 0, round: 0, completedWorkIntervals: 0, exerciseIndex: 0 };
+    }
+    if (elapsed >= totalSeconds) {
+      return { label: 'TERMINÉ', remaining: 0, round: rounds, completedWorkIntervals: rounds, exerciseIndex: Math.max(0, rounds - 1) % Math.max(1, exercises.length) };
+    }
+
+    const zeroBasedRound = Math.floor(elapsed / cycleSeconds);
+    const within = elapsed % cycleSeconds;
+    const resting = within >= workSeconds;
+    const completedWorkIntervals = Math.min(rounds, zeroBasedRound + (resting ? 1 : 0));
+
+    return {
+      label: resting ? 'RÉCUPÉRATION' : 'EFFORT',
+      remaining: resting ? Math.max(0, cycleSeconds - within) : Math.max(0, workSeconds - within),
+      round: Math.min(rounds, zeroBasedRound + 1),
+      completedWorkIntervals,
+      exerciseIndex: zeroBasedRound % Math.max(1, exercises.length),
+    };
+  }, [cycleSeconds, elapsed, exercises.length, restSeconds, rounds, totalSeconds, workSeconds]);
+
+  function finish() {
+    if (totalSeconds <= 0) {
+      Alert.alert('Protocole incomplet', 'Le nombre de rounds et les temps 20/10 sont manquants.');
+      return;
+    }
+    if (!started && elapsed <= 0) {
+      Alert.alert('Chrono non démarré', 'Démarre le chrono avant de terminer le Tabata.');
+      return;
+    }
+
+    const protocolCompleted = elapsed >= totalSeconds;
+    const updates = {};
+
+    exercises.forEach((exercise, exerciseIndex) => {
+      let exerciseIntervals = 0;
+      for (let roundIndex = 0; roundIndex < phase.completedWorkIntervals; roundIndex += 1) {
+        if (roundIndex % Math.max(1, exercises.length) === exerciseIndex) exerciseIntervals += 1;
+      }
+
+      const executionStatus = protocolCompleted
+        ? 'completed'
+        : exerciseIntervals > 0
+          ? 'adapted'
+          : 'not_completed';
+
+      updates[exerciseKey(exercise)] = {
+        status: executionStatus,
+        userExecutionStatus: executionStatus,
+        performanceActualJson: {
+          ...(exercise.performanceActualJson ?? {}),
+          source: 'ugerod_environment_tabata',
+          controlled_timing: true,
+          protocol_completed: protocolCompleted,
+          elapsed_seconds: elapsed,
+          planned_rounds: rounds,
+          rounds_completed: phase.completedWorkIntervals,
+          work_intervals_completed: exerciseIntervals,
+          work_seconds,
+          rest_seconds: restSeconds,
+        },
+      };
+    });
+
+    onComplete(updates);
+  }
+
+  const activeExercise = exercises[phase.exerciseIndex] ?? exercises[0] ?? null;
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{blockTitle(block, 'Tabata')}</Text>
+      <Text style={styles.cardMeta}>{rounds} rounds · {workSeconds}s / {restSeconds}s</Text>
+
+      <View style={styles.timerBox}>
+        <Text style={styles.timer}>{formatClock(elapsed)}</Text>
+        <Text style={styles.timerTarget}>/ {formatClock(totalSeconds)}</Text>
+      </View>
+
+      <View style={styles.phaseBox}>
+        <Text style={styles.phaseLabel}>{phase.label}</Text>
+        <Text style={styles.phaseTime}>{formatClock(phase.remaining)}</Text>
+        <Text style={styles.cardMeta}>Round {phase.round}/{rounds}</Text>
+        {phase.label === 'EFFORT' && activeExercise ? (
+          <Text style={styles.exerciseName}>{activeExercise.name}</Text>
+        ) : null}
+      </View>
+
+      {exercises.length > 1 ? (
+        <Text style={styles.helperText}>Alternance : {exercises.map((exercise) => exercise.name).join(' · ')}</Text>
+      ) : null}
+
+      <View style={styles.timerActions}>
+        {!started ? (
+          <Pressable onPress={() => setStarted(true)} style={({ pressed }) => [styles.primaryButton, styles.flexButton, pressed && styles.pressed]}>
+            <Text style={styles.primaryButtonText}>DÉMARRER</Text>
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => setPaused((current) => !current)} style={({ pressed }) => [styles.secondaryButton, styles.flexButton, pressed && styles.pressed]}>
+            <Text style={styles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <Pressable onPress={finish} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+        <Text style={styles.primaryButtonText}>{elapsed >= totalSeconds ? 'TERMINER LE TABATA' : 'ARRÊTER ET TERMINER'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function TimedBlock({ block, exercise, environmentCode, onComplete }) {
   const mechanic = blockMechanic(block);
   const params = blockParameters(block);
@@ -302,48 +554,30 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
 
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [elapsed, setElapsed] = useState(
-    positiveInt(exercise?.durationSeconds, 0)
-  );
-  const [distance, setDistance] = useState(
-    exercise?.distanceMeters != null ? String(exercise.distanceMeters) : ''
-  );
+  const [elapsed, setElapsed] = useState(positiveInt(exercise?.durationSeconds, 0));
+  const [distance, setDistance] = useState(exercise?.distanceMeters != null ? String(exercise.distanceMeters) : '');
   const [rpe, setRpe] = useState(exercise?.rpe != null ? String(exercise.rpe) : '');
 
   useEffect(() => {
-    if (!started || paused || elapsed >= prescribedSeconds) {
-      return undefined;
-    }
-
+    if (!started || paused || elapsed >= prescribedSeconds) return undefined;
     const timer = setInterval(() => {
       setElapsed((current) => Math.min(prescribedSeconds, current + 1));
     }, 1000);
-
     return () => clearInterval(timer);
   }, [elapsed, paused, prescribedSeconds, started]);
 
   const phase = useMemo(() => {
     if (!isIntervals) {
-      return {
-        label: 'EFFORT',
-        remaining: Math.max(0, prescribedSeconds - elapsed),
-        completedIntervals: 0,
-        intervalNumber: 1,
-      };
+      return { label: 'EFFORT', remaining: Math.max(0, prescribedSeconds - elapsed), completedIntervals: 0, intervalNumber: 1 };
     }
 
     const cycle = Math.max(1, workSeconds + recoverySeconds);
     const fullCycles = Math.floor(elapsed / cycle);
     const within = elapsed % cycle;
     const inRecovery = recoverySeconds > 0 && within >= workSeconds;
-    const completedIntervals = Math.min(
-      repeats,
-      fullCycles + (inRecovery ? 1 : 0)
-    );
+    const completedIntervals = Math.min(repeats, fullCycles + (inRecovery ? 1 : 0));
     const intervalNumber = Math.min(repeats, fullCycles + 1);
-    const remaining = inRecovery
-      ? Math.max(0, cycle - within)
-      : Math.max(0, workSeconds - within);
+    const remaining = inRecovery ? Math.max(0, cycle - within) : Math.max(0, workSeconds - within);
 
     return {
       label: inRecovery ? 'RÉCUPÉRATION' : 'EFFORT',
@@ -351,11 +585,9 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
       completedIntervals,
       intervalNumber,
     };
-  }, [elapsed, isIntervals, prescribedSeconds, recoverySeconds, repeats, workSeconds]);
+  }, [elapsed, isIntervals, recoverySeconds, repeats, workSeconds]);
 
-  const title = isRun
-    ? runFamilyLabel(mechanic, block)
-    : block?.label_fr ?? 'Cardio';
+  const title = isRun ? runFamilyLabel(mechanic, block) : blockTitle(block, 'Cardio');
 
   function finish() {
     if (!started && elapsed <= 0) {
@@ -378,9 +610,7 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>{title}</Text>
-      {exercise?.prescription ? (
-        <Text style={styles.prescription}>{exercise.prescription}</Text>
-      ) : null}
+      {exercise?.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
 
       <View style={styles.timerBox}>
         <Text style={styles.timer}>{formatClock(elapsed)}</Text>
@@ -391,9 +621,7 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
         <View style={styles.phaseBox}>
           <Text style={styles.phaseLabel}>{phase.label}</Text>
           <Text style={styles.phaseTime}>{formatClock(phase.remaining)}</Text>
-          <Text style={styles.cardMeta}>
-            Intervalle {phase.intervalNumber}/{repeats} · {phase.completedIntervals} terminé(s)
-          </Text>
+          <Text style={styles.cardMeta}>Intervalle {phase.intervalNumber}/{repeats} · {phase.completedIntervals} terminé(s)</Text>
         </View>
       ) : null}
 
@@ -441,9 +669,7 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
       </Text>
 
       <Pressable onPress={finish} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-        <Text style={styles.primaryButtonText}>
-          {elapsed >= prescribedSeconds ? 'TERMINER LE BLOC' : 'ARRÊTER ET TERMINER'}
-        </Text>
+        <Text style={styles.primaryButtonText}>{elapsed >= prescribedSeconds ? 'TERMINER LE BLOC' : 'ARRÊTER ET TERMINER'}</Text>
       </Pressable>
     </View>
   );
@@ -471,11 +697,16 @@ export default function EnvironmentSessionCore({ environmentCode }) {
 
   const [setDrafts, setSetDrafts] = useState({});
 
-  useEffect(() => {
-    if (!currentBlock) return;
-    if (!['strength', 'gym', 'street_gym'].includes(currentKey)) return;
-    setSetDrafts(initialSetDrafts(currentExercises, currentBlock));
+  const structuredStrength = useMemo(() => {
+    if (!currentBlock || !['strength', 'gym', 'street_gym'].includes(currentKey)) return false;
+    if (currentKey !== 'gym') return true;
+    return currentExercises.length > 0 && currentExercises.every((exercise) => getSetCount(exercise, currentBlock) > 0);
   }, [currentBlock, currentExercises, currentKey]);
+
+  useEffect(() => {
+    if (!currentBlock || !structuredStrength) return;
+    setSetDrafts(initialSetDrafts(currentExercises, currentBlock));
+  }, [currentBlock, currentExercises, structuredStrength]);
 
   useEffect(() => {
     const firstPending = blocks.findIndex((block) => !blockIsDone(block, workout.exercises ?? []));
@@ -492,9 +723,7 @@ export default function EnvironmentSessionCore({ environmentCode }) {
       startedAt: workout.startedAt ?? new Date().toISOString(),
     });
 
-    sessionStartPromise.current = markWorkoutSessionStarted({
-      sessionId: workout.sessionId,
-    })
+    sessionStartPromise.current = markWorkoutSessionStarted({ sessionId: workout.sessionId })
       .then((result) => {
         updateWorkout({
           sessionStarted: true,
@@ -543,10 +772,7 @@ export default function EnvironmentSessionCore({ environmentCode }) {
   function completeSimpleBlock() {
     const updates = {};
     for (const exercise of currentExercises) {
-      updates[exerciseKey(exercise)] = {
-        status: 'completed',
-        userExecutionStatus: 'completed',
-      };
+      updates[exerciseKey(exercise)] = { status: 'completed', userExecutionStatus: 'completed' };
     }
     advanceWithUpdates(updates);
   }
@@ -577,10 +803,7 @@ export default function EnvironmentSessionCore({ environmentCode }) {
         }));
 
       if (gymSets.length === 0) {
-        Alert.alert(
-          'Performance manquante',
-          `Renseigne au moins une série réellement réalisée pour ${exercise.name}.`
-        );
+        Alert.alert('Performance manquante', `Renseigne au moins une série réellement réalisée pour ${exercise.name}.`);
         return;
       }
 
@@ -649,9 +872,7 @@ export default function EnvironmentSessionCore({ environmentCode }) {
         <View style={styles.emptyState}>
           <Ionicons name="alert-circle-outline" size={28} color={colors.textSecondary} />
           <Text style={styles.cardTitle}>SÉANCE INCOMPLÈTE</Text>
-          <Text style={styles.prescription}>
-            Aucun bloc environnement exécutable n’a été chargé.
-          </Text>
+          <Text style={styles.prescription}>Aucun bloc environnement exécutable n’a été chargé.</Text>
           <Pressable onPress={() => router.replace('/workout/preparation')} style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>REVENIR AU CHECK-IN</Text>
           </Pressable>
@@ -662,7 +883,8 @@ export default function EnvironmentSessionCore({ environmentCode }) {
 
   const mechanic = blockMechanic(currentBlock);
   const timed = isRunMechanic(mechanic) || currentKey === 'cardio' || mechanic === 'CARDIO_CONTINUOUS';
-  const strength = ['strength', 'gym', 'street_gym'].includes(currentKey);
+  const tabata = currentKey === 'tabata' || ['TABATA', 'TABATA_ABS'].includes(normalize(currentBlock?.module_code));
+  const manualGym = currentKey === 'gym' && !structuredStrength;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -672,9 +894,7 @@ export default function EnvironmentSessionCore({ environmentCode }) {
         </Pressable>
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>{environmentCode === 'GYM' ? 'SALLE' : 'EXTÉRIEUR'}</Text>
-          <Text style={styles.headerTitle}>
-            {currentBlock?.label_fr ?? currentBlock?.label ?? currentKey.toUpperCase()}
-          </Text>
+          <Text style={styles.headerTitle}>{blockTitle(currentBlock, currentKey.toUpperCase())}</Text>
         </View>
         <Text style={styles.stepText}>{currentIndex + 1}/{blocks.length}</Text>
       </View>
@@ -692,7 +912,14 @@ export default function EnvironmentSessionCore({ environmentCode }) {
             environmentCode={environmentCode}
             onComplete={completeTimedBlock}
           />
-        ) : strength ? (
+        ) : tabata ? (
+          <TabataBlock
+            key={`${currentKey}:${currentIndex}`}
+            block={currentBlock}
+            exercises={currentExercises}
+            onComplete={advanceWithUpdates}
+          />
+        ) : structuredStrength ? (
           <StrengthBlock
             block={currentBlock}
             exercises={currentExercises}
@@ -700,12 +927,15 @@ export default function EnvironmentSessionCore({ environmentCode }) {
             setDrafts={setSetDrafts}
             onComplete={completeStrengthBlock}
           />
-        ) : (
-          <SimpleBlock
+        ) : manualGym ? (
+          <ManualGymBlock
+            key={`${currentKey}:${currentIndex}`}
             block={currentBlock}
             exercises={currentExercises}
-            onComplete={completeSimpleBlock}
+            onComplete={advanceWithUpdates}
           />
+        ) : (
+          <SimpleBlock block={currentBlock} exercises={currentExercises} onComplete={completeSimpleBlock} />
         )}
       </ScrollView>
     </SafeAreaView>
