@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
+import EnvironmentWodBlock from '../../src/components/workout/EnvironmentWodBlock';
 import { markWorkoutSessionStarted } from '../../src/services/workoutService';
 
 function normalize(value) {
@@ -132,6 +133,31 @@ function blockIsDone(block, exercises) {
     (exercise) => String(exercise.blockKey ?? exercise.block ?? '').toLowerCase() === key
   );
   return rows.length > 0 && rows.every((exercise) => statusValue(exercise) !== 'pending');
+}
+
+function wodExecutionStatus(runtime) {
+  if (!runtime?.started || !runtime?.finished) return 'pending';
+
+  const completedReasons = [
+    'timer_complete',
+    'rounds_complete',
+    'steps_complete',
+    'sequence_complete',
+    'target_complete',
+    'completed',
+  ];
+
+  if (completedReasons.includes(runtime?.finishReason)) {
+    return 'completed';
+  }
+
+  const observedWork =
+    positiveInt(runtime?.elapsedSeconds, 0) > 0 ||
+    positiveInt(runtime?.completedRounds, 0) > 0 ||
+    positiveInt(runtime?.manualStep, 1) > 1 ||
+    positiveInt(runtime?.currentStage, 0) > 0;
+
+  return observedWork ? 'adapted' : 'not_completed';
 }
 
 function getSetCount(exercise, block) {
@@ -741,6 +767,10 @@ export default function EnvironmentSessionCore({ environmentCode }) {
     return sessionStartPromise.current;
   }, [updateWorkout, workout.sessionId, workout.sessionStarted, workout.startedAt, workout.startedLocalDate]);
 
+  const handleWodRuntimeChange = useCallback((runtime) => {
+    updateWorkout({ wodRuntime: runtime });
+  }, [updateWorkout]);
+
   function writeExerciseUpdates(updatesByKey) {
     const nextExercises = (workout.exercises ?? []).map((exercise) => {
       const next = updatesByKey[exerciseKey(exercise)];
@@ -866,6 +896,25 @@ export default function EnvironmentSessionCore({ environmentCode }) {
     });
   }
 
+  function completeWodBlock() {
+    const runtime = workout.wodRuntime;
+    const executionStatus = wodExecutionStatus(runtime);
+
+    if (executionStatus === 'pending') {
+      Alert.alert('WOD en cours', 'Termine ou arrête le WOD avant de valider ce bloc.');
+      return;
+    }
+
+    const updates = {};
+    for (const exercise of currentExercises) {
+      updates[exerciseKey(exercise)] = {
+        status: executionStatus,
+        userExecutionStatus: executionStatus,
+      };
+    }
+    advanceWithUpdates(updates);
+  }
+
   if (!workout.sessionId || blocks.length === 0 || !currentBlock) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -885,6 +934,7 @@ export default function EnvironmentSessionCore({ environmentCode }) {
   const timed = isRunMechanic(mechanic) || currentKey === 'cardio' || mechanic === 'CARDIO_CONTINUOUS';
   const tabata = currentKey === 'tabata' || ['TABATA', 'TABATA_ABS'].includes(normalize(currentBlock?.module_code));
   const manualGym = currentKey === 'gym' && !structuredStrength;
+  const canonicalWod = currentKey === 'wod' && !isRunMechanic(mechanic);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -911,6 +961,16 @@ export default function EnvironmentSessionCore({ environmentCode }) {
             exercise={currentExercises[0]}
             environmentCode={environmentCode}
             onComplete={completeTimedBlock}
+          />
+        ) : canonicalWod ? (
+          <EnvironmentWodBlock
+            key={`${currentKey}:${mechanic}`}
+            block={currentBlock}
+            exercises={currentExercises}
+            runtime={workout.wodRuntime ?? null}
+            onBeforeStart={ensureStarted}
+            onRuntimeChange={handleWodRuntimeChange}
+            onComplete={completeWodBlock}
           />
         ) : tabata ? (
           <TabataBlock
