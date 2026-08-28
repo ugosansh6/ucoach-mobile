@@ -13,7 +13,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { colors, spacing, typography } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
-import { generateWorkoutSession } from '../../src/services/workoutGenerationService';
+import {
+  discardUnstartedWorkoutSession,
+  generateWorkoutSession,
+} from '../../src/services/workoutGenerationService';
 
 const SURFACES = [
   ['GRASS', 'Herbe'],
@@ -50,34 +53,33 @@ export default function EnvironmentGeneratingScreen() {
   const environmentCode = String(preparation?.environmentCode ?? '')
     .trim()
     .toUpperCase();
-  const needsOutdoorContext =
-    environmentCode === 'OUTDOOR' && !preparation?.surfaceCode;
+  const isOutdoor = environmentCode === 'OUTDOOR';
 
+  const [outdoorContextConfirmed, setOutdoorContextConfirmed] = useState(
+    () => !isOutdoor
+  );
+  const [pendingSurfaceCode, setPendingSurfaceCode] = useState(
+    () => preparation?.surfaceCode ?? null
+  );
+  const [pendingOutdoorPlaceCode, setPendingOutdoorPlaceCode] = useState(
+    () => preparation?.outdoorPlaceCode ?? null
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [control, setControl] = useState(null);
   const launchedRef = useRef(false);
 
+  const needsOutdoorContext = isOutdoor && !outdoorContextConfirmed;
   const label = useMemo(
     () => environmentLabel(environmentCode),
     [environmentCode]
   );
 
-  const generate = useCallback(async () => {
-    if (busy || (environmentCode === 'OUTDOOR' && !preparation?.surfaceCode)) {
-      return;
-    }
-
-    setBusy(true);
-    setError('');
-    setControl(null);
-
-    try {
-      const nextWorkout = await generateWorkoutSession(preparation);
-
+  const applyGenerationResult = useCallback(
+    (nextWorkout) => {
       if (nextWorkout?.controlStatus) {
         setControl(nextWorkout);
-        return;
+        return false;
       }
 
       const sameSession =
@@ -94,51 +96,119 @@ export default function EnvironmentGeneratingScreen() {
       }
 
       router.replace('/workout/session');
-    } catch (generationError) {
-      setError(
-        generationError?.message ??
-          `Impossible de générer la séance ${label.toLowerCase()}.`
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [
-    busy,
-    environmentCode,
-    label,
-    preparation,
-    setGeneratedWorkout,
-    setGeneratedWorkoutPreservingProgress,
-    workout.sessionId,
-  ]);
+      return true;
+    },
+    [
+      setGeneratedWorkout,
+      setGeneratedWorkoutPreservingProgress,
+      workout.sessionId,
+    ]
+  );
+
+  const generate = useCallback(
+    async (preparationSnapshot = preparation) => {
+      if (
+        busy ||
+        (environmentCode === 'OUTDOOR' && !preparationSnapshot?.surfaceCode)
+      ) {
+        return;
+      }
+
+      setBusy(true);
+      setError('');
+      setControl(null);
+
+      try {
+        const nextWorkout = await generateWorkoutSession(preparationSnapshot);
+        applyGenerationResult(nextWorkout);
+      } catch (generationError) {
+        setError(
+          generationError?.message ??
+            `Impossible de générer la séance ${label.toLowerCase()}.`
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [applyGenerationResult, busy, environmentCode, label, preparation]
+  );
 
   useEffect(() => {
     if (needsOutdoorContext || launchedRef.current) {
       return;
     }
     launchedRef.current = true;
-    generate();
-  }, [generate, needsOutdoorContext]);
+    generate(preparation);
+  }, [generate, needsOutdoorContext, preparation]);
 
   function selectSurface(surfaceCode) {
-    updatePreparation({ surfaceCode });
+    setPendingSurfaceCode(surfaceCode);
   }
 
   function selectPlace(outdoorPlaceCode) {
-    updatePreparation({ outdoorPlaceCode });
+    setPendingOutdoorPlaceCode((current) =>
+      current === outdoorPlaceCode ? null : outdoorPlaceCode
+    );
   }
 
   function continueOutdoor() {
-    if (!preparation?.surfaceCode) {
+    if (!pendingSurfaceCode || busy) {
       return;
     }
+
+    const confirmedPreparation = {
+      ...preparation,
+      surfaceCode: pendingSurfaceCode,
+      outdoorPlaceCode: pendingOutdoorPlaceCode ?? null,
+    };
+
+    updatePreparation({
+      surfaceCode: pendingSurfaceCode,
+      outdoorPlaceCode: pendingOutdoorPlaceCode ?? null,
+    });
+    setOutdoorContextConfirmed(true);
     launchedRef.current = true;
-    generate();
+    generate(confirmedPreparation);
+  }
+
+  async function replaceExisting() {
+    if (
+      busy ||
+      control?.environmentControlStatus !== 'EXISTING_GENERATED_SESSION_CONFLICT' ||
+      control?.existingSessionStarted ||
+      !control?.sessionId
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+
+    try {
+      await discardUnstartedWorkoutSession(control.sessionId);
+      setControl(null);
+
+      const nextWorkout = await generateWorkoutSession(preparation);
+      applyGenerationResult(nextWorkout);
+    } catch (replaceError) {
+      setControl(null);
+      setError(
+        replaceError?.message ??
+          'Impossible de remplacer la séance précédente.'
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   function resumeExisting() {
     router.replace('/workout/session');
   }
+
+  const canReplaceExisting =
+    control?.environmentControlStatus === 'EXISTING_GENERATED_SESSION_CONFLICT' &&
+    !control?.existingSessionStarted &&
+    Boolean(control?.sessionId);
 
   if (needsOutdoorContext && !busy) {
     return (
@@ -153,12 +223,12 @@ export default function EnvironmentGeneratingScreen() {
             SUR QUEL SOL ?<Text style={styles.dot}>.</Text>
           </Text>
           <Text style={styles.body}>
-            La surface sert uniquement aux règles de faisabilité et de sécurité. Elle ne décide pas du contenu à la place de ta progression, de ta récupération ou du matériel réellement disponible.
+            Choisis d’abord le sol, puis valide. UGEROD utilise cette information uniquement pour la faisabilité et la sécurité ; elle ne remplace ni ta progression, ni ta récupération, ni ton matériel réellement disponible.
           </Text>
 
           <View style={styles.grid}>
             {SURFACES.map(([code, text]) => {
-              const selected = preparation?.surfaceCode === code;
+              const selected = pendingSurfaceCode === code;
               return (
                 <Pressable
                   key={code}
@@ -179,7 +249,7 @@ export default function EnvironmentGeneratingScreen() {
           </Text>
           <View style={styles.grid}>
             {OUTDOOR_PLACES.map(([code, text]) => {
-              const selected = preparation?.outdoorPlaceCode === code;
+              const selected = pendingOutdoorPlaceCode === code;
               return (
                 <Pressable
                   key={code}
@@ -195,12 +265,12 @@ export default function EnvironmentGeneratingScreen() {
           </View>
 
           <Pressable
-            disabled={!preparation?.surfaceCode}
+            disabled={!pendingSurfaceCode}
             onPress={continueOutdoor}
-            style={[styles.primaryButton, !preparation?.surfaceCode && styles.disabled]}
+            style={[styles.primaryButton, !pendingSurfaceCode && styles.disabled]}
           >
-            <Text style={styles.primaryButtonText}>CONTINUER</Text>
-            <Ionicons name="arrow-forward" size={18} color={colors.brandWhite} />
+            <Text style={styles.primaryButtonText}>VALIDER</Text>
+            <Ionicons name="checkmark" size={18} color={colors.brandWhite} />
           </Pressable>
         </ScrollView>
       </SafeAreaView>
@@ -216,11 +286,23 @@ export default function EnvironmentGeneratingScreen() {
             <Text style={styles.eyebrow}>SÉANCE EXISTANTE</Text>
             <Text style={styles.titleSmall}>UNE SÉANCE EST DÉJÀ ACTIVE.</Text>
             <Text style={styles.bodyCentered}>
-              UGEROD ne remplace pas silencieusement une séance déjà générée ou commencée. Reprends-la, ou retourne au check-in pour décider explicitement quoi faire.
+              {canReplaceExisting
+                ? 'Cette séance n’a pas encore démarré. Tu peux la reprendre, revenir au check-in ou la remplacer explicitement par une nouvelle séance.'
+                : 'Cette séance a déjà démarré. UGEROD la protège : tu peux la reprendre ou retourner au check-in, mais elle ne peut plus être remplacée.'}
             </Text>
             <Pressable onPress={resumeExisting} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>REPRENDRE LA SÉANCE</Text>
             </Pressable>
+            {canReplaceExisting ? (
+              <Pressable
+                disabled={busy}
+                onPress={replaceExisting}
+                style={[styles.replaceButton, busy && styles.disabled]}
+              >
+                <Ionicons name="refresh-outline" size={17} color={colors.brandRed} />
+                <Text style={styles.replaceButtonText}>GÉNÉRER UNE NOUVELLE SÉANCE</Text>
+              </Pressable>
+            ) : null}
             <Pressable onPress={() => router.back()} style={styles.secondaryButton}>
               <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
             </Pressable>
@@ -231,7 +313,7 @@ export default function EnvironmentGeneratingScreen() {
             <Text style={styles.eyebrow}>GÉNÉRATION {label}</Text>
             <Text style={styles.titleSmall}>IMPOSSIBLE DE CONTINUER.</Text>
             <Text style={styles.bodyCentered}>{error}</Text>
-            <Pressable onPress={generate} style={styles.primaryButton}>
+            <Pressable onPress={() => generate(preparation)} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>RÉESSAYER</Text>
             </Pressable>
             <Pressable onPress={() => router.back()} style={styles.secondaryButton}>
@@ -273,6 +355,8 @@ const styles = StyleSheet.create({
   choiceTextSelected: { color: colors.brandWhite },
   primaryButton: { minHeight: 50, marginTop: 24, paddingHorizontal: 20, borderRadius: 13, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
   primaryButtonText: { fontFamily: 'Oswald_700Bold', fontSize: 11, letterSpacing: 0.8, color: colors.brandWhite },
+  replaceButton: { minHeight: 48, marginTop: 10, paddingHorizontal: 18, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(255,69,69,0.45)', backgroundColor: 'rgba(255,69,69,0.06)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  replaceButtonText: { fontFamily: 'Oswald_700Bold', fontSize: 10, letterSpacing: 0.65, color: colors.brandRed },
   secondaryButton: { minHeight: 44, marginTop: 8, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   secondaryButtonText: { fontFamily: 'Oswald_600SemiBold', fontSize: 10, letterSpacing: 0.6, color: colors.textMuted },
   disabled: { opacity: 0.45 },
