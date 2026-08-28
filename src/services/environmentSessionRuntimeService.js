@@ -32,8 +32,13 @@ export async function hydrateEnvironmentSessionExerciseIds(workout) {
   if (error) throw error;
 
   const rows = data ?? [];
-  const used = new Set();
+  const used = new Set(
+    workout.exercises
+      .map((exercise) => exercise.sessionExerciseId)
+      .filter(Boolean)
+  );
   const moduleByBlock = runtimeModuleByBlock(workout);
+  let changed = false;
 
   const exercises = workout.exercises.map((exercise) => {
     if (exercise.sessionExerciseId) return exercise;
@@ -76,6 +81,7 @@ export async function hydrateEnvironmentSessionExerciseIds(workout) {
 
     if (!match) return exercise;
     used.add(match.id);
+    changed = true;
 
     return {
       ...exercise,
@@ -83,7 +89,7 @@ export async function hydrateEnvironmentSessionExerciseIds(workout) {
     };
   });
 
-  return { ...workout, exercises };
+  return changed ? { ...workout, exercises } : workout;
 }
 
 export async function syncEnvironmentBuilderSwapRuntime({
