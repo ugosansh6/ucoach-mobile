@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v12-environment-lifecycle";
+const VERSION = "coach-handler-v13-canonical-environment-v3";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -72,7 +72,7 @@ serve(async (req: Request) => {
 
     if (environmentCode === "GYM" || environmentCode === "OUTDOOR") {
       const { data: environmentGenerated, error: environmentError } = await supabase.rpc(
-        "generate_environment_session_v2",
+        "generate_environment_session_v3",
         {
           p_user_id: userId,
           p_environment_code: environmentCode,
@@ -164,7 +164,7 @@ serve(async (req: Request) => {
         context_recalculation_limit: 0,
         meta: {
           ...(workout?.meta ?? {}),
-          backend_authority: "environment_session_generator_v2",
+          backend_authority: "environment_session_generator_v3",
           legacy_scaffold_authority: false,
           environment_code: environmentCode,
           environment_format_code: environmentGenerated?.format_code ?? body.environment_format_code ?? null,
@@ -177,27 +177,33 @@ serve(async (req: Request) => {
       });
     }
 
-    const { data: generated, error: generateError } = await supabase.rpc(
-      "d_generate_adaptive_session_v2",
-      {
-        p_user_id: userId,
-        p_focus_override: focusOverride,
-        p_duration_minutes: duration,
-        p_readiness: readiness,
-        p_target_region_override: body.target_region ?? null,
-        p_progression_intent_override: normalizeIntent(body.progression_intent),
-        p_zone_terms: injuredZones,
-        p_inventory: inventory ?? [],
-        p_available_equipment: equipment,
-        p_max_complexity: maxComplexity,
-        p_max_difficulty: experience,
-        p_candidate_count: 12,
-        p_policy_key: "c4-final-default",
-        p_anchor_date: localDate,
-        p_force_recalculate_started: Boolean(body.force_recalculate_started),
-        p_protected_session_exercise_ids: protectedSessionExerciseIds,
-      },
-    );
+    const useEnvironmentV3 = environmentCode === "HOME" || environmentCode === "BOX";
+    const adaptiveRpc = useEnvironmentV3 ? "d_generate_adaptive_session_v3" : "d_generate_adaptive_session_v2";
+    const adaptiveArgs: Record<string, unknown> = {
+      p_user_id: userId,
+      p_focus_override: focusOverride,
+      p_duration_minutes: duration,
+      p_readiness: readiness,
+      p_target_region_override: body.target_region ?? null,
+      p_progression_intent_override: normalizeIntent(body.progression_intent),
+      p_zone_terms: injuredZones,
+      p_inventory: inventory ?? [],
+      p_available_equipment: equipment,
+      p_max_complexity: maxComplexity,
+      p_max_difficulty: experience,
+      p_candidate_count: 12,
+      p_policy_key: "c4-final-default",
+      p_anchor_date: localDate,
+      p_force_recalculate_started: Boolean(body.force_recalculate_started),
+      p_protected_session_exercise_ids: protectedSessionExerciseIds,
+    };
+    if (useEnvironmentV3) {
+      adaptiveArgs.p_environment_code = environmentCode;
+      adaptiveArgs.p_surface_code = body.surface_code ?? null;
+      adaptiveArgs.p_environment_source = "USER_PREPARATION";
+    }
+
+    const { data: generated, error: generateError } = await supabase.rpc(adaptiveRpc, adaptiveArgs);
     if (generateError) throw new Error(generateError.message);
 
     if (["STARTED_SESSION_CONFIRM_REQUIRED", "RECALC_LIMIT_REACHED"].includes(generated?.status)) {
@@ -222,8 +228,9 @@ serve(async (req: Request) => {
         safety_adaptation: safetyAdaptation,
         meta: {
           ...(workout?.meta ?? {}),
-          backend_authority: "d1_weekly_loop_plus_c4_full_session",
+          backend_authority: useEnvironmentV3 ? "d_generate_adaptive_session_v3" : "d1_weekly_loop_plus_c4_full_session",
           legacy_scaffold_authority: false,
+          environment_code: useEnvironmentV3 ? environmentCode : null,
           weekly_loop: generated.weekly_loop ?? null,
           resumed_existing_session: generated.status === "resume_existing",
           safety_adapted_existing: generated.status === "safety_adapted_existing",
@@ -279,7 +286,7 @@ serve(async (req: Request) => {
 
     const { data: stored, error: storedError } = await supabase
       .from("workout_sessions")
-      .select("generated_workout, planning_context_json, progression_intent, focus, target_region, context_recalculation_count, context_recalculation_root_session_id, context_recalculation_parent_session_id")
+      .select("generated_workout, planning_context_json, progression_intent, focus, target_region, context_recalculation_count, context_recalculation_root_session_id, context_recalculation_parent_session_id, planned_environment_code")
       .eq("id", generated.session_id)
       .eq("user_id", userId)
       .single();
@@ -299,8 +306,9 @@ serve(async (req: Request) => {
       recalculation_continuity: generated.recalculation_continuity ?? stored.planning_context_json?.recalculation_continuity ?? null,
       meta: {
         ...(workout?.meta ?? generated.meta ?? {}),
-        backend_authority: "d1_weekly_loop_plus_c4_full_session",
+        backend_authority: useEnvironmentV3 ? "d_generate_adaptive_session_v3" : "d1_weekly_loop_plus_c4_full_session",
         legacy_scaffold_authority: false,
+        environment_code: stored.planned_environment_code ?? (useEnvironmentV3 ? environmentCode : null),
         weekly_loop: weeklyLoop,
         weekly_loop_version: "d1-weekly-loop-v1",
         progression_intent: stored.progression_intent ?? weeklyLoop?.progression_intent ?? null,
