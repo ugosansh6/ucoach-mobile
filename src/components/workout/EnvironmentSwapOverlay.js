@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,6 +17,7 @@ import { useWorkout } from '../../contexts/WorkoutContext';
 import { adaptSessionExercise } from '../../services/sessionAdaptationService';
 import {
   getWorkoutSwapAvailability,
+  markWorkoutSessionStarted,
   reloadWorkoutSession,
 } from '../../services/workoutService';
 import {
@@ -23,7 +25,7 @@ import {
   syncEnvironmentBuilderSwapRuntime,
 } from '../../services/environmentSessionRuntimeService';
 
-const SUPPORTED_RUNTIME_BLOCKS = new Set(['gym', 'tabata']);
+const SUPPORTED_SWAP_RUNTIME_BLOCKS = new Set(['gym', 'tabata']);
 
 function statusValue(exercise) {
   if (exercise?.userExecutionStatus) return exercise.userExecutionStatus;
@@ -37,7 +39,7 @@ function blockKey(block) {
   return String(block?.block_key ?? block?.blockKey ?? '').toLowerCase();
 }
 
-function currentBuilderTarget(workout) {
+function currentRuntimeTarget(workout) {
   const blocks = Array.isArray(workout?.rawBlocks) ? workout.rawBlocks : [];
   const exercises = Array.isArray(workout?.exercises) ? workout.exercises : [];
 
@@ -48,11 +50,12 @@ function currentBuilderTarget(workout) {
     );
     if (!rows.length || rows.every((exercise) => statusValue(exercise) !== 'pending')) continue;
 
-    const isManualBuilderBlock = Boolean(block?.builder_block_id) || block?.manual_selection === true;
-    if (!isManualBuilderBlock || !SUPPORTED_RUNTIME_BLOCKS.has(key)) return null;
-
-    const exercise = rows.find((row) => statusValue(row) === 'pending') ?? rows[0];
-    return { block, key, exercise };
+    return {
+      block,
+      key,
+      exercises: rows,
+      pendingExercises: rows.filter((exercise) => statusValue(exercise) === 'pending'),
+    };
   }
 
   return null;
@@ -66,13 +69,20 @@ export default function EnvironmentSwapOverlay() {
   const { workout, setGeneratedWorkout } = useWorkout();
   const [availability, setAvailability] = useState({});
   const [loading, setLoading] = useState(false);
-  const [swapping, setSwapping] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [visible, setVisible] = useState(false);
 
-  const target = useMemo(() => currentBuilderTarget(workout), [workout]);
-  const instanceId = target?.exercise?.sessionExerciseId ?? null;
+  const current = useMemo(() => currentRuntimeTarget(workout), [workout]);
+  const isManualBuilderBlock = Boolean(current?.block?.builder_block_id) || current?.block?.manual_selection === true;
+  const swapExercise =
+    current &&
+    isManualBuilderBlock &&
+    SUPPORTED_SWAP_RUNTIME_BLOCKS.has(current.key)
+      ? current.pendingExercises?.[0] ?? null
+      : null;
+  const instanceId = swapExercise?.sessionExerciseId ?? null;
   const item = instanceId ? availability?.[instanceId] ?? null : null;
-  const hasChoice =
+  const hasSwapChoice =
     directionAvailable(item, 'equivalent') ||
     directionAvailable(item, 'easier') ||
     directionAvailable(item, 'harder');
@@ -94,7 +104,7 @@ export default function EnvironmentSwapOverlay() {
   }, [hydrate]);
 
   const refreshAvailability = useCallback(async () => {
-    if (!workout?.sessionId || !target?.exercise?.sessionExerciseId) {
+    if (!workout?.sessionId || !instanceId) {
       setAvailability({});
       return;
     }
@@ -109,16 +119,16 @@ export default function EnvironmentSwapOverlay() {
     } finally {
       setLoading(false);
     }
-  }, [target?.exercise?.sessionExerciseId, workout?.sessionId]);
+  }, [instanceId, workout?.sessionId]);
 
   useEffect(() => {
     refreshAvailability();
   }, [refreshAvailability]);
 
   async function applySwap(reason) {
-    if (!target?.exercise?.sessionExerciseId || swapping) return;
+    if (!swapExercise?.sessionExerciseId || busy) return;
 
-    const oldExerciseId = target.exercise.exerciseId ?? target.exercise.id;
+    const oldExerciseId = swapExercise.exerciseId ?? swapExercise.id;
     const previousByInstance = new Map(
       (workout.exercises ?? [])
         .filter((exercise) => exercise.sessionExerciseId)
@@ -126,16 +136,16 @@ export default function EnvironmentSwapOverlay() {
     );
 
     try {
-      setSwapping(true);
+      setBusy(true);
       const result = await adaptSessionExercise({
         sessionId: workout.sessionId,
-        sessionExerciseId: target.exercise.sessionExerciseId,
+        sessionExerciseId: swapExercise.sessionExerciseId,
         currentExerciseId: oldExerciseId,
         reason,
       });
 
       await syncEnvironmentBuilderSwapRuntime({
-        sessionExerciseId: target.exercise.sessionExerciseId,
+        sessionExerciseId: swapExercise.sessionExerciseId,
         oldExerciseId,
         substitute: result?.substitute ?? {},
       });
@@ -150,7 +160,7 @@ export default function EnvironmentSwapOverlay() {
         ...hydrated,
         exercises: (hydrated.exercises ?? []).map((exercise) => {
           const previous = previousByInstance.get(exercise.sessionExerciseId);
-          if (!previous || exercise.sessionExerciseId === target.exercise.sessionExerciseId) {
+          if (!previous || exercise.sessionExerciseId === swapExercise.sessionExerciseId) {
             return {
               ...exercise,
               status: 'pending',
@@ -183,11 +193,72 @@ export default function EnvironmentSwapOverlay() {
         error?.message ?? 'Aucune alternative sûre n’a été trouvée.'
       );
     } finally {
-      setSwapping(false);
+      setBusy(false);
     }
   }
 
-  if (!target || loading || !instanceId || !hasChoice) return null;
+  async function skipCurrentBlock() {
+    if (!current || busy) return;
+
+    try {
+      setBusy(true);
+      let startedLocalDate = workout.startedLocalDate ?? null;
+
+      if (!workout.sessionStarted) {
+        const started = await markWorkoutSessionStarted({ sessionId: workout.sessionId });
+        startedLocalDate = started?.started_local_date ?? startedLocalDate;
+      }
+
+      const nextExercises = (workout.exercises ?? []).map((exercise) => {
+        const sameBlock = String(exercise.blockKey ?? exercise.block ?? '').toLowerCase() === current.key;
+        if (!sameBlock || statusValue(exercise) !== 'pending') return exercise;
+        return {
+          ...exercise,
+          status: 'not_completed',
+          userExecutionStatus: 'not_completed',
+          repsCompleted: null,
+          durationSeconds: null,
+          distanceMeters: null,
+          rpe: null,
+          performanceActualJson: null,
+        };
+      });
+
+      setGeneratedWorkout({
+        ...workout,
+        sessionStarted: true,
+        status: 'in_progress',
+        startedAt: workout.startedAt ?? new Date().toISOString(),
+        startedLocalDate,
+        exercises: nextExercises,
+      });
+      setVisible(false);
+
+      if (!nextExercises.some((exercise) => statusValue(exercise) === 'pending')) {
+        router.push('/workout/completion');
+      }
+    } catch (error) {
+      Alert.alert(
+        'Impossible de passer ce bloc',
+        error?.message ?? 'Réessaie dans quelques instants.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirmSkip() {
+    Alert.alert(
+      'Passer ce bloc ?',
+      'Il sera enregistré comme non réalisé. Aucune performance ne sera inventée.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Passer', style: 'destructive', onPress: skipCurrentBlock },
+      ]
+    );
+  }
+
+  if (!current) return null;
 
   return (
     <>
@@ -195,37 +266,49 @@ export default function EnvironmentSwapOverlay() {
         onPress={() => setVisible(true)}
         style={({ pressed }) => [styles.floatingButton, pressed && styles.pressed]}
       >
-        <Ionicons name="swap-horizontal" size={17} color={colors.textPrimary} />
-        <Text style={styles.floatingText}>REMPLACER</Text>
+        <Ionicons name="ellipsis-horizontal" size={17} color={colors.textPrimary} />
+        <Text style={styles.floatingText}>OPTIONS</Text>
       </Pressable>
 
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={() => !swapping && setVisible(false)}>
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={() => !busy && setVisible(false)}>
         <SafeAreaView style={styles.modalRoot}>
-          <Pressable style={styles.backdrop} disabled={swapping} onPress={() => setVisible(false)} />
+          <Pressable style={styles.backdrop} disabled={busy} onPress={() => setVisible(false)} />
           <View style={styles.sheet}>
             <View style={styles.handle} />
             <View style={styles.sheetHeader}>
               <View style={styles.flex}>
-                <Text style={styles.eyebrow}>REMPLACEMENT</Text>
-                <Text style={styles.title}>{target.exercise.name}</Text>
-                <Text style={styles.body}>UGEROD n’affiche que les alternatives déjà validées comme compatibles avec cette séance.</Text>
+                <Text style={styles.eyebrow}>OPTIONS DU BLOC</Text>
+                <Text style={styles.title}>{current.block?.title ?? current.block?.block_name ?? current.key}</Text>
+                <Text style={styles.body}>
+                  {hasSwapChoice
+                    ? 'Les remplacements proposés sont déjà validés comme compatibles avec cette séance.'
+                    : 'Tu peux passer ce bloc : il restera enregistré comme non réalisé.'}
+                </Text>
               </View>
-              <Pressable disabled={swapping} onPress={() => setVisible(false)} hitSlop={10}>
+              <Pressable disabled={busy} onPress={() => setVisible(false)} hitSlop={10}>
                 <Ionicons name="close" size={21} color={colors.textSecondary} />
               </Pressable>
             </View>
 
-            {swapping ? <ActivityIndicator color={colors.primaryLight} style={styles.loader} /> : null}
+            {busy || loading ? <ActivityIndicator color={colors.primaryLight} style={styles.loader} /> : null}
 
-            {directionAvailable(item, 'equivalent') ? (
-              <SwapOption icon="swap-horizontal" title="UN ÉQUIVALENT" onPress={() => applySwap('equivalent')} disabled={swapping} />
+            {hasSwapChoice && directionAvailable(item, 'equivalent') ? (
+              <ActionOption icon="swap-horizontal" title="UN ÉQUIVALENT" onPress={() => applySwap('equivalent')} disabled={busy} />
             ) : null}
-            {directionAvailable(item, 'easier') ? (
-              <SwapOption icon="arrow-down-circle-outline" title="PLUS FACILE" onPress={() => applySwap('too_hard')} disabled={swapping} />
+            {hasSwapChoice && directionAvailable(item, 'easier') ? (
+              <ActionOption icon="arrow-down-circle-outline" title="PLUS FACILE" onPress={() => applySwap('too_hard')} disabled={busy} />
             ) : null}
-            {directionAvailable(item, 'harder') ? (
-              <SwapOption icon="arrow-up-circle-outline" title="PLUS DIFFICILE" onPress={() => applySwap('too_easy')} disabled={swapping} />
+            {hasSwapChoice && directionAvailable(item, 'harder') ? (
+              <ActionOption icon="arrow-up-circle-outline" title="PLUS DIFFICILE" onPress={() => applySwap('too_easy')} disabled={busy} />
             ) : null}
+
+            <ActionOption
+              icon="play-skip-forward-outline"
+              title="PASSER CE BLOC"
+              subtitle="Le bloc est noté non réalisé et la séance continue."
+              onPress={confirmSkip}
+              disabled={busy}
+            />
           </View>
         </SafeAreaView>
       </Modal>
@@ -233,11 +316,14 @@ export default function EnvironmentSwapOverlay() {
   );
 }
 
-function SwapOption({ icon, title, onPress, disabled }) {
+function ActionOption({ icon, title, subtitle, onPress, disabled }) {
   return (
     <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.option, pressed && styles.pressed]}>
       <Ionicons name={icon} size={20} color={colors.primaryLight} />
-      <Text style={styles.optionText}>{title}</Text>
+      <View style={styles.flex}>
+        <Text style={styles.optionText}>{title}</Text>
+        {subtitle ? <Text style={styles.optionSubtitle}>{subtitle}</Text> : null}
+      </View>
       <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </Pressable>
   );
@@ -289,6 +375,7 @@ const styles = StyleSheet.create({
     minHeight: 54,
     marginTop: 10,
     paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
@@ -297,5 +384,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  optionText: { flex: 1, fontFamily: 'Oswald_700Bold', fontSize: 10, letterSpacing: 0.5, color: colors.textPrimary },
+  optionText: { fontFamily: 'Oswald_700Bold', fontSize: 10, letterSpacing: 0.5, color: colors.textPrimary },
+  optionSubtitle: { marginTop: 2, fontFamily: 'Oswald_400Regular', fontSize: 9.5, lineHeight: 14, color: colors.textMuted },
 });
