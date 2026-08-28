@@ -96,6 +96,7 @@ function normalizeEnvironmentControl(data) {
       controlStatus: 'STARTED_SESSION_CONFIRM_REQUIRED',
       sessionId: data?.session_id ?? null,
       environmentControlStatus: status,
+      existingSessionStarted: true,
     };
   }
 
@@ -106,7 +107,40 @@ function normalizeEnvironmentControl(data) {
       environmentControlStatus: status,
       existingEnvironmentCode: data?.existing_environment_code ?? null,
       requestedEnvironmentCode: data?.requested_environment_code ?? null,
+      existingSessionStarted: false,
     };
+  }
+
+  return null;
+}
+
+function environmentGenerationError(data, environmentCode) {
+  const status = String(data?.status ?? '').toUpperCase();
+  const reason = String(
+    data?.reason_code ??
+      data?.policy?.reason_code ??
+      data?.policy?.compiler_status ??
+      ''
+  ).toUpperCase();
+
+  const messages = {
+    SURFACE_REQUIRED_OUTDOOR: 'Choisis le sol avant de valider ta séance extérieure.',
+    DURATION_TOO_SHORT_FOR_CONDITIONING_PLUS_HOME_BOX_WOD:
+      'La durée choisie est trop courte pour combiner Conditioning et WOD en gardant les deux blocs cohérents.',
+    HOME_BOX_WOD_NOT_COMPILABLE_OUTDOOR:
+      'UGEROD ne trouve pas de WOD compatible avec ton contexte extérieur actuel.',
+    HOME_BOX_WOD_BLOCK_MISSING:
+      'UGEROD ne peut pas construire le WOD demandé avec ce contexte.',
+    OUTDOOR_CONDITIONING_NOT_COMPILABLE:
+      'UGEROD ne trouve pas de bloc Conditioning compatible avec ton contexte actuel.',
+    OUTDOOR_SAFETY_OR_FEASIBILITY_CONFLICT:
+      'Le contexte extérieur choisi ne permet pas de construire cette séance en respectant les garde-fous.',
+  };
+
+  if (messages[reason]) return messages[reason];
+
+  if (status === 'BLOCKED') {
+    return `UGEROD ne peut pas construire cette séance ${environmentCode === 'OUTDOOR' ? 'extérieure' : 'en salle'} avec le contexte actuel.`;
   }
 
   return null;
@@ -169,6 +203,11 @@ async function generateEnvironmentWorkoutSession(preparation) {
   const control = normalizeEnvironmentControl(data);
   if (control) return control;
 
+  const friendlyError = environmentGenerationError(data, environmentCode);
+  if (friendlyError) {
+    throw new Error(friendlyError);
+  }
+
   if (!data?.session_id) {
     throw new Error("La génération environnement n'a pas retourné de session_id.");
   }
@@ -185,6 +224,35 @@ async function generateEnvironmentWorkoutSession(preparation) {
         ? 'resume_existing'
         : reloaded?.generationControlStatus ?? null,
   };
+}
+
+export async function discardUnstartedWorkoutSession(sessionId) {
+  if (!sessionId) {
+    throw new Error('Aucune séance à remplacer.');
+  }
+
+  const { data, error } = await supabase.rpc(
+    'discard_unstarted_workout_session_v1',
+    { p_session_id: sessionId }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ?? 'Impossible de remplacer la séance précédente.'
+    );
+  }
+
+  if (data?.status === 'STARTED_SESSION_PROTECTED') {
+    throw new Error(
+      'Cette séance a déjà démarré : elle doit être reprise et ne peut plus être remplacée.'
+    );
+  }
+
+  if (!data?.discarded) {
+    throw new Error('La séance précédente ne peut pas être remplacée.');
+  }
+
+  return data;
 }
 
 export async function generateWorkoutSession(preparation, options = {}) {
