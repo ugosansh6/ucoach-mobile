@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import SessionCore from './session-core';
+import EnvironmentSessionCore from './environment-session-core';
 import { colors, spacing } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
@@ -30,6 +31,28 @@ export default function SessionScreen() {
     useState(false);
   const [busyAction, setBusyAction] =
     useState(null);
+
+  const environmentCode = useMemo(
+    () =>
+      String(
+        workout?.meta?.environment_code ??
+          workout?.meta?.environmentCode ??
+          workout?.preparationSnapshot?.environmentCode ??
+          ''
+      )
+        .trim()
+        .toUpperCase(),
+    [
+      workout?.meta?.environmentCode,
+      workout?.meta?.environment_code,
+      workout?.preparationSnapshot?.environmentCode,
+    ]
+  );
+
+  const isEnvironmentSession =
+    ['GYM', 'OUTDOOR'].includes(
+      environmentCode
+    );
 
   const hasSkill = useMemo(
     () =>
@@ -115,6 +138,14 @@ export default function SessionScreen() {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  if (isEnvironmentSession) {
+    return (
+      <EnvironmentSessionCore
+        environmentCode={environmentCode}
+      />
+    );
   }
 
   return (
