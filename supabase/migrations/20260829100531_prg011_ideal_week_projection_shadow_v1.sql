@@ -1,0 +1,3 @@
+-- Historical DEV migration marker.
+-- Intermediate PRG-011 ideal-week projection from the interrupted iteration.
+-- Superseded by the replay-safe canonical v5 migration at 20260829101243.
