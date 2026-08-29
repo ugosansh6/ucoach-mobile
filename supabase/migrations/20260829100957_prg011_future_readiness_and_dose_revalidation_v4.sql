@@ -1,0 +1,3 @@
+-- Historical DEV migration marker.
+-- Intermediate PRG-011 future-readiness/dose revalidation fix.
+-- Superseded by the replay-safe canonical v5 migration at 20260829101243.
