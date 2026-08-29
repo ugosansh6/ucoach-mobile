@@ -1,0 +1,3 @@
+-- Historical DEV migration marker.
+-- Intermediate future-only/no-debt PRG-011 projection.
+-- Superseded by the replay-safe canonical v5 migration at 20260829101243.
