@@ -18,6 +18,8 @@ declare
   v_gym jsonb;
   v_outdoor jsonb;
   v_missing int;
+  v_contract jsonb;
+  v_lifecycle jsonb;
 begin
   if v_user is null then
     raise exception 'Set ugerod.qa_user_id to an existing QA profile before running this suite';
@@ -93,6 +95,72 @@ begin
        jsonb_build_object('source','c4-swap-directional-v3'),null,'USER_SELECTED'
      ) <> 'UGEROD_SUGGESTED_ACCEPTED' then
     raise exception 'PREF-001 regression: accepted swap provenance classification broken';
+  end if;
+
+  -- Coach truth: an administratively closed session only counts as training when
+  -- there is realized execution. Existing positive-execution sessions must remain eligible.
+  if exists(
+    select 1 from public.workout_sessions ws
+    where ws.status='completed'
+      and public.d_session_execution_factor_v2(ws.id)>0
+      and public.session_counts_as_training_v1(ws.id) is not true
+  ) then
+    raise exception 'Coach truth regression: positive-execution completed session does not count as training';
+  end if;
+  if exists(
+    select 1 from public.workout_sessions ws
+    where ws.status='completed'
+      and public.d_session_execution_factor_v2(ws.id)=0
+      and public.session_counts_as_training_v1(ws.id) is true
+  ) then
+    raise exception 'Coach truth regression: zero-execution closed session counts as training';
+  end if;
+
+  -- Coach V2 goal doctrine is qualitative: no legacy numeric weight is part of
+  -- the new priority authority contract.
+  if jsonb_path_exists(public.program_coach_goal_quality_roles_v2('Strength'),'$.**.weight')
+     or jsonb_path_exists(public.program_coach_goal_quality_roles_v2('General Fitness'),'$.**.weight') then
+    raise exception 'PRG V2 regression: qualitative goal roles expose numeric weights';
+  end if;
+
+  v_contract:=public.program_coach_priority_contract_from_resolver_v2(jsonb_build_object(
+    'version','qa-resolver',
+    'primary_goal','Strength',
+    'primary_priority',jsonb_build_object('kind','QUALITY','key','strength','programming_state','DEVELOP'),
+    'secondary_priority',jsonb_build_object('kind','QUALITY','key','conditioning','programming_state','MAINTAIN'),
+    'maintenance','[]'::jsonb,
+    'unknown_patterns','[]'::jsonb,
+    'decision_order',jsonb_build_array('QA')));
+  if jsonb_path_exists(v_contract,'$.**.weight') or jsonb_path_exists(v_contract,'$.**.priority_score') then
+    raise exception 'PRG V2 regression: persistent cycle priority contains legacy numeric authority';
+  end if;
+  if coalesce((v_contract#>>'{semantics,persistent_until_strategy_review}')::boolean,false) is not true then
+    raise exception 'PRG V2 regression: cycle priority is not declared persistent until review';
+  end if;
+
+  -- A block whose horizon has passed may not silently continue forever.
+  v_lifecycle:=public.program_coach_block_lifecycle_from_inputs_v2(
+    jsonb_build_object('id','00000000-0000-0000-0000-000000000001','status','active','primary_goal','Strength','target_end_on','2026-08-20'),
+    jsonb_build_object('recommended_action','CONTINUE'),
+    jsonb_build_object('primary_goal','Strength','primary_priority',jsonb_build_object('kind','QUALITY','key','strength')),
+    '2026-08-30'::date);
+  if v_lifecycle->>'transition'<>'LIFECYCLE_DECISION_REQUIRED'
+     or v_lifecycle->>'reason_code'<>'ACTIVE_BLOCK_HORIZON_PASSED_NO_SILENT_EXTENSION' then
+    raise exception 'PRG lifecycle regression: expired active block can silently continue';
+  end if;
+  if coalesce((v_lifecycle->>'extension_duration_decided')::boolean,true) is not false then
+    raise exception 'PRG lifecycle regression: arbitrary automatic extension duration introduced';
+  end if;
+
+  -- Recovery may alter dose, not rewrite the cycle priority.
+  v_lifecycle:=public.program_coach_block_lifecycle_from_inputs_v2(
+    jsonb_build_object('id','00000000-0000-0000-0000-000000000001','status','active','primary_goal','Strength','target_end_on','2026-09-30'),
+    jsonb_build_object('recommended_action','CONSOLIDATE'),
+    jsonb_build_object('primary_goal','Strength','primary_priority',jsonb_build_object('kind','QUALITY','key','strength')),
+    '2026-08-30'::date);
+  if v_lifecycle->>'transition'<>'KEEP_ACTIVE_CONSOLIDATE'
+     or coalesce((v_lifecycle#>>'{persistent_priority_contract,session_actuals_may_change_week_or_dose_not_cycle_priority}')::boolean,false) is not true then
+    raise exception 'PRG lifecycle regression: consolidation is changing cycle priority semantics';
   end if;
 
   raise notice 'UGEROD backend_core_regression: PASS';
