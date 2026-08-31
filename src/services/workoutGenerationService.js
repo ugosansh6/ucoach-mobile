@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { runSupabaseRequestWithAuthRetry } from '../lib/supabaseAuthRetry';
 import {
   getEquipmentCatalog,
   getUserEquipmentInventory,
@@ -166,19 +167,14 @@ async function generateEnvironmentWorkoutSession(preparation) {
     p_anchor_date: localDateKey(),
   };
 
-  const { data: response, error } =
-    await supabase.functions.invoke(
+  const response = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.functions.invoke(
       'environment-session-handler',
       {
         body: { params },
       }
-    );
-
-  if (error) {
-    throw new Error(
-      error?.message ?? 'Impossible de générer la séance pour cet environnement.'
-    );
-  }
+    )
+  );
 
   if (!response?.ok) {
     throw new Error(
@@ -227,16 +223,12 @@ export async function discardUnstartedWorkoutSession(sessionId) {
     throw new Error('Aucune séance à remplacer.');
   }
 
-  const { data, error } = await supabase.rpc(
-    'discard_unstarted_workout_session_v1',
-    { p_session_id: sessionId }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'discard_unstarted_workout_session_v1',
+      { p_session_id: sessionId }
+    )
   );
-
-  if (error) {
-    throw new Error(
-      error?.message ?? 'Impossible de remplacer la séance précédente.'
-    );
-  }
 
   if (data?.status === 'STARTED_SESSION_PROTECTED') {
     throw new Error(
