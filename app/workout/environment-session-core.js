@@ -46,6 +46,18 @@ function formatClock(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function formatRunDuration(totalSeconds) {
+  const safe = Math.max(0, Math.round(numberOr(totalSeconds, 0)));
+  if (safe <= 0) return null;
+
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+
+  if (minutes > 0 && seconds > 0) return `${minutes} min ${seconds} sec`;
+  if (minutes > 0) return `${minutes} min`;
+  return `${seconds} sec`;
+}
+
 function blockKey(block) {
   return String(block?.block_key ?? block?.blockKey ?? block?.key ?? '').toLowerCase();
 }
@@ -116,6 +128,23 @@ function runFamilyLabel(mechanic, block) {
   if (mechanic === 'RUN_INTERVALS') return 'Intervalles';
   if (mechanic === 'RUN_CALIBRATION') return 'Calibration';
   return 'Course';
+}
+
+function runIntensityCueLabel(value) {
+  const labels = {
+    SUSTAINED_CONTROLLED: 'Allure soutenue mais contrôlée',
+    EASY_CONVERSATIONAL: 'Allure facile, tu peux parler',
+  };
+
+  return labels[normalize(value)] ?? null;
+}
+
+function runRecoveryCueLabel(value) {
+  const labels = {
+    EASY_MOVE_OR_WALK: 'Marche ou trottine tranquillement',
+  };
+
+  return labels[normalize(value)] ?? null;
 }
 
 function statusValue(exercise) {
@@ -578,9 +607,10 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
   const recoverySeconds = Math.max(0, positiveInt(params?.recovery_seconds, 0));
   const repeats = Math.max(1, positiveInt(params?.repeats, 1));
 
-  const [started, setStarted] = useState(false);
+  const initialElapsed = positiveInt(exercise?.durationSeconds, 0);
+  const [started, setStarted] = useState(initialElapsed > 0);
   const [paused, setPaused] = useState(false);
-  const [elapsed, setElapsed] = useState(positiveInt(exercise?.durationSeconds, 0));
+  const [elapsed, setElapsed] = useState(initialElapsed);
   const [distance, setDistance] = useState(exercise?.distanceMeters != null ? String(exercise.distanceMeters) : '');
   const [rpe, setRpe] = useState(exercise?.rpe != null ? String(exercise.rpe) : '');
 
@@ -594,7 +624,21 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
 
   const phase = useMemo(() => {
     if (!isIntervals) {
-      return { label: 'EFFORT', remaining: Math.max(0, prescribedSeconds - elapsed), completedIntervals: 0, intervalNumber: 1 };
+      return {
+        label: elapsed >= prescribedSeconds ? 'TERMINÉ' : 'EFFORT',
+        remaining: Math.max(0, prescribedSeconds - elapsed),
+        completedIntervals: 0,
+        intervalNumber: 1,
+      };
+    }
+
+    if (elapsed >= prescribedSeconds) {
+      return {
+        label: 'TERMINÉ',
+        remaining: 0,
+        completedIntervals: repeats,
+        intervalNumber: repeats,
+      };
     }
 
     const cycle = Math.max(1, workSeconds + recoverySeconds);
@@ -611,9 +655,15 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
       completedIntervals,
       intervalNumber,
     };
-  }, [elapsed, isIntervals, recoverySeconds, repeats, workSeconds]);
+  }, [elapsed, isIntervals, prescribedSeconds, recoverySeconds, repeats, workSeconds]);
 
   const title = isRun ? runFamilyLabel(mechanic, block) : blockTitle(block, 'Cardio');
+  const intensityCue = runIntensityCueLabel(params?.intensity_cue);
+  const recoveryCue = runRecoveryCueLabel(params?.recovery_mode);
+  const phaseCue = phase.label === 'RÉCUPÉRATION' ? recoveryCue : intensityCue;
+  const workLabel = formatRunDuration(workSeconds);
+  const recoveryLabel = formatRunDuration(recoverySeconds);
+  const totalLabel = formatRunDuration(prescribedSeconds);
 
   function finish() {
     if (!started && elapsed <= 0) {
@@ -633,70 +683,177 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
     });
   }
 
-  return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      {exercise?.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
+  if (!isRun) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        {exercise?.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
 
-      <View style={styles.timerBox}>
-        <Text style={styles.timer}>{formatClock(elapsed)}</Text>
-        <Text style={styles.timerTarget}>/ {formatClock(prescribedSeconds)}</Text>
+        <View style={styles.timerBox}>
+          <Text style={styles.timer}>{formatClock(elapsed)}</Text>
+          <Text style={styles.timerTarget}>/ {formatClock(prescribedSeconds)}</Text>
+        </View>
+
+        <View style={styles.timerActions}>
+          {!started ? (
+            <Pressable onPress={() => setStarted(true)} style={({ pressed }) => [styles.primaryButton, styles.flexButton, pressed && styles.pressed]}>
+              <Text style={styles.primaryButtonText}>DÉMARRER</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setPaused((current) => !current)} style={({ pressed }) => [styles.secondaryButton, styles.flexButton, pressed && styles.pressed]}>
+              <Text style={styles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.metricsRow}>
+          <View style={styles.metricField}>
+            <Text style={styles.inputLabel}>DISTANCE RÉELLE (M)</Text>
+            <TextInput
+              value={distance}
+              onChangeText={setDistance}
+              placeholder="Optionnel"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="decimal-pad"
+              style={styles.metricInput}
+            />
+          </View>
+          <View style={styles.metricFieldSmall}>
+            <Text style={styles.inputLabel}>RPE</Text>
+            <TextInput
+              value={rpe}
+              onChangeText={setRpe}
+              placeholder="1–10"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
+              style={styles.metricInput}
+            />
+          </View>
+        </View>
+
+        <Text style={styles.helperText}>
+          {environmentCode === 'OUTDOOR'
+            ? 'La distance reste optionnelle : aucun GPS n’est requis.'
+            : 'Renseigne seulement ce que tu as réellement mesuré.'}
+        </Text>
+
+        <Pressable onPress={finish} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+          <Text style={styles.primaryButtonText}>{elapsed >= prescribedSeconds ? 'TERMINER LE BLOC' : 'ARRÊTER ET TERMINER'}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.card, styles.runCard]}>
+      <Text style={styles.runEyebrow}>CONDITIONING COURSE</Text>
+      <Text style={styles.cardTitle}>{title}</Text>
+
+      <View style={styles.runBriefPanel}>
+        <Text style={styles.runBriefEyebrow}>TA SÉANCE</Text>
+        <Text style={styles.runBriefMain}>
+          {isIntervals
+            ? `${repeats} × ${workLabel} de course`
+            : `${totalLabel} de course`}
+        </Text>
+        {isIntervals && recoverySeconds > 0 ? (
+          <Text style={styles.runBriefRecovery}>+ {recoveryLabel} de récupération</Text>
+        ) : null}
+
+        {intensityCue ? (
+          <View style={styles.runCueRow}>
+            <Ionicons name="speedometer-outline" size={16} color={colors.primaryLight} />
+            <Text style={styles.runCueText}>{intensityCue}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.runTotalRow}>
+          <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+          <Text style={styles.runTotalText}>{totalLabel} au total</Text>
+        </View>
       </View>
 
-      {isIntervals ? (
-        <View style={styles.phaseBox}>
-          <Text style={styles.phaseLabel}>{phase.label}</Text>
-          <Text style={styles.phaseTime}>{formatClock(phase.remaining)}</Text>
-          <Text style={styles.cardMeta}>Intervalle {phase.intervalNumber}/{repeats} · {phase.completedIntervals} terminé(s)</Text>
-        </View>
-      ) : null}
+      <View style={styles.runPhaseCard}>
+        <Text style={styles.runPhaseLabel}>
+          {isIntervals
+            ? `${phase.label} · ${phase.intervalNumber}/${repeats}`
+            : phase.label === 'TERMINÉ' ? 'TERMINÉ' : 'COURSE'}
+        </Text>
+        <Text style={styles.runPhaseTime}>{formatClock(phase.remaining)}</Text>
+        {phaseCue && phase.label !== 'TERMINÉ' ? (
+          <Text style={styles.runPhaseCue}>{phaseCue}</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.runOverallRow}>
+        <Text style={styles.runOverallLabel}>TEMPS TOTAL</Text>
+        <Text style={styles.runOverallValue}>{formatClock(elapsed)} / {formatClock(prescribedSeconds)}</Text>
+      </View>
 
       <View style={styles.timerActions}>
         {!started ? (
-          <Pressable onPress={() => setStarted(true)} style={({ pressed }) => [styles.primaryButton, styles.flexButton, pressed && styles.pressed]}>
+          <Pressable
+            onPress={() => setStarted(true)}
+            style={({ pressed }) => [styles.runStartButton, styles.flexButton, pressed && styles.pressed]}
+          >
+            <Ionicons name="play" size={18} color={colors.brandWhite} />
             <Text style={styles.primaryButtonText}>DÉMARRER</Text>
           </Pressable>
-        ) : (
-          <Pressable onPress={() => setPaused((current) => !current)} style={({ pressed }) => [styles.secondaryButton, styles.flexButton, pressed && styles.pressed]}>
+        ) : elapsed < prescribedSeconds ? (
+          <Pressable
+            onPress={() => setPaused((current) => !current)}
+            style={({ pressed }) => [styles.secondaryButton, styles.flexButton, pressed && styles.pressed]}
+          >
+            <Ionicons name={paused ? 'play' : 'pause'} size={17} color={colors.textPrimary} />
             <Text style={styles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
           </Pressable>
-        )}
+        ) : null}
       </View>
 
-      <View style={styles.metricsRow}>
-        <View style={styles.metricField}>
-          <Text style={styles.inputLabel}>DISTANCE RÉELLE (M)</Text>
-          <TextInput
-            value={distance}
-            onChangeText={setDistance}
-            placeholder="Optionnel"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="decimal-pad"
-            style={styles.metricInput}
-          />
+      {(started || elapsed > 0) ? (
+        <View style={styles.runMetricsPanel}>
+          <Text style={styles.runMetricsEyebrow}>APRÈS L’EFFORT · OPTIONNEL</Text>
+          <View style={styles.metricsRowCompact}>
+            <View style={styles.metricField}>
+              <Text style={styles.inputLabel}>DISTANCE (M)</Text>
+              <TextInput
+                value={distance}
+                onChangeText={setDistance}
+                placeholder="Optionnel"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                style={styles.metricInput}
+              />
+            </View>
+            <View style={styles.metricFieldSmall}>
+              <Text style={styles.inputLabel}>RPE</Text>
+              <TextInput
+                value={rpe}
+                onChangeText={setRpe}
+                placeholder="1–10"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numeric"
+                style={styles.metricInput}
+              />
+            </View>
+          </View>
+          {environmentCode === 'OUTDOOR' ? (
+            <Text style={styles.helperText}>Aucun GPS n’est requis. Renseigne seulement ce que tu as réellement mesuré.</Text>
+          ) : null}
         </View>
-        <View style={styles.metricFieldSmall}>
-          <Text style={styles.inputLabel}>RPE</Text>
-          <TextInput
-            value={rpe}
-            onChangeText={setRpe}
-            placeholder="1–10"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="numeric"
-            style={styles.metricInput}
-          />
-        </View>
-      </View>
+      ) : null}
 
-      <Text style={styles.helperText}>
-        {environmentCode === 'OUTDOOR'
-          ? 'La distance reste optionnelle : aucun GPS n’est requis.'
-          : 'Renseigne seulement ce que tu as réellement mesuré.'}
-      </Text>
-
-      <Pressable onPress={finish} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-        <Text style={styles.primaryButtonText}>{elapsed >= prescribedSeconds ? 'TERMINER LE BLOC' : 'ARRÊTER ET TERMINER'}</Text>
-      </Pressable>
+      {elapsed >= prescribedSeconds ? (
+        <Pressable onPress={finish} style={({ pressed }) => [styles.runStartButton, pressed && styles.pressed]}>
+          <Ionicons name="checkmark" size={18} color={colors.brandWhite} />
+          <Text style={styles.primaryButtonText}>TERMINER LE BLOC</Text>
+        </Pressable>
+      ) : started ? (
+        <Pressable onPress={finish} style={({ pressed }) => [styles.stopButton, pressed && styles.pressed]}>
+          <Ionicons name="stop-circle-outline" size={17} color={colors.brandRed} />
+          <Text style={styles.stopButtonText}>ARRÊTER LE BLOC</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -1148,6 +1305,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1199,6 +1358,7 @@ const styles = StyleSheet.create({
   },
   timerActions: { flexDirection: 'row', gap: 9 },
   metricsRow: { marginTop: 16, flexDirection: 'row', gap: 10 },
+  metricsRowCompact: { marginTop: 10, flexDirection: 'row', gap: 10 },
   metricField: { flex: 1 },
   metricFieldSmall: { width: 92 },
   inputLabel: {
@@ -1225,6 +1385,169 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 15,
     color: colors.textMuted,
+  },
+  runCard: {
+    borderRadius: 20,
+    backgroundColor: 'rgba(7,10,14,0.94)',
+    borderColor: 'rgba(8,104,255,0.30)',
+  },
+  runEyebrow: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 9,
+    letterSpacing: 0.9,
+    color: colors.primaryLight,
+    marginBottom: 2,
+  },
+  runBriefPanel: {
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: 'rgba(8,104,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(8,104,255,0.22)',
+  },
+  runBriefEyebrow: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 8,
+    letterSpacing: 0.9,
+    color: colors.primaryLight,
+  },
+  runBriefMain: {
+    marginTop: 5,
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 27,
+    lineHeight: 30,
+    letterSpacing: 0.9,
+    color: colors.textPrimary,
+  },
+  runBriefRecovery: {
+    marginTop: 2,
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textPrimary,
+  },
+  runCueRow: {
+    marginTop: 12,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  runCueText: {
+    flex: 1,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.textSecondary,
+  },
+  runTotalRow: {
+    marginTop: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  runTotalText: {
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 10,
+    letterSpacing: 0.3,
+    color: colors.textSecondary,
+  },
+  runPhaseCard: {
+    marginTop: 14,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  runPhaseLabel: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 10,
+    letterSpacing: 1,
+    color: colors.primaryLight,
+  },
+  runPhaseTime: {
+    marginTop: 2,
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 58,
+    lineHeight: 62,
+    color: colors.textPrimary,
+  },
+  runPhaseCue: {
+    marginTop: 4,
+    maxWidth: 300,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  runOverallRow: {
+    marginTop: 11,
+    paddingHorizontal: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  runOverallLabel: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 8,
+    letterSpacing: 0.7,
+    color: colors.textMuted,
+  },
+  runOverallValue: {
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  runStartButton: {
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 50,
+    marginTop: 15,
+    paddingHorizontal: 17,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  runMetricsPanel: {
+    marginTop: 16,
+    borderRadius: 14,
+    padding: 13,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  runMetricsEyebrow: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 8,
+    letterSpacing: 0.7,
+    color: colors.textMuted,
+  },
+  stopButton: {
+    minHeight: 44,
+    marginTop: 14,
+    paddingHorizontal: 15,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,80,80,0.24)',
+  },
+  stopButtonText: {
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 10,
+    letterSpacing: 0.7,
+    color: colors.brandRed,
   },
   emptyState: {
     flex: 1,
