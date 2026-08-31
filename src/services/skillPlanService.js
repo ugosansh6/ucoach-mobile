@@ -1,25 +1,26 @@
 import { supabase } from '../lib/supabase';
 import { reloadWorkoutSession } from './workoutService';
 
-async function getAuthenticatedUserId() {
-  const {
-    data: authData,
-    error: authError,
-  } = await supabase.auth.getUser();
+async function invokePlanB(body, fallbackMessage) {
+  const { data, error } =
+    await supabase.functions.invoke(
+      'plan-b-handler',
+      { body }
+    );
 
-  if (authError) {
-    throw authError;
-  }
-
-  const userId = authData?.user?.id;
-
-  if (!userId) {
+  if (error) {
     throw new Error(
-      'Tu dois être connecté pour modifier cette séance.'
+      error?.message ?? fallbackMessage
     );
   }
 
-  return userId;
+  if (!data?.ok) {
+    throw new Error(
+      data?.error ?? fallbackMessage
+    );
+  }
+
+  return data?.result ?? null;
 }
 
 async function reloadPlanBWorkout({
@@ -66,24 +67,14 @@ export async function changeWorkoutSkillPlan({
     );
   }
 
-  const userId =
-    await getAuthenticatedUserId();
-
-  const { data, error } = await supabase.rpc(
-    'change_workout_skill_plan_v1',
+  const data = await invokePlanB(
     {
-      p_user_id: userId,
-      p_session_id: sessionId,
-      p_action: action,
-    }
+      mode: 'SKILL',
+      session_id: sessionId,
+      action,
+    },
+    'Impossible de proposer un autre Skill.'
   );
-
-  if (error) {
-    throw new Error(
-      error?.message ??
-        'Impossible de proposer un autre Skill.'
-    );
-  }
 
   if (data?.status !== 'APPLIED') {
     throw new Error(
@@ -110,24 +101,28 @@ export async function changeWholeWorkoutPlan({
     );
   }
 
-  const userId =
-    await getAuthenticatedUserId();
+  let data;
 
-  const { data, error } = await supabase.rpc(
-    'change_workout_session_plan_v1',
-    {
-      p_user_id: userId,
-      p_session_id: sessionId,
-    }
-  );
+  try {
+    data = await invokePlanB(
+      {
+        mode: 'WHOLE_SESSION',
+        session_id: sessionId,
+      },
+      'Impossible de proposer une autre séance.'
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error ?? '');
 
-  if (error) {
     throw new Error(
-      error?.message?.includes(
+      message.includes(
         'SESSION_PLAN_B_NO_MEANINGFUL_ALTERNATIVE_AVAILABLE'
       )
         ? 'UGEROD n’a pas trouvé de deuxième proposition suffisamment différente et cohérente.'
-        : error?.message ??
+        : message ||
           'Impossible de proposer une autre séance.'
     );
   }
