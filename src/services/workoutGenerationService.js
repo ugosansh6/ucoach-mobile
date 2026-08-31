@@ -26,19 +26,6 @@ function selectedEquipmentNames(preparation) {
     .filter((name) => name !== 'Poids du corps' && name !== 'Aucun');
 }
 
-async function currentUserId() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error) throw error;
-  if (!user?.id) {
-    throw new Error('Aucun utilisateur connecté.');
-  }
-  return user.id;
-}
-
 async function resolveFocus() {
   try {
     const goal = await getCurrentPrimaryGoal();
@@ -148,13 +135,11 @@ function environmentGenerationError(data, environmentCode) {
 
 async function generateEnvironmentWorkoutSession(preparation) {
   const environmentCode = normalizeEnvironment(preparation?.environmentCode);
-  const userId = await currentUserId();
   const focus = await resolveFocus();
   const { inventory, availableEquipment } =
     await buildSelectedInventory(preparation);
 
   const params = {
-    p_user_id: userId,
     p_environment_code: environmentCode,
     p_surface_code: preparation?.surfaceCode ?? null,
     p_requested_format_code: preparation?.formatCode ?? null,
@@ -181,16 +166,27 @@ async function generateEnvironmentWorkoutSession(preparation) {
     p_anchor_date: localDateKey(),
   };
 
-  const { data, error } = await supabase.rpc(
-    'generate_environment_session_v3',
-    params
-  );
+  const { data: response, error } =
+    await supabase.functions.invoke(
+      'environment-session-handler',
+      {
+        body: { params },
+      }
+    );
 
   if (error) {
     throw new Error(
       error?.message ?? 'Impossible de générer la séance pour cet environnement.'
     );
   }
+
+  if (!response?.ok) {
+    throw new Error(
+      response?.error ?? 'Impossible de générer la séance pour cet environnement.'
+    );
+  }
+
+  const data = response?.result ?? null;
 
   if (data?.status === 'ENVIRONMENT_GENERATION_NOT_READY') {
     const reason =
