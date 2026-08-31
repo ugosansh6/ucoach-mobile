@@ -1,4 +1,8 @@
 import { supabase } from '../lib/supabase';
+import {
+  getAuthenticatedUserWithRetry,
+  runSupabaseRequestWithAuthRetry,
+} from '../lib/supabaseAuthRetry';
 
 export function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -14,19 +18,7 @@ export function getMonthStartKey(date = new Date()) {
 }
 
 async function getAuthenticatedUserId() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!user?.id) {
-    throw new Error('Aucune session Supabase active.');
-  }
-
+  const user = await getAuthenticatedUserWithRetry();
   return user.id;
 }
 
@@ -36,18 +28,16 @@ export async function getDashboardSnapshot({
 } = {}) {
   const userId = await getAuthenticatedUserId();
 
-  const { data, error } = await supabase.rpc(
-    'e_dashboard_snapshot',
-    {
-      p_user_id: userId,
-      p_anchor_date: getLocalDateKey(anchorDate),
-      p_month_start: getMonthStartKey(monthDate),
-    }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'e_dashboard_snapshot',
+      {
+        p_user_id: userId,
+        p_anchor_date: getLocalDateKey(anchorDate),
+        p_month_start: getMonthStartKey(monthDate),
+      }
+    )
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return normalizeDashboardSnapshot(data);
 }
@@ -58,18 +48,16 @@ export async function getTrainingConsistency({
 } = {}) {
   const userId = await getAuthenticatedUserId();
 
-  const { data, error } = await supabase.rpc(
-    'e_training_consistency_history',
-    {
-      p_user_id: userId,
-      p_anchor_date: getLocalDateKey(anchorDate),
-      p_months_back: monthsBack,
-    }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'e_training_consistency_history',
+      {
+        p_user_id: userId,
+        p_anchor_date: getLocalDateKey(anchorDate),
+        p_months_back: monthsBack,
+      }
+    )
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return data ?? {};
 }
