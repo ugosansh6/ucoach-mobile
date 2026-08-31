@@ -1,4 +1,8 @@
 import { supabase } from '../lib/supabase';
+import {
+  getAuthenticatedUserWithRetry,
+  runSupabaseRequestWithAuthRetry,
+} from '../lib/supabaseAuthRetry';
 
 const PERIOD_DAYS = {
   '4w': 28,
@@ -15,31 +19,20 @@ function getLocalDateKey(date = new Date()) {
 }
 
 async function getAuthenticatedUser() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user?.id) {
-    throw new Error('Utilisateur non authentifié.');
-  }
-
-  return user;
+  return getAuthenticatedUserWithRetry();
 }
 
 export async function getProgressionDataContract(period = '4w', anchorDate = new Date()) {
   const user = await getAuthenticatedUser();
   const periodDays = PERIOD_DAYS[period] ?? PERIOD_DAYS['4w'];
 
-  const { data, error } = await supabase.rpc('progression_data_contract_v1', {
-    p_user_id: user.id,
-    p_period_days: periodDays,
-    p_anchor_date: getLocalDateKey(anchorDate),
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('progression_data_contract_v1', {
+      p_user_id: user.id,
+      p_period_days: periodDays,
+      p_anchor_date: getLocalDateKey(anchorDate),
+    })
+  );
 
   return data ?? {
     version: 'w1-progression-data-contract-v1',
@@ -63,15 +56,12 @@ export async function getProgressionDataContract(period = '4w', anchorDate = new
 export async function getCoachOpportunitySnapshot(anchorDate = new Date()) {
   try {
     const user = await getAuthenticatedUser();
-    const { data, error } = await supabase.rpc('w3_opportunity_engine_v1', {
-      p_user_id: user.id,
-      p_anchor_date: getLocalDateKey(anchorDate),
-    });
-
-    if (error) {
-      console.warn('Coach opportunity snapshot unavailable:', error.message);
-      return null;
-    }
+    const data = await runSupabaseRequestWithAuthRetry(() =>
+      supabase.rpc('w3_opportunity_engine_v1', {
+        p_user_id: user.id,
+        p_anchor_date: getLocalDateKey(anchorDate),
+      })
+    );
 
     return data ?? null;
   } catch (error) {
@@ -83,15 +73,12 @@ export async function getCoachOpportunitySnapshot(anchorDate = new Date()) {
 export async function getW4ProgressionIntelligence(anchorDate = new Date()) {
   try {
     const user = await getAuthenticatedUser();
-    const { data, error } = await supabase.rpc('w4_progression_intelligence_v1', {
-      p_user_id: user.id,
-      p_anchor_date: getLocalDateKey(anchorDate),
-    });
-
-    if (error) {
-      console.warn('W4 progression intelligence unavailable:', error.message);
-      return null;
-    }
+    const data = await runSupabaseRequestWithAuthRetry(() =>
+      supabase.rpc('w4_progression_intelligence_v1', {
+        p_user_id: user.id,
+        p_anchor_date: getLocalDateKey(anchorDate),
+      })
+    );
 
     return data ?? null;
   } catch (error) {
@@ -107,14 +94,12 @@ export async function getSessionLearningSnapshot(sessionId) {
 
   await getAuthenticatedUser();
 
-  const { data, error } = await supabase.rpc(
-    'w2_progression_session_learning_snapshot_v1',
-    { p_session_id: sessionId }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'w2_progression_session_learning_snapshot_v1',
+      { p_session_id: sessionId }
+    )
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return data ?? {
     version: 'w2-session-learning-snapshot-v1',
