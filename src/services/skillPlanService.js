@@ -1,18 +1,14 @@
 import { supabase } from '../lib/supabase';
+import { runSupabaseRequestWithAuthRetry } from '../lib/supabaseAuthRetry';
 import { reloadWorkoutSession } from './workoutService';
 
 async function invokePlanB(body, fallbackMessage) {
-  const { data, error } =
-    await supabase.functions.invoke(
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.functions.invoke(
       'plan-b-handler',
       { body }
-    );
-
-  if (error) {
-    throw new Error(
-      error?.message ?? fallbackMessage
-    );
-  }
+    )
+  );
 
   if (!data?.ok) {
     throw new Error(
