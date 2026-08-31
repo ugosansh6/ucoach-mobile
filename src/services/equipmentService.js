@@ -1,22 +1,11 @@
 import { supabase } from '../lib/supabase';
+import {
+  getAuthenticatedUserWithRetry,
+  runSupabaseRequestWithAuthRetry,
+} from '../lib/supabaseAuthRetry';
 
 async function getAuthenticatedUser() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error) {
-    throw error;
-  }
-
-  if (!user) {
-    throw new Error(
-      'Aucun utilisateur connecté. Reconnecte-toi puis recommence.'
-    );
-  }
-
-  return user;
+  return getAuthenticatedUserWithRetry();
 }
 
 export async function getEquipmentCatalog() {
@@ -61,19 +50,17 @@ export async function getEquipmentCatalog() {
 export async function getUserEquipmentInventory() {
   const user = await getAuthenticatedUser();
 
-  const { data, error } = await supabase
-    .from('user_equipment_inventory')
-    .select(
-      'id, equipment_id, inventory_mode, quantity, load_kg, min_load_kg, max_load_kg, increment_kg, resistance_label, active, notes'
-    )
-    .eq('user_id', user.id)
-    .eq('active', true)
-    .order('equipment_id', { ascending: true })
-    .order('load_kg', { ascending: true });
-
-  if (error) {
-    throw error;
-  }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase
+      .from('user_equipment_inventory')
+      .select(
+        'id, equipment_id, inventory_mode, quantity, load_kg, min_load_kg, max_load_kg, increment_kg, resistance_label, active, notes'
+      )
+      .eq('user_id', user.id)
+      .eq('active', true)
+      .order('equipment_id', { ascending: true })
+      .order('load_kg', { ascending: true })
+  );
 
   return data ?? [];
 }
@@ -185,16 +172,14 @@ export async function replaceUserEquipmentInventory(rows) {
    * Si une ligne est invalide, toute l'opération est annulée :
    * l'ancien inventaire n'est jamais supprimé à moitié.
    */
-  const { data, error } = await supabase.rpc(
-    'replace_user_equipment_inventory',
-    {
-      p_rows: normalizedRows,
-    }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'replace_user_equipment_inventory',
+      {
+        p_rows: normalizedRows,
+      }
+    )
   );
-
-  if (error) {
-    throw error;
-  }
 
   return Array.isArray(data) ? data : [];
 }
