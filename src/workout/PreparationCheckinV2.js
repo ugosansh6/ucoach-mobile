@@ -314,7 +314,7 @@ function SummaryCard({
   icon,
   accent,
   titleColor,
-  emphasized = false,
+  emphasized = true,
   selected,
   onPress,
   warning,
@@ -361,7 +361,7 @@ function SummaryCard({
             style={[
               styles.summaryTitle,
               emphasized && styles.summaryTitleEmphasized,
-              { color: titleColor ?? colors.text },
+              { color: titleColor ?? accent },
             ]}
           >
             {title}
