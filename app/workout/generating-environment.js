@@ -20,6 +20,8 @@ import {
 } from '../../src/services/workoutGenerationService';
 
 function environmentLabel(code) {
+  if (code === 'HOME') return 'MAISON';
+  if (code === 'BOX') return 'BOX';
   if (code === 'GYM') return 'SALLE';
   if (code === 'OUTDOOR') return 'EXTÉRIEUR';
   return 'SÉANCE';
@@ -35,7 +37,7 @@ export default function EnvironmentGeneratingScreen() {
     setGeneratedWorkoutPreservingProgress,
   } = useWorkout();
 
-  const environmentCode = String(preparation?.environmentCode ?? '')
+  const environmentCode = String(preparation?.environmentCode ?? 'HOME')
     .trim()
     .toUpperCase();
   const label = environmentLabel(environmentCode);
@@ -49,6 +51,17 @@ export default function EnvironmentGeneratingScreen() {
   const launchedRef = useRef(false);
   const busyRef = useRef(false);
 
+  const protectedSessionExerciseIds = useMemo(
+    () =>
+      (workout.exercises ?? [])
+        .filter(
+          (exercise) =>
+            exercise.sessionExerciseId && exercise.status !== 'pending'
+        )
+        .map((exercise) => exercise.sessionExerciseId),
+    [workout.exercises]
+  );
+
   const applyGenerationResult = useCallback(
     (nextWorkout) => {
       if (nextWorkout?.controlStatus) {
@@ -59,14 +72,30 @@ export default function EnvironmentGeneratingScreen() {
       const sameSession =
         Boolean(workout.sessionId) &&
         workout.sessionId === nextWorkout?.sessionId;
-
-      if (
+      const preserveProgress =
         sameSession &&
-        nextWorkout?.generationControlStatus === 'resume_existing'
-      ) {
+        [
+          'resume_existing',
+          'safety_adapted_existing',
+          'safety_adapt_partial_recalc_required',
+        ].includes(nextWorkout?.generationControlStatus);
+
+      if (preserveProgress) {
         setGeneratedWorkoutPreservingProgress(nextWorkout);
       } else {
         setGeneratedWorkout(nextWorkout);
+      }
+
+      if (
+        nextWorkout?.generationControlStatus ===
+        'safety_adapt_partial_recalc_required'
+      ) {
+        setControl({
+          controlStatus: 'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED',
+          sessionId: nextWorkout.sessionId,
+          safetyAdaptation: nextWorkout.safetyAdaptation,
+        });
+        return false;
       }
 
       router.replace('/workout/session');
@@ -79,34 +108,46 @@ export default function EnvironmentGeneratingScreen() {
     ]
   );
 
-  const generate = useCallback(async () => {
-    if (busyRef.current) return;
+  const generate = useCallback(
+    async ({ forceRecalculateStarted = false } = {}) => {
+      if (busyRef.current) return;
 
-    if (missingOutdoorContext) {
-      setError(
-        'Le contexte extérieur est incomplet. Reviens au check-in pour préciser le lieu et le terrain.'
-      );
-      return;
-    }
+      if (missingOutdoorContext) {
+        setError(
+          'Le contexte extérieur est incomplet. Reviens au check-in pour préciser le lieu et le terrain.'
+        );
+        return;
+      }
 
-    busyRef.current = true;
-    setBusy(true);
-    setError('');
-    setControl(null);
+      busyRef.current = true;
+      setBusy(true);
+      setError('');
+      setControl(null);
 
-    try {
-      const nextWorkout = await generateWorkoutSession(preparation);
-      applyGenerationResult(nextWorkout);
-    } catch (generationError) {
-      setError(
-        generationError?.message ??
-          `Impossible de générer la séance ${label.toLowerCase()}.`
-      );
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  }, [applyGenerationResult, label, missingOutdoorContext, preparation]);
+      try {
+        const nextWorkout = await generateWorkoutSession(preparation, {
+          forceRecalculateStarted,
+          protectedSessionExerciseIds,
+        });
+        applyGenerationResult(nextWorkout);
+      } catch (generationError) {
+        setError(
+          generationError?.message ??
+            `Impossible de générer la séance ${label.toLowerCase()}.`
+        );
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    },
+    [
+      applyGenerationResult,
+      label,
+      missingOutdoorContext,
+      preparation,
+      protectedSessionExerciseIds,
+    ]
+  );
 
   useEffect(() => {
     if (launchedRef.current) return;
@@ -131,7 +172,9 @@ export default function EnvironmentGeneratingScreen() {
     try {
       await discardUnstartedWorkoutSession(control.sessionId);
       setControl(null);
-      const nextWorkout = await generateWorkoutSession(preparation);
+      const nextWorkout = await generateWorkoutSession(preparation, {
+        protectedSessionExerciseIds,
+      });
       applyGenerationResult(nextWorkout);
     } catch (replaceError) {
       setControl(null);
@@ -145,94 +188,148 @@ export default function EnvironmentGeneratingScreen() {
     }
   }
 
+  const controlStatus = String(control?.controlStatus ?? '').toUpperCase();
   const canReplaceExisting =
     control?.environmentControlStatus === 'EXISTING_GENERATED_SESSION_CONFLICT' &&
     !control?.existingSessionStarted &&
     Boolean(control?.sessionId);
+  const canForceRecalculate =
+    !control?.environmentControlStatus &&
+    ['STARTED_SESSION_CONFIRM_REQUIRED', 'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED'].includes(
+      controlStatus
+    );
 
-  const renderMainContent = () => {
-    if (control) {
-      return (
-        <>
-          <View style={styles.iconShell}>
-            <Ionicons name="git-compare-outline" size={30} color={colors.accent} />
-          </View>
-          <Text style={styles.eyebrow}>SÉANCE EXISTANTE</Text>
-          <Text style={styles.title}>UNE SÉANCE EST DÉJÀ ACTIVE.</Text>
-          <Text style={styles.body}>
-            {canReplaceExisting
-              ? 'Elle n’a pas encore démarré. Tu peux la reprendre, revenir au check-in ou la remplacer explicitement.'
-              : 'Elle a déjà démarré. UGEROD la protège : reprends-la ou reviens au check-in.'}
-          </Text>
-
-          <Pressable
-            onPress={() => router.replace('/workout/session')}
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.primaryButtonText}>REPRENDRE LA SÉANCE</Text>
-            <Ionicons name="arrow-forward" size={19} color={colors.textOnAccent} />
-          </Pressable>
-
-          {canReplaceExisting ? (
-            <Pressable
-              disabled={busy}
-              onPress={replaceExisting}
-              style={({ pressed }) => [
-                styles.dangerButton,
-                busy && styles.disabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons name="refresh-outline" size={18} color={colors.secondaryAccent} />
-              <Text style={styles.dangerButtonText}>GÉNÉRER UNE NOUVELLE SÉANCE</Text>
-            </Pressable>
-          ) : null}
-
-          <Pressable
-            onPress={() => router.replace('/workout/preparation')}
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
-          </Pressable>
-        </>
-      );
+  const controlCopy = useMemo(() => {
+    if (canReplaceExisting) {
+      return {
+        eyebrow: 'SÉANCE EXISTANTE',
+        title: 'UNE SÉANCE EST DÉJÀ PRÊTE.',
+        body:
+          'Elle n’a pas encore démarré. Tu peux la reprendre, revenir au check-in ou la remplacer explicitement.',
+      };
     }
 
-    if (error) {
-      return (
-        <>
-          <View style={[styles.iconShell, styles.errorIconShell]}>
-            <Ionicons name="alert-circle-outline" size={30} color={colors.secondaryAccent} />
-          </View>
-          <Text style={styles.eyebrow}>GÉNÉRATION {label}</Text>
-          <Text style={styles.title}>IMPOSSIBLE DE CONTINUER.</Text>
-          <Text style={styles.body}>{error}</Text>
-
-          {!missingOutdoorContext ? (
-            <Pressable
-              onPress={generate}
-              disabled={busy}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                busy && styles.disabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.primaryButtonText}>RÉESSAYER</Text>
-              <Ionicons name="refresh-outline" size={19} color={colors.textOnAccent} />
-            </Pressable>
-          ) : null}
-
-          <Pressable
-            onPress={() => router.replace('/workout/preparation')}
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
-          </Pressable>
-        </>
-      );
+    if (controlStatus === 'RECALC_LIMIT_REACHED') {
+      return {
+        eyebrow: 'SÉANCE EN COURS',
+        title: '3 RECALCULS UTILISÉS.',
+        body:
+          'Les recalculs volontaires avant le début sont épuisés. Les adaptations nécessaires pour une nouvelle gêne ou un matériel devenu indisponible restent protégées par le Coach.',
+      };
     }
 
+    if (controlStatus === 'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED') {
+      return {
+        eyebrow: 'ADAPTATION DE SÉCURITÉ',
+        title: 'ADAPTATION INCOMPLÈTE.',
+        body:
+          'UGEROD a sécurisé ce qu’il pouvait sans effacer ta progression. Certains exercices restants n’ont pas de remplacement suffisamment sûr.',
+      };
+    }
+
+    return {
+      eyebrow: 'SÉANCE EN COURS',
+      title: 'UNE SÉANCE A DÉJÀ COMMENCÉ.',
+      body: canForceRecalculate
+        ? 'Tu peux la reprendre. Un recalcul complet reste possible, mais il effacera la progression enregistrée sur cette séance.'
+        : 'UGEROD protège cette séance : reprends-la ou retourne au check-in.',
+    };
+  }, [canForceRecalculate, canReplaceExisting, controlStatus]);
+
+  function renderControl() {
+    return (
+      <>
+        <View style={styles.iconShell}>
+          <Ionicons name="git-compare-outline" size={30} color={colors.accent} />
+        </View>
+        <Text style={styles.eyebrow}>{controlCopy.eyebrow}</Text>
+        <Text style={styles.title}>{controlCopy.title}</Text>
+        <Text style={styles.body}>{controlCopy.body}</Text>
+
+        <Pressable
+          onPress={() => router.replace('/workout/session')}
+          style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.primaryButtonText}>REPRENDRE LA SÉANCE</Text>
+          <Ionicons name="arrow-forward" size={19} color={colors.textOnAccent} />
+        </Pressable>
+
+        {canReplaceExisting ? (
+          <Pressable
+            disabled={busy}
+            onPress={replaceExisting}
+            style={({ pressed }) => [
+              styles.dangerButton,
+              busy && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons name="refresh-outline" size={18} color={colors.secondaryAccent} />
+            <Text style={styles.dangerButtonText}>GÉNÉRER UNE NOUVELLE SÉANCE</Text>
+          </Pressable>
+        ) : null}
+
+        {canForceRecalculate ? (
+          <Pressable
+            disabled={busy}
+            onPress={() => generate({ forceRecalculateStarted: true })}
+            style={({ pressed }) => [
+              styles.dangerButton,
+              busy && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons name="refresh-outline" size={18} color={colors.secondaryAccent} />
+            <Text style={styles.dangerButtonText}>TOUT RECALCULER</Text>
+          </Pressable>
+        ) : null}
+
+        <Pressable
+          onPress={() => router.replace('/workout/preparation')}
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
+        </Pressable>
+      </>
+    );
+  }
+
+  function renderError() {
+    return (
+      <>
+        <View style={[styles.iconShell, styles.errorIconShell]}>
+          <Ionicons name="alert-circle-outline" size={30} color={colors.secondaryAccent} />
+        </View>
+        <Text style={styles.eyebrow}>GÉNÉRATION {label}</Text>
+        <Text style={styles.title}>IMPOSSIBLE DE CONTINUER.</Text>
+        <Text style={styles.body}>{error}</Text>
+
+        {!missingOutdoorContext ? (
+          <Pressable
+            onPress={() => generate()}
+            disabled={busy}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              busy && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.primaryButtonText}>RÉESSAYER</Text>
+            <Ionicons name="refresh-outline" size={19} color={colors.textOnAccent} />
+          </Pressable>
+        ) : null}
+
+        <Pressable
+          onPress={() => router.replace('/workout/preparation')}
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
+        </Pressable>
+      </>
+    );
+  }
+
+  function renderLoading() {
     return (
       <>
         <View style={styles.loaderShell}>
@@ -249,12 +346,14 @@ export default function EnvironmentGeneratingScreen() {
         </View>
       </>
     );
-  };
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <View style={styles.center}>{renderMainContent()}</View>
+      <View style={styles.center}>
+        {control ? renderControl() : error ? renderError() : renderLoading()}
+      </View>
     </SafeAreaView>
   );
 }
