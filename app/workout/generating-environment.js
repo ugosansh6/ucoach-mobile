@@ -1,51 +1,36 @@
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Pressable,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { colors, spacing, typography } from '../../src/constants';
+import { spacing, typography } from '../../src/constants';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   discardUnstartedWorkoutSession,
   generateWorkoutSession,
 } from '../../src/services/workoutGenerationService';
 
-const SURFACES = [
-  ['GRASS', 'Herbe'],
-  ['TRACK', 'Piste'],
-  ['ROAD', 'Route / bitume'],
-  ['TRAIL', 'Sentier'],
-  ['SAND', 'Sable'],
-  ['MIXED', 'Mixte'],
-];
-
-const OUTDOOR_PLACES = [
-  ['PARK_GRASS_STADIUM', 'Parc / pelouse / stade'],
-  ['ATHLETICS_TRACK', 'Piste athlétisme'],
-  ['TRAIL_PATH', 'Trail / chemin'],
-  ['STREET_WORKOUT', 'Street workout'],
-  ['BEACH_SAND', 'Plage / sable'],
-  ['URBAN_HARD', 'Urbain / bitume'],
-  ['OTHER', 'Autre'],
-];
-
 function environmentLabel(code) {
-  return code === 'GYM' ? 'SALLE' : 'EXTÉRIEUR';
+  if (code === 'GYM') return 'SALLE';
+  if (code === 'OUTDOOR') return 'EXTÉRIEUR';
+  return 'SÉANCE';
 }
 
 export default function EnvironmentGeneratingScreen() {
+  const { colors, isDark } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     preparation,
     workout,
-    updatePreparation,
     setGeneratedWorkout,
     setGeneratedWorkoutPreservingProgress,
   } = useWorkout();
@@ -53,27 +38,16 @@ export default function EnvironmentGeneratingScreen() {
   const environmentCode = String(preparation?.environmentCode ?? '')
     .trim()
     .toUpperCase();
-  const isOutdoor = environmentCode === 'OUTDOOR';
+  const label = environmentLabel(environmentCode);
+  const missingOutdoorContext =
+    environmentCode === 'OUTDOOR' &&
+    (!preparation?.outdoorPlaceCode || !preparation?.surfaceCode);
 
-  const [outdoorContextConfirmed, setOutdoorContextConfirmed] = useState(
-    () => !isOutdoor
-  );
-  const [pendingSurfaceCode, setPendingSurfaceCode] = useState(
-    () => preparation?.surfaceCode ?? null
-  );
-  const [pendingOutdoorPlaceCode, setPendingOutdoorPlaceCode] = useState(
-    () => preparation?.outdoorPlaceCode ?? null
-  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [control, setControl] = useState(null);
   const launchedRef = useRef(false);
-
-  const needsOutdoorContext = isOutdoor && !outdoorContextConfirmed;
-  const label = useMemo(
-    () => environmentLabel(environmentCode),
-    [environmentCode]
-  );
+  const busyRef = useRef(false);
 
   const applyGenerationResult = useCallback(
     (nextWorkout) => {
@@ -105,75 +79,44 @@ export default function EnvironmentGeneratingScreen() {
     ]
   );
 
-  const generate = useCallback(
-    async (preparationSnapshot = preparation) => {
-      if (
-        busy ||
-        (environmentCode === 'OUTDOOR' && !preparationSnapshot?.surfaceCode)
-      ) {
-        return;
-      }
+  const generate = useCallback(async () => {
+    if (busyRef.current) return;
 
-      setBusy(true);
-      setError('');
-      setControl(null);
+    if (missingOutdoorContext) {
+      setError(
+        'Le contexte extérieur est incomplet. Reviens au check-in pour préciser le lieu et le terrain.'
+      );
+      return;
+    }
 
-      try {
-        const nextWorkout = await generateWorkoutSession(preparationSnapshot);
-        applyGenerationResult(nextWorkout);
-      } catch (generationError) {
-        setError(
-          generationError?.message ??
-            `Impossible de générer la séance ${label.toLowerCase()}.`
-        );
-      } finally {
-        setBusy(false);
-      }
-    },
-    [applyGenerationResult, busy, environmentCode, label, preparation]
-  );
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    setControl(null);
+
+    try {
+      const nextWorkout = await generateWorkoutSession(preparation);
+      applyGenerationResult(nextWorkout);
+    } catch (generationError) {
+      setError(
+        generationError?.message ??
+          `Impossible de générer la séance ${label.toLowerCase()}.`
+      );
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }, [applyGenerationResult, label, missingOutdoorContext, preparation]);
 
   useEffect(() => {
-    if (needsOutdoorContext || launchedRef.current) {
-      return;
-    }
+    if (launchedRef.current) return;
     launchedRef.current = true;
-    generate(preparation);
-  }, [generate, needsOutdoorContext, preparation]);
-
-  function selectSurface(surfaceCode) {
-    setPendingSurfaceCode(surfaceCode);
-  }
-
-  function selectPlace(outdoorPlaceCode) {
-    setPendingOutdoorPlaceCode((current) =>
-      current === outdoorPlaceCode ? null : outdoorPlaceCode
-    );
-  }
-
-  function continueOutdoor() {
-    if (!pendingSurfaceCode || busy) {
-      return;
-    }
-
-    const confirmedPreparation = {
-      ...preparation,
-      surfaceCode: pendingSurfaceCode,
-      outdoorPlaceCode: pendingOutdoorPlaceCode ?? null,
-    };
-
-    updatePreparation({
-      surfaceCode: pendingSurfaceCode,
-      outdoorPlaceCode: pendingOutdoorPlaceCode ?? null,
-    });
-    setOutdoorContextConfirmed(true);
-    launchedRef.current = true;
-    generate(confirmedPreparation);
-  }
+    generate();
+  }, [generate]);
 
   async function replaceExisting() {
     if (
-      busy ||
+      busyRef.current ||
       control?.environmentControlStatus !== 'EXISTING_GENERATED_SESSION_CONFLICT' ||
       control?.existingSessionStarted ||
       !control?.sessionId
@@ -181,13 +124,13 @@ export default function EnvironmentGeneratingScreen() {
       return;
     }
 
+    busyRef.current = true;
     setBusy(true);
     setError('');
 
     try {
       await discardUnstartedWorkoutSession(control.sessionId);
       setControl(null);
-
       const nextWorkout = await generateWorkoutSession(preparation);
       applyGenerationResult(nextWorkout);
     } catch (replaceError) {
@@ -197,12 +140,9 @@ export default function EnvironmentGeneratingScreen() {
           'Impossible de remplacer la séance précédente.'
       );
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
-  }
-
-  function resumeExisting() {
-    router.replace('/workout/session');
   }
 
   const canReplaceExisting =
@@ -210,154 +150,254 @@ export default function EnvironmentGeneratingScreen() {
     !control?.existingSessionStarted &&
     Boolean(control?.sessionId);
 
-  if (needsOutdoorContext && !busy) {
-    return (
-      <SafeAreaView style={styles.screen}>
-        <ScrollView contentContainerStyle={styles.content}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={21} color={colors.textPrimary} />
-          </Pressable>
-
-          <Text style={styles.eyebrow}>CONTEXTE EXTÉRIEUR</Text>
-          <Text style={styles.title}>
-            SUR QUEL SOL ?<Text style={styles.dot}>.</Text>
-          </Text>
+  const renderMainContent = () => {
+    if (control) {
+      return (
+        <>
+          <View style={styles.iconShell}>
+            <Ionicons name="git-compare-outline" size={30} color={colors.accent} />
+          </View>
+          <Text style={styles.eyebrow}>SÉANCE EXISTANTE</Text>
+          <Text style={styles.title}>UNE SÉANCE EST DÉJÀ ACTIVE.</Text>
           <Text style={styles.body}>
-            Choisis d’abord le sol, puis valide. UGEROD utilise cette information uniquement pour la faisabilité et la sécurité ; elle ne remplace ni ta progression, ni ta récupération, ni ton matériel réellement disponible.
+            {canReplaceExisting
+              ? 'Elle n’a pas encore démarré. Tu peux la reprendre, revenir au check-in ou la remplacer explicitement.'
+              : 'Elle a déjà démarré. UGEROD la protège : reprends-la ou reviens au check-in.'}
           </Text>
-
-          <View style={styles.grid}>
-            {SURFACES.map(([code, text]) => {
-              const selected = pendingSurfaceCode === code;
-              return (
-                <Pressable
-                  key={code}
-                  onPress={() => selectSurface(code)}
-                  style={[styles.choice, selected && styles.choiceSelected]}
-                >
-                  <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>
-                    {text.toUpperCase()}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Text style={styles.sectionTitle}>LIEU — OPTIONNEL</Text>
-          <Text style={styles.caption}>
-            Le lieu est un contexte faible : UGEROD n’en déduit jamais ton matériel.
-          </Text>
-          <View style={styles.grid}>
-            {OUTDOOR_PLACES.map(([code, text]) => {
-              const selected = pendingOutdoorPlaceCode === code;
-              return (
-                <Pressable
-                  key={code}
-                  onPress={() => selectPlace(code)}
-                  style={[styles.choice, selected && styles.choiceSelected]}
-                >
-                  <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>
-                    {text.toUpperCase()}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
 
           <Pressable
-            disabled={!pendingSurfaceCode}
-            onPress={continueOutdoor}
-            style={[styles.primaryButton, !pendingSurfaceCode && styles.disabled]}
+            onPress={() => router.replace('/workout/session')}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
           >
-            <Text style={styles.primaryButtonText}>VALIDER</Text>
-            <Ionicons name="checkmark" size={18} color={colors.brandWhite} />
+            <Text style={styles.primaryButtonText}>REPRENDRE LA SÉANCE</Text>
+            <Ionicons name="arrow-forward" size={19} color={colors.textOnAccent} />
           </Pressable>
-        </ScrollView>
-      </SafeAreaView>
+
+          {canReplaceExisting ? (
+            <Pressable
+              disabled={busy}
+              onPress={replaceExisting}
+              style={({ pressed }) => [
+                styles.dangerButton,
+                busy && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons name="refresh-outline" size={18} color={colors.secondaryAccent} />
+              <Text style={styles.dangerButtonText}>GÉNÉRER UNE NOUVELLE SÉANCE</Text>
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={() => router.replace('/workout/preparation')}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
+          </Pressable>
+        </>
+      );
+    }
+
+    if (error) {
+      return (
+        <>
+          <View style={[styles.iconShell, styles.errorIconShell]}>
+            <Ionicons name="alert-circle-outline" size={30} color={colors.secondaryAccent} />
+          </View>
+          <Text style={styles.eyebrow}>GÉNÉRATION {label}</Text>
+          <Text style={styles.title}>IMPOSSIBLE DE CONTINUER.</Text>
+          <Text style={styles.body}>{error}</Text>
+
+          {!missingOutdoorContext ? (
+            <Pressable
+              onPress={generate}
+              disabled={busy}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                busy && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.primaryButtonText}>RÉESSAYER</Text>
+              <Ionicons name="refresh-outline" size={19} color={colors.textOnAccent} />
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={() => router.replace('/workout/preparation')}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
+          </Pressable>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <View style={styles.loaderShell}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+        <Text style={styles.eyebrow}>UGEROD PRÉPARE TA SÉANCE</Text>
+        <Text style={styles.title}>TA SÉANCE PREND FORME.</Text>
+        <Text style={styles.body}>
+          Le Coach vérifie ton contexte, tes garde-fous, ton matériel et la logique de ton programme.
+        </Text>
+        <View style={styles.progressHint}>
+          <View style={styles.progressDot} />
+          <Text style={styles.progressText}>GÉNÉRATION {label}</Text>
+        </View>
+      </>
     );
-  }
+  };
 
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.center}>
-        {control ? (
-          <>
-            <Ionicons name="git-compare-outline" size={34} color={colors.primaryLight} />
-            <Text style={styles.eyebrow}>SÉANCE EXISTANTE</Text>
-            <Text style={styles.titleSmall}>UNE SÉANCE EST DÉJÀ ACTIVE.</Text>
-            <Text style={styles.bodyCentered}>
-              {canReplaceExisting
-                ? 'Cette séance n’a pas encore démarré. Tu peux la reprendre, revenir au check-in ou la remplacer explicitement par une nouvelle séance.'
-                : 'Cette séance a déjà démarré. UGEROD la protège : tu peux la reprendre ou retourner au check-in, mais elle ne peut plus être remplacée.'}
-            </Text>
-            <Pressable onPress={resumeExisting} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>REPRENDRE LA SÉANCE</Text>
-            </Pressable>
-            {canReplaceExisting ? (
-              <Pressable
-                disabled={busy}
-                onPress={replaceExisting}
-                style={[styles.replaceButton, busy && styles.disabled]}
-              >
-                <Ionicons name="refresh-outline" size={17} color={colors.brandRed} />
-                <Text style={styles.replaceButtonText}>GÉNÉRER UNE NOUVELLE SÉANCE</Text>
-              </Pressable>
-            ) : null}
-            <Pressable onPress={() => router.back()} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
-            </Pressable>
-          </>
-        ) : error ? (
-          <>
-            <Ionicons name="alert-circle-outline" size={34} color={colors.brandRed} />
-            <Text style={styles.eyebrow}>GÉNÉRATION {label}</Text>
-            <Text style={styles.titleSmall}>IMPOSSIBLE DE CONTINUER.</Text>
-            <Text style={styles.bodyCentered}>{error}</Text>
-            <Pressable onPress={() => generate(preparation)} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>RÉESSAYER</Text>
-            </Pressable>
-            <Pressable onPress={() => router.back()} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>RETOUR</Text>
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <ActivityIndicator size="large" color={colors.primaryLight} />
-            <Text style={styles.eyebrow}>UGEROD PRÉPARE TA SÉANCE</Text>
-            <Text style={styles.titleSmall}>GÉNÉRATION {label}.</Text>
-            <Text style={styles.bodyCentered}>
-              UGEROD applique ton contexte, tes garde-fous, ton matériel disponible et ta progression avant de construire les blocs.
-            </Text>
-          </>
-        )}
-      </View>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View style={styles.center}>{renderMainContent()}</View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  content: { flexGrow: 1, padding: spacing.xl, paddingBottom: 44 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
-  backButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginBottom: 26 },
-  eyebrow: { marginTop: 18, fontFamily: 'Oswald_600SemiBold', fontSize: 11, letterSpacing: 1.1, color: colors.textSecondary },
-  title: { ...typography.display, marginTop: 6, fontSize: 42, lineHeight: 45, letterSpacing: 1.8, color: colors.textPrimary },
-  titleSmall: { ...typography.display, marginTop: 6, fontSize: 32, lineHeight: 35, letterSpacing: 1.4, color: colors.textPrimary, textAlign: 'center' },
-  dot: { color: colors.primaryLight },
-  body: { marginTop: 10, fontFamily: 'Oswald_400Regular', fontSize: 12, lineHeight: 18, color: colors.textSecondary },
-  bodyCentered: { marginTop: 12, maxWidth: 520, fontFamily: 'Oswald_400Regular', fontSize: 12, lineHeight: 18, color: colors.textSecondary, textAlign: 'center' },
-  sectionTitle: { marginTop: 24, fontFamily: 'Oswald_700Bold', fontSize: 12, letterSpacing: 0.7, color: colors.textPrimary },
-  caption: { marginTop: 4, fontFamily: 'Oswald_400Regular', fontSize: 11, lineHeight: 16, color: colors.textMuted },
-  grid: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  choice: { minHeight: 42, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  choiceSelected: { borderColor: colors.primaryLight, backgroundColor: colors.primary },
-  choiceText: { fontFamily: 'Oswald_600SemiBold', fontSize: 10, letterSpacing: 0.45, color: colors.textSecondary },
-  choiceTextSelected: { color: colors.brandWhite },
-  primaryButton: { minHeight: 50, marginTop: 24, paddingHorizontal: 20, borderRadius: 13, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  primaryButtonText: { fontFamily: 'Oswald_700Bold', fontSize: 11, letterSpacing: 0.8, color: colors.brandWhite },
-  replaceButton: { minHeight: 48, marginTop: 10, paddingHorizontal: 18, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(255,69,69,0.45)', backgroundColor: 'rgba(255,69,69,0.06)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  replaceButtonText: { fontFamily: 'Oswald_700Bold', fontSize: 10, letterSpacing: 0.65, color: colors.brandRed },
-  secondaryButton: { minHeight: 44, marginTop: 8, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  secondaryButtonText: { fontFamily: 'Oswald_600SemiBold', fontSize: 10, letterSpacing: 0.6, color: colors.textMuted },
-  disabled: { opacity: 0.45 },
-});
+function createStyles(colors) {
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingBottom: 28,
+    },
+    iconShell: {
+      width: 64,
+      height: 64,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accentSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    errorIconShell: {
+      backgroundColor: colors.secondaryAccentSoft,
+    },
+    loaderShell: {
+      width: 76,
+      height: 76,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    eyebrow: {
+      marginTop: 20,
+      fontFamily: 'Oswald_600SemiBold',
+      fontSize: 10,
+      letterSpacing: 1.15,
+      color: colors.accent,
+      textAlign: 'center',
+    },
+    title: {
+      ...typography.display,
+      marginTop: 7,
+      maxWidth: 390,
+      fontSize: 34,
+      lineHeight: 37,
+      letterSpacing: 1.35,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    body: {
+      marginTop: 11,
+      maxWidth: 430,
+      fontFamily: 'Oswald_400Regular',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    progressHint: {
+      marginTop: 22,
+      minHeight: 36,
+      paddingHorizontal: 13,
+      borderRadius: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    progressDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: colors.accent,
+    },
+    progressText: {
+      fontFamily: 'Oswald_600SemiBold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textSecondary,
+    },
+    primaryButton: {
+      marginTop: 24,
+      minHeight: 52,
+      minWidth: 250,
+      paddingHorizontal: 20,
+      borderRadius: 14,
+      backgroundColor: colors.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    primaryButtonText: {
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 10,
+      letterSpacing: 0.75,
+      color: colors.textOnAccent,
+    },
+    dangerButton: {
+      marginTop: 10,
+      minHeight: 48,
+      minWidth: 250,
+      paddingHorizontal: 18,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    dangerButtonText: {
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.6,
+      color: colors.secondaryAccent,
+    },
+    secondaryButton: {
+      marginTop: 9,
+      minHeight: 44,
+      paddingHorizontal: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    secondaryButtonText: {
+      fontFamily: 'Oswald_600SemiBold',
+      fontSize: 10,
+      letterSpacing: 0.6,
+      color: colors.textMuted,
+    },
+    disabled: { opacity: 0.45 },
+    pressed: { opacity: 0.7 },
+  });
+}
