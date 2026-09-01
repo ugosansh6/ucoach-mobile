@@ -5,7 +5,6 @@ import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Image,
-  ImageBackground,
   PanResponder,
   Pressable,
   SafeAreaView,
@@ -26,10 +25,6 @@ import {
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
-const locationImage = require('../../assets/backgrounds/welcome-default.jpg');
-const equipmentImage = require('../../assets/branding/F5F16BEB-9979-4D87-B8E1-4D40B66EB361.jpeg');
-const formImage = require('../../assets/branding/mohamed-fareed-rbSNsoXk-3A-unsplash.jpg');
-const painImage = require('../../assets/branding/32F4D556-26B4-4028-9A4D-5CF4500FEB3B.jpeg');
 
 const DURATIONS = [20, 30, 45, 60, 75, 90];
 
@@ -183,6 +178,16 @@ function environmentSummary(preparation) {
   return place ? `Extérieur · ${place.label}` : 'Extérieur · à préciser';
 }
 
+function isAuthSessionError(error) {
+  const value = String(error?.message ?? error ?? '').toLowerCase();
+  return (
+    value.includes('auth session missing') ||
+    value.includes('jwt') ||
+    value.includes('not authenticated') ||
+    value.includes('session')
+  );
+}
+
 function DurationControl({ value, onChange, colors, styles }) {
   const [trackWidth, setTrackWidth] = useState(0);
   const currentIndex = Math.max(0, DURATIONS.indexOf(value));
@@ -203,66 +208,77 @@ function DurationControl({ value, onChange, colors, styles }) {
 
   const updateFromXRef = useRef(null);
   updateFromXRef.current = (x) => {
-    const liveWidth = trackWidthRef.current;
+    const liveTrackWidth = trackWidthRef.current;
     const liveStep = stepRef.current;
-    if (!liveWidth || !liveStep) return;
-    const clamped = Math.max(0, Math.min(liveWidth, x));
-    const index = Math.max(
+    if (!liveTrackWidth || !liveStep) return;
+
+    const clampedX = Math.max(0, Math.min(liveTrackWidth, x));
+    const nextIndex = Math.max(
       0,
-      Math.min(DURATIONS.length - 1, Math.round(clamped / liveStep))
+      Math.min(DURATIONS.length - 1, Math.round(clampedX / liveStep))
     );
-    const next = DURATIONS[index];
-    if (next !== valueRef.current) {
-      valueRef.current = next;
-      onChangeRef.current(next);
+    const nextValue = DURATIONS[nextIndex];
+
+    if (nextValue !== valueRef.current) {
+      valueRef.current = nextValue;
+      onChangeRef.current(nextValue);
     }
   };
 
-  const panResponder = useMemo(
+  const knobPanResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponderCapture: () => true,
         onPanResponderGrant: () => {
           dragOriginXRef.current = currentIndexRef.current * stepRef.current;
         },
-        onPanResponderMove: (_event, gesture) => {
-          updateFromXRef.current?.(dragOriginXRef.current + gesture.dx);
+        onPanResponderMove: (_event, gestureState) => {
+          updateFromXRef.current?.(dragOriginXRef.current + gestureState.dx);
         },
-        onPanResponderRelease: (_event, gesture) => {
-          updateFromXRef.current?.(dragOriginXRef.current + gesture.dx);
+        onPanResponderRelease: (_event, gestureState) => {
+          updateFromXRef.current?.(dragOriginXRef.current + gestureState.dx);
         },
-        onPanResponderTerminate: (_event, gesture) => {
-          updateFromXRef.current?.(dragOriginXRef.current + gesture.dx);
+        onPanResponderTerminate: (_event, gestureState) => {
+          updateFromXRef.current?.(dragOriginXRef.current + gestureState.dx);
         },
         onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
       }),
     []
   );
 
   const knobLeft = currentIndex * step;
+  const durationColor =
+    value <= 30
+      ? colors.accent
+      : value >= 75
+        ? colors.secondaryAccent
+        : colors.text;
 
   return (
     <View style={styles.durationShell}>
       <View style={styles.durationReadout}>
-        <Text style={styles.durationValue}>{value}</Text>
-        <Text style={styles.durationUnit}>MIN</Text>
+        <Text style={[styles.durationValue, { color: durationColor }]}>{value}</Text>
+        <Text style={[styles.durationUnit, { color: durationColor }]}>MIN</Text>
       </View>
 
       <View style={styles.durationSliderColumn}>
         <View
-          style={styles.durationTrackTouch}
           onLayout={(event) => {
             const width = event.nativeEvent.layout.width;
             trackWidthRef.current = width;
             setTrackWidth(width);
           }}
+          style={styles.durationTrackTouch}
         >
           <View style={styles.durationTrack}>
             <View
               style={[
                 styles.durationProgress,
-                { width: knobLeft, backgroundColor: colors.accent },
+                { width: knobLeft, backgroundColor: durationColor },
               ]}
             />
             <View style={styles.durationHitRow}>
@@ -277,20 +293,15 @@ function DurationControl({ value, onChange, colors, styles }) {
               ))}
             </View>
             <View
-              {...panResponder.panHandlers}
+              {...knobPanResponder.panHandlers}
               style={[
                 styles.durationKnob,
-                { left: knobLeft, borderColor: colors.accent },
+                { left: knobLeft, borderColor: durationColor },
               ]}
             >
-              <View style={styles.durationKnobCenter} />
+              <Ionicons name="stopwatch-outline" size={18} color={colors.text} />
             </View>
           </View>
-        </View>
-        <View style={styles.durationLabels}>
-          <Text style={styles.durationLabel}>20</Text>
-          <Text style={styles.durationLabel}>45</Text>
-          <Text style={styles.durationLabel}>90</Text>
         </View>
       </View>
     </View>
@@ -300,13 +311,15 @@ function DurationControl({ value, onChange, colors, styles }) {
 function SummaryCard({
   title,
   value,
-  image,
   icon,
   accent,
+  titleColor,
+  emphasized = false,
   selected,
   onPress,
   warning,
   styles,
+  colors,
 }) {
   return (
     <Pressable
@@ -318,31 +331,52 @@ function SummaryCard({
         pressed && styles.pressed,
       ]}
     >
-      <ImageBackground source={image} resizeMode="cover" style={styles.summaryImage}>
-        <LinearGradient
-          colors={['rgba(5,8,12,0.18)', 'rgba(5,8,12,0.86)']}
-          style={StyleSheet.absoluteFill}
+      <LinearGradient
+        colors={[colors.surfaceElevated, colors.surface]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.summaryInner}
+      >
+        <View style={[styles.summaryAccentBar, { backgroundColor: accent }]} />
+        <Ionicons
+          name={icon}
+          size={76}
+          color={accent}
+          style={styles.summaryWatermark}
         />
+
         <View style={styles.summaryTopRow}>
           <View style={[styles.summaryIcon, { backgroundColor: accent }]}>
-            <Ionicons name={icon} size={17} color="#FFFFFF" />
+            <Ionicons name={icon} size={18} color={colors.textOnAccent} />
           </View>
           <Ionicons
             name={selected ? 'chevron-up' : 'chevron-forward'}
-            size={18}
-            color="rgba(255,255,255,0.86)"
+            size={19}
+            color={colors.textSecondary}
           />
         </View>
+
         <View style={styles.summaryCopy}>
-          <Text style={styles.summaryTitle}>{title}</Text>
+          <Text
+            style={[
+              styles.summaryTitle,
+              emphasized && styles.summaryTitleEmphasized,
+              { color: titleColor ?? colors.text },
+            ]}
+          >
+            {title}
+          </Text>
           <Text
             numberOfLines={2}
-            style={[styles.summaryValue, warning && styles.summaryValueWarning]}
+            style={[
+              styles.summaryValue,
+              warning && { color: colors.secondaryAccent },
+            ]}
           >
             {value}
           </Text>
         </View>
-      </ImageBackground>
+      </LinearGradient>
     </Pressable>
   );
 }
@@ -371,9 +405,36 @@ function ChoiceChip({ label, selected, onPress, styles, colors, icon = null }) {
   );
 }
 
+function EquipmentChoice({ item, selected, onPress, colors, styles }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.equipmentChoice,
+        selected && styles.equipmentChoiceSelected,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={styles.flexOne}>
+        <Text style={styles.equipmentChoiceTitle}>{item.name.toUpperCase()}</Text>
+        {item.detail ? (
+          <Text numberOfLines={1} style={styles.equipmentChoiceDetail}>
+            {item.detail}
+          </Text>
+        ) : null}
+      </View>
+      <Ionicons
+        name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+        size={19}
+        color={selected ? colors.accent : colors.textMuted}
+      />
+    </Pressable>
+  );
+}
+
 export default function PreparationCheckinV2() {
   const { colors, isDark } = useUgerodTheme();
-  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
   const { workout, preparation, updatePreparation } = useWorkout();
 
@@ -381,6 +442,7 @@ export default function PreparationCheckinV2() {
   const [referenceEquipment, setReferenceEquipment] = useState([]);
   const [equipmentLoading, setEquipmentLoading] = useState(true);
   const [equipmentError, setEquipmentError] = useState('');
+  const [equipmentNeedsLogin, setEquipmentNeedsLogin] = useState(false);
   const equipmentRef = useRef(preparation?.equipment ?? []);
   equipmentRef.current = preparation?.equipment ?? [];
 
@@ -420,6 +482,8 @@ export default function PreparationCheckinV2() {
   const loadEquipment = useCallback(async () => {
     setEquipmentLoading(true);
     setEquipmentError('');
+    setEquipmentNeedsLogin(false);
+
     try {
       const [catalog, inventory] = await Promise.all([
         getEquipmentCatalog(),
@@ -450,9 +514,12 @@ export default function PreparationCheckinV2() {
         }
       }
     } catch (error) {
-      setEquipmentError(
-        error instanceof Error ? error.message : 'Impossible de charger ton matériel.'
-      );
+      if (isAuthSessionError(error)) {
+        setEquipmentNeedsLogin(true);
+        setEquipmentError('');
+      } else {
+        setEquipmentError('Impossible de charger ton matériel pour le moment.');
+      }
     } finally {
       setEquipmentLoading(false);
     }
@@ -545,6 +612,17 @@ export default function PreparationCheckinV2() {
     (environmentCode !== 'OUTDOOR' ||
       Boolean(preparation?.outdoorPlaceCode && preparation?.surfaceCode));
 
+  const equipmentSummary = equipmentLoading
+    ? 'Chargement…'
+    : equipmentNeedsLogin
+      ? 'Profil non chargé'
+      : summarizeEquipment(equipment);
+
+  const painAccent =
+    painConfirmed && painZones.includes('Aucune')
+      ? colors.success
+      : colors.secondaryAccent;
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -580,51 +658,51 @@ export default function PreparationCheckinV2() {
           <SummaryCard
             title="LIEU"
             value={environmentSummary(preparation)}
-            image={locationImage}
             icon="location-outline"
             accent={colors.accent}
             selected={expanded === 'location'}
             onPress={() => togglePanel('location')}
             styles={styles}
+            colors={colors}
           />
           <SummaryCard
             title="MATÉRIEL"
-            value={equipmentLoading ? 'Chargement…' : summarizeEquipment(equipment)}
-            image={equipmentImage}
+            value={equipmentSummary}
             icon="barbell-outline"
             accent={colors.accent}
+            titleColor={colors.accent}
+            emphasized
             selected={expanded === 'equipment'}
             onPress={() => togglePanel('equipment')}
             styles={styles}
+            colors={colors}
           />
           <SummaryCard
             title="FORME"
             value={readinessOption.label}
-            image={formImage}
             icon="pulse-outline"
             accent={colors.accent}
             selected={expanded === 'readiness'}
             onPress={() => togglePanel('readiness')}
             styles={styles}
+            colors={colors}
           />
           <SummaryCard
             title="GÊNES"
             value={summarizePain(painZones)}
-            image={painImage}
             icon={
               painConfirmed && painZones.includes('Aucune')
                 ? 'shield-checkmark-outline'
                 : 'medical-outline'
             }
-            accent={
-              painConfirmed && painZones.includes('Aucune')
-                ? colors.accent
-                : colors.secondaryAccent
-            }
+            accent={painAccent}
+            titleColor={painAccent}
+            emphasized
             selected={expanded === 'pain'}
             warning={!painConfirmed || !painZones.includes('Aucune')}
             onPress={() => togglePanel('pain')}
             styles={styles}
+            colors={colors}
           />
         </View>
 
@@ -720,10 +798,17 @@ export default function PreparationCheckinV2() {
               ) : null}
             </View>
 
-            {equipmentError ? (
+            {equipmentNeedsLogin ? (
+              <View style={styles.infoRow}>
+                <Ionicons name="person-circle-outline" size={19} color={colors.accent} />
+                <Text style={styles.infoText}>
+                  Reconnecte ta session pour récupérer automatiquement le matériel enregistré dans ton profil.
+                </Text>
+              </View>
+            ) : equipmentError ? (
               <Pressable onPress={loadEquipment} style={styles.errorRow}>
                 <Ionicons name="alert-circle-outline" size={17} color={colors.error} />
-                <Text style={styles.errorText}>{equipmentError} · Réessayer</Text>
+                <Text style={styles.errorText}>{equipmentError} Réessayer.</Text>
               </Pressable>
             ) : (
               <>
@@ -882,15 +967,6 @@ export default function PreparationCheckinV2() {
           </ScrollView>
         </View>
 
-        {!painConfirmed ? (
-          <View style={styles.requiredNotice}>
-            <Ionicons name="shield-outline" size={17} color={colors.secondaryAccent} />
-            <Text style={styles.requiredNoticeText}>
-              Confirme simplement si tu as une gêne avant de continuer.
-            </Text>
-          </View>
-        ) : null}
-
         {environmentCode === 'OUTDOOR' &&
         (!preparation?.outdoorPlaceCode || !preparation?.surfaceCode) ? (
           <View style={styles.requiredNotice}>
@@ -940,34 +1016,7 @@ export default function PreparationCheckinV2() {
   );
 }
 
-function EquipmentChoice({ item, selected, onPress, colors, styles }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.equipmentChoice,
-        selected && styles.equipmentChoiceSelected,
-        pressed && styles.pressed,
-      ]}
-    >
-      <View style={styles.flexOne}>
-        <Text style={styles.equipmentChoiceTitle}>{item.name.toUpperCase()}</Text>
-        {item.detail ? (
-          <Text numberOfLines={1} style={styles.equipmentChoiceDetail}>
-            {item.detail}
-          </Text>
-        ) : null}
-      </View>
-      <Ionicons
-        name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-        size={19}
-        color={selected ? colors.accent : colors.textMuted}
-      />
-    </Pressable>
-  );
-}
-
-function createStyles(colors, isDark) {
+function createStyles(colors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     content: { paddingHorizontal: spacing.xl, paddingTop: 8, paddingBottom: 30 },
@@ -1006,123 +1055,146 @@ function createStyles(colors, isDark) {
       lineHeight: 18,
       color: colors.textSecondary,
     },
+
     durationShell: {
       marginTop: 20,
-      minHeight: 116,
-      borderRadius: 20,
-      paddingHorizontal: 17,
+      minHeight: 112,
+      paddingHorizontal: 16,
       paddingVertical: 14,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 18,
+      borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 20,
     },
-    durationReadout: { minWidth: 94, alignItems: 'flex-start' },
+    durationReadout: {
+      width: 104,
+      marginLeft: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     durationValue: {
       fontFamily: 'BebasNeue_400Regular',
-      fontSize: 60,
-      lineHeight: 58,
-      letterSpacing: 1,
-      color: colors.text,
+      fontSize: 62,
+      lineHeight: 60,
+      letterSpacing: 2.4,
+      textAlign: 'center',
     },
     durationUnit: {
-      marginTop: -2,
       fontFamily: 'Oswald_700Bold',
-      fontSize: 12,
-      letterSpacing: 1.5,
-      color: colors.accent,
+      fontSize: 11,
+      lineHeight: 14,
+      letterSpacing: 2.2,
+      marginTop: -2,
+      textAlign: 'center',
     },
     durationSliderColumn: { flex: 1, justifyContent: 'center' },
-    durationTrackTouch: { height: 42, justifyContent: 'center' },
+    durationTrackTouch: { height: 60, justifyContent: 'center' },
     durationTrack: {
       height: 4,
       borderRadius: 2,
       backgroundColor: colors.borderStrong,
       position: 'relative',
     },
-    durationProgress: {
+    durationProgress: { height: 4, borderRadius: 2 },
+    durationHitRow: {
       position: 'absolute',
-      left: 0,
-      top: 0,
-      height: 4,
-      borderRadius: 2,
+      left: -18,
+      right: -18,
+      top: -24,
+      bottom: -24,
+      flexDirection: 'row',
+      zIndex: 1,
     },
-    durationHitRow: { ...StyleSheet.absoluteFillObject, flexDirection: 'row' },
-    durationHit: { flex: 1, minHeight: 38, transform: [{ translateY: -17 }] },
+    durationHit: { flex: 1 },
     durationKnob: {
       position: 'absolute',
-      top: -11,
-      width: 26,
-      height: 26,
-      marginLeft: -13,
-      borderRadius: 13,
-      borderWidth: 3,
+      top: -18,
+      zIndex: 3,
+      width: 40,
+      height: 40,
+      marginLeft: -20,
+      borderRadius: 20,
+      borderWidth: 2,
       backgroundColor: colors.surfaceElevated,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    durationKnobCenter: {
-      width: 7,
-      height: 7,
-      borderRadius: 4,
-      backgroundColor: colors.accent,
-    },
-    durationLabels: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginTop: 3,
-    },
-    durationLabel: {
-      fontFamily: 'Oswald_500Medium',
-      fontSize: 9,
-      color: colors.textMuted,
-    },
+
     cardGrid: {
       marginTop: 14,
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent: 'space-between',
-      rowGap: 10,
+      gap: 10,
     },
     summaryCard: {
-      width: '48.5%',
-      height: 132,
+      flexGrow: 1,
+      flexBasis: '47%',
+      minWidth: 145,
+      minHeight: 128,
+      maxHeight: 150,
+      aspectRatio: 1.18,
       borderRadius: 17,
       overflow: 'hidden',
       borderWidth: 1.5,
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
-    summaryImage: { flex: 1, padding: 11, justifyContent: 'space-between' },
+    summaryInner: {
+      flex: 1,
+      padding: 12,
+      justifyContent: 'space-between',
+      overflow: 'hidden',
+    },
+    summaryAccentBar: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 4,
+      opacity: 0.95,
+    },
+    summaryWatermark: {
+      position: 'absolute',
+      right: -8,
+      top: 28,
+      opacity: 0.11,
+      transform: [{ rotate: '-8deg' }],
+    },
     summaryTopRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
     },
     summaryIcon: {
-      width: 31,
-      height: 31,
-      borderRadius: 10,
+      width: 34,
+      height: 34,
+      borderRadius: 11,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    summaryCopy: { minHeight: 46, justifyContent: 'flex-end' },
+    summaryCopy: { minHeight: 50, justifyContent: 'flex-end', paddingRight: 8 },
     summaryTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 11,
-      letterSpacing: 1,
-      color: '#FFFFFF',
+      fontSize: 13,
+      lineHeight: 17,
+      letterSpacing: 0.9,
+    },
+    summaryTitleEmphasized: {
+      fontSize: 17,
+      lineHeight: 20,
+      letterSpacing: 0.8,
     },
     summaryValue: {
-      marginTop: 3,
+      marginTop: 4,
       fontFamily: 'Oswald_500Medium',
       fontSize: 12,
       lineHeight: 16,
-      color: 'rgba(255,255,255,0.91)',
+      color: colors.textSecondary,
     },
-    summaryValueWarning: { color: '#FFD0B4' },
+
     detailPanel: {
       marginTop: 10,
       borderRadius: 18,
@@ -1152,12 +1224,7 @@ function createStyles(colors, isDark) {
       letterSpacing: 0.8,
       color: colors.text,
     },
-    choiceGrid: {
-      marginTop: 10,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 7,
-    },
+    choiceGrid: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     choiceChip: {
       minHeight: 38,
       paddingHorizontal: 11,
@@ -1170,10 +1237,7 @@ function createStyles(colors, isDark) {
       alignItems: 'center',
       gap: 6,
     },
-    choiceChipSelected: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
+    choiceChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
     choiceChipText: {
       fontFamily: 'Oswald_600SemiBold',
       fontSize: 9,
@@ -1181,12 +1245,7 @@ function createStyles(colors, isDark) {
       color: colors.textSecondary,
     },
     choiceChipTextSelected: { color: colors.textOnAccent },
-    contextOkRow: {
-      marginTop: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 7,
-    },
+    contextOkRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 7 },
     contextOkText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
@@ -1217,6 +1276,7 @@ function createStyles(colors, isDark) {
       lineHeight: 14,
       color: colors.textSecondary,
     },
+
     quickActions: { marginTop: 11, flexDirection: 'row', gap: 7 },
     quickButton: {
       flex: 1,
@@ -1234,12 +1294,7 @@ function createStyles(colors, isDark) {
       letterSpacing: 0.4,
       color: colors.textSecondary,
     },
-    equipmentGrid: {
-      marginTop: 9,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 7,
-    },
+    equipmentGrid: { marginTop: 9, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     equipmentChoice: {
       width: '48.5%',
       flexGrow: 1,
@@ -1283,18 +1338,30 @@ function createStyles(colors, isDark) {
       letterSpacing: 0.4,
       color: colors.accent,
     },
-    errorRow: {
-      marginTop: 10,
+    infoRow: {
+      marginTop: 11,
+      padding: 10,
+      borderRadius: 11,
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: 7,
+      alignItems: 'flex-start',
+      gap: 8,
+      backgroundColor: colors.accentSoft,
     },
+    infoText: {
+      flex: 1,
+      fontFamily: 'Oswald_400Regular',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.textSecondary,
+    },
+    errorRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 7 },
     errorText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
       fontSize: 10,
       color: colors.error,
     },
+
     readinessStack: { marginTop: 10, gap: 7 },
     readinessChoice: {
       minHeight: 63,
@@ -1331,6 +1398,7 @@ function createStyles(colors, isDark) {
       fontSize: 10,
       color: colors.textSecondary,
     },
+
     painChoice: {
       marginTop: 9,
       minHeight: 66,
@@ -1343,10 +1411,7 @@ function createStyles(colors, isDark) {
       alignItems: 'center',
       gap: 9,
     },
-    painChoiceSafe: {
-      borderColor: colors.success,
-      backgroundColor: colors.successSoft,
-    },
+    painChoiceSafe: { borderColor: colors.success, backgroundColor: colors.successSoft },
     painChoiceTitle: {
       fontFamily: 'Oswald_700Bold',
       fontSize: 10,
@@ -1360,6 +1425,7 @@ function createStyles(colors, isDark) {
       lineHeight: 14,
       color: colors.textSecondary,
     },
+
     focusSection: { marginTop: 18 },
     focusTitle: {
       fontFamily: 'Oswald_700Bold',
@@ -1384,9 +1450,7 @@ function createStyles(colors, isDark) {
       gap: 8,
       backgroundColor: colors.secondaryAccentSoft,
       borderWidth: 1,
-      borderColor: isDark
-        ? 'rgba(255,59,59,0.28)'
-        : 'rgba(255,107,25,0.28)',
+      borderColor: colors.secondaryAccent,
     },
     requiredNoticeText: {
       flex: 1,
@@ -1395,6 +1459,7 @@ function createStyles(colors, isDark) {
       lineHeight: 14,
       color: colors.textSecondary,
     },
+
     primaryButton: {
       marginTop: 16,
       minHeight: 56,
@@ -1423,11 +1488,7 @@ function createStyles(colors, isDark) {
       alignItems: 'center',
       gap: 9,
     },
-    resumeTitle: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 9,
-      color: colors.text,
-    },
+    resumeTitle: { fontFamily: 'Oswald_700Bold', fontSize: 9, color: colors.text },
     resumeText: {
       marginTop: 2,
       fontFamily: 'Oswald_400Regular',
