@@ -27,6 +27,12 @@ function selectedEquipmentNames(preparation) {
     .filter((name) => name !== 'Poids du corps' && name !== 'Aucun');
 }
 
+function injuredZoneNames(preparation) {
+  return (Array.isArray(preparation?.painZones) ? preparation.painZones : [])
+    .filter(Boolean)
+    .filter((zone) => zone !== 'Aucune');
+}
+
 async function resolveFocus() {
   try {
     const goal = await getCurrentPrimaryGoal();
@@ -102,6 +108,25 @@ function normalizeEnvironmentControl(data) {
   return null;
 }
 
+function normalizeCoachControl(data) {
+  const status = String(data?.status ?? '').toUpperCase();
+
+  if (!['STARTED_SESSION_CONFIRM_REQUIRED', 'RECALC_LIMIT_REACHED'].includes(status)) {
+    return null;
+  }
+
+  return {
+    controlStatus: status,
+    sessionId: data?.session_id ?? null,
+    changedFields: Array.isArray(data?.changed_fields) ? data.changed_fields : [],
+    warningCode: data?.warning_code ?? null,
+    contextRecalculationCount: Number(data?.context_recalculation_count ?? 0),
+    contextRecalculationLimit: Number(data?.context_recalculation_limit ?? 3),
+    startedAt: data?.started_at ?? null,
+    startedLocalDate: data?.started_local_date ?? null,
+  };
+}
+
 function environmentGenerationError(data, environmentCode) {
   const status = String(data?.status ?? '').toUpperCase();
   const reason = String(
@@ -134,6 +159,74 @@ function environmentGenerationError(data, environmentCode) {
   return null;
 }
 
+async function generateHomeBoxWorkoutSession(preparation, options = {}) {
+  const environmentCode = normalizeEnvironment(preparation?.environmentCode) || 'HOME';
+  const focus = await resolveFocus();
+  const availableEquipment = selectedEquipmentNames(preparation);
+
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.functions.invoke('coach-handler', {
+      body: {
+        duration_minutes: preparation?.duration ?? 45,
+        readiness: preparation?.readiness ?? 6,
+        available_equipment:
+          availableEquipment.length > 0 ? availableEquipment : ['Aucun'],
+        injured_zones: injuredZoneNames(preparation),
+        target_region: preparation?.region ?? null,
+        format_preference: null,
+        focus_override: focus,
+        progression_intent: preparation?.progressionIntent ?? null,
+        local_date: localDateKey(),
+        force_recalculate_started: Boolean(options?.forceRecalculateStarted),
+        protected_session_exercise_ids: Array.isArray(options?.protectedSessionExerciseIds)
+          ? options.protectedSessionExerciseIds.filter(Boolean)
+          : [],
+        environment_code: environmentCode,
+        surface_code: preparation?.surfaceCode ?? null,
+        environment_format_code: null,
+        gym_execution_style: null,
+      },
+    })
+  );
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  const control = normalizeCoachControl(data);
+  if (control) return control;
+
+  if (!data?.session_id) {
+    throw new Error("La génération n'a pas retourné de session_id.");
+  }
+
+  const reloaded = await reloadWorkoutSession({
+    sessionId: data.session_id,
+    preparationSnapshot: preparation,
+  });
+
+  return {
+    ...reloaded,
+    backendVersion: data?.version ?? reloaded?.backendVersion ?? null,
+    coachNote: data?.meta?.coach_note ?? reloaded?.coachNote ?? null,
+    generationControlStatus:
+      data?.generation_control_status ??
+      data?.meta?.generation_control_status ??
+      reloaded?.generationControlStatus ??
+      null,
+    safetyAdaptation:
+      data?.safety_adaptation ??
+      data?.meta?.safety_adaptation ??
+      reloaded?.safetyAdaptation ??
+      null,
+    meta: {
+      ...(reloaded?.meta ?? {}),
+      ...(data?.meta ?? {}),
+      environment_code: environmentCode,
+    },
+  };
+}
+
 async function generateEnvironmentWorkoutSession(preparation) {
   const environmentCode = normalizeEnvironment(preparation?.environmentCode);
   const focus = await resolveFocus();
@@ -150,9 +243,7 @@ async function generateEnvironmentWorkoutSession(preparation) {
     p_readiness: String(preparation?.readiness ?? 6),
     p_target_region: preparation?.region ?? null,
     p_progression_intent: preparation?.progressionIntent ?? 'MAINTAIN',
-    p_zone_terms: (preparation?.painZones ?? []).filter(
-      (zone) => zone && zone !== 'Aucune'
-    ),
+    p_zone_terms: injuredZoneNames(preparation),
     p_inventory: inventory,
     p_available_equipment: availableEquipment,
     p_outdoor_place_code: preparation?.outdoorPlaceCode ?? null,
@@ -244,11 +335,21 @@ export async function discardUnstartedWorkoutSession(sessionId) {
 }
 
 export async function generateWorkoutSession(preparation, options = {}) {
-  const environmentCode = normalizeEnvironment(preparation?.environmentCode);
+  const environmentCode = normalizeEnvironment(preparation?.environmentCode) || 'HOME';
 
-  if (!['GYM', 'OUTDOOR'].includes(environmentCode)) {
-    return generateLegacyWorkoutSession(preparation, options);
+  if (['HOME', 'BOX'].includes(environmentCode)) {
+    return generateHomeBoxWorkoutSession(
+      {
+        ...preparation,
+        environmentCode,
+      },
+      options
+    );
   }
 
-  return generateEnvironmentWorkoutSession(preparation);
+  if (['GYM', 'OUTDOOR'].includes(environmentCode)) {
+    return generateEnvironmentWorkoutSession(preparation);
+  }
+
+  return generateLegacyWorkoutSession(preparation, options);
 }
