@@ -1,5 +1,5 @@
-import PreparationCheckinV3 from '../../src/workout/PreparationCheckinV3';
+import PreparationCheckinV2 from '../../src/workout/PreparationCheckinV2';
 
 export default function PreparationScreen() {
-  return <PreparationCheckinV3 />;
+  return <PreparationCheckinV2 />;
 }
