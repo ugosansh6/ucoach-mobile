@@ -853,7 +853,7 @@ export default function PreparationCheckinV2() {
                   }
                   style={styles.inlineLink}
                 >
-                  <Text style={styles.inlineLinkText}>MODIFIER MA BASE DANS LE PROFIL</Text>
+                  <Text style={styles.inlineLinkText}>MODIFIER MON MATÉRIEL DISPO</Text>
                   <Ionicons name="chevron-forward" size={17} color={colors.accent} />
                 </Pressable>
               </>
@@ -1034,15 +1034,15 @@ function createStyles(colors) {
     headerCopy: { flex: 1 },
     eyebrow: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 9,
-      lineHeight: 12,
+      fontSize: 10,
+      lineHeight: 13,
       letterSpacing: 1,
       color: colors.textSecondary,
     },
     title: {
       ...typography.display,
-      fontSize: 29,
-      lineHeight: 32,
+      fontSize: 31,
+      lineHeight: 34,
       letterSpacing: 1.4,
       color: colors.text,
     },
@@ -1051,8 +1051,8 @@ function createStyles(colors) {
     intro: {
       marginTop: 3,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 12,
-      lineHeight: 18,
+      fontSize: 13,
+      lineHeight: 19,
       color: colors.textSecondary,
     },
 
@@ -1084,8 +1084,8 @@ function createStyles(colors) {
     },
     durationUnit: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 11,
-      lineHeight: 14,
+      fontSize: 12,
+      lineHeight: 15,
       letterSpacing: 2.2,
       marginTop: -2,
       textAlign: 'center',
@@ -1169,29 +1169,29 @@ function createStyles(colors) {
       justifyContent: 'space-between',
     },
     summaryIcon: {
-      width: 34,
-      height: 34,
+      width: 36,
+      height: 36,
       borderRadius: 11,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    summaryCopy: { minHeight: 50, justifyContent: 'flex-end', paddingRight: 8 },
+    summaryCopy: { minHeight: 58, justifyContent: 'flex-end', paddingRight: 8 },
     summaryTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 13,
-      lineHeight: 17,
+      fontSize: 15,
+      lineHeight: 19,
       letterSpacing: 0.9,
     },
     summaryTitleEmphasized: {
-      fontSize: 17,
-      lineHeight: 20,
+      fontSize: 20,
+      lineHeight: 23,
       letterSpacing: 0.8,
     },
     summaryValue: {
-      marginTop: 4,
+      marginTop: 5,
       fontFamily: 'Oswald_500Medium',
-      fontSize: 12,
-      lineHeight: 16,
+      fontSize: 14,
+      lineHeight: 18,
       color: colors.textSecondary,
     },
 
@@ -1206,29 +1206,29 @@ function createStyles(colors) {
     detailHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     detailEyebrow: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 12,
+      fontSize: 14,
       letterSpacing: 0.9,
       color: colors.text,
     },
     detailHelp: {
-      marginTop: 3,
+      marginTop: 4,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 16,
+      fontSize: 12,
+      lineHeight: 17,
       color: colors.textSecondary,
     },
     subsectionTitle: {
       marginTop: 16,
       fontFamily: 'Oswald_700Bold',
-      fontSize: 10,
+      fontSize: 12,
       letterSpacing: 0.8,
       color: colors.text,
     },
     choiceGrid: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     choiceChip: {
-      minHeight: 38,
-      paddingHorizontal: 11,
-      paddingVertical: 8,
+      minHeight: 40,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
       borderRadius: 11,
       borderWidth: 1,
       borderColor: colors.border,
@@ -1240,7 +1240,7 @@ function createStyles(colors) {
     choiceChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
     choiceChipText: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 9,
+      fontSize: 10,
       letterSpacing: 0.4,
       color: colors.textSecondary,
     },
@@ -1249,8 +1249,8 @@ function createStyles(colors) {
     contextOkText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
-      lineHeight: 14,
+      fontSize: 11,
+      lineHeight: 15,
       color: colors.textSecondary,
     },
     autoRow: {
@@ -1265,22 +1265,22 @@ function createStyles(colors) {
     autoCopy: { flex: 1 },
     autoTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 9,
+      fontSize: 10,
       letterSpacing: 0.5,
       color: colors.accent,
     },
     autoText: {
       marginTop: 2,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
-      lineHeight: 14,
+      fontSize: 11,
+      lineHeight: 15,
       color: colors.textSecondary,
     },
 
     quickActions: { marginTop: 11, flexDirection: 'row', gap: 7 },
     quickButton: {
       flex: 1,
-      minHeight: 35,
+      minHeight: 38,
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
@@ -1290,7 +1290,7 @@ function createStyles(colors) {
     },
     quickButtonText: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 8,
+      fontSize: 10,
       letterSpacing: 0.4,
       color: colors.textSecondary,
     },
@@ -1298,9 +1298,9 @@ function createStyles(colors) {
     equipmentChoice: {
       width: '48.5%',
       flexGrow: 1,
-      minHeight: 53,
+      minHeight: 57,
       paddingHorizontal: 10,
-      paddingVertical: 8,
+      paddingVertical: 9,
       borderRadius: 11,
       borderWidth: 1,
       borderColor: colors.border,
@@ -1315,26 +1315,26 @@ function createStyles(colors) {
     },
     equipmentChoiceTitle: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 9,
-      lineHeight: 12,
+      fontSize: 11,
+      lineHeight: 14,
       color: colors.text,
     },
     equipmentChoiceDetail: {
       marginTop: 2,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 8,
+      fontSize: 9,
       color: colors.textMuted,
     },
     inlineLink: {
       marginTop: 12,
-      minHeight: 36,
+      minHeight: 38,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
     },
     inlineLinkText: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 9,
+      fontSize: 11,
       letterSpacing: 0.4,
       color: colors.accent,
     },
@@ -1350,22 +1350,22 @@ function createStyles(colors) {
     infoText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
-      lineHeight: 15,
+      fontSize: 11,
+      lineHeight: 16,
       color: colors.textSecondary,
     },
     errorRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 7 },
     errorText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
+      fontSize: 11,
       color: colors.error,
     },
 
     readinessStack: { marginTop: 10, gap: 7 },
     readinessChoice: {
-      minHeight: 63,
-      padding: 10,
+      minHeight: 66,
+      padding: 11,
       borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
@@ -1379,8 +1379,8 @@ function createStyles(colors) {
       backgroundColor: colors.accentSoft,
     },
     readinessIcon: {
-      width: 35,
-      height: 35,
+      width: 37,
+      height: 37,
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
@@ -1388,20 +1388,21 @@ function createStyles(colors) {
     },
     readinessTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 10,
+      fontSize: 12,
       letterSpacing: 0.5,
       color: colors.text,
     },
     readinessDescription: {
       marginTop: 2,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
+      fontSize: 11,
+      lineHeight: 15,
       color: colors.textSecondary,
     },
 
     painChoice: {
       marginTop: 9,
-      minHeight: 66,
+      minHeight: 68,
       padding: 11,
       borderRadius: 12,
       borderWidth: 1,
@@ -1414,30 +1415,30 @@ function createStyles(colors) {
     painChoiceSafe: { borderColor: colors.success, backgroundColor: colors.successSoft },
     painChoiceTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 10,
+      fontSize: 12,
       letterSpacing: 0.45,
       color: colors.text,
     },
     painChoiceText: {
       marginTop: 2,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
-      lineHeight: 14,
+      fontSize: 11,
+      lineHeight: 15,
       color: colors.textSecondary,
     },
 
     focusSection: { marginTop: 18 },
     focusTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 11,
+      fontSize: 13,
       letterSpacing: 0.8,
       color: colors.text,
     },
     focusHelp: {
       marginTop: 3,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
-      lineHeight: 15,
+      fontSize: 11,
+      lineHeight: 16,
       color: colors.textSecondary,
     },
     focusRow: { paddingTop: 9, paddingRight: 20, gap: 7 },
@@ -1455,14 +1456,14 @@ function createStyles(colors) {
     requiredNoticeText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
-      lineHeight: 14,
+      fontSize: 11,
+      lineHeight: 15,
       color: colors.textSecondary,
     },
 
     primaryButton: {
       marginTop: 16,
-      minHeight: 56,
+      minHeight: 58,
       borderRadius: 15,
       backgroundColor: colors.accent,
       flexDirection: 'row',
@@ -1473,7 +1474,7 @@ function createStyles(colors) {
     primaryButtonPending: { opacity: 0.78 },
     primaryButtonText: {
       fontFamily: 'BebasNeue_400Regular',
-      fontSize: 21,
+      fontSize: 23,
       letterSpacing: 1.2,
       color: colors.textOnAccent,
     },
@@ -1488,12 +1489,12 @@ function createStyles(colors) {
       alignItems: 'center',
       gap: 9,
     },
-    resumeTitle: { fontFamily: 'Oswald_700Bold', fontSize: 9, color: colors.text },
+    resumeTitle: { fontFamily: 'Oswald_700Bold', fontSize: 10, color: colors.text },
     resumeText: {
       marginTop: 2,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 9,
-      lineHeight: 13,
+      fontSize: 10,
+      lineHeight: 14,
       color: colors.textSecondary,
     },
     resumeButton: {
@@ -1506,7 +1507,7 @@ function createStyles(colors) {
     },
     resumeButtonText: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 8,
+      fontSize: 9,
       letterSpacing: 0.4,
       color: colors.accent,
     },
