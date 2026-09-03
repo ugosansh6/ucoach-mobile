@@ -7,6 +7,7 @@ import {
   Image,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -16,7 +17,7 @@ import {
 } from 'react-native';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { spacing, typography } from '../constants';
+import { spacing } from '../constants';
 import { useUgerodTheme } from '../contexts/UgerodThemeContext';
 import { useWorkout } from '../contexts/WorkoutContext';
 import {
@@ -26,6 +27,13 @@ import {
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
+
+const UI_FONT = Platform.select({
+  web: 'Manrope',
+  ios: 'System',
+  android: 'sans-serif',
+  default: 'System',
+});
 
 const DURATIONS = [20, 30, 45, 60, 75, 90];
 
@@ -320,13 +328,18 @@ function SummaryCard({ title, value, icon, accent, selected, onPress, warning, s
         style={styles.summaryInner}
       >
         <View style={[styles.summaryAccentBar, { backgroundColor: accent }]} />
-        <Ionicons name={icon} size={76} color={accent} style={styles.summaryWatermark} />
+        <Ionicons name={icon} size={62} color={accent} style={styles.summaryWatermark} />
 
         <View style={styles.summaryTopRow}>
-          <View style={[styles.summaryIcon, { backgroundColor: accent }]}>
-            <Ionicons name={icon} size={18} color={colors.textOnAccent} />
+          <View
+            style={[
+              styles.summaryIcon,
+              { borderColor: accent, backgroundColor: colors.surface },
+            ]}
+          >
+            <Ionicons name={icon} size={19} color={accent} />
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          <Ionicons name="chevron-forward" size={19} color={colors.textSecondary} />
         </View>
 
         <View style={styles.summaryCopy}>
@@ -361,7 +374,7 @@ function ChoiceChip({ label, selected, onPress, styles, colors, icon = null }) {
         />
       ) : null}
       <Text style={[styles.choiceChipText, selected && styles.choiceChipTextSelected]}>
-        {label.toUpperCase()}
+        {label}
       </Text>
     </Pressable>
   );
@@ -378,7 +391,7 @@ function EquipmentChoice({ item, selected, onPress, colors, styles }) {
       ]}
     >
       <View style={styles.flexOne}>
-        <Text style={styles.equipmentChoiceTitle}>{item.name.toUpperCase()}</Text>
+        <Text style={styles.equipmentChoiceTitle}>{item.name}</Text>
         {item.detail ? (
           <Text numberOfLines={1} style={styles.equipmentChoiceDetail}>
             {item.detail}
@@ -415,7 +428,7 @@ function SheetShell({ visible, title, onClose, children, styles, colors, footer 
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{title}</Text>
             <Pressable onPress={onClose} hitSlop={12} style={styles.sheetClose}>
-              <Ionicons name="close" size={24} color={colors.text} />
+              <Ionicons name="close" size={23} color={colors.text} />
             </Pressable>
           </View>
           <ScrollView
@@ -661,9 +674,9 @@ export default function PreparationCheckinV4() {
             <Ionicons name="arrow-back" size={21} color={colors.text} />
           </Pressable>
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>SÉANCE DU JOUR</Text>
+            <Text style={styles.eyebrow}>Séance du jour</Text>
             <Text style={styles.title}>
-              PRÉPARATION<Text style={styles.dot}>.</Text>
+              Préparation<Text style={styles.dot}>.</Text>
             </Text>
           </View>
           <Image source={brandIcon} style={styles.brandIcon} resizeMode="contain" />
@@ -680,7 +693,7 @@ export default function PreparationCheckinV4() {
 
         <View style={styles.cardGrid}>
           <SummaryCard
-            title="LIEU"
+            title="Lieu"
             value={environmentSummary(preparation)}
             icon="location-outline"
             accent={colors.accent}
@@ -690,7 +703,7 @@ export default function PreparationCheckinV4() {
             colors={colors}
           />
           <SummaryCard
-            title="MATÉRIEL"
+            title="Matériel"
             value={equipmentSummary}
             icon="barbell-outline"
             accent={colors.accent}
@@ -700,7 +713,7 @@ export default function PreparationCheckinV4() {
             colors={colors}
           />
           <SummaryCard
-            title="FORME"
+            title="Forme"
             value={readinessOption.label}
             icon="pulse-outline"
             accent={colors.accent}
@@ -710,7 +723,7 @@ export default function PreparationCheckinV4() {
             colors={colors}
           />
           <SummaryCard
-            title="GÊNES"
+            title="Gênes"
             value={painSummary}
             icon={
               painConfirmedToday && painZones.includes('Aucune')
@@ -727,7 +740,7 @@ export default function PreparationCheckinV4() {
         </View>
 
         <View style={styles.focusSection}>
-          <Text style={styles.focusTitle}>UNE ENVIE AUJOURD’HUI ?</Text>
+          <Text style={styles.focusTitle}>Une envie aujourd’hui ?</Text>
           <Text style={styles.focusHelp}>Optionnel · UGEROD en tient compte.</Text>
           <ScrollView
             horizontal
@@ -756,8 +769,8 @@ export default function PreparationCheckinV4() {
             pressed && !equipmentLoading && styles.pressed,
           ]}
         >
-          <Text style={styles.primaryButtonText}>VOIR MA SÉANCE</Text>
-          <Ionicons name="arrow-forward" size={22} color={colors.textOnAccent} />
+          <Text style={styles.primaryButtonText}>Voir ma séance</Text>
+          <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
         </Pressable>
 
         {hasActiveSession ? (
@@ -765,7 +778,7 @@ export default function PreparationCheckinV4() {
             <Ionicons name="play-circle-outline" size={22} color={colors.accent} />
             <View style={styles.flexOne}>
               <Text style={styles.resumeTitle}>
-                {sessionStarted ? 'SÉANCE EN COURS' : 'SÉANCE DÉJÀ GÉNÉRÉE'}
+                {sessionStarted ? 'Séance en cours' : 'Séance déjà générée'}
               </Text>
               <Text style={styles.resumeText}>Reprends la séance existante.</Text>
             </View>
@@ -773,7 +786,7 @@ export default function PreparationCheckinV4() {
               onPress={() => router.replace('/workout/session')}
               style={styles.resumeButton}
             >
-              <Text style={styles.resumeButtonText}>REPRENDRE</Text>
+              <Text style={styles.resumeButtonText}>Reprendre</Text>
             </Pressable>
           </View>
         ) : null}
@@ -783,7 +796,7 @@ export default function PreparationCheckinV4() {
 
       <SheetShell
         visible={sheet === 'location'}
-        title="OÙ TU T’ENTRAÎNES ?"
+        title="Où tu t’entraînes ?"
         onClose={() => setSheet(null)}
         styles={styles}
         colors={colors}
@@ -804,7 +817,7 @@ export default function PreparationCheckinV4() {
 
         {environmentCode === 'OUTDOOR' ? (
           <>
-            <Text style={styles.subsectionTitle}>LIEU EXTÉRIEUR</Text>
+            <Text style={styles.subsectionTitle}>Lieu extérieur</Text>
             <View style={styles.choiceGrid}>
               {OUTDOOR_PLACES.map((item) => (
                 <ChoiceChip
@@ -820,7 +833,7 @@ export default function PreparationCheckinV4() {
 
             {placeNeedsTerrain ? (
               <>
-                <Text style={styles.subsectionTitle}>PRÉCISE LE TERRAIN</Text>
+                <Text style={styles.subsectionTitle}>Précise le terrain</Text>
                 <View style={styles.choiceGrid}>
                   {TERRAIN_OPTIONS.map((item) => (
                     <ChoiceChip
@@ -841,13 +854,13 @@ export default function PreparationCheckinV4() {
 
       <SheetShell
         visible={sheet === 'equipment'}
-        title="MATÉRIEL DU JOUR"
+        title="Matériel du jour"
         onClose={() => setSheet(null)}
         styles={styles}
         colors={colors}
         footer={
           <Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}>
-            <Text style={styles.sheetDoneButtonText}>TERMINÉ</Text>
+            <Text style={styles.sheetDoneButtonText}>Terminé</Text>
           </Pressable>
         }
       >
@@ -871,13 +884,13 @@ export default function PreparationCheckinV4() {
           <>
             <View style={styles.quickActions}>
               <Pressable onPress={selectAllProfileEquipment} style={styles.quickButton}>
-                <Text style={styles.quickButtonText}>TOUT MON MATÉRIEL</Text>
+                <Text style={styles.quickButtonText}>Tout mon matériel</Text>
               </Pressable>
               <Pressable
                 onPress={() => updatePreparation({ equipment: ['Poids du corps'] })}
                 style={styles.quickButton}
               >
-                <Text style={styles.quickButtonText}>POIDS DU CORPS</Text>
+                <Text style={styles.quickButtonText}>Poids du corps</Text>
               </Pressable>
             </View>
 
@@ -911,7 +924,7 @@ export default function PreparationCheckinV4() {
               }}
               style={styles.inlineLink}
             >
-              <Text style={styles.inlineLinkText}>MODIFIER MON MATÉRIEL</Text>
+              <Text style={styles.inlineLinkText}>Modifier mon matériel</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.accent} />
             </Pressable>
           </>
@@ -920,7 +933,7 @@ export default function PreparationCheckinV4() {
 
       <SheetShell
         visible={sheet === 'readiness'}
-        title="COMMENT TU TE SENS ?"
+        title="Comment tu te sens ?"
         onClose={() => setSheet(null)}
         styles={styles}
         colors={colors}
@@ -946,7 +959,7 @@ export default function PreparationCheckinV4() {
                   />
                 </View>
                 <View style={styles.flexOne}>
-                  <Text style={styles.readinessTitle}>{item.label.toUpperCase()}</Text>
+                  <Text style={styles.readinessTitle}>{item.label}</Text>
                   <Text style={styles.readinessDescription}>{item.description}</Text>
                 </View>
                 {selected ? (
@@ -960,7 +973,7 @@ export default function PreparationCheckinV4() {
 
       <SheetShell
         visible={sheet === 'pain'}
-        title="UNE GÊNE AUJOURD’HUI ?"
+        title="Une gêne aujourd’hui ?"
         onClose={() => setSheet(null)}
         styles={styles}
         colors={colors}
@@ -976,7 +989,7 @@ export default function PreparationCheckinV4() {
         >
           <Ionicons name="shield-checkmark-outline" size={23} color={colors.success} />
           <View style={styles.flexOne}>
-            <Text style={styles.painChoiceTitle}>AUCUNE GÊNE</Text>
+            <Text style={styles.painChoiceTitle}>Aucune gêne</Text>
             <Text style={styles.painChoiceText}>Je confirme pour aujourd’hui.</Text>
           </View>
           {painConfirmedToday && painZones.includes('Aucune') ? (
@@ -989,7 +1002,7 @@ export default function PreparationCheckinV4() {
         >
           <Ionicons name="medical-outline" size={23} color={colors.secondaryAccent} />
           <View style={styles.flexOne}>
-            <Text style={styles.painChoiceTitle}>J’AI UNE GÊNE</Text>
+            <Text style={styles.painChoiceTitle}>J’ai une gêne</Text>
             <Text style={styles.painChoiceText}>
               {painConfirmedToday && !painZones.includes('Aucune')
                 ? summarizePain(painZones)
@@ -1008,9 +1021,9 @@ function createStyles(colors) {
     screen: { flex: 1, backgroundColor: colors.background },
     content: { paddingHorizontal: spacing.xl, paddingTop: 8, paddingBottom: 30 },
     flexOne: { flex: 1 },
-    pressed: { opacity: 0.72 },
+    pressed: { opacity: 0.76 },
 
-    header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11 },
+    header: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 12 },
     headerButton: {
       width: 42,
       height: 42,
@@ -1023,26 +1036,29 @@ function createStyles(colors) {
     },
     headerCopy: { flex: 1 },
     eyebrow: {
-      fontFamily: 'Oswald_600SemiBold',
-      fontSize: 11,
-      lineHeight: 14,
-      letterSpacing: 1,
+      fontFamily: UI_FONT,
+      fontWeight: '600',
+      fontSize: 12,
+      lineHeight: 16,
+      letterSpacing: 0.1,
       color: colors.textSecondary,
     },
     title: {
-      ...typography.display,
-      fontSize: 33,
-      lineHeight: 36,
-      letterSpacing: 1.4,
+      fontFamily: UI_FONT,
+      fontWeight: '800',
+      fontSize: 32,
+      lineHeight: 38,
+      letterSpacing: -0.8,
       color: colors.text,
     },
     dot: { color: colors.accent },
     brandIcon: { width: 44, height: 44 },
     intro: {
       marginTop: 4,
-      fontFamily: 'Oswald_400Regular',
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 15,
-      lineHeight: 21,
+      lineHeight: 22,
       color: colors.textSecondary,
     },
 
@@ -1051,7 +1067,7 @@ function createStyles(colors) {
       minHeight: 116,
       paddingHorizontal: 16,
       paddingVertical: 14,
-      borderRadius: 17,
+      borderRadius: 18,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -1069,14 +1085,15 @@ function createStyles(colors) {
       fontFamily: 'BebasNeue_400Regular',
       fontSize: 64,
       lineHeight: 62,
-      letterSpacing: 2.4,
+      letterSpacing: 1.4,
       textAlign: 'center',
     },
     durationUnit: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 13,
+      fontFamily: UI_FONT,
+      fontWeight: '700',
+      fontSize: 12,
       lineHeight: 16,
-      letterSpacing: 2.2,
+      letterSpacing: 0.8,
       marginTop: -2,
       textAlign: 'center',
     },
@@ -1128,13 +1145,13 @@ function createStyles(colors) {
       aspectRatio: 1.12,
       borderRadius: 18,
       overflow: 'hidden',
-      borderWidth: 1.5,
+      borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
     summaryInner: {
       flex: 1,
-      padding: 13,
+      padding: 14,
       justifyContent: 'space-between',
       overflow: 'hidden',
     },
@@ -1143,15 +1160,14 @@ function createStyles(colors) {
       left: 0,
       top: 0,
       bottom: 0,
-      width: 4,
-      opacity: 0.95,
+      width: 3,
+      opacity: 0.86,
     },
     summaryWatermark: {
       position: 'absolute',
-      right: -10,
-      top: 30,
-      opacity: 0.1,
-      transform: [{ rotate: '-8deg' }],
+      right: -4,
+      top: 34,
+      opacity: 0.065,
     },
     summaryTopRow: {
       flexDirection: 'row',
@@ -1161,44 +1177,51 @@ function createStyles(colors) {
     summaryIcon: {
       width: 38,
       height: 38,
-      borderRadius: 12,
+      borderRadius: 19,
+      borderWidth: 1,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    summaryCopy: { minHeight: 62, justifyContent: 'flex-end', paddingRight: 8 },
+    summaryCopy: { minHeight: 60, justifyContent: 'flex-end', paddingRight: 8 },
     summaryTitle: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 20,
+      fontFamily: UI_FONT,
+      fontWeight: '700',
+      fontSize: 18,
       lineHeight: 23,
-      letterSpacing: 0.8,
+      letterSpacing: -0.25,
     },
     summaryValue: {
-      marginTop: 5,
-      fontFamily: 'Oswald_500Medium',
-      fontSize: 16,
+      marginTop: 4,
+      fontFamily: UI_FONT,
+      fontWeight: '500',
+      fontSize: 15,
       lineHeight: 20,
+      letterSpacing: -0.1,
       color: colors.textSecondary,
     },
 
-    focusSection: { marginTop: 20 },
+    focusSection: { marginTop: 22 },
     focusTitle: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 16,
-      letterSpacing: 0.75,
+      fontFamily: UI_FONT,
+      fontWeight: '700',
+      fontSize: 17,
+      lineHeight: 22,
+      letterSpacing: -0.3,
       color: colors.text,
     },
     focusHelp: {
-      marginTop: 3,
-      fontFamily: 'Oswald_400Regular',
+      marginTop: 4,
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 14,
-      lineHeight: 19,
+      lineHeight: 20,
       color: colors.textSecondary,
     },
-    focusRow: { paddingTop: 10, paddingRight: 20, gap: 8 },
+    focusRow: { paddingTop: 11, paddingRight: 20, gap: 8 },
 
     primaryButton: {
-      marginTop: 18,
-      minHeight: 60,
+      marginTop: 20,
+      minHeight: 58,
       borderRadius: 16,
       backgroundColor: colors.accent,
       flexDirection: 'row',
@@ -1208,16 +1231,18 @@ function createStyles(colors) {
     },
     primaryButtonPending: { opacity: 0.66 },
     primaryButtonText: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 24,
-      letterSpacing: 1.2,
+      fontFamily: UI_FONT,
+      fontWeight: '700',
+      fontSize: 17,
+      lineHeight: 22,
+      letterSpacing: -0.1,
       color: colors.textOnAccent,
     },
 
     resumePanel: {
       marginTop: 12,
       padding: 12,
-      borderRadius: 13,
+      borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
@@ -1225,26 +1250,32 @@ function createStyles(colors) {
       alignItems: 'center',
       gap: 9,
     },
-    resumeTitle: { fontFamily: 'Oswald_700Bold', fontSize: 12, color: colors.text },
+    resumeTitle: {
+      fontFamily: UI_FONT,
+      fontWeight: '700',
+      fontSize: 13,
+      color: colors.text,
+    },
     resumeText: {
       marginTop: 2,
-      fontFamily: 'Oswald_400Regular',
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 13,
-      lineHeight: 17,
+      lineHeight: 18,
       color: colors.textSecondary,
     },
     resumeButton: {
       minHeight: 36,
-      paddingHorizontal: 11,
-      borderRadius: 9,
+      paddingHorizontal: 12,
+      borderRadius: 10,
       backgroundColor: colors.surfaceElevated,
       alignItems: 'center',
       justifyContent: 'center',
     },
     resumeButtonText: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 11,
-      letterSpacing: 0.4,
+      fontFamily: UI_FONT,
+      fontWeight: '700',
+      fontSize: 12,
       color: colors.accent,
     },
 
@@ -1263,24 +1294,24 @@ function createStyles(colors) {
       maxHeight: '86%',
       alignSelf: 'center',
       backgroundColor: colors.background,
-      borderTopLeftRadius: 26,
-      borderTopRightRadius: 26,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
       borderWidth: 1,
       borderBottomWidth: 0,
       borderColor: colors.border,
       overflow: 'hidden',
     },
     sheetHandle: {
-      width: 42,
+      width: 38,
       height: 4,
       borderRadius: 2,
       alignSelf: 'center',
-      marginTop: 9,
+      marginTop: 10,
       backgroundColor: colors.borderStrong,
     },
     sheetHeader: {
-      minHeight: 66,
-      paddingHorizontal: 18,
+      minHeight: 68,
+      paddingHorizontal: 20,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -1290,10 +1321,11 @@ function createStyles(colors) {
     sheetTitle: {
       flex: 1,
       paddingRight: 12,
-      fontFamily: 'Oswald_700Bold',
+      fontFamily: UI_FONT,
+      fontWeight: '700',
       fontSize: 21,
-      lineHeight: 26,
-      letterSpacing: 0.6,
+      lineHeight: 28,
+      letterSpacing: -0.45,
       color: colors.text,
     },
     sheetClose: {
@@ -1307,18 +1339,19 @@ function createStyles(colors) {
       borderColor: colors.border,
     },
     sheetScrollContent: {
-      paddingHorizontal: 18,
-      paddingTop: 16,
-      paddingBottom: 20,
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 22,
     },
     sheetHelp: {
-      fontFamily: 'Oswald_400Regular',
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 14,
-      lineHeight: 20,
+      lineHeight: 21,
       color: colors.textSecondary,
     },
     sheetDoneButton: {
-      marginHorizontal: 18,
+      marginHorizontal: 20,
       marginTop: 4,
       marginBottom: 16,
       minHeight: 52,
@@ -1328,9 +1361,9 @@ function createStyles(colors) {
       backgroundColor: colors.accent,
     },
     sheetDoneButtonText: {
-      fontFamily: 'Oswald_700Bold',
+      fontFamily: UI_FONT,
+      fontWeight: '700',
       fontSize: 15,
-      letterSpacing: 0.7,
       color: colors.textOnAccent,
     },
     sheetLoading: {
@@ -1341,9 +1374,11 @@ function createStyles(colors) {
 
     subsectionTitle: {
       marginTop: 22,
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 14,
-      letterSpacing: 0.7,
+      fontFamily: UI_FONT,
+      fontWeight: '700',
+      fontSize: 15,
+      lineHeight: 21,
+      letterSpacing: -0.2,
       color: colors.text,
     },
     choiceGrid: {
@@ -1353,9 +1388,9 @@ function createStyles(colors) {
     },
     choiceChip: {
       minHeight: 44,
-      paddingHorizontal: 13,
+      paddingHorizontal: 14,
       paddingVertical: 10,
-      borderRadius: 12,
+      borderRadius: 22,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
@@ -1365,9 +1400,11 @@ function createStyles(colors) {
     },
     choiceChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
     choiceChipText: {
-      fontFamily: 'Oswald_600SemiBold',
-      fontSize: 12,
-      letterSpacing: 0.35,
+      fontFamily: UI_FONT,
+      fontWeight: '600',
+      fontSize: 13,
+      lineHeight: 18,
+      letterSpacing: -0.1,
       color: colors.textSecondary,
     },
     choiceChipTextSelected: { color: colors.textOnAccent },
@@ -1376,7 +1413,7 @@ function createStyles(colors) {
     quickButton: {
       flex: 1,
       minHeight: 44,
-      borderRadius: 11,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.surfaceElevated,
@@ -1384,9 +1421,9 @@ function createStyles(colors) {
       borderColor: colors.border,
     },
     quickButtonText: {
-      fontFamily: 'Oswald_600SemiBold',
-      fontSize: 11,
-      letterSpacing: 0.35,
+      fontFamily: UI_FONT,
+      fontWeight: '600',
+      fontSize: 12,
       color: colors.textSecondary,
     },
     equipmentGrid: {
@@ -1398,10 +1435,10 @@ function createStyles(colors) {
     equipmentChoice: {
       width: '48%',
       flexGrow: 1,
-      minHeight: 62,
-      paddingHorizontal: 11,
+      minHeight: 64,
+      paddingHorizontal: 12,
       paddingVertical: 10,
-      borderRadius: 12,
+      borderRadius: 13,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
@@ -1414,15 +1451,18 @@ function createStyles(colors) {
       backgroundColor: colors.accentSoft,
     },
     equipmentChoiceTitle: {
-      fontFamily: 'Oswald_600SemiBold',
+      fontFamily: UI_FONT,
+      fontWeight: '600',
       fontSize: 13,
-      lineHeight: 16,
+      lineHeight: 18,
       color: colors.text,
     },
     equipmentChoiceDetail: {
       marginTop: 2,
-      fontFamily: 'Oswald_400Regular',
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 11,
+      lineHeight: 16,
       color: colors.textMuted,
     },
     inlineLink: {
@@ -1433,9 +1473,9 @@ function createStyles(colors) {
       justifyContent: 'space-between',
     },
     inlineLinkText: {
-      fontFamily: 'Oswald_600SemiBold',
+      fontFamily: UI_FONT,
+      fontWeight: '600',
       fontSize: 13,
-      letterSpacing: 0.3,
       color: colors.accent,
     },
     infoRow: {
@@ -1449,7 +1489,8 @@ function createStyles(colors) {
     },
     infoText: {
       flex: 1,
-      fontFamily: 'Oswald_400Regular',
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 13,
       lineHeight: 19,
       color: colors.textSecondary,
@@ -1457,7 +1498,8 @@ function createStyles(colors) {
     errorRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
     errorText: {
       flex: 1,
-      fontFamily: 'Oswald_400Regular',
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 13,
       color: colors.error,
     },
@@ -1465,8 +1507,8 @@ function createStyles(colors) {
     readinessStack: { gap: 9 },
     readinessChoice: {
       minHeight: 76,
-      padding: 12,
-      borderRadius: 13,
+      padding: 13,
+      borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
@@ -1481,20 +1523,22 @@ function createStyles(colors) {
     readinessIcon: {
       width: 42,
       height: 42,
-      borderRadius: 12,
+      borderRadius: 21,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.surface,
     },
     readinessTitle: {
-      fontFamily: 'Oswald_700Bold',
+      fontFamily: UI_FONT,
+      fontWeight: '700',
       fontSize: 15,
-      letterSpacing: 0.45,
+      lineHeight: 20,
       color: colors.text,
     },
     readinessDescription: {
-      marginTop: 2,
-      fontFamily: 'Oswald_400Regular',
+      marginTop: 3,
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 13,
       lineHeight: 18,
       color: colors.textSecondary,
@@ -1504,7 +1548,7 @@ function createStyles(colors) {
       marginTop: 10,
       minHeight: 78,
       padding: 13,
-      borderRadius: 13,
+      borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
@@ -1514,14 +1558,16 @@ function createStyles(colors) {
     },
     painChoiceSafe: { borderColor: colors.success, backgroundColor: colors.successSoft },
     painChoiceTitle: {
-      fontFamily: 'Oswald_700Bold',
+      fontFamily: UI_FONT,
+      fontWeight: '700',
       fontSize: 15,
-      letterSpacing: 0.4,
+      lineHeight: 20,
       color: colors.text,
     },
     painChoiceText: {
-      marginTop: 2,
-      fontFamily: 'Oswald_400Regular',
+      marginTop: 3,
+      fontFamily: UI_FONT,
+      fontWeight: '400',
       fontSize: 13,
       lineHeight: 18,
       color: colors.textSecondary,
