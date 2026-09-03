@@ -1,0 +1,75 @@
+name: PLAY-002 Cursor Sync
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/workflows/play002-cursor-sync.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+          fetch-depth: 0
+
+      - name: Apply PLAY-002 shared player cursor
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f"Expected exactly one match in {path}, found {text.count(old)}")
+              p.write_text(text.replace(old, new, 1))
+
+          # 1) Keep the navigation cursor in the shared workout state.
+          replace_once(
+              'src/contexts/WorkoutContext.js',
+              "  safetyAdaptation: null,\n};",
+              "  safetyAdaptation: null,\n  playerCursor: null,\n};",
+          )
+
+          # 2) Publish the focused player's exact block/exercise navigation.
+          replace_once(
+              'app/workout/session-focused-core.js',
+              "  const activeExercise = activeBlock?.exercises?.[activeExerciseIndex] ?? null;\n\n  const refreshSwapAvailability = useCallback(async () => {",
+              "  const activeExercise = activeBlock?.exercises?.[activeExerciseIndex] ?? null;\n\n  useEffect(() => {\n    if (!activeBlock || !activeExercise) return;\n\n    const nextCursor = {\n      blockId: activeBlock.id,\n      exerciseIndex: activeExerciseIndex,\n      sessionExerciseId: activeExercise?.sessionExerciseId ?? null,\n      exerciseId: activeExercise?.exerciseId ?? activeExercise?.id ?? null,\n    };\n    const currentCursor = workout?.playerCursor ?? null;\n\n    if (\n      currentCursor?.blockId === nextCursor.blockId &&\n      Number(currentCursor?.exerciseIndex ?? -1) === nextCursor.exerciseIndex &&\n      (currentCursor?.sessionExerciseId ?? null) === nextCursor.sessionExerciseId &&\n      (currentCursor?.exerciseId ?? null) === nextCursor.exerciseId\n    ) {\n      return;\n    }\n\n    updateWorkout({ playerCursor: nextCursor });\n  }, [\n    activeBlock?.id,\n    activeExerciseIndex,\n    activeExercise?.sessionExerciseId,\n    activeExercise?.exerciseId,\n    activeExercise?.id,\n    updateWorkout,\n    workout?.playerCursor?.blockId,\n    workout?.playerCursor?.exerciseIndex,\n    workout?.playerCursor?.sessionExerciseId,\n    workout?.playerCursor?.exerciseId,\n  ]);\n\n  const refreshSwapAvailability = useCallback(async () => {",
+          )
+
+          # 3) Make the full-session whiteboard consume the shared cursor first,
+          #    then fall back to persisted statuses when no cursor is available.
+          replace_once(
+              'src/components/workout/SessionOverviewSheet.js',
+              "  const code = environmentCode(workout);\n  const activeBlockIndex = Math.max(\n    0,\n    blocks.findIndex((block) => !block.done)\n  );",
+              "  const code = environmentCode(workout);\n  const playerCursor = workout?.playerCursor ?? null;\n  const cursorBlockKey = normalizeBlock(playerCursor?.blockId);\n  const cursorBlockIndex = cursorBlockKey\n    ? blocks.findIndex((block) => block.key === cursorBlockKey)\n    : -1;\n  const fallbackActiveBlockIndex = blocks.findIndex((block) => !block.done);\n  const activeBlockIndex =\n    cursorBlockIndex >= 0 && !blocks[cursorBlockIndex]?.done\n      ? cursorBlockIndex\n      : Math.max(0, fallbackActiveBlockIndex);",
+          )
+
+          replace_once(
+              'src/components/workout/SessionOverviewSheet.js',
+              "                          const status = exerciseStatus(exercise);\n                          const current = active && exerciseIndex === block.firstPendingIndex;\n                          const item = exercise.sessionExerciseId",
+              "                          const status = exerciseStatus(exercise);\n                          const cursorExerciseMatches =\n                            active &&\n                            (playerCursor?.sessionExerciseId\n                              ? exercise?.sessionExerciseId === playerCursor.sessionExerciseId\n                              : Number.isFinite(Number(playerCursor?.exerciseIndex))\n                                ? exerciseIndex === Number(playerCursor.exerciseIndex)\n                                : false);\n                          const current =\n                            cursorExerciseMatches ||\n                            (active && !playerCursor && exerciseIndex === block.firstPendingIndex);\n                          const item = exercise.sessionExerciseId",
+          )
+
+          # Remove this one-shot workflow in the same commit.
+          Path('.github/workflows/play002-cursor-sync.yml').unlink()
+          PY
+
+      - name: Commit PLAY-002
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/contexts/WorkoutContext.js app/workout/session-focused-core.js src/components/workout/SessionOverviewSheet.js .github/workflows/play002-cursor-sync.yml
+          git commit -m "feat(player): sync active cursor with session overview"
+          git push origin HEAD:ux-navigation-coach-v1
