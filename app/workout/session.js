@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,13 +11,12 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 import SessionCore from './session-core';
 import EnvironmentSessionCore from './environment-session-core';
 import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
 import SessionOverviewSheet from '../../src/components/workout/SessionOverviewSheet';
-import { colors, spacing } from '../../src/constants';
+import { spacing } from '../../src/constants';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
@@ -24,25 +24,29 @@ import {
   changeWorkoutSkillPlan,
 } from '../../src/services/skillPlanService';
 
-export default function SessionScreen() {
-  const {
-    workout,
-    setGeneratedWorkout,
-  } = useWorkout();
-  const { colors: themeColors } = useUgerodTheme();
-  const overviewStyles = useMemo(
-    () => createOverviewStyles(themeColors),
-    [themeColors]
-  );
+function normalizeBlock(value) {
+  const key = String(value ?? '').trim().toLowerCase();
+  return key === 'warm_up' ? 'warmup' : key;
+}
 
-  const [sheetOpen, setSheetOpen] =
-    useState(false);
-  const [busyAction, setBusyAction] =
-    useState(null);
-  const [overviewOpen, setOverviewOpen] =
-    useState(false);
-  const overviewShownForSessionRef =
-    useRef(null);
+function hasRecordedProgress(workout) {
+  if ((workout?.validatedBlocks ?? []).length > 0) return true;
+  if (workout?.wodRuntime?.started || workout?.wodStarted || workout?.wodStartedAt) return true;
+  return (workout?.exercises ?? []).some((exercise) => {
+    const status = exercise?.userExecutionStatus ?? exercise?.status ?? 'pending';
+    return status !== 'pending';
+  });
+}
+
+export default function SessionScreen() {
+  const { workout, setGeneratedWorkout } = useWorkout();
+  const { colors, isDark } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
+  const [planBOpen, setPlanBOpen] = useState(false);
+  const [busyAction, setBusyAction] = useState(null);
+  const [overviewOpen, setOverviewOpen] = useState(false);
+  const overviewShownForSessionRef = useRef(null);
 
   const environmentCode = useMemo(
     () =>
@@ -61,78 +65,48 @@ export default function SessionScreen() {
     ]
   );
 
-  const isEnvironmentSession =
-    ['GYM', 'OUTDOOR'].includes(
-      environmentCode
-    );
+  const isEnvironmentSession = ['GYM', 'OUTDOOR'].includes(environmentCode);
+  const progressRecorded = hasRecordedProgress(workout);
 
   const hasSkill = useMemo(
     () =>
-      (workout.exercises ?? []).some(
-        (exercise) =>
-          String(
-            exercise.blockKey ??
-              exercise.block ??
-              ''
-          ).toLowerCase() === 'skill'
+      (workout?.exercises ?? []).some(
+        (exercise) => normalizeBlock(exercise?.blockKey ?? exercise?.block) === 'skill'
       ) ||
-      (workout.rawBlocks ?? []).some(
-        (block) =>
-          String(
-            block?.block_key ??
-              block?.blockKey ??
-              ''
-          ).toLowerCase() === 'skill'
+      (workout?.rawBlocks ?? []).some(
+        (block) => normalizeBlock(block?.block_key ?? block?.blockKey) === 'skill'
       ),
-    [workout.exercises, workout.rawBlocks]
+    [workout?.exercises, workout?.rawBlocks]
   );
 
-  const canUsePlanB =
-    Boolean(workout.sessionId) &&
-    !workout.sessionStarted &&
-    workout.status !== 'in_progress';
-
-  const canChangeSkill =
-    canUsePlanB && hasSkill;
+  // Plan B reste disponible tant qu'aucun résultat d'exécution n'a été enregistré.
+  // On ne dépend pas du flag sessionStarted : il peut être posé avant le premier effort.
+  const canRegeneratePlanB =
+    Boolean(workout?.sessionId) && !isEnvironmentSession && !progressRecorded;
+  const showPlanBEntry = Boolean(workout?.sessionId) && !isEnvironmentSession;
+  const canChangeSkill = canRegeneratePlanB && hasSkill;
 
   useEffect(() => {
-    if (
-      !workout.sessionId ||
-      overviewShownForSessionRef.current === workout.sessionId
-    ) {
-      return;
-    }
-
+    if (!workout?.sessionId || overviewShownForSessionRef.current === workout.sessionId) return;
     overviewShownForSessionRef.current = workout.sessionId;
-
-    if (!workout.sessionStarted) {
-      setOverviewOpen(true);
-    }
-  }, [workout.sessionId, workout.sessionStarted]);
+    if (!progressRecorded) setOverviewOpen(true);
+  }, [progressRecorded, workout?.sessionId]);
 
   async function applySkillPlanB(action) {
-    if (busyAction || !canChangeSkill) {
-      return;
-    }
-
+    if (busyAction || !canChangeSkill) return;
     try {
       setBusyAction(action);
-
-      const { workout: nextWorkout } =
-        await changeWorkoutSkillPlan({
-          sessionId: workout.sessionId,
-          action,
-          preparationSnapshot:
-            workout.preparationSnapshot ?? null,
-        });
-
+      const { workout: nextWorkout } = await changeWorkoutSkillPlan({
+        sessionId: workout.sessionId,
+        action,
+        preparationSnapshot: workout.preparationSnapshot ?? null,
+      });
       setGeneratedWorkout(nextWorkout);
-      setSheetOpen(false);
+      setPlanBOpen(false);
     } catch (error) {
       Alert.alert(
         'Impossible de modifier le Skill',
-        error?.message ??
-          'Aucune alternative sûre n’a été trouvée.'
+        error?.message ?? 'Aucune alternative sûre n’a été trouvée.'
       );
     } finally {
       setBusyAction(null);
@@ -140,27 +114,19 @@ export default function SessionScreen() {
   }
 
   async function applyWholePlanB() {
-    if (busyAction || !canUsePlanB) {
-      return;
-    }
-
+    if (busyAction || !canRegeneratePlanB) return;
     try {
       setBusyAction('ALTERNATE_SESSION');
-
-      const { workout: nextWorkout } =
-        await changeWholeWorkoutPlan({
-          sessionId: workout.sessionId,
-          preparationSnapshot:
-            workout.preparationSnapshot ?? null,
-        });
-
+      const { workout: nextWorkout } = await changeWholeWorkoutPlan({
+        sessionId: workout.sessionId,
+        preparationSnapshot: workout.preparationSnapshot ?? null,
+      });
       setGeneratedWorkout(nextWorkout);
-      setSheetOpen(false);
+      setPlanBOpen(false);
     } catch (error) {
       Alert.alert(
         'Impossible de proposer une autre séance',
-        error?.message ??
-          'Aucune autre proposition suffisamment différente n’a été trouvée.'
+        error?.message ?? 'Aucune autre proposition suffisamment différente n’a été trouvée.'
       );
     } finally {
       setBusyAction(null);
@@ -168,296 +134,137 @@ export default function SessionScreen() {
   }
 
   return (
-    <View
-      style={[
-        styles.root,
-        { backgroundColor: themeColors.background },
-      ]}
-    >
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       {isEnvironmentSession ? (
         <>
-          <EnvironmentSessionCore
-            environmentCode={environmentCode}
-          />
+          <EnvironmentSessionCore environmentCode={environmentCode} />
           <EnvironmentSwapOverlay />
         </>
       ) : (
         <SessionCore />
       )}
 
-      <Pressable
-        onPress={() => setOverviewOpen(true)}
-        style={({ pressed }) => [
-          overviewStyles.overviewButton,
-          pressed && styles.pressed,
-        ]}
-      >
-        <Ionicons
-          name="list-outline"
-          size={18}
-          color={themeColors.text}
-        />
-        <Text style={overviewStyles.overviewButtonText}>
-          VOIR MA SÉANCE
-        </Text>
-      </Pressable>
-
-      {!isEnvironmentSession && canUsePlanB ? (
+      <View style={styles.sessionTools} pointerEvents="box-none">
         <Pressable
-          onPress={() => setSheetOpen(true)}
-          style={({ pressed }) => [
-            styles.changeSkillButton,
-            pressed && styles.pressed,
-          ]}
+          onPress={() => setOverviewOpen(true)}
+          style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}
         >
-          <Ionicons
-            name="shuffle-outline"
-            size={17}
-            color={colors.textPrimary}
-          />
-          <Text style={styles.changeSkillText}>
-            PLAN B
-          </Text>
+          <Ionicons name="clipboard-outline" size={18} color={colors.text} />
+          <Text style={styles.toolButtonText}>Ma séance</Text>
         </Pressable>
-      ) : null}
+
+        {showPlanBEntry ? (
+          <Pressable
+            onPress={() => setPlanBOpen(true)}
+            style={({ pressed }) => [styles.toolButton, styles.planBTool, pressed && styles.pressed]}
+          >
+            <Ionicons name="shuffle-outline" size={18} color={colors.secondaryAccent} />
+            <Text style={[styles.toolButtonText, { color: colors.secondaryAccent }]}>Plan B</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       <SessionOverviewSheet
         visible={overviewOpen}
         onClose={() => setOverviewOpen(false)}
-        showPlanB={!isEnvironmentSession && canUsePlanB}
-        onPlanB={() => setSheetOpen(true)}
+        showPlanB={canRegeneratePlanB}
+        onPlanB={() => setPlanBOpen(true)}
       />
 
       {!isEnvironmentSession ? (
         <Modal
-          visible={sheetOpen}
+          visible={planBOpen}
           transparent
           animationType="slide"
-          onRequestClose={() => {
-            if (!busyAction) {
-              setSheetOpen(false);
-            }
-          }}
+          onRequestClose={() => !busyAction && setPlanBOpen(false)}
         >
           <SafeAreaView style={styles.modalRoot}>
             <Pressable
               style={styles.backdrop}
               disabled={Boolean(busyAction)}
-              onPress={() => setSheetOpen(false)}
+              onPress={() => setPlanBOpen(false)}
             />
 
             <View style={styles.sheet}>
               <View style={styles.handle} />
-
               <View style={styles.sheetHeader}>
-                <View style={styles.iconBox}>
-                  <Ionicons
-                    name="shuffle-outline"
-                    size={20}
-                    color={colors.brandWhite}
-                  />
+                <View style={styles.planBIcon}>
+                  <Ionicons name="shuffle-outline" size={20} color={colors.textOnAccent} />
                 </View>
-
-                <View style={styles.headerCopy}>
-                  <Text style={styles.eyebrow}>
-                    PLAN B
-                  </Text>
+                <View style={styles.sheetHeaderCopy}>
+                  <Text style={styles.eyebrow}>PLAN B</Text>
                   <Text style={styles.title}>
-                    ENVIE D’AUTRE CHOSE AUJOURD’HUI ?
+                    {canRegeneratePlanB ? 'Envie d’autre chose ?' : 'Ta séance a déjà commencé.'}
                   </Text>
                 </View>
-
                 <Pressable
                   disabled={Boolean(busyAction)}
-                  onPress={() => setSheetOpen(false)}
-                  hitSlop={10}
+                  onPress={() => setPlanBOpen(false)}
                   style={styles.closeButton}
                 >
-                  <Ionicons
-                    name="close"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
+                  <Ionicons name="close" size={20} color={colors.text} />
                 </Pressable>
               </View>
 
-              <Text style={styles.explanation}>
-                {hasSkill
-                  ? 'Aucun besoin de déclarer une gêne. Ton choix vaut pour aujourd’hui : il ne baisse pas ton niveau et ne crée aucune séance à rattraper.'
-                  : 'Tu peux demander une autre proposition avant de commencer. Le même check-in est conservé et aucune séance à rattraper n’est créée.'}
-              </Text>
+              {canRegeneratePlanB ? (
+                <>
+                  <Text style={styles.explanation}>
+                    Tu peux encore changer de proposition : aucun résultat d’exercice n’a été enregistré.
+                  </Text>
 
-              <ScrollView
-                style={styles.optionsScroll}
-                contentContainerStyle={styles.optionsContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {hasSkill ? (
-                  <>
-                    <Pressable
+                  <ScrollView contentContainerStyle={styles.options} showsVerticalScrollIndicator={false}>
+                    {hasSkill ? (
+                      <>
+                        <PlanBOption
+                          title="Un autre Skill aujourd’hui"
+                          description="UGEROD choisit un autre parcours compatible et ajuste l’échauffement spécifique."
+                          icon="swap-horizontal-outline"
+                          loading={busyAction === 'ALTERNATE_SKILL'}
+                          disabled={Boolean(busyAction)}
+                          onPress={() => applySkillPlanB('ALTERNATE_SKILL')}
+                          styles={styles}
+                          colors={colors}
+                        />
+                        <PlanBOption
+                          title="Pas de Skill aujourd’hui"
+                          description="Le bloc disparaît uniquement si le reste de la séance reste cohérent et sûr."
+                          icon="remove-circle-outline"
+                          loading={busyAction === 'SKIP_SKILL'}
+                          disabled={Boolean(busyAction)}
+                          onPress={() => applySkillPlanB('SKIP_SKILL')}
+                          styles={styles}
+                          colors={colors}
+                        />
+                      </>
+                    ) : null}
+
+                    <PlanBOption
+                      title="Une autre séance"
+                      description="Même durée, matériel et forme du jour. UGEROD reconstruit une proposition différente."
+                      icon="refresh-outline"
+                      loading={busyAction === 'ALTERNATE_SESSION'}
                       disabled={Boolean(busyAction)}
-                      onPress={() =>
-                        applySkillPlanB('ALTERNATE_SKILL')
-                      }
-                      style={({ pressed }) => [
-                        styles.option,
-                        styles.primaryOption,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <View style={styles.optionIcon}>
-                        {busyAction === 'ALTERNATE_SKILL' ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={colors.brandWhite}
-                          />
-                        ) : (
-                          <Ionicons
-                            name="swap-horizontal"
-                            size={20}
-                            color={colors.brandWhite}
-                          />
-                        )}
-                      </View>
-                      <View style={styles.optionCopy}>
-                        <Text style={styles.primaryOptionTitle}>
-                          UN AUTRE SKILL AUJOURD’HUI
-                        </Text>
-                        <Text style={styles.primaryOptionBody}>
-                          UGEROD choisit un autre parcours compatible et reconstruit l’échauffement spécifique.
-                        </Text>
-                      </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color={colors.brandWhite}
-                      />
-                    </Pressable>
-
-                    <Pressable
-                      disabled={Boolean(busyAction)}
-                      onPress={() =>
-                        applySkillPlanB('SKIP_SKILL')
-                      }
-                      style={({ pressed }) => [
-                        styles.option,
-                        styles.secondaryOption,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <View style={styles.secondaryIcon}>
-                        {busyAction === 'SKIP_SKILL' ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={colors.textPrimary}
-                          />
-                        ) : (
-                          <Ionicons
-                            name="remove-circle-outline"
-                            size={20}
-                            color={colors.textPrimary}
-                          />
-                        )}
-                      </View>
-                      <View style={styles.optionCopy}>
-                        <Text style={styles.secondaryOptionTitle}>
-                          PAS DE SKILL AUJOURD’HUI
-                        </Text>
-                        <Text style={styles.secondaryOptionBody}>
-                          Le bloc disparaît. Le reste de la séance est réorganisé uniquement si cela reste cohérent et sûr.
-                        </Text>
-                      </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color={colors.textMuted}
-                      />
-                    </Pressable>
-                  </>
-                ) : null}
-
-                <Pressable
-                  disabled={Boolean(busyAction)}
-                  onPress={applyWholePlanB}
-                  style={({ pressed }) => [
-                    styles.option,
-                    hasSkill
-                      ? styles.secondaryOption
-                      : styles.primaryOption,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={
-                      hasSkill
-                        ? styles.secondaryIcon
-                        : styles.optionIcon
-                    }
-                  >
-                    {busyAction === 'ALTERNATE_SESSION' ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={
-                          hasSkill
-                            ? colors.textPrimary
-                            : colors.brandWhite
-                        }
-                      />
-                    ) : (
-                      <Ionicons
-                        name="refresh-outline"
-                        size={20}
-                        color={
-                          hasSkill
-                            ? colors.textPrimary
-                            : colors.brandWhite
-                        }
-                      />
-                    )}
-                  </View>
-                  <View style={styles.optionCopy}>
-                    <Text
-                      style={
-                        hasSkill
-                          ? styles.secondaryOptionTitle
-                          : styles.primaryOptionTitle
-                      }
-                    >
-                      UNE AUTRE SÉANCE
-                    </Text>
-                    <Text
-                      style={
-                        hasSkill
-                          ? styles.secondaryOptionBody
-                          : styles.primaryOptionBody
-                      }
-                    >
-                      Même durée, matériel et forme du jour. UGEROD reconstruit une proposition suffisamment différente.
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={
-                      hasSkill
-                        ? colors.textMuted
-                        : colors.brandWhite
-                    }
-                  />
-                </Pressable>
-              </ScrollView>
+                      onPress={applyWholePlanB}
+                      styles={styles}
+                      colors={colors}
+                    />
+                  </ScrollView>
+                </>
+              ) : (
+                <View style={styles.startedMessage}>
+                  <Ionicons name="shield-checkmark-outline" size={22} color={colors.accent} />
+                  <Text style={styles.startedText}>
+                    Les résultats déjà réalisés restent intacts. Pour la suite, utilise Adapter ou Refuser sur l’exercice concerné : UGEROD ne réécrit pas ce qui est déjà fait.
+                  </Text>
+                </View>
+              )}
 
               <Pressable
                 disabled={Boolean(busyAction)}
-                onPress={() => setSheetOpen(false)}
-                style={({ pressed }) => [
-                  styles.keepButton,
-                  pressed && styles.pressed,
-                ]}
+                onPress={() => setPlanBOpen(false)}
+                style={styles.keepButton}
               >
-                <Text style={styles.keepText}>
-                  GARDER LA SÉANCE
-                </Text>
+                <Text style={styles.keepText}>{canRegeneratePlanB ? 'Garder la séance' : 'Retour à la séance'}</Text>
               </Pressable>
             </View>
           </SafeAreaView>
@@ -467,221 +274,91 @@ export default function SessionScreen() {
   );
 }
 
-function createOverviewStyles(themeColors) {
+function PlanBOption({ title, description, icon, loading, disabled, onPress, styles, colors }) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.option, pressed && !disabled && styles.pressed]}
+    >
+      <View style={styles.optionIcon}>
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.secondaryAccent} />
+        ) : (
+          <Ionicons name={icon} size={20} color={colors.secondaryAccent} />
+        )}
+      </View>
+      <View style={styles.optionCopy}>
+        <Text style={styles.optionTitle}>{title}</Text>
+        <Text style={styles.optionBody}>{description}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    </Pressable>
+  );
+}
+
+function createStyles(colors, isDark) {
   return StyleSheet.create({
-    overviewButton: {
+    root: { flex: 1 },
+    sessionTools: {
       position: 'absolute',
       left: spacing.lg,
-      bottom: 92,
-      minHeight: 42,
-      paddingHorizontal: 13,
+      right: spacing.lg,
+      bottom: 84,
+      zIndex: 32,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      pointerEvents: 'box-none',
+    },
+    toolButton: {
+      minHeight: 40,
+      paddingHorizontal: 12,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: themeColors.border,
-      backgroundColor: themeColors.surfaceElevated,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 7,
-      zIndex: 30,
-      elevation: 9,
-      shadowColor: themeColors.shadow,
-      shadowOpacity: 0.12,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 5 },
+      gap: 6,
+      shadowColor: colors.shadow,
+      shadowOpacity: isDark ? 0.24 : 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
     },
-    overviewButtonText: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 10,
-      letterSpacing: 0.35,
-      color: themeColors.text,
+    planBTool: { borderColor: colors.secondaryAccent },
+    toolButtonText: { fontFamily: 'Manrope_700Bold', fontSize: 10, color: colors.text },
+    pressed: { opacity: 0.76 },
+    modalRoot: { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
+    sheet: {
+      maxHeight: '84%',
+      paddingHorizontal: 20,
+      paddingTop: 10,
+      paddingBottom: 22,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
+    handle: { width: 42, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 14, backgroundColor: colors.border },
+    sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    planBIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.secondaryAccent },
+    sheetHeaderCopy: { flex: 1 },
+    eyebrow: { fontFamily: 'Manrope_700Bold', fontSize: 9, letterSpacing: 1.1, color: colors.secondaryAccent },
+    title: { marginTop: 3, fontFamily: 'Manrope_800ExtraBold', fontSize: 23, lineHeight: 28, color: colors.text },
+    closeButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    explanation: { marginTop: 14, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+    options: { gap: 10, paddingTop: 16, paddingBottom: 6 },
+    option: { minHeight: 70, paddingHorizontal: 13, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 11 },
+    optionIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.secondaryAccentSoft },
+    optionCopy: { flex: 1 },
+    optionTitle: { fontFamily: 'Manrope_800ExtraBold', fontSize: 13, color: colors.text },
+    optionBody: { marginTop: 3, fontFamily: 'Manrope_500Medium', fontSize: 10, lineHeight: 15, color: colors.textSecondary },
+    startedMessage: { marginTop: 18, borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'flex-start', gap: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    startedText: { flex: 1, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+    keepButton: { marginTop: 16, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    keepText: { fontFamily: 'Manrope_700Bold', fontSize: 12, color: colors.text },
   });
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  changeSkillButton: {
-    position: 'absolute',
-    right: spacing.lg,
-    bottom: 92,
-    minHeight: 42,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    zIndex: 20,
-    elevation: 8,
-  },
-  changeSkillText: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.7,
-    color: colors.textPrimary,
-  },
-  modalRoot: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-  },
-  sheet: {
-    maxHeight: '84%',
-    paddingHorizontal: spacing.xl,
-    paddingTop: 9,
-    paddingBottom: 18,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  handle: {
-    width: 42,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
-    backgroundColor: colors.border,
-    marginBottom: 14,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-  },
-  headerCopy: {
-    flex: 1,
-  },
-  eyebrow: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.8,
-    color: colors.primaryLight,
-  },
-  title: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 22,
-    lineHeight: 25,
-    letterSpacing: 1,
-    color: colors.textPrimary,
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  explanation: {
-    marginTop: 12,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
-    color: colors.textSecondary,
-  },
-  optionsScroll: {
-    marginTop: 2,
-  },
-  optionsContent: {
-    paddingBottom: 2,
-  },
-  option: {
-    minHeight: 82,
-    marginTop: 10,
-    borderRadius: 15,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  primaryOption: {
-    backgroundColor: colors.primary,
-  },
-  secondaryOption: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  optionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  secondaryIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-  },
-  optionCopy: {
-    flex: 1,
-  },
-  primaryOptionTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 0.35,
-    color: colors.brandWhite,
-  },
-  primaryOptionBody: {
-    marginTop: 3,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 10,
-    lineHeight: 14,
-    color: 'rgba(255,255,255,0.78)',
-  },
-  secondaryOptionTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 0.35,
-    color: colors.textPrimary,
-  },
-  secondaryOptionBody: {
-    marginTop: 3,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 10,
-    lineHeight: 14,
-    color: colors.textSecondary,
-  },
-  keepButton: {
-    minHeight: 44,
-    marginTop: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  keepText: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.55,
-    color: colors.textMuted,
-  },
-  pressed: {
-    opacity: 0.68,
-  },
-});
