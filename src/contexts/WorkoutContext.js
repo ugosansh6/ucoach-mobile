@@ -47,6 +47,7 @@ const INITIAL_WORKOUT = {
   remainingContextRecalculations: 3,
   generationControlStatus: null,
   safetyAdaptation: null,
+  playerCursor: null,
 };
 
 const INITIAL_COMPLETION = {

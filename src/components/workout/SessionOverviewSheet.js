@@ -159,10 +159,16 @@ export default function SessionOverviewSheet({
 
   const blocks = useMemo(() => buildBlocks(workout), [workout]);
   const code = environmentCode(workout);
-  const activeBlockIndex = Math.max(
-    0,
-    blocks.findIndex((block) => !block.done)
-  );
+  const playerCursor = workout?.playerCursor ?? null;
+  const cursorBlockKey = normalizeBlock(playerCursor?.blockId);
+  const cursorBlockIndex = cursorBlockKey
+    ? blocks.findIndex((block) => block.key === cursorBlockKey)
+    : -1;
+  const fallbackActiveBlockIndex = blocks.findIndex((block) => !block.done);
+  const activeBlockIndex =
+    cursorBlockIndex >= 0 && !blocks[cursorBlockIndex]?.done
+      ? cursorBlockIndex
+      : Math.max(0, fallbackActiveBlockIndex);
   const completedBlocks = blocks.filter((block) => block.done).length;
   const plannedDuration =
     Number(workout?.plannedDuration ?? workout?.preparationSnapshot?.durationMinutes ?? workout?.preparationSnapshot?.duration) || null;
@@ -330,7 +336,16 @@ export default function SessionOverviewSheet({
                       <View style={styles.exerciseList}>
                         {block.exercises.map((exercise, exerciseIndex) => {
                           const status = exerciseStatus(exercise);
-                          const current = active && exerciseIndex === block.firstPendingIndex;
+                          const cursorExerciseMatches =
+                            active &&
+                            (playerCursor?.sessionExerciseId
+                              ? exercise?.sessionExerciseId === playerCursor.sessionExerciseId
+                              : Number.isFinite(Number(playerCursor?.exerciseIndex))
+                                ? exerciseIndex === Number(playerCursor.exerciseIndex)
+                                : false);
+                          const current =
+                            cursorExerciseMatches ||
+                            (active && !playerCursor && exerciseIndex === block.firstPendingIndex);
                           const item = exercise.sessionExerciseId
                             ? availability?.[exercise.sessionExerciseId] ?? null
                             : null;

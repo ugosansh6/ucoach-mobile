@@ -244,6 +244,40 @@ export default function SessionFocusedCore() {
     : 0;
   const activeExercise = activeBlock?.exercises?.[activeExerciseIndex] ?? null;
 
+  useEffect(() => {
+    if (!activeBlock || !activeExercise) return;
+
+    const nextCursor = {
+      blockId: activeBlock.id,
+      exerciseIndex: activeExerciseIndex,
+      sessionExerciseId: activeExercise?.sessionExerciseId ?? null,
+      exerciseId: activeExercise?.exerciseId ?? activeExercise?.id ?? null,
+    };
+    const currentCursor = workout?.playerCursor ?? null;
+
+    if (
+      currentCursor?.blockId === nextCursor.blockId &&
+      Number(currentCursor?.exerciseIndex ?? -1) === nextCursor.exerciseIndex &&
+      (currentCursor?.sessionExerciseId ?? null) === nextCursor.sessionExerciseId &&
+      (currentCursor?.exerciseId ?? null) === nextCursor.exerciseId
+    ) {
+      return;
+    }
+
+    updateWorkout({ playerCursor: nextCursor });
+  }, [
+    activeBlock?.id,
+    activeExerciseIndex,
+    activeExercise?.sessionExerciseId,
+    activeExercise?.exerciseId,
+    activeExercise?.id,
+    updateWorkout,
+    workout?.playerCursor?.blockId,
+    workout?.playerCursor?.exerciseIndex,
+    workout?.playerCursor?.sessionExerciseId,
+    workout?.playerCursor?.exerciseId,
+  ]);
+
   const refreshSwapAvailability = useCallback(async () => {
     if (!workout?.sessionId) {
       setSwapAvailability({});
