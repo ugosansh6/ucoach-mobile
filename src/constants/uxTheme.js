@@ -79,8 +79,9 @@ export const ugerodThemes = {
       borderStrong: '#C7CDBF',
       inputDisabled: '#F1F2EE',
 
-      success: '#527A55',
-      successSoft: '#E7F0E5',
+      // Le succès reste sémantique mais utilise le même kaki pour garder une palette cohérente.
+      success: '#5E6633',
+      successSoft: 'rgba(94, 102, 51, 0.12)',
       warning: '#FF6B19',
       warningSoft: 'rgba(255, 107, 25, 0.14)',
       error: '#FF6B19',
