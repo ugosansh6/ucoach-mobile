@@ -982,10 +982,12 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
   const restSeconds = Math.max(1, Number(block?.source?.restSeconds ?? block?.source?.rest_seconds ?? protocol?.rest_seconds ?? 10) || 10);
   const cycleSeconds = workSeconds + restSeconds;
   const totalSeconds = rounds * cycleSeconds;
+  const exerciseCount = Math.max(1, block?.exercises?.length ?? 0);
 
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [displayExerciseIndex, setDisplayExerciseIndex] = useState(0);
 
   useEffect(() => {
     if (!started || paused || elapsed >= totalSeconds) return undefined;
@@ -996,12 +998,22 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
   const roundIndex = Math.min(rounds - 1, Math.floor(elapsed / cycleSeconds));
   const within = elapsed % cycleSeconds;
   const resting = started && elapsed < totalSeconds && within >= workSeconds;
-  const remaining = elapsed >= totalSeconds
-    ? 0
-    : resting
-      ? cycleSeconds - within
-      : workSeconds - within;
-  const activeExercise = block.exercises[roundIndex % Math.max(1, block.exercises.length)] ?? block.exercises[0];
+  const hasNextRound = roundIndex < rounds - 1;
+  const remaining = elapsed >= totalSeconds ? 0 : resting ? cycleSeconds - within : workSeconds - within;
+  const scheduledExerciseIndex = resting && hasNextRound
+    ? (roundIndex + 1) % exerciseCount
+    : roundIndex % exerciseCount;
+  const activeExercise = block.exercises[displayExerciseIndex] ?? block.exercises[scheduledExerciseIndex] ?? block.exercises[0];
+  const progressPercent = totalSeconds > 0 ? Math.max(0, Math.min(100, (elapsed / totalSeconds) * 100)) : 0;
+
+  useEffect(() => {
+    setDisplayExerciseIndex(scheduledExerciseIndex);
+  }, [scheduledExerciseIndex]);
+
+  function moveDisplayedExercise(direction) {
+    if (exerciseCount <= 1) return;
+    setDisplayExerciseIndex((current) => (current + direction + exerciseCount) % exerciseCount);
+  }
 
   return (
     <View style={styles.timerCard}>
@@ -1010,11 +1022,33 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
       <Text style={styles.timerUnit}>secondes</Text>
       <Text style={styles.timerRound}>Tour {Math.min(rounds, roundIndex + 1)} / {rounds}</Text>
 
+      <View style={[styles.progressTrack, { width: '100%', marginTop: 14, borderRadius: 999, overflow: 'hidden' }]}>
+        <View style={[styles.progressFill, { width: `${progressPercent}%`, backgroundColor: colors.secondaryAccent }]} />
+      </View>
+
       <View style={styles.timerExerciseCard}>
-        <Text style={styles.timerExerciseLabel}>{resting ? 'Suivant' : 'Exercice actuel'}</Text>
+        <Text style={styles.timerExerciseLabel}>
+          {!started ? 'Premier exercice' : resting && displayExerciseIndex === scheduledExerciseIndex && hasNextRound ? 'À venir' : 'Exercice actuel'}
+        </Text>
         <Text style={styles.timerExerciseName}>{displayExerciseName(activeExercise)}</Text>
         {activeExercise?.prescription ? (
           <Text style={styles.timerExercisePrescription}>{String(activeExercise.prescription)}</Text>
+        ) : null}
+
+        {exerciseCount > 1 ? (
+          <View style={styles.exerciseNav}>
+            <Pressable onPress={() => moveDisplayedExercise(-1)} style={styles.navButton}>
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+            </Pressable>
+            <View style={styles.navDots}>
+              {block.exercises.map((exercise, index) => (
+                <View key={exercise?._uiKey ?? exercise?.sessionExerciseId ?? `${index}`} style={[styles.navDot, index === displayExerciseIndex && styles.navDotActive]} />
+              ))}
+            </View>
+            <Pressable onPress={() => moveDisplayedExercise(1)} style={styles.navButton}>
+              <Ionicons name="chevron-forward" size={20} color={colors.text} />
+            </Pressable>
+          </View>
         ) : null}
       </View>
 
@@ -1036,15 +1070,7 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
       )}
 
       {started && elapsed < totalSeconds ? (
-        <Pressable
-          onPress={() =>
-            Alert.alert('Arrêter le Tabata ?', 'Le bloc sera terminé avec le temps réellement effectué.', [
-              { text: 'Annuler', style: 'cancel' },
-              { text: 'Arrêter', style: 'destructive', onPress: onFinish },
-            ])
-          }
-          style={styles.stopButton}
-        >
+        <Pressable onPress={onFinish} style={styles.stopButton}>
           <Text style={styles.stopButtonText}>Arrêter le bloc</Text>
         </Pressable>
       ) : null}
