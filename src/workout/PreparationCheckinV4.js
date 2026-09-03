@@ -7,7 +7,6 @@ import {
   Image,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -28,12 +27,13 @@ import {
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
-const UI_FONT = Platform.select({
-  web: 'Manrope',
-  ios: 'System',
-  android: 'sans-serif',
-  default: 'System',
-});
+const MANROPE = {
+  regular: 'Manrope_400Regular',
+  medium: 'Manrope_500Medium',
+  semiBold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+  extraBold: 'Manrope_800ExtraBold',
+};
 
 const DURATIONS = [20, 30, 45, 60, 75, 90];
 
@@ -1043,8 +1043,7 @@ function createStyles(colors) {
       color: colors.textSecondary,
     },
     title: {
-      fontFamily: UI_FONT,
-      fontWeight: '800',
+      fontFamily: MANROPE.extraBold,
       fontSize: 32,
       lineHeight: 38,
       letterSpacing: -0.8,
@@ -1054,8 +1053,7 @@ function createStyles(colors) {
     brandIcon: { width: 44, height: 44 },
     intro: {
       marginTop: 4,
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 15,
       lineHeight: 22,
       color: colors.textSecondary,
@@ -1182,16 +1180,14 @@ function createStyles(colors) {
     },
     summaryCopy: { minHeight: 60, justifyContent: 'flex-end', paddingRight: 8 },
     summaryTitle: {
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 18,
       lineHeight: 23,
       letterSpacing: -0.25,
     },
     summaryValue: {
       marginTop: 4,
-      fontFamily: UI_FONT,
-      fontWeight: '500',
+      fontFamily: MANROPE.medium,
       fontSize: 15,
       lineHeight: 20,
       letterSpacing: -0.1,
@@ -1200,8 +1196,7 @@ function createStyles(colors) {
 
     focusSection: { marginTop: 22 },
     focusTitle: {
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 17,
       lineHeight: 22,
       letterSpacing: -0.3,
@@ -1209,8 +1204,7 @@ function createStyles(colors) {
     },
     focusHelp: {
       marginTop: 4,
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 14,
       lineHeight: 20,
       color: colors.textSecondary,
@@ -1229,8 +1223,7 @@ function createStyles(colors) {
     },
     primaryButtonPending: { opacity: 0.66 },
     primaryButtonText: {
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 17,
       lineHeight: 22,
       letterSpacing: -0.1,
@@ -1249,15 +1242,13 @@ function createStyles(colors) {
       gap: 9,
     },
     resumeTitle: {
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 13,
       color: colors.text,
     },
     resumeText: {
       marginTop: 2,
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 13,
       lineHeight: 18,
       color: colors.textSecondary,
@@ -1271,8 +1262,7 @@ function createStyles(colors) {
       justifyContent: 'center',
     },
     resumeButtonText: {
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 12,
       color: colors.accent,
     },
@@ -1319,8 +1309,7 @@ function createStyles(colors) {
     sheetTitle: {
       flex: 1,
       paddingRight: 12,
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 21,
       lineHeight: 28,
       letterSpacing: -0.45,
@@ -1342,8 +1331,7 @@ function createStyles(colors) {
       paddingBottom: 22,
     },
     sheetHelp: {
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 14,
       lineHeight: 21,
       color: colors.textSecondary,
@@ -1359,8 +1347,7 @@ function createStyles(colors) {
       backgroundColor: colors.accent,
     },
     sheetDoneButtonText: {
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 15,
       color: colors.textOnAccent,
     },
@@ -1372,8 +1359,7 @@ function createStyles(colors) {
 
     subsectionTitle: {
       marginTop: 22,
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 15,
       lineHeight: 21,
       letterSpacing: -0.2,
@@ -1398,8 +1384,7 @@ function createStyles(colors) {
     },
     choiceChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
     choiceChipText: {
-      fontFamily: UI_FONT,
-      fontWeight: '600',
+      fontFamily: MANROPE.semiBold,
       fontSize: 13,
       lineHeight: 18,
       letterSpacing: -0.1,
@@ -1419,8 +1404,7 @@ function createStyles(colors) {
       borderColor: colors.border,
     },
     quickButtonText: {
-      fontFamily: UI_FONT,
-      fontWeight: '600',
+      fontFamily: MANROPE.semiBold,
       fontSize: 12,
       color: colors.textSecondary,
     },
@@ -1449,16 +1433,14 @@ function createStyles(colors) {
       backgroundColor: colors.accentSoft,
     },
     equipmentChoiceTitle: {
-      fontFamily: UI_FONT,
-      fontWeight: '600',
+      fontFamily: MANROPE.semiBold,
       fontSize: 13,
       lineHeight: 18,
       color: colors.text,
     },
     equipmentChoiceDetail: {
       marginTop: 2,
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 11,
       lineHeight: 16,
       color: colors.textMuted,
@@ -1471,8 +1453,7 @@ function createStyles(colors) {
       justifyContent: 'space-between',
     },
     inlineLinkText: {
-      fontFamily: UI_FONT,
-      fontWeight: '600',
+      fontFamily: MANROPE.semiBold,
       fontSize: 13,
       color: colors.accent,
     },
@@ -1487,8 +1468,7 @@ function createStyles(colors) {
     },
     infoText: {
       flex: 1,
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 13,
       lineHeight: 19,
       color: colors.textSecondary,
@@ -1496,8 +1476,7 @@ function createStyles(colors) {
     errorRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
     errorText: {
       flex: 1,
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 13,
       color: colors.error,
     },
@@ -1527,16 +1506,14 @@ function createStyles(colors) {
       backgroundColor: colors.surface,
     },
     readinessTitle: {
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 15,
       lineHeight: 20,
       color: colors.text,
     },
     readinessDescription: {
       marginTop: 3,
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 13,
       lineHeight: 18,
       color: colors.textSecondary,
@@ -1556,16 +1533,14 @@ function createStyles(colors) {
     },
     painChoiceSafe: { borderColor: colors.success, backgroundColor: colors.successSoft },
     painChoiceTitle: {
-      fontFamily: UI_FONT,
-      fontWeight: '700',
+      fontFamily: MANROPE.bold,
       fontSize: 15,
       lineHeight: 20,
       color: colors.text,
     },
     painChoiceText: {
       marginTop: 3,
-      fontFamily: UI_FONT,
-      fontWeight: '400',
+      fontFamily: MANROPE.regular,
       fontSize: 13,
       lineHeight: 18,
       color: colors.textSecondary,
