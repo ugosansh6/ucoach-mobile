@@ -1,1 +1,1 @@
-export { default } from './session-arena-core';
+export { default } from './session-focused-core';
