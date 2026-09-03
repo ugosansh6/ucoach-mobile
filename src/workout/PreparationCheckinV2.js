@@ -340,18 +340,18 @@ function SummaryCard({
         <View style={[styles.summaryAccentBar, { backgroundColor: accent }]} />
         <Ionicons
           name={icon}
-          size={76}
+          size={84}
           color={accent}
           style={styles.summaryWatermark}
         />
 
         <View style={styles.summaryTopRow}>
           <View style={[styles.summaryIcon, { backgroundColor: accent }]}>
-            <Ionicons name={icon} size={18} color={colors.textOnAccent} />
+            <Ionicons name={icon} size={19} color={colors.textOnAccent} />
           </View>
           <Ionicons
             name={selected ? 'chevron-up' : 'chevron-forward'}
-            size={19}
+            size={20}
             color={colors.textSecondary}
           />
         </View>
@@ -394,7 +394,7 @@ function ChoiceChip({ label, selected, onPress, styles, colors, icon = null }) {
       {icon ? (
         <Ionicons
           name={icon}
-          size={16}
+          size={17}
           color={selected ? colors.textOnAccent : colors.textSecondary}
         />
       ) : null}
@@ -425,7 +425,7 @@ function EquipmentChoice({ item, selected, onPress, colors, styles }) {
       </View>
       <Ionicons
         name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-        size={19}
+        size={20}
         color={selected ? colors.accent : colors.textMuted}
       />
     </Pressable>
@@ -643,9 +643,7 @@ export default function PreparationCheckinV2() {
           <Image source={brandIcon} style={styles.brandIcon} resizeMode="contain" />
         </View>
 
-        <Text style={styles.intro}>
-          Vérifie ce qui change aujourd’hui. UGEROD s’occupe du reste.
-        </Text>
+        <Text style={styles.intro}>Ajuste ta séance du jour.</Text>
 
         <DurationControl
           value={duration}
@@ -709,9 +707,6 @@ export default function PreparationCheckinV2() {
         {expanded === 'location' ? (
           <View style={styles.detailPanel}>
             <Text style={styles.detailEyebrow}>OÙ TU T’ENTRAÎNES ?</Text>
-            <Text style={styles.detailHelp}>
-              Le lieu décrit ce qui est possible. Il ne décide jamais du type de séance à la place du Coach.
-            </Text>
             <View style={styles.choiceGrid}>
               {ENVIRONMENTS.map((item) => (
                 <ChoiceChip
@@ -744,10 +739,7 @@ export default function PreparationCheckinV2() {
 
                 {placeNeedsTerrain ? (
                   <>
-                    <Text style={styles.subsectionTitle}>QUEL TERRAIN ?</Text>
-                    <Text style={styles.detailHelp}>
-                      Seulement parce que ce lieu peut avoir plusieurs types de sol.
-                    </Text>
+                    <Text style={styles.subsectionTitle}>PRÉCISE LE TERRAIN</Text>
                     <View style={styles.choiceGrid}>
                       {TERRAIN_OPTIONS.map((item) => (
                         <ChoiceChip
@@ -761,26 +753,9 @@ export default function PreparationCheckinV2() {
                       ))}
                     </View>
                   </>
-                ) : selectedPlace ? (
-                  <View style={styles.contextOkRow}>
-                    <Ionicons name="checkmark-circle" size={17} color={colors.success} />
-                    <Text style={styles.contextOkText}>
-                      Le terrain est suffisamment clair pour construire la séance.
-                    </Text>
-                  </View>
                 ) : null}
               </>
             ) : null}
-
-            <View style={styles.autoRow}>
-              <Ionicons name="sparkles-outline" size={17} color={colors.accent} />
-              <View style={styles.autoCopy}>
-                <Text style={styles.autoTitle}>TYPE DE SÉANCE · UGEROD CHOISIT</Text>
-                <Text style={styles.autoText}>
-                  Le programme, ta récupération et tes contraintes restent prioritaires.
-                </Text>
-              </View>
-            </View>
           </View>
         ) : null}
 
@@ -790,7 +765,7 @@ export default function PreparationCheckinV2() {
               <View style={styles.flexOne}>
                 <Text style={styles.detailEyebrow}>MATÉRIEL DU JOUR</Text>
                 <Text style={styles.detailHelp}>
-                  Ta base vient du profil. Décoche simplement ce que tu n’as pas avec toi aujourd’hui.
+                  Sélectionne ce que tu as avec toi aujourd’hui.
                 </Text>
               </View>
               {equipmentLoading ? (
@@ -800,14 +775,14 @@ export default function PreparationCheckinV2() {
 
             {equipmentNeedsLogin ? (
               <View style={styles.infoRow}>
-                <Ionicons name="person-circle-outline" size={19} color={colors.accent} />
+                <Ionicons name="person-circle-outline" size={20} color={colors.accent} />
                 <Text style={styles.infoText}>
-                  Reconnecte ta session pour récupérer automatiquement le matériel enregistré dans ton profil.
+                  Reconnecte-toi pour récupérer ton matériel enregistré.
                 </Text>
               </View>
             ) : equipmentError ? (
               <Pressable onPress={loadEquipment} style={styles.errorRow}>
-                <Ionicons name="alert-circle-outline" size={17} color={colors.error} />
+                <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
                 <Text style={styles.errorText}>{equipmentError} Réessayer.</Text>
               </Pressable>
             ) : (
@@ -853,8 +828,8 @@ export default function PreparationCheckinV2() {
                   }
                   style={styles.inlineLink}
                 >
-                  <Text style={styles.inlineLinkText}>MODIFIER MON MATÉRIEL DISPO</Text>
-                  <Ionicons name="chevron-forward" size={17} color={colors.accent} />
+                  <Text style={styles.inlineLinkText}>MODIFIER MON MATÉRIEL</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.accent} />
                 </Pressable>
               </>
             )}
@@ -864,9 +839,6 @@ export default function PreparationCheckinV2() {
         {expanded === 'readiness' ? (
           <View style={styles.detailPanel}>
             <Text style={styles.detailEyebrow}>COMMENT TU TE SENS ?</Text>
-            <Text style={styles.detailHelp}>
-              Choisis simplement l’état qui décrit ta capacité à t’entraîner aujourd’hui.
-            </Text>
             <View style={styles.readinessStack}>
               {READINESS_OPTIONS.map((item) => {
                 const selected = readinessOption.value === item.value;
@@ -883,7 +855,7 @@ export default function PreparationCheckinV2() {
                     <View style={styles.readinessIcon}>
                       <Ionicons
                         name={item.icon}
-                        size={20}
+                        size={22}
                         color={selected ? colors.accent : colors.textSecondary}
                       />
                     </View>
@@ -892,7 +864,7 @@ export default function PreparationCheckinV2() {
                       <Text style={styles.readinessDescription}>{item.description}</Text>
                     </View>
                     {selected ? (
-                      <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+                      <Ionicons name="checkmark-circle" size={21} color={colors.accent} />
                     ) : null}
                   </Pressable>
                 );
@@ -904,9 +876,7 @@ export default function PreparationCheckinV2() {
         {expanded === 'pain' ? (
           <View style={styles.detailPanel}>
             <Text style={styles.detailEyebrow}>UNE GÊNE AUJOURD’HUI ?</Text>
-            <Text style={styles.detailHelp}>
-              Confirme-le à chaque séance : cette information protège directement la sélection des exercices.
-            </Text>
+            <Text style={styles.detailHelp}>À confirmer avant chaque séance.</Text>
             <Pressable
               onPress={() => updatePreparation({ painZones: ['Aucune'] })}
               style={({ pressed }) => [
@@ -915,22 +885,20 @@ export default function PreparationCheckinV2() {
                 pressed && styles.pressed,
               ]}
             >
-              <Ionicons name="shield-checkmark-outline" size={21} color={colors.success} />
+              <Ionicons name="shield-checkmark-outline" size={22} color={colors.success} />
               <View style={styles.flexOne}>
                 <Text style={styles.painChoiceTitle}>AUCUNE GÊNE</Text>
-                <Text style={styles.painChoiceText}>
-                  Je peux m’entraîner normalement aujourd’hui.
-                </Text>
+                <Text style={styles.painChoiceText}>Je confirme pour aujourd’hui.</Text>
               </View>
               {painConfirmed && painZones.includes('Aucune') ? (
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Ionicons name="checkmark-circle" size={21} color={colors.success} />
               ) : null}
             </Pressable>
             <Pressable
               onPress={() => router.push('/workout/injuries')}
               style={({ pressed }) => [styles.painChoice, pressed && styles.pressed]}
             >
-              <Ionicons name="medical-outline" size={21} color={colors.secondaryAccent} />
+              <Ionicons name="medical-outline" size={22} color={colors.secondaryAccent} />
               <View style={styles.flexOne}>
                 <Text style={styles.painChoiceTitle}>J’AI UNE GÊNE</Text>
                 <Text style={styles.painChoiceText}>
@@ -939,16 +907,14 @@ export default function PreparationCheckinV2() {
                     : 'Choisir la ou les zones à protéger.'}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              <Ionicons name="chevron-forward" size={19} color={colors.textMuted} />
             </Pressable>
           </View>
         ) : null}
 
         <View style={styles.focusSection}>
           <Text style={styles.focusTitle}>UNE ENVIE AUJOURD’HUI ?</Text>
-          <Text style={styles.focusHelp}>
-            Optionnel. UGEROD essaie de la respecter sans casser la logique de ton programme.
-          </Text>
+          <Text style={styles.focusHelp}>Optionnel · UGEROD en tient compte.</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -970,7 +936,7 @@ export default function PreparationCheckinV2() {
         {environmentCode === 'OUTDOOR' &&
         (!preparation?.outdoorPlaceCode || !preparation?.surfaceCode) ? (
           <View style={styles.requiredNotice}>
-            <Ionicons name="location-outline" size={17} color={colors.secondaryAccent} />
+            <Ionicons name="location-outline" size={18} color={colors.secondaryAccent} />
             <Text style={styles.requiredNoticeText}>
               Précise ton lieu extérieur et, si nécessaire, le terrain.
             </Text>
@@ -987,12 +953,12 @@ export default function PreparationCheckinV2() {
           ]}
         >
           <Text style={styles.primaryButtonText}>VOIR MA SÉANCE</Text>
-          <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
+          <Ionicons name="arrow-forward" size={22} color={colors.textOnAccent} />
         </Pressable>
 
         {hasActiveSession ? (
           <View style={styles.resumePanel}>
-            <Ionicons name="play-circle-outline" size={21} color={colors.accent} />
+            <Ionicons name="play-circle-outline" size={22} color={colors.accent} />
             <View style={styles.flexOne}>
               <Text style={styles.resumeTitle}>
                 {sessionStarted ? 'SÉANCE EN COURS' : 'SÉANCE DÉJÀ GÉNÉRÉE'}
@@ -1022,9 +988,9 @@ function createStyles(colors) {
     content: { paddingHorizontal: spacing.xl, paddingTop: 8, paddingBottom: 30 },
     header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11 },
     headerButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.surface,
@@ -1034,34 +1000,34 @@ function createStyles(colors) {
     headerCopy: { flex: 1 },
     eyebrow: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 14,
       letterSpacing: 1,
       color: colors.textSecondary,
     },
     title: {
       ...typography.display,
-      fontSize: 31,
-      lineHeight: 34,
+      fontSize: 33,
+      lineHeight: 36,
       letterSpacing: 1.4,
       color: colors.text,
     },
     dot: { color: colors.accent },
-    brandIcon: { width: 42, height: 42 },
+    brandIcon: { width: 44, height: 44 },
     intro: {
-      marginTop: 3,
+      marginTop: 4,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 13,
-      lineHeight: 19,
+      fontSize: 15,
+      lineHeight: 21,
       color: colors.textSecondary,
     },
 
     durationShell: {
-      marginTop: 20,
-      minHeight: 112,
+      marginTop: 18,
+      minHeight: 116,
       paddingHorizontal: 16,
       paddingVertical: 14,
-      borderRadius: 16,
+      borderRadius: 17,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -1070,22 +1036,22 @@ function createStyles(colors) {
       gap: 20,
     },
     durationReadout: {
-      width: 104,
+      width: 106,
       marginLeft: 4,
       alignItems: 'center',
       justifyContent: 'center',
     },
     durationValue: {
       fontFamily: 'BebasNeue_400Regular',
-      fontSize: 62,
-      lineHeight: 60,
+      fontSize: 64,
+      lineHeight: 62,
       letterSpacing: 2.4,
       textAlign: 'center',
     },
     durationUnit: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 12,
-      lineHeight: 15,
+      fontSize: 13,
+      lineHeight: 16,
       letterSpacing: 2.2,
       marginTop: -2,
       textAlign: 'center',
@@ -1111,12 +1077,12 @@ function createStyles(colors) {
     durationHit: { flex: 1 },
     durationKnob: {
       position: 'absolute',
-      top: -18,
+      top: -19,
       zIndex: 3,
-      width: 40,
-      height: 40,
-      marginLeft: -20,
-      borderRadius: 20,
+      width: 42,
+      height: 42,
+      marginLeft: -21,
+      borderRadius: 21,
       borderWidth: 2,
       backgroundColor: colors.surfaceElevated,
       alignItems: 'center',
@@ -1133,10 +1099,10 @@ function createStyles(colors) {
       flexGrow: 1,
       flexBasis: '47%',
       minWidth: 145,
-      minHeight: 128,
-      maxHeight: 150,
-      aspectRatio: 1.18,
-      borderRadius: 17,
+      minHeight: 138,
+      maxHeight: 160,
+      aspectRatio: 1.12,
+      borderRadius: 18,
       overflow: 'hidden',
       borderWidth: 1.5,
       borderColor: colors.border,
@@ -1144,7 +1110,7 @@ function createStyles(colors) {
     },
     summaryInner: {
       flex: 1,
-      padding: 12,
+      padding: 13,
       justifyContent: 'space-between',
       overflow: 'hidden',
     },
@@ -1158,9 +1124,9 @@ function createStyles(colors) {
     },
     summaryWatermark: {
       position: 'absolute',
-      right: -8,
-      top: 28,
-      opacity: 0.11,
+      right: -10,
+      top: 30,
+      opacity: 0.1,
       transform: [{ rotate: '-8deg' }],
     },
     summaryTopRow: {
@@ -1169,18 +1135,18 @@ function createStyles(colors) {
       justifyContent: 'space-between',
     },
     summaryIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
+      width: 38,
+      height: 38,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    summaryCopy: { minHeight: 58, justifyContent: 'flex-end', paddingRight: 8 },
+    summaryCopy: { minHeight: 62, justifyContent: 'flex-end', paddingRight: 8 },
     summaryTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 15,
-      lineHeight: 19,
-      letterSpacing: 0.9,
+      fontSize: 20,
+      lineHeight: 23,
+      letterSpacing: 0.8,
     },
     summaryTitleEmphasized: {
       fontSize: 20,
@@ -1190,15 +1156,15 @@ function createStyles(colors) {
     summaryValue: {
       marginTop: 5,
       fontFamily: 'Oswald_500Medium',
-      fontSize: 14,
-      lineHeight: 18,
+      fontSize: 16,
+      lineHeight: 20,
       color: colors.textSecondary,
     },
 
     detailPanel: {
       marginTop: 10,
       borderRadius: 18,
-      padding: 14,
+      padding: 15,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -1206,82 +1172,54 @@ function createStyles(colors) {
     detailHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     detailEyebrow: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 14,
-      letterSpacing: 0.9,
-      color: colors.text,
-    },
-    detailHelp: {
-      marginTop: 4,
-      fontFamily: 'Oswald_400Regular',
-      fontSize: 12,
-      lineHeight: 17,
-      color: colors.textSecondary,
-    },
-    subsectionTitle: {
-      marginTop: 16,
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 12,
+      fontSize: 17,
+      lineHeight: 21,
       letterSpacing: 0.8,
       color: colors.text,
     },
-    choiceGrid: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+    detailHelp: {
+      marginTop: 5,
+      fontFamily: 'Oswald_400Regular',
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.textSecondary,
+    },
+    subsectionTitle: {
+      marginTop: 17,
+      fontFamily: 'Oswald_700Bold',
+      fontSize: 14,
+      lineHeight: 18,
+      letterSpacing: 0.7,
+      color: colors.text,
+    },
+    choiceGrid: { marginTop: 11, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     choiceChip: {
-      minHeight: 40,
-      paddingHorizontal: 12,
-      paddingVertical: 9,
-      borderRadius: 11,
+      minHeight: 44,
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: 7,
     },
     choiceChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
     choiceChipText: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 10,
-      letterSpacing: 0.4,
+      fontSize: 12,
+      lineHeight: 16,
+      letterSpacing: 0.35,
       color: colors.textSecondary,
     },
     choiceChipTextSelected: { color: colors.textOnAccent },
-    contextOkRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 7 },
-    contextOkText: {
-      flex: 1,
-      fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 15,
-      color: colors.textSecondary,
-    },
-    autoRow: {
-      marginTop: 15,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 9,
-    },
-    autoCopy: { flex: 1 },
-    autoTitle: {
-      fontFamily: 'Oswald_700Bold',
-      fontSize: 10,
-      letterSpacing: 0.5,
-      color: colors.accent,
-    },
-    autoText: {
-      marginTop: 2,
-      fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 15,
-      color: colors.textSecondary,
-    },
 
-    quickActions: { marginTop: 11, flexDirection: 'row', gap: 7 },
+    quickActions: { marginTop: 12, flexDirection: 'row', gap: 8 },
     quickButton: {
       flex: 1,
-      minHeight: 38,
-      borderRadius: 10,
+      minHeight: 42,
+      borderRadius: 11,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.surfaceElevated,
@@ -1290,24 +1228,25 @@ function createStyles(colors) {
     },
     quickButtonText: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 10,
-      letterSpacing: 0.4,
+      fontSize: 11,
+      lineHeight: 15,
+      letterSpacing: 0.35,
       color: colors.textSecondary,
     },
-    equipmentGrid: { marginTop: 9, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+    equipmentGrid: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     equipmentChoice: {
       width: '48.5%',
       flexGrow: 1,
-      minHeight: 57,
-      paddingHorizontal: 10,
-      paddingVertical: 9,
-      borderRadius: 11,
+      minHeight: 62,
+      paddingHorizontal: 11,
+      paddingVertical: 10,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 7,
+      gap: 8,
     },
     equipmentChoiceSelected: {
       borderColor: colors.accent,
@@ -1315,140 +1254,146 @@ function createStyles(colors) {
     },
     equipmentChoiceTitle: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 11,
-      lineHeight: 14,
+      fontSize: 13,
+      lineHeight: 17,
       color: colors.text,
     },
     equipmentChoiceDetail: {
-      marginTop: 2,
+      marginTop: 3,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 9,
+      fontSize: 11,
+      lineHeight: 15,
       color: colors.textMuted,
     },
     inlineLink: {
-      marginTop: 12,
-      minHeight: 38,
+      marginTop: 13,
+      minHeight: 42,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
     },
     inlineLinkText: {
       fontFamily: 'Oswald_600SemiBold',
-      fontSize: 11,
-      letterSpacing: 0.4,
+      fontSize: 13,
+      lineHeight: 17,
+      letterSpacing: 0.35,
       color: colors.accent,
     },
     infoRow: {
-      marginTop: 11,
-      padding: 10,
-      borderRadius: 11,
+      marginTop: 12,
+      padding: 11,
+      borderRadius: 12,
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: 8,
+      gap: 9,
       backgroundColor: colors.accentSoft,
     },
     infoText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 16,
+      fontSize: 13,
+      lineHeight: 18,
       color: colors.textSecondary,
     },
-    errorRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 7 },
+    errorRow: { marginTop: 11, flexDirection: 'row', alignItems: 'center', gap: 8 },
     errorText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
+      fontSize: 13,
+      lineHeight: 18,
       color: colors.error,
     },
 
-    readinessStack: { marginTop: 10, gap: 7 },
+    readinessStack: { marginTop: 11, gap: 8 },
     readinessChoice: {
-      minHeight: 66,
-      padding: 11,
-      borderRadius: 12,
+      minHeight: 72,
+      padding: 12,
+      borderRadius: 13,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 9,
+      gap: 10,
     },
     readinessChoiceSelected: {
       borderColor: colors.accent,
       backgroundColor: colors.accentSoft,
     },
     readinessIcon: {
-      width: 37,
-      height: 37,
-      borderRadius: 10,
+      width: 40,
+      height: 40,
+      borderRadius: 11,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.surface,
     },
     readinessTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 12,
-      letterSpacing: 0.5,
+      fontSize: 14,
+      lineHeight: 18,
+      letterSpacing: 0.45,
       color: colors.text,
     },
     readinessDescription: {
-      marginTop: 2,
+      marginTop: 3,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 13,
+      lineHeight: 18,
       color: colors.textSecondary,
     },
 
     painChoice: {
-      marginTop: 9,
-      minHeight: 68,
-      padding: 11,
-      borderRadius: 12,
+      marginTop: 10,
+      minHeight: 72,
+      padding: 12,
+      borderRadius: 13,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 9,
+      gap: 10,
     },
     painChoiceSafe: { borderColor: colors.success, backgroundColor: colors.successSoft },
     painChoiceTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 12,
-      letterSpacing: 0.45,
+      fontSize: 14,
+      lineHeight: 18,
+      letterSpacing: 0.4,
       color: colors.text,
     },
     painChoiceText: {
-      marginTop: 2,
+      marginTop: 3,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 13,
+      lineHeight: 18,
       color: colors.textSecondary,
     },
 
-    focusSection: { marginTop: 18 },
+    focusSection: { marginTop: 20 },
     focusTitle: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 13,
-      letterSpacing: 0.8,
+      fontSize: 15,
+      lineHeight: 19,
+      letterSpacing: 0.7,
       color: colors.text,
     },
     focusHelp: {
-      marginTop: 3,
+      marginTop: 4,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 16,
+      fontSize: 13,
+      lineHeight: 18,
       color: colors.textSecondary,
     },
-    focusRow: { paddingTop: 9, paddingRight: 20, gap: 7 },
+    focusRow: { paddingTop: 10, paddingRight: 20, gap: 8 },
     requiredNotice: {
-      marginTop: 10,
-      padding: 10,
-      borderRadius: 11,
+      marginTop: 11,
+      padding: 11,
+      borderRadius: 12,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: 9,
       backgroundColor: colors.secondaryAccentSoft,
       borderWidth: 1,
       borderColor: colors.secondaryAccent,
@@ -1456,58 +1401,58 @@ function createStyles(colors) {
     requiredNoticeText: {
       flex: 1,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 13,
+      lineHeight: 18,
       color: colors.textSecondary,
     },
 
     primaryButton: {
-      marginTop: 16,
-      minHeight: 58,
-      borderRadius: 15,
+      marginTop: 18,
+      minHeight: 60,
+      borderRadius: 16,
       backgroundColor: colors.accent,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 9,
+      gap: 10,
     },
     primaryButtonPending: { opacity: 0.78 },
     primaryButtonText: {
       fontFamily: 'BebasNeue_400Regular',
-      fontSize: 23,
+      fontSize: 25,
       letterSpacing: 1.2,
       color: colors.textOnAccent,
     },
     resumePanel: {
-      marginTop: 11,
-      padding: 11,
+      marginTop: 12,
+      padding: 12,
       borderRadius: 13,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 9,
+      gap: 10,
     },
-    resumeTitle: { fontFamily: 'Oswald_700Bold', fontSize: 10, color: colors.text },
+    resumeTitle: { fontFamily: 'Oswald_700Bold', fontSize: 12, color: colors.text },
     resumeText: {
-      marginTop: 2,
+      marginTop: 3,
       fontFamily: 'Oswald_400Regular',
-      fontSize: 10,
-      lineHeight: 14,
+      fontSize: 12,
+      lineHeight: 17,
       color: colors.textSecondary,
     },
     resumeButton: {
-      minHeight: 34,
-      paddingHorizontal: 10,
-      borderRadius: 9,
+      minHeight: 38,
+      paddingHorizontal: 11,
+      borderRadius: 10,
       backgroundColor: colors.surfaceElevated,
       alignItems: 'center',
       justifyContent: 'center',
     },
     resumeButtonText: {
       fontFamily: 'Oswald_700Bold',
-      fontSize: 9,
+      fontSize: 11,
       letterSpacing: 0.4,
       color: colors.accent,
     },
