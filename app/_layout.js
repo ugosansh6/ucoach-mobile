@@ -10,6 +10,14 @@ import {
 } from '@expo-google-fonts/bebas-neue';
 
 import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from '@expo-google-fonts/manrope';
+
+import {
   Oswald_400Regular,
   Oswald_500Medium,
   Oswald_600SemiBold,
@@ -26,6 +34,11 @@ import SessionWhyOverlay from '../src/components/workout/SessionWhyOverlay';
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     BebasNeue_400Regular,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
     Oswald_400Regular,
     Oswald_500Medium,
     Oswald_600SemiBold,
