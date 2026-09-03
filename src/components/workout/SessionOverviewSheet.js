@@ -23,11 +23,10 @@ import {
   syncEnvironmentBuilderSwapRuntime,
 } from '../../services/environmentSessionRuntimeService';
 
-const BLOCK_LABELS = {
+const LABELS = {
   unlock: 'Unlock',
   tabata: 'Tabata',
   warmup: 'Warm-up',
-  warm_up: 'Warm-up',
   skill: 'Skill',
   strength: 'Musculation',
   gym: 'Gym',
@@ -37,66 +36,46 @@ const BLOCK_LABELS = {
   wod: 'WOD',
 };
 
-function normalizeBlockKey(value) {
-  const key = String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s/-]+/g, '_');
-
+function normalizeBlock(value) {
+  const key = String(value ?? '').trim().toLowerCase().replace(/[\s/-]+/g, '_');
   return key === 'warm_up' ? 'warmup' : key;
+}
+
+function normalizeText(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/\\r\\n|\\n|\\r/g, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function exerciseStatus(exercise) {
   if (exercise?.userExecutionStatus) return exercise.userExecutionStatus;
   if (exercise?.status === 'completed') return 'completed';
   if (exercise?.status === 'adapted') return 'adapted';
-  if (exercise?.status === 'not_completed' || exercise?.status === 'skipped') {
-    return 'not_completed';
-  }
+  if (exercise?.status === 'not_completed' || exercise?.status === 'skipped') return 'not_completed';
   return 'pending';
 }
 
-function rawBlocksFromWorkout(workout) {
-  if (Array.isArray(workout?.rawBlocks) && workout.rawBlocks.length > 0) {
-    return workout.rawBlocks;
-  }
-
-  if (Array.isArray(workout?.blocks)) {
-    return workout.blocks;
-  }
-
+function rawBlocks(workout) {
+  if (Array.isArray(workout?.rawBlocks) && workout.rawBlocks.length > 0) return workout.rawBlocks;
+  if (Array.isArray(workout?.blocks)) return workout.blocks;
   if (workout?.blocks && typeof workout.blocks === 'object') {
     return Object.entries(workout.blocks).map(([key, block]) => ({
       ...(block ?? {}),
       block_key: block?.block_key ?? block?.blockKey ?? key,
     }));
   }
-
   return [];
 }
 
-function readBlockTitle(block, key) {
-  return (
-    block?.label_fr ??
-    block?.label ??
-    block?.title ??
-    block?.block_name ??
-    BLOCK_LABELS[key] ??
-    key
-  );
-}
-
-function readBlockDuration(block) {
-  const value = Number(
-    block?.duration_minutes ??
-      block?.durationMinutes ??
-      block?.duration
-  );
-
+function readDuration(block) {
+  const value = Number(block?.duration_minutes ?? block?.durationMinutes ?? block?.duration);
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-function environmentCodeFromWorkout(workout) {
+function environmentCode(workout) {
   return String(
     workout?.meta?.environment_code ??
       workout?.meta?.environmentCode ??
@@ -107,75 +86,57 @@ function environmentCodeFromWorkout(workout) {
     .toUpperCase();
 }
 
-function buildOverviewBlocks(workout) {
+function environmentLabel(code) {
+  if (code === 'HOME') return 'Maison';
+  if (code === 'BOX') return 'Box';
+  if (code === 'GYM') return 'Salle';
+  if (code === 'OUTDOOR') return 'Extérieur';
+  return 'UGEROD';
+}
+
+function buildBlocks(workout) {
   const exercises = Array.isArray(workout?.exercises) ? workout.exercises : [];
-  const rawBlocks = rawBlocksFromWorkout(workout);
+  const sources = rawBlocks(workout);
   const seen = new Set();
+  const result = [];
 
-  const blocks = rawBlocks
-    .map((source, index) => {
-      const key = normalizeBlockKey(
-        source?.block_key ?? source?.blockKey ?? source?.key ?? source?.id
-      );
-
-      if (!key || seen.has(key)) return null;
-      seen.add(key);
-
-      const rows = exercises.filter(
-        (exercise) =>
-          normalizeBlockKey(exercise?.blockKey ?? exercise?.block) === key
-      );
-
-      if (rows.length === 0 && key !== 'wod') return null;
-
-      const statuses = rows.map(exerciseStatus);
-      const done = rows.length > 0 && statuses.every((status) => status !== 'pending');
-      const pending = statuses.some((status) => status === 'pending');
-
-      return {
-        key,
-        source,
-        index,
-        title: readBlockTitle(source, key),
-        duration: readBlockDuration(source),
-        exercises: rows,
-        done,
-        pending,
-      };
-    })
+  const sourceKeys = sources
+    .map((source) => normalizeBlock(source?.block_key ?? source?.blockKey ?? source?.key ?? source?.id))
     .filter(Boolean);
+  const exerciseKeys = exercises
+    .map((exercise) => normalizeBlock(exercise?.blockKey ?? exercise?.block))
+    .filter(Boolean);
+  const orderedKeys = Array.from(new Set([...sourceKeys, ...exerciseKeys]));
 
-  if (blocks.length === 0 && exercises.length > 0) {
-    const grouped = [];
-    const keys = [];
+  orderedKeys.forEach((key, index) => {
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    const source = sources.find(
+      (candidate) =>
+        normalizeBlock(candidate?.block_key ?? candidate?.blockKey ?? candidate?.key ?? candidate?.id) === key
+    );
+    const rows = exercises.filter(
+      (exercise) => normalizeBlock(exercise?.blockKey ?? exercise?.block) === key
+    );
+    if (rows.length === 0 && key !== 'wod') return;
 
-    for (const exercise of exercises) {
-      const key = normalizeBlockKey(exercise?.blockKey ?? exercise?.block);
-      if (key && !keys.includes(key)) keys.push(key);
-    }
+    const statuses = rows.map(exerciseStatus);
+    const done = rows.length > 0 && statuses.every((status) => status !== 'pending');
+    const firstPendingIndex = statuses.findIndex((status) => status === 'pending');
 
-    keys.forEach((key, index) => {
-      const rows = exercises.filter(
-        (exercise) =>
-          normalizeBlockKey(exercise?.blockKey ?? exercise?.block) === key
-      );
-      const statuses = rows.map(exerciseStatus);
-      grouped.push({
-        key,
-        source: null,
-        index,
-        title: BLOCK_LABELS[key] ?? key,
-        duration: null,
-        exercises: rows,
-        done: statuses.every((status) => status !== 'pending'),
-        pending: statuses.some((status) => status === 'pending'),
-      });
+    result.push({
+      key,
+      index,
+      source,
+      title: source?.label_fr ?? source?.label ?? source?.title ?? LABELS[key] ?? key,
+      duration: readDuration(source),
+      exercises: rows,
+      done,
+      firstPendingIndex,
     });
+  });
 
-    return grouped;
-  }
-
-  return blocks;
+  return result;
 }
 
 function anySwapDirection(item) {
@@ -194,10 +155,26 @@ export default function SessionOverviewSheet({
 }) {
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
-  const {
-    workout,
-    setGeneratedWorkoutPreservingProgress,
-  } = useWorkout();
+  const { workout, setGeneratedWorkoutPreservingProgress } = useWorkout();
+
+  const blocks = useMemo(() => buildBlocks(workout), [workout]);
+  const code = environmentCode(workout);
+  const activeBlockIndex = Math.max(
+    0,
+    blocks.findIndex((block) => !block.done)
+  );
+  const completedBlocks = blocks.filter((block) => block.done).length;
+  const plannedDuration =
+    Number(workout?.plannedDuration ?? workout?.preparationSnapshot?.durationMinutes ?? workout?.preparationSnapshot?.duration) || null;
+  const progress = blocks.length > 0 ? completedBlocks / blocks.length : 0;
+  const wodRevealed = Boolean(
+    workout?.wodRevealed ||
+      workout?.wodRevealedAt ||
+      workout?.wodStarted ||
+      workout?.wodStartedAt ||
+      workout?.wodRuntime?.started ||
+      blocks[activeBlockIndex]?.key === 'wod'
+  );
 
   const [availability, setAvailability] = useState({});
   const [loadingAvailability, setLoadingAvailability] = useState(false);
@@ -205,27 +182,11 @@ export default function SessionOverviewSheet({
   const [swapBusy, setSwapBusy] = useState(false);
   const [swapError, setSwapError] = useState('');
 
-  const blocks = useMemo(() => buildOverviewBlocks(workout), [workout]);
-  const activeBlock = blocks.find((block) => block.pending) ?? null;
-  const environmentCode = environmentCodeFromWorkout(workout);
-  const plannedDuration =
-    Number(workout?.plannedDuration ?? workout?.preparationSnapshot?.durationMinutes) || null;
-
-  const wodRevealed = Boolean(
-    workout?.wodRevealed ||
-      workout?.wodRevealedAt ||
-      workout?.wodStarted ||
-      workout?.wodStartedAt ||
-      workout?.wodRuntime?.started ||
-      activeBlock?.key === 'wod'
-  );
-
   const refreshAvailability = useCallback(async () => {
     if (!visible || !workout?.sessionId) {
       setAvailability({});
       return;
     }
-
     try {
       setLoadingAvailability(true);
       const result = await getWorkoutSwapAvailability(workout.sessionId);
@@ -240,7 +201,7 @@ export default function SessionOverviewSheet({
 
   useEffect(() => {
     refreshAvailability();
-  }, [refreshAvailability]);
+  }, [refreshAvailability, workout?.exercises]);
 
   useEffect(() => {
     if (!visible) {
@@ -254,15 +215,12 @@ export default function SessionOverviewSheet({
 
     const oldExerciseId = swapExercise.exerciseId ?? swapExercise.id;
     const block = blocks.find((item) =>
-      item.exercises.some(
-        (exercise) => exercise.sessionExerciseId === swapExercise.sessionExerciseId
-      )
+      item.exercises.some((exercise) => exercise.sessionExerciseId === swapExercise.sessionExerciseId)
     );
 
     try {
       setSwapBusy(true);
       setSwapError('');
-
       const result = await adaptSessionExercise({
         sessionId: workout.sessionId,
         sessionExerciseId: swapExercise.sessionExerciseId,
@@ -271,7 +229,7 @@ export default function SessionOverviewSheet({
       });
 
       const manualEnvironmentBlock =
-        ['GYM', 'OUTDOOR'].includes(environmentCode) &&
+        ['GYM', 'OUTDOOR'].includes(code) &&
         (Boolean(block?.source?.builder_block_id) || block?.source?.manual_selection === true);
 
       if (manualEnvironmentBlock) {
@@ -286,8 +244,7 @@ export default function SessionOverviewSheet({
         sessionId: workout.sessionId,
         preparationSnapshot: workout.preparationSnapshot ?? null,
       });
-
-      const nextWorkout = ['GYM', 'OUTDOOR'].includes(environmentCode)
+      const nextWorkout = ['GYM', 'OUTDOOR'].includes(code)
         ? await hydrateEnvironmentSessionExerciseIds(refreshed)
         : refreshed;
 
@@ -295,9 +252,7 @@ export default function SessionOverviewSheet({
       setSwapExercise(null);
       await refreshAvailability();
     } catch (error) {
-      setSwapError(
-        error?.message ?? 'Aucune alternative sûre n’a été trouvée pour cet exercice.'
-      );
+      setSwapError(error?.message ?? 'Aucune alternative sûre n’a été trouvée.');
     } finally {
       setSwapBusy(false);
     }
@@ -309,33 +264,27 @@ export default function SessionOverviewSheet({
 
   return (
     <>
-      <Modal
-        visible={visible}
-        animationType="slide"
-        onRequestClose={onClose}
-      >
+      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
         <SafeAreaView style={styles.screen}>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>TA SÉANCE DU JOUR</Text>
               <Text style={styles.title}>Voici ta séance.</Text>
               <Text style={styles.subtitle}>
-                {plannedDuration ? `${plannedDuration} min · ` : ''}
-                {environmentCode === 'HOME'
-                  ? 'Maison'
-                  : environmentCode === 'BOX'
-                    ? 'Box'
-                    : environmentCode === 'GYM'
-                      ? 'Salle'
-                      : environmentCode === 'OUTDOOR'
-                        ? 'Extérieur'
-                        : 'UGEROD'}
+                {plannedDuration ? `${plannedDuration} min · ` : ''}{environmentLabel(code)}
               </Text>
             </View>
-
             <Pressable onPress={onClose} hitSlop={10} style={styles.closeButton}>
               <Ionicons name="close" size={22} color={colors.text} />
             </Pressable>
+          </View>
+
+          <View style={styles.progressMeta}>
+            <Text style={styles.progressLabel}>{completedBlocks}/{blocks.length} blocs terminés</Text>
+            <Text style={styles.progressPercent}>{Math.round(progress * 100)}%</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
           </View>
 
           <ScrollView
@@ -343,144 +292,99 @@ export default function SessionOverviewSheet({
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
           >
-            {blocks.map((block, blockIndex) => {
-              const maskedWod = block.key === 'wod' && !wodRevealed;
-              const active = activeBlock?.key === block.key;
+            <View style={styles.whiteboard}>
+              {blocks.map((block, blockIndex) => {
+                const active = blockIndex === activeBlockIndex && !block.done;
+                const maskedWod = block.key === 'wod' && !wodRevealed;
 
-              return (
-                <View
-                  key={`${block.key}:${blockIndex}`}
-                  style={[
-                    styles.block,
-                    active && styles.blockActive,
-                    block.done && styles.blockDone,
-                  ]}
-                >
-                  <View style={styles.blockHeader}>
-                    <View
-                      style={[
-                        styles.statusIcon,
-                        active && styles.statusIconActive,
-                        block.done && styles.statusIconDone,
-                      ]}
-                    >
-                      {block.done ? (
-                        <Ionicons name="checkmark" size={15} color={colors.textOnAccent} />
-                      ) : maskedWod ? (
-                        <Ionicons name="lock-closed" size={14} color={colors.textMuted} />
-                      ) : active ? (
-                        <Ionicons name="play" size={13} color={colors.textOnAccent} />
-                      ) : (
-                        <Text style={styles.statusNumber}>{blockIndex + 1}</Text>
-                      )}
-                    </View>
-
-                    <View style={styles.blockHeaderCopy}>
-                      <View style={styles.blockTitleRow}>
-                        <Text style={styles.blockTitle}>{block.title}</Text>
-                        {block.duration ? (
-                          <Text style={styles.blockDuration}>{block.duration} min</Text>
-                        ) : null}
+                return (
+                  <View key={`${block.key}:${blockIndex}`} style={[styles.block, blockIndex > 0 && styles.blockBorder]}>
+                    <View style={styles.blockHeader}>
+                      <View style={[styles.blockIndex, active && styles.blockIndexActive, block.done && styles.blockIndexDone]}>
+                        {block.done ? (
+                          <Ionicons name="checkmark" size={14} color={colors.textOnAccent} />
+                        ) : (
+                          <Text style={[styles.blockIndexText, active && styles.blockIndexTextActive]}>
+                            {String(blockIndex + 1).padStart(2, '0')}
+                          </Text>
+                        )}
                       </View>
-                      <Text style={styles.blockState}>
-                        {block.done
-                          ? 'Terminé'
-                          : active
-                            ? 'En cours'
-                            : maskedWod
-                              ? 'Contenu masqué'
-                              : 'À venir'}
-                      </Text>
-                    </View>
-                  </View>
 
-                  {maskedWod ? (
-                    <View style={styles.maskedWod}>
-                      <Ionicons name="eye-off-outline" size={18} color={colors.textMuted} />
-                      <Text style={styles.maskedWodText}>
-                        Le WOD reste secret. Son contenu apparaîtra quand tu arriveras à ce bloc.
-                      </Text>
+                      <View style={styles.blockHeaderCopy}>
+                        <View style={styles.blockTitleRow}>
+                          <Text style={[styles.blockTitle, active && styles.blockTitleActive]}>{block.title}</Text>
+                          {block.duration ? <Text style={styles.blockDuration}>{block.duration} min</Text> : null}
+                        </View>
+                        <Text style={[styles.blockState, active && styles.blockStateActive]}>
+                          {block.done ? 'Terminé' : active ? 'En cours' : maskedWod ? 'À découvrir' : 'À venir'}
+                        </Text>
+                      </View>
                     </View>
-                  ) : (
-                    <View style={styles.exerciseList}>
-                      {block.exercises.map((exercise, exerciseIndex) => {
-                        const status = exerciseStatus(exercise);
-                        const pending = status === 'pending';
-                        const item = exercise.sessionExerciseId
-                          ? availability?.[exercise.sessionExerciseId] ?? null
-                          : null;
-                        const canSwap =
-                          pending &&
-                          Boolean(exercise.sessionExerciseId) &&
-                          anySwapDirection(item);
 
-                        return (
-                          <View
-                            key={
-                              exercise.sessionExerciseId ??
-                              `${block.key}:${exercise.id ?? exerciseIndex}:${exerciseIndex}`
-                            }
-                            style={styles.exerciseRow}
-                          >
-                            <View style={styles.exerciseCopy}>
-                              <Text style={styles.exerciseName}>
-                                {exercise.name ?? 'Exercice'}
-                              </Text>
-                              {exercise.prescription ? (
-                                <Text style={styles.exercisePrescription}>
-                                  {exercise.prescription}
+                    {maskedWod ? (
+                      <View style={styles.maskedWod}>
+                        <Ionicons name="lock-closed-outline" size={17} color={colors.secondaryAccent} />
+                        <Text style={styles.maskedWodText}>Le contenu du WOD reste masqué jusqu’à son bloc.</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.exerciseList}>
+                        {block.exercises.map((exercise, exerciseIndex) => {
+                          const status = exerciseStatus(exercise);
+                          const current = active && exerciseIndex === block.firstPendingIndex;
+                          const item = exercise.sessionExerciseId
+                            ? availability?.[exercise.sessionExerciseId] ?? null
+                            : null;
+                          const canSwap =
+                            status === 'pending' && Boolean(exercise.sessionExerciseId) && anySwapDirection(item);
+
+                          return (
+                            <View
+                              key={exercise.sessionExerciseId ?? `${block.key}:${exercise.id ?? exerciseIndex}:${exerciseIndex}`}
+                              style={[styles.exerciseRow, current && styles.exerciseRowCurrent]}
+                            >
+                              <View style={styles.exerciseMarker}>
+                                {status === 'completed' ? (
+                                  <Ionicons name="checkmark-circle" size={17} color={colors.accent} />
+                                ) : status === 'not_completed' ? (
+                                  <Ionicons name="close-circle" size={17} color={colors.secondaryAccent} />
+                                ) : current ? (
+                                  <View style={styles.currentDot} />
+                                ) : (
+                                  <View style={styles.futureDot} />
+                                )}
+                              </View>
+
+                              <View style={styles.exerciseCopy}>
+                                <Text style={[styles.exerciseName, current && styles.exerciseNameCurrent]}>
+                                  {exercise.name ?? 'Exercice'}
                                 </Text>
+                                {exercise.prescription ? (
+                                  <Text style={styles.exercisePrescription}>{normalizeText(exercise.prescription)}</Text>
+                                ) : null}
+                              </View>
+
+                              {canSwap ? (
+                                <Pressable
+                                  disabled={loadingAvailability}
+                                  onPress={() => {
+                                    setSwapError('');
+                                    setSwapExercise(exercise);
+                                  }}
+                                  style={({ pressed }) => [styles.swapButton, pressed && styles.pressed]}
+                                >
+                                  <Ionicons name="swap-horizontal-outline" size={17} color={colors.secondaryAccent} />
+                                  <Text style={styles.swapText}>Swap</Text>
+                                </Pressable>
                               ) : null}
                             </View>
-
-                            {status !== 'pending' ? (
-                              <View style={styles.donePill}>
-                                <Ionicons
-                                  name={status === 'not_completed' ? 'close' : 'checkmark'}
-                                  size={13}
-                                  color={colors.textMuted}
-                                />
-                              </View>
-                            ) : (
-                              <Pressable
-                                disabled={!canSwap || loadingAvailability}
-                                onPress={() => {
-                                  setSwapError('');
-                                  setSwapExercise(exercise);
-                                }}
-                                style={({ pressed }) => [
-                                  styles.swapButton,
-                                  (!canSwap || loadingAvailability) && styles.swapButtonDisabled,
-                                  pressed && canSwap && styles.pressed,
-                                ]}
-                              >
-                                {loadingAvailability ? (
-                                  <ActivityIndicator size="small" color={colors.accent} />
-                                ) : (
-                                  <Ionicons
-                                    name="swap-horizontal-outline"
-                                    size={17}
-                                    color={canSwap ? colors.accent : colors.textDisabled}
-                                  />
-                                )}
-                                <Text
-                                  style={[
-                                    styles.swapText,
-                                    !canSwap && styles.swapTextDisabled,
-                                  ]}
-                                >
-                                  Swap
-                                </Text>
-                              </Pressable>
-                            )}
-                          </View>
-                        );
-                      })}
-                    </View>
-                  )}
-                </View>
-              );
-            })}
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
 
             {showPlanB ? (
               <Pressable
@@ -490,18 +394,20 @@ export default function SessionOverviewSheet({
                 }}
                 style={({ pressed }) => [styles.planBButton, pressed && styles.pressed]}
               >
-                <Ionicons name="shuffle-outline" size={18} color={colors.text} />
-                <Text style={styles.planBText}>Plan B</Text>
-                <Text style={styles.planBHint}>Une autre proposition avant de commencer</Text>
+                <View style={styles.planBIcon}>
+                  <Ionicons name="shuffle-outline" size={19} color={colors.textOnAccent} />
+                </View>
+                <View style={styles.planBCopy}>
+                  <Text style={styles.planBTitle}>Plan B</Text>
+                  <Text style={styles.planBHint}>Une autre proposition avant ton premier exercice.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.secondaryAccent} />
               </Pressable>
             ) : null}
           </ScrollView>
 
           <View style={styles.footer}>
-            <Pressable
-              onPress={onClose}
-              style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
-            >
+            <Pressable onPress={onClose} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
               <Text style={styles.primaryButtonText}>
                 {workout?.sessionStarted ? 'RETOURNER À MA SÉANCE' : 'COMMENCER MA SÉANCE'}
               </Text>
@@ -518,12 +424,7 @@ export default function SessionOverviewSheet({
         onRequestClose={() => !swapBusy && setSwapExercise(null)}
       >
         <SafeAreaView style={styles.swapModalRoot}>
-          <Pressable
-            style={styles.backdrop}
-            disabled={swapBusy}
-            onPress={() => setSwapExercise(null)}
-          />
-
+          <Pressable style={styles.backdrop} disabled={swapBusy} onPress={() => setSwapExercise(null)} />
           <View style={styles.swapSheet}>
             <View style={styles.handle} />
             <View style={styles.swapHeader}>
@@ -531,11 +432,7 @@ export default function SessionOverviewSheet({
                 <Text style={styles.swapEyebrow}>ADAPTER L’EXERCICE</Text>
                 <Text style={styles.swapTitle}>{swapExercise?.name ?? 'Exercice'}</Text>
               </View>
-              <Pressable
-                onPress={() => setSwapExercise(null)}
-                disabled={swapBusy}
-                style={styles.closeButton}
-              >
+              <Pressable onPress={() => setSwapExercise(null)} disabled={swapBusy} style={styles.closeButton}>
                 <Ionicons name="close" size={21} color={colors.text} />
               </Pressable>
             </View>
@@ -543,70 +440,28 @@ export default function SessionOverviewSheet({
             {swapError ? <Text style={styles.swapError}>{swapError}</Text> : null}
 
             {[
-              {
-                key: 'equivalent',
-                reason: 'equivalent',
-                label: 'Un équivalent',
-                description: 'Même intention, autre mouvement.',
-                icon: 'swap-horizontal-outline',
-              },
-              {
-                key: 'easier',
-                reason: 'too_hard',
-                label: 'Plus facile',
-                description: 'Une variante plus accessible.',
-                icon: 'arrow-down-circle-outline',
-              },
-              {
-                key: 'harder',
-                reason: 'too_easy',
-                label: 'Plus difficile',
-                description: 'Une progression plus exigeante.',
-                icon: 'arrow-up-circle-outline',
-              },
-            ].map((option) => {
-              const available =
-                selectedAvailability?.directions?.[option.key]?.available === true;
-
+              ['equivalent', 'equivalent', 'Un équivalent', 'swap-horizontal-outline'],
+              ['easier', 'too_hard', 'Plus facile', 'arrow-down-circle-outline'],
+              ['harder', 'too_easy', 'Plus difficile', 'arrow-up-circle-outline'],
+            ].map(([key, reason, label, icon]) => {
+              const available = selectedAvailability?.directions?.[key]?.available === true;
               return (
                 <Pressable
-                  key={option.key}
+                  key={key}
                   disabled={!available || swapBusy}
-                  onPress={() => applySwap(option.reason)}
+                  onPress={() => applySwap(reason)}
                   style={({ pressed }) => [
                     styles.swapOption,
                     !available && styles.swapOptionDisabled,
-                    pressed && available && !swapBusy && styles.pressed,
+                    pressed && available && styles.pressed,
                   ]}
                 >
-                  <View style={styles.swapOptionIcon}>
-                    <Ionicons
-                      name={option.icon}
-                      size={19}
-                      color={available ? colors.accent : colors.textDisabled}
-                    />
-                  </View>
-                  <View style={styles.swapOptionCopy}>
-                    <Text
-                      style={[
-                        styles.swapOptionTitle,
-                        !available && styles.swapOptionTitleDisabled,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                    <Text style={styles.swapOptionBody}>
-                      {available ? option.description : 'Aucune option sûre disponible.'}
-                    </Text>
-                  </View>
+                  <Ionicons name={icon} size={20} color={available ? colors.secondaryAccent : colors.textDisabled} />
+                  <Text style={[styles.swapOptionText, !available && styles.swapOptionTextDisabled]}>{label}</Text>
                   {swapBusy ? (
-                    <ActivityIndicator size="small" color={colors.accent} />
+                    <ActivityIndicator size="small" color={colors.secondaryAccent} />
                   ) : (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color={available ? colors.accent : colors.textDisabled}
-                    />
+                    <Ionicons name="chevron-forward" size={18} color={available ? colors.secondaryAccent : colors.textDisabled} />
                   )}
                 </Pressable>
               );
@@ -620,18 +475,13 @@ export default function SessionOverviewSheet({
 
 function createStyles(colors, isDark) {
   return StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
+    screen: { flex: 1, backgroundColor: colors.background },
     header: {
-      minHeight: 92,
       paddingHorizontal: 20,
-      paddingTop: 10,
+      paddingTop: 16,
       paddingBottom: 14,
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: 14,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
@@ -639,319 +489,161 @@ function createStyles(colors, isDark) {
     eyebrow: {
       fontFamily: 'Manrope_700Bold',
       fontSize: 10,
-      letterSpacing: 1.05,
+      letterSpacing: 1.2,
       color: colors.accent,
     },
     title: {
-      marginTop: 4,
+      marginTop: 5,
       fontFamily: 'Manrope_800ExtraBold',
-      fontSize: 30,
-      lineHeight: 36,
-      letterSpacing: -0.7,
+      fontSize: 32,
+      lineHeight: 38,
       color: colors.text,
     },
     subtitle: {
       marginTop: 4,
       fontFamily: 'Manrope_500Medium',
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: 14,
       color: colors.textSecondary,
     },
     closeButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
+      backgroundColor: colors.surface,
     },
+    progressMeta: {
+      paddingHorizontal: 20,
+      paddingTop: 13,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    progressLabel: { fontFamily: 'Manrope_600SemiBold', fontSize: 11, color: colors.textSecondary },
+    progressPercent: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: colors.secondaryAccent },
+    progressTrack: {
+      height: 4,
+      marginHorizontal: 20,
+      marginTop: 8,
+      borderRadius: 2,
+      overflow: 'hidden',
+      backgroundColor: colors.border,
+    },
+    progressFill: { height: 4, backgroundColor: colors.secondaryAccent },
     scroll: { flex: 1 },
-    content: {
-      paddingHorizontal: 16,
-      paddingTop: 14,
-      paddingBottom: 18,
-      gap: 10,
-    },
-    block: {
+    content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 24 },
+    whiteboard: {
       borderRadius: 18,
-      padding: 14,
-      backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
+      backgroundColor: isDark ? colors.surface : '#FCFCF8',
+      overflow: 'hidden',
     },
-    blockActive: {
-      borderColor: colors.accent,
-      backgroundColor: colors.accentSoft,
+    block: { paddingHorizontal: 15, paddingVertical: 15 },
+    blockBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+    blockHeader: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    blockIndex: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
     },
-    blockDone: {
-      opacity: 0.76,
+    blockIndexActive: { borderColor: colors.secondaryAccent, backgroundColor: colors.secondaryAccentSoft },
+    blockIndexDone: { borderColor: colors.accent, backgroundColor: colors.accent },
+    blockIndexText: { fontFamily: 'Manrope_700Bold', fontSize: 10, color: colors.textMuted },
+    blockIndexTextActive: { color: colors.secondaryAccent },
+    blockHeaderCopy: { flex: 1 },
+    blockTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+    blockTitle: { flex: 1, fontFamily: 'Manrope_800ExtraBold', fontSize: 18, color: colors.text },
+    blockTitleActive: { color: colors.secondaryAccent },
+    blockDuration: { fontFamily: 'Manrope_600SemiBold', fontSize: 11, color: colors.textMuted },
+    blockState: { marginTop: 2, fontFamily: 'Manrope_500Medium', fontSize: 10, color: colors.textMuted },
+    blockStateActive: { color: colors.secondaryAccent },
+    exerciseList: { marginTop: 11, marginLeft: 44, gap: 2 },
+    exerciseRow: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      paddingVertical: 7,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
     },
-    blockHeader: {
+    exerciseRowCurrent: {
+      marginLeft: -8,
+      paddingLeft: 8,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      borderRadius: 8,
+    },
+    exerciseMarker: { width: 18, alignItems: 'center' },
+    currentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.secondaryAccent },
+    futureDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.border },
+    exerciseCopy: { flex: 1 },
+    exerciseName: { fontFamily: 'Manrope_700Bold', fontSize: 13, color: colors.text },
+    exerciseNameCurrent: { color: colors.secondaryAccent },
+    exercisePrescription: { marginTop: 2, fontFamily: 'Manrope_500Medium', fontSize: 11, lineHeight: 16, color: colors.textSecondary },
+    swapButton: {
+      minHeight: 32,
+      paddingHorizontal: 9,
+      borderRadius: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.background,
+    },
+    swapText: { fontFamily: 'Manrope_700Bold', fontSize: 10, color: colors.secondaryAccent },
+    maskedWod: {
+      marginTop: 12,
+      marginLeft: 44,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    maskedWodText: { flex: 1, fontFamily: 'Manrope_500Medium', fontSize: 11, lineHeight: 16, color: colors.textSecondary },
+    planBButton: {
+      marginTop: 16,
+      minHeight: 64,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 11,
+      backgroundColor: colors.secondaryAccentSoft,
     },
-    statusIcon: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    statusIconActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    statusIconDone: {
-      backgroundColor: colors.success,
-      borderColor: colors.success,
-    },
-    statusNumber: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 11,
-      color: colors.textMuted,
-    },
-    blockHeaderCopy: { flex: 1 },
-    blockTitleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 10,
-    },
-    blockTitle: {
-      flex: 1,
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 17,
-      lineHeight: 22,
-      color: colors.text,
-    },
-    blockDuration: {
-      fontFamily: 'Manrope_600SemiBold',
-      fontSize: 12,
-      color: colors.textMuted,
-    },
-    blockState: {
-      marginTop: 2,
-      fontFamily: 'Manrope_500Medium',
-      fontSize: 11,
-      color: colors.textSecondary,
-    },
-    maskedWod: {
-      marginTop: 12,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 9,
-    },
-    maskedWodText: {
-      flex: 1,
-      fontFamily: 'Manrope_500Medium',
-      fontSize: 12,
-      lineHeight: 18,
-      color: colors.textMuted,
-    },
-    exerciseList: {
-      marginTop: 10,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    exerciseRow: {
-      minHeight: 58,
-      paddingVertical: 10,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    exerciseCopy: { flex: 1 },
-    exerciseName: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 14,
-      lineHeight: 19,
-      color: colors.text,
-    },
-    exercisePrescription: {
-      marginTop: 2,
-      fontFamily: 'Manrope_500Medium',
-      fontSize: 11,
-      lineHeight: 16,
-      color: colors.textSecondary,
-    },
-    swapButton: {
-      minHeight: 34,
-      paddingHorizontal: 10,
-      borderRadius: 10,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-    },
-    swapButtonDisabled: { opacity: 0.42 },
-    swapText: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 11,
-      color: colors.accent,
-    },
-    swapTextDisabled: { color: colors.textDisabled },
-    donePill: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    planBButton: {
-      minHeight: 58,
-      paddingHorizontal: 14,
-      borderRadius: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 9,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    planBText: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 14,
-      color: colors.text,
-    },
-    planBHint: {
-      flex: 1,
-      textAlign: 'right',
-      fontFamily: 'Manrope_500Medium',
-      fontSize: 10,
-      lineHeight: 14,
-      color: colors.textMuted,
-    },
-    footer: {
-      paddingHorizontal: 16,
-      paddingTop: 10,
-      paddingBottom: 12,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      backgroundColor: isDark ? colors.background : colors.surfaceElevated,
-    },
-    primaryButton: {
-      minHeight: 54,
-      borderRadius: 15,
-      paddingHorizontal: 18,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      backgroundColor: colors.accent,
-    },
-    primaryButtonText: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 13,
-      letterSpacing: 0.2,
-      color: colors.textOnAccent,
-    },
-    swapModalRoot: {
-      flex: 1,
-      justifyContent: 'flex-end',
-    },
-    backdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.62)',
-    },
-    swapSheet: {
-      paddingHorizontal: 16,
-      paddingTop: 9,
-      paddingBottom: 24,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    handle: {
-      width: 42,
-      height: 4,
-      borderRadius: 2,
-      alignSelf: 'center',
-      backgroundColor: colors.borderStrong,
-      marginBottom: 14,
-    },
-    swapHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-    },
+    planBIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.secondaryAccent },
+    planBCopy: { flex: 1 },
+    planBTitle: { fontFamily: 'Manrope_800ExtraBold', fontSize: 14, color: colors.text },
+    planBHint: { marginTop: 2, fontFamily: 'Manrope_500Medium', fontSize: 10, color: colors.textSecondary },
+    footer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background },
+    primaryButton: { minHeight: 54, borderRadius: 16, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+    primaryButtonText: { fontFamily: 'Manrope_800ExtraBold', fontSize: 13, letterSpacing: 0.2, color: colors.textOnAccent },
+    pressed: { opacity: 0.78 },
+    swapModalRoot: { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
+    swapSheet: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
+    handle: { width: 42, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 14, backgroundColor: colors.border },
+    swapHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     swapHeaderCopy: { flex: 1 },
-    swapEyebrow: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 9,
-      letterSpacing: 0.9,
-      color: colors.accent,
-    },
-    swapTitle: {
-      marginTop: 3,
-      fontFamily: 'Manrope_800ExtraBold',
-      fontSize: 22,
-      lineHeight: 28,
-      color: colors.text,
-    },
-    swapError: {
-      marginTop: 12,
-      padding: 10,
-      borderRadius: 10,
-      backgroundColor: colors.errorSoft,
-      fontFamily: 'Manrope_600SemiBold',
-      fontSize: 11,
-      lineHeight: 16,
-      color: colors.error,
-    },
-    swapOption: {
-      minHeight: 68,
-      marginTop: 10,
-      paddingHorizontal: 13,
-      paddingVertical: 10,
-      borderRadius: 15,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    swapOptionDisabled: { opacity: 0.48 },
-    swapOptionIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.background,
-    },
-    swapOptionCopy: { flex: 1 },
-    swapOptionTitle: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 13,
-      color: colors.text,
-    },
-    swapOptionTitleDisabled: { color: colors.textDisabled },
-    swapOptionBody: {
-      marginTop: 2,
-      fontFamily: 'Manrope_500Medium',
-      fontSize: 10,
-      lineHeight: 15,
-      color: colors.textMuted,
-    },
-    pressed: { opacity: 0.72 },
+    swapEyebrow: { fontFamily: 'Manrope_700Bold', fontSize: 9, letterSpacing: 1.1, color: colors.secondaryAccent },
+    swapTitle: { marginTop: 4, fontFamily: 'Manrope_800ExtraBold', fontSize: 23, color: colors.text },
+    swapError: { marginTop: 12, fontFamily: 'Manrope_500Medium', fontSize: 11, color: colors.secondaryAccent },
+    swapOption: { minHeight: 54, marginTop: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 10 },
+    swapOptionDisabled: { opacity: 0.4 },
+    swapOptionText: { flex: 1, fontFamily: 'Manrope_700Bold', fontSize: 13, color: colors.text },
+    swapOptionTextDisabled: { color: colors.textMuted },
   });
 }
