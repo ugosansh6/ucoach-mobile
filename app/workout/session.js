@@ -225,7 +225,7 @@ export default function SessionScreen() {
                   </Text>
 
                   <ScrollView contentContainerStyle={styles.options} showsVerticalScrollIndicator={false}>
-                    {hasSkill ? (
+                    {hasSkill && canChangeSkill ? (
                       <>
                         <PlanBOption
                           title="Un autre Skill aujourd’hui"
