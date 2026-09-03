@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabase';
 import { runSupabaseRequestWithAuthRetry } from '../lib/supabaseAuthRetry';
 import { reloadWorkoutSession } from './workoutService';
 
+const DEV_TEST_RELOAD = process.env.EXPO_PUBLIC_APP_ENV === 'development';
+
 async function invokePlanB(body, fallbackMessage) {
   const data = await runSupabaseRequestWithAuthRetry(() =>
     supabase.functions.invoke(
@@ -104,6 +106,7 @@ export async function changeWholeWorkoutPlan({
       {
         mode: 'WHOLE_SESSION',
         session_id: sessionId,
+        allow_test_reset: DEV_TEST_RELOAD,
       },
       'Impossible de proposer une autre séance.'
     );
