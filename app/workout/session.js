@@ -24,6 +24,8 @@ import {
   changeWorkoutSkillPlan,
 } from '../../src/services/skillPlanService';
 
+const DEV_TEST_RELOAD = process.env.EXPO_PUBLIC_APP_ENV === 'development';
+
 function normalizeBlock(value) {
   const key = String(value ?? '').trim().toLowerCase();
   return key === 'warm_up' ? 'warmup' : key;
@@ -79,12 +81,16 @@ export default function SessionScreen() {
     [workout?.exercises, workout?.rawBlocks]
   );
 
-  // Plan B reste disponible tant qu'aucun résultat d'exécution n'a été enregistré.
-  // On ne dépend pas du flag sessionStarted : il peut être posé avant le premier effort.
+  // En usage normal, Plan B reste limité à l'avant-effort.
+  // Sur le build DEV uniquement, on garde une boucle de recharge pour tester le Player
+  // même après avoir avancé dans la séance. Le backend DEV protège les résultats persistés.
   const canRegeneratePlanB =
-    Boolean(workout?.sessionId) && !isEnvironmentSession && !progressRecorded;
+    Boolean(workout?.sessionId) &&
+    !isEnvironmentSession &&
+    (!progressRecorded || DEV_TEST_RELOAD);
   const showPlanBEntry = Boolean(workout?.sessionId) && !isEnvironmentSession;
-  const canChangeSkill = canRegeneratePlanB && hasSkill;
+  const canChangeSkill =
+    Boolean(workout?.sessionId) && !isEnvironmentSession && !progressRecorded && hasSkill;
 
   useEffect(() => {
     if (!workout?.sessionId || overviewShownForSessionRef.current === workout.sessionId) return;
@@ -194,7 +200,11 @@ export default function SessionScreen() {
                 <View style={styles.sheetHeaderCopy}>
                   <Text style={styles.eyebrow}>PLAN B</Text>
                   <Text style={styles.title}>
-                    {canRegeneratePlanB ? 'Envie d’autre chose ?' : 'Ta séance a déjà commencé.'}
+                    {canRegeneratePlanB
+                      ? DEV_TEST_RELOAD && progressRecorded
+                        ? 'Recharger pour continuer les tests ?'
+                        : 'Envie d’autre chose ?'
+                      : 'Ta séance a déjà commencé.'}
                   </Text>
                 </View>
                 <Pressable
@@ -209,7 +219,9 @@ export default function SessionScreen() {
               {canRegeneratePlanB ? (
                 <>
                   <Text style={styles.explanation}>
-                    Tu peux encore changer de proposition : aucun résultat d’exercice n’a été enregistré.
+                    {DEV_TEST_RELOAD && progressRecorded
+                      ? 'Mode développement : tu peux recharger une nouvelle séance pour continuer les tests. Les résultats déjà persistés restent protégés.'
+                      : 'Tu peux encore changer de proposition : aucun résultat d’exercice n’a été enregistré.'}
                   </Text>
 
                   <ScrollView contentContainerStyle={styles.options} showsVerticalScrollIndicator={false}>
@@ -239,8 +251,12 @@ export default function SessionScreen() {
                     ) : null}
 
                     <PlanBOption
-                      title="Une autre séance"
-                      description="Même durée, matériel et forme du jour. UGEROD reconstruit une proposition différente."
+                      title={DEV_TEST_RELOAD && progressRecorded ? 'Recharger une séance de test' : 'Une autre séance'}
+                      description={
+                        DEV_TEST_RELOAD && progressRecorded
+                          ? 'La session de test en cours est abandonnée proprement, puis UGEROD recharge une nouvelle proposition avec le même check-in.'
+                          : 'Même durée, matériel et forme du jour. UGEROD reconstruit une proposition différente.'
+                      }
                       icon="refresh-outline"
                       loading={busyAction === 'ALTERNATE_SESSION'}
                       disabled={Boolean(busyAction)}
