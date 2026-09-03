@@ -60,10 +60,10 @@ export const ugerodThemes = {
       surfaceElevated: '#FFFFFF',
       surfacePressed: '#EEF1ED',
 
-      // Palette claire UGEROD : kaki #646F5E + orange vif #FF6B19.
-      accent: '#646F5E',
-      accentStrong: '#646F5E',
-      accentSoft: 'rgba(100, 111, 94, 0.14)',
+      // Palette claire UGEROD : kaki #5E6633 + orange vif #FF6B19.
+      accent: '#5E6633',
+      accentStrong: '#5E6633',
+      accentSoft: 'rgba(94, 102, 51, 0.14)',
 
       secondaryAccent: '#FF6B19',
       secondaryAccentStrong: '#FF6B19',
