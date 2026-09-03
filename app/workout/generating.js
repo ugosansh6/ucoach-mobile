@@ -1,3 +1,3 @@
-import EnvironmentGeneratingScreen from './generating-environment';
+import GeneratingThemedScreen from './generating-themed';
 
-export default EnvironmentGeneratingScreen;
+export default GeneratingThemedScreen;
