@@ -147,28 +147,24 @@ export default function SessionScreen() {
           <EnvironmentSwapOverlay />
         </>
       ) : (
-        <SessionCore />
+        <SessionCore
+          onOpenOverview={() => setOverviewOpen(true)}
+          onOpenPlanB={() => setPlanBOpen(true)}
+          showPlanB={showPlanBEntry}
+        />
       )}
 
-      <View style={styles.sessionTools} pointerEvents="box-none">
-        <Pressable
-          onPress={() => setOverviewOpen(true)}
-          style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}
-        >
-          <Ionicons name="clipboard-outline" size={18} color={colors.text} />
-          <Text style={styles.toolButtonText}>Ma séance</Text>
-        </Pressable>
-
-        {showPlanBEntry ? (
+      {isEnvironmentSession ? (
+        <View style={styles.sessionTools} pointerEvents="box-none">
           <Pressable
-            onPress={() => setPlanBOpen(true)}
-            style={({ pressed }) => [styles.toolButton, styles.planBTool, pressed && styles.pressed]}
+            onPress={() => setOverviewOpen(true)}
+            style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}
           >
-            <Ionicons name="shuffle-outline" size={18} color={colors.secondaryAccent} />
-            <Text style={[styles.toolButtonText, { color: colors.secondaryAccent }]}>Plan B</Text>
+            <Ionicons name="clipboard-outline" size={18} color={colors.text} />
+            <Text style={styles.toolButtonText}>Ma séance</Text>
           </Pressable>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
 
       <SessionOverviewSheet
         visible={overviewOpen}

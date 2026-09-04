@@ -84,6 +84,27 @@ function prescriptionObject(exercise) {
   return value && typeof value === 'object' ? value : {};
 }
 
+function normalizeDetailText(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/\\r\\n|\\n|\\r/g, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/(^|\n)\s*(\d+)[.)-]?\s+/g, (_, prefix, number) => `${prefix}${number}. `)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function shortCue(exercise) {
+  const value = normalizeDetailText(
+    exercise?.tips ?? exercise?.instructions ?? exercise?.description ?? ''
+  );
+  if (!value) return null;
+
+  const line = value.split(/\n+/)[0].replace(/^\d+\.\s*/, '').trim();
+  const sentence = line.match(/^(.{1,150}?[.!?])(?:\s|$)/)?.[1] ?? line;
+  return sentence.length > 150 ? `${sentence.slice(0, 147).trim()}…` : sentence;
+}
+
 function buildBlockStructure(blockId, source, exercises) {
   const prescription = prescriptionObject(exercises?.[0]);
   const protocol = prescription?.protocol ?? {};
@@ -192,7 +213,11 @@ function formatOptionTitle(option) {
   return String(option?.display_name ?? option?.option_id ?? option?.mechanic ?? 'Format');
 }
 
-export default function SessionFocusedCore() {
+export default function SessionFocusedCore({
+  onOpenOverview,
+  onOpenPlanB,
+  showPlanB = false,
+} = {}) {
   const { workout, updateWorkout, setExerciseLoad } = useWorkout();
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -572,6 +597,28 @@ export default function SessionFocusedCore() {
     setStatusExercise(null);
   }
 
+  async function refuseCurrentExercise() {
+    if (!activeBlock || !activeExercise) return;
+
+    try {
+      await ensureSessionStarted();
+    } catch (error) {
+      Alert.alert('Impossible de démarrer la séance', error?.message ?? 'Réessaie.');
+      return;
+    }
+
+    if (activeExerciseIndex >= activeBlock.exercises.length - 1) {
+      finalizeBlock(activeBlock, {
+        exercise: activeExercise,
+        values: { status: 'not_completed' },
+      });
+      return;
+    }
+
+    patchExercise(activeExercise, { status: 'not_completed' });
+    moveExercise(1);
+  }
+
   const wodUnlocked = useMemo(() => {
     const previous = blocks.filter((block) => block.id !== 'wod').map((block) => block.id);
     return previous.every((blockId) => validatedBlocks.includes(blockId));
@@ -691,6 +738,7 @@ export default function SessionFocusedCore() {
   }
 
   const imageUri = exerciseImageUri(activeExercise);
+  const cue = shortCue(activeExercise);
   const swapItem = activeExercise?.sessionExerciseId
     ? swapAvailability?.[activeExercise.sessionExerciseId]
     : null;
@@ -718,10 +766,36 @@ export default function SessionFocusedCore() {
         <View style={styles.headerCopy}>
           <Text style={styles.headerEyebrow}>Séance · {activeBlockIndex + 1}/{blocks.length}</Text>
           <Text style={styles.headerTitle}>{activeBlock.title}</Text>
+          {activeBlock.structure ? (
+            <Text numberOfLines={1} style={styles.headerMeta}>{activeBlock.structure}</Text>
+          ) : null}
         </View>
 
-        <View style={styles.durationPill}>
-          <Text style={styles.durationValue}>{activeBlock.durationLabel ?? '—'}</Text>
+        <View style={styles.headerActions}>
+          <View style={styles.durationPill}>
+            <Text style={styles.durationValue}>{activeBlock.durationLabel ?? '—'}</Text>
+          </View>
+          {typeof onOpenOverview === 'function' ? (
+            <Pressable
+              onPress={onOpenOverview}
+              accessibilityRole="button"
+              accessibilityLabel="Voir ma séance"
+              style={styles.overviewButton}
+            >
+              <Ionicons name="clipboard-outline" size={17} color={colors.text} />
+              <Text style={styles.overviewButtonText}>Séance</Text>
+            </Pressable>
+          ) : null}
+          {showPlanB && typeof onOpenPlanB === 'function' ? (
+            <Pressable
+              onPress={onOpenPlanB}
+              accessibilityRole="button"
+              accessibilityLabel="Plan B"
+              style={styles.planBHeaderButton}
+            >
+              <Ionicons name="shuffle-outline" size={18} color={colors.secondaryAccent} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -730,14 +804,6 @@ export default function SessionFocusedCore() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.blockIntro}>
-          <View style={styles.blockIntroCopy}>
-            <Text style={styles.blockKicker}>Bloc actif</Text>
-            <Text style={styles.blockTitle}>{activeBlock.title}</Text>
-            {activeBlock.structure ? <Text style={styles.blockStructure}>{activeBlock.structure}</Text> : null}
-          </View>
-          <Text style={styles.blockCounter}>{activeBlockIndex + 1}/{blocks.length}</Text>
-        </View>
 
         {activeBlock.id === 'wod' ? (
           <>
@@ -828,6 +894,18 @@ export default function SessionFocusedCore() {
                 <Text style={styles.exercisePrescription}>{String(activeExercise.prescription)}</Text>
               ) : null}
 
+              {cue ? (
+                <View style={styles.cueBox}>
+                  <View style={styles.cueIcon}>
+                    <Ionicons name="flash-outline" size={15} color={colors.secondaryAccent} />
+                  </View>
+                  <View style={styles.cueCopy}>
+                    <Text style={styles.cueLabel}>L’essentiel</Text>
+                    <Text style={styles.cueText}>{cue}</Text>
+                  </View>
+                </View>
+              ) : null}
+
               {activeBlock.objective ? (
                 <View style={styles.objectiveBox}>
                   <Text style={styles.objectiveLabel}>Objectif</Text>
@@ -840,13 +918,13 @@ export default function SessionFocusedCore() {
                   {activeExercise?.instructions ? (
                     <>
                       <Text style={styles.detailsLabel}>Exécution</Text>
-                      <Text style={styles.detailsText}>{String(activeExercise.instructions)}</Text>
+                      <Text style={styles.detailsText}>{normalizeDetailText(activeExercise.instructions)}</Text>
                     </>
                   ) : null}
                   {activeExercise?.tips ? (
                     <>
                       <Text style={[styles.detailsLabel, { marginTop: 12 }]}>Conseil UGEROD</Text>
-                      <Text style={styles.detailsText}>{String(activeExercise.tips)}</Text>
+                      <Text style={styles.detailsText}>{normalizeDetailText(activeExercise.tips)}</Text>
                     </>
                   ) : null}
                   {!activeExercise?.instructions && !activeExercise?.tips ? (
@@ -874,8 +952,9 @@ export default function SessionFocusedCore() {
                   <Text style={[styles.secondaryActionText, canSwap && { color: colors.accent }]}>Adapter</Text>
                 </Pressable>
 
-                <Pressable onPress={() => setStatusExercise(activeExercise)} style={styles.secondaryActionCompact}>
-                  <Ionicons name="ellipsis-horizontal" size={18} color={colors.text} />
+                <Pressable onPress={refuseCurrentExercise} style={styles.refuseAction}>
+                  <Ionicons name="close-circle-outline" size={18} color={colors.secondaryAccent} />
+                  <Text style={styles.refuseActionText}>Refuser</Text>
                 </Pressable>
               </View>
             </View>
@@ -913,14 +992,14 @@ export default function SessionFocusedCore() {
             ) : null}
 
             <Pressable onPress={completeCurrentExercise} style={styles.primaryButtonLarge}>
+              <Ionicons name="checkmark-circle-outline" size={20} color={colors.textOnAccent} />
               <Text style={styles.primaryButtonTextLarge}>
                 {activeExerciseIndex >= activeBlock.exercises.length - 1
                   ? activeBlock.id === 'skill'
-                    ? 'Terminer le Skill'
-                    : `Terminer le ${activeBlock.title}`
-                  : 'Exercice terminé'}
+                    ? 'Réalisé · terminer le Skill'
+                    : 'Réalisé · terminer le bloc'
+                  : 'Réalisé · suivant'}
               </Text>
-              <Ionicons name="arrow-forward" size={19} color={colors.textOnAccent} />
             </Pressable>
           </>
         )}
@@ -1258,7 +1337,7 @@ function createStyles(colors, isDark) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     header: {
-      minHeight: 72,
+      minHeight: 76,
       paddingHorizontal: spacing.lg,
       flexDirection: 'row',
       alignItems: 'center',
@@ -1277,7 +1356,7 @@ function createStyles(colors, isDark) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    headerCopy: { flex: 1 },
+    headerCopy: { flex: 1, minWidth: 0 },
     headerEyebrow: {
       fontFamily: 'Manrope_600SemiBold',
       fontSize: 11,
@@ -1289,6 +1368,13 @@ function createStyles(colors, isDark) {
       fontSize: 21,
       lineHeight: 27,
       color: colors.text,
+    },
+    headerMeta: {
+      marginTop: 1,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 14,
+      color: colors.textSecondary,
     },
     durationPill: {
       minHeight: 34,
@@ -1305,9 +1391,40 @@ function createStyles(colors, isDark) {
       fontSize: 11,
       color: colors.textSecondary,
     },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    overviewButton: {
+      minHeight: 36,
+      paddingHorizontal: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    overviewButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 10,
+      color: colors.text,
+    },
+    planBHeaderButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     progressTrack: { height: 4, backgroundColor: colors.border },
     progressFill: { height: 4, backgroundColor: colors.accent },
-    content: { padding: spacing.lg, paddingBottom: 150 },
+    content: { padding: spacing.lg, paddingBottom: 64 },
     blockIntro: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -1341,7 +1458,7 @@ function createStyles(colors, isDark) {
       color: colors.textMuted,
     },
     mediaCard: {
-      height: 235,
+      height: 210,
       borderRadius: 22,
       overflow: 'hidden',
       backgroundColor: colors.surface,
@@ -1400,6 +1517,40 @@ function createStyles(colors, isDark) {
       lineHeight: 23,
       color: colors.accent,
     },
+    cueBox: {
+      marginTop: 13,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    cueIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+    },
+    cueCopy: { flex: 1 },
+    cueLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      color: colors.secondaryAccent,
+    },
+    cueText: {
+      marginTop: 3,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.text,
+    },
     objectiveBox: {
       marginTop: 14,
       padding: 13,
@@ -1436,7 +1587,7 @@ function createStyles(colors, isDark) {
       lineHeight: 20,
       color: colors.textSecondary,
     },
-    inlineActions: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    inlineActions: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
     secondaryAction: {
       minHeight: 42,
       paddingHorizontal: 12,
@@ -1448,6 +1599,25 @@ function createStyles(colors, isDark) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 7,
+      flexGrow: 1,
+    },
+    refuseAction: {
+      minHeight: 42,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      flexGrow: 1,
+    },
+    refuseActionText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.secondaryAccent,
     },
     secondaryActionCompact: {
       width: 42,
