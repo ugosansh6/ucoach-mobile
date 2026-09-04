@@ -40,6 +40,10 @@ const BLOCK_LABELS = {
   wod: 'WOD',
 };
 
+// PLAY-005: le Tabata garde la même identité kaki/orange en clair comme en sombre.
+const TABATA_WORK_COLOR = '#FF6B19';
+const TABATA_REST_COLOR = '#5E6633';
+
 function normalizeBlockId(value) {
   const normalized = String(value ?? '').trim().toLowerCase();
   if (normalized === 'warm_up') return 'warmup';
@@ -1076,14 +1080,25 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
 
   const roundIndex = Math.min(rounds - 1, Math.floor(elapsed / cycleSeconds));
   const within = elapsed % cycleSeconds;
-  const resting = started && elapsed < totalSeconds && within >= workSeconds;
+  const finished = elapsed >= totalSeconds;
+  const resting = started && !finished && within >= workSeconds;
   const hasNextRound = roundIndex < rounds - 1;
-  const remaining = elapsed >= totalSeconds ? 0 : resting ? cycleSeconds - within : workSeconds - within;
+  const remaining = finished ? 0 : resting ? cycleSeconds - within : workSeconds - within;
+  const segmentDuration = resting ? restSeconds : workSeconds;
+  const segmentProgressPercent = finished
+    ? 0
+    : segmentDuration > 0
+      ? Math.max(0, Math.min(100, (remaining / segmentDuration) * 100))
+      : 0;
+  const progressPercent = totalSeconds > 0
+    ? Math.max(0, Math.min(100, (elapsed / totalSeconds) * 100))
+    : 0;
+  const phaseColor = resting ? TABATA_REST_COLOR : TABATA_WORK_COLOR;
+  const phaseLabel = finished ? 'Terminé' : started ? (resting ? 'Récupération' : 'Effort') : 'Prêt';
   const scheduledExerciseIndex = resting && hasNextRound
     ? (roundIndex + 1) % exerciseCount
     : roundIndex % exerciseCount;
   const activeExercise = block.exercises[displayExerciseIndex] ?? block.exercises[scheduledExerciseIndex] ?? block.exercises[0];
-  const progressPercent = totalSeconds > 0 ? Math.max(0, Math.min(100, (elapsed / totalSeconds) * 100)) : 0;
 
   useEffect(() => {
     setDisplayExerciseIndex(scheduledExerciseIndex);
@@ -1096,13 +1111,47 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
 
   return (
     <View style={styles.timerCard}>
-      <Text style={styles.timerEyebrow}>{started ? (resting ? 'Récupération' : 'Effort') : 'Prêt'}</Text>
+      <View style={styles.tabataPhaseBadge}>
+        <View style={[styles.tabataPhaseDot, { backgroundColor: phaseColor }]} />
+        <Text style={[styles.timerEyebrow, { color: phaseColor }]}>{phaseLabel}</Text>
+      </View>
+
       <Text style={styles.timerValue}>{remaining}</Text>
       <Text style={styles.timerUnit}>secondes</Text>
-      <Text style={styles.timerRound}>Tour {Math.min(rounds, roundIndex + 1)} / {rounds}</Text>
 
-      <View style={[styles.progressTrack, { width: '100%', marginTop: 14, borderRadius: 999, overflow: 'hidden' }]}>
-        <View style={[styles.progressFill, { width: `${progressPercent}%`, backgroundColor: colors.secondaryAccent }]} />
+      <View style={styles.tabataCountdownWrap}>
+        <View style={styles.tabataCountdownHeader}>
+          <Text style={styles.tabataCountdownLabel}>
+            {resting ? 'Décompte récupération' : 'Décompte effort'}
+          </Text>
+          <Text style={[styles.tabataCountdownValue, { color: phaseColor }]}>
+            {remaining}s / {segmentDuration}s
+          </Text>
+        </View>
+        <View style={styles.tabataCountdownTrack}>
+          <View
+            style={[
+              styles.tabataCountdownFill,
+              {
+                width: `${segmentProgressPercent}%`,
+                backgroundColor: phaseColor,
+              },
+            ]}
+          />
+        </View>
+      </View>
+
+      <View style={styles.tabataGlobalHeader}>
+        <Text style={styles.timerRound}>Tour {Math.min(rounds, roundIndex + 1)} / {rounds}</Text>
+        <Text style={styles.tabataGlobalLabel}>Progression du Tabata</Text>
+      </View>
+      <View style={styles.tabataGlobalTrack}>
+        <View
+          style={[
+            styles.tabataGlobalFill,
+            { width: `${progressPercent}%`, backgroundColor: TABATA_REST_COLOR },
+          ]}
+        />
       </View>
 
       <View style={styles.timerExerciseCard}>
@@ -1111,7 +1160,7 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
         </Text>
         <Text style={styles.timerExerciseName}>{displayExerciseName(activeExercise)}</Text>
         {activeExercise?.prescription ? (
-          <Text style={styles.timerExercisePrescription}>{String(activeExercise.prescription)}</Text>
+          <Text style={[styles.timerExercisePrescription, { color: TABATA_REST_COLOR }]}>{String(activeExercise.prescription)}</Text>
         ) : null}
 
         {exerciseCount > 1 ? (
@@ -1121,7 +1170,14 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
             </Pressable>
             <View style={styles.navDots}>
               {block.exercises.map((exercise, index) => (
-                <View key={exercise?._uiKey ?? exercise?.sessionExerciseId ?? `${index}`} style={[styles.navDot, index === displayExerciseIndex && styles.navDotActive]} />
+                <View
+                  key={exercise?._uiKey ?? exercise?.sessionExerciseId ?? `${index}`}
+                  style={[
+                    styles.navDot,
+                    index === displayExerciseIndex && styles.navDotActive,
+                    index === displayExerciseIndex && { backgroundColor: TABATA_REST_COLOR },
+                  ]}
+                />
               ))}
             </View>
             <Pressable onPress={() => moveDisplayedExercise(1)} style={styles.navButton}>
@@ -1132,7 +1188,7 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
       </View>
 
       {!started ? (
-        <Pressable onPress={() => setStarted(true)} style={styles.primaryButtonLarge}>
+        <Pressable onPress={() => setStarted(true)} style={[styles.primaryButtonLarge, { backgroundColor: TABATA_REST_COLOR }]}>
           <Ionicons name="play" size={19} color={colors.textOnAccent} />
           <Text style={styles.primaryButtonTextLarge}>Démarrer le Tabata</Text>
         </Pressable>
@@ -1142,7 +1198,7 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
           <Text style={styles.secondaryWideText}>{paused ? 'Reprendre' : 'Pause'}</Text>
         </Pressable>
       ) : (
-        <Pressable onPress={onFinish} style={styles.primaryButtonLarge}>
+        <Pressable onPress={onFinish} style={[styles.primaryButtonLarge, { backgroundColor: TABATA_REST_COLOR }]}>
           <Ionicons name="checkmark" size={19} color={colors.textOnAccent} />
           <Text style={styles.primaryButtonTextLarge}>Terminer le Tabata</Text>
         </Pressable>
@@ -1150,7 +1206,7 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
 
       {started && elapsed < totalSeconds ? (
         <Pressable onPress={onFinish} style={styles.stopButton}>
-          <Text style={styles.stopButtonText}>Arrêter le bloc</Text>
+          <Text style={[styles.stopButtonText, { color: TABATA_WORK_COLOR }]}>Arrêter le bloc</Text>
         </Pressable>
       ) : null}
     </View>
@@ -1793,12 +1849,71 @@ function createStyles(colors, isDark) {
       fontSize: 11,
       color: colors.textMuted,
     },
+    tabataPhaseBadge: {
+      minHeight: 28,
+      paddingHorizontal: 11,
+      borderRadius: 999,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    tabataPhaseDot: { width: 8, height: 8, borderRadius: 4 },
+    tabataCountdownWrap: { width: '100%', marginTop: 20 },
+    tabataCountdownHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    tabataCountdownLabel: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    tabataCountdownValue: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+    },
+    tabataCountdownTrack: {
+      width: '100%',
+      height: 14,
+      borderRadius: 999,
+      overflow: 'hidden',
+      backgroundColor: colors.surfacePressed,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    tabataCountdownFill: { height: '100%', borderRadius: 999 },
+    tabataGlobalHeader: {
+      width: '100%',
+      marginTop: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
     timerRound: {
-      marginTop: 8,
       fontFamily: 'Manrope_700Bold',
       fontSize: 13,
       color: colors.textSecondary,
     },
+    tabataGlobalLabel: {
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 10,
+      color: colors.textMuted,
+    },
+    tabataGlobalTrack: {
+      width: '100%',
+      height: 4,
+      marginTop: 7,
+      borderRadius: 999,
+      overflow: 'hidden',
+      backgroundColor: colors.border,
+    },
+    tabataGlobalFill: { height: 4, borderRadius: 999 },
     timerExerciseCard: {
       width: '100%',
       marginTop: 18,
