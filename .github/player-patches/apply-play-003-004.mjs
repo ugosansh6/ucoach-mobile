@@ -8,16 +8,46 @@ function mustReplace(text, label, search, replacement) {
   return next;
 }
 
+function lines(items) {
+  return items.join('\n');
+}
+
 function patchFocusedCore() {
   const path = 'app/workout/session-focused-core.js';
   let text = fs.readFileSync(path, 'utf8');
 
   if (!text.includes('function normalizeDetailText(value)')) {
+    const helpers = lines([
+      '',
+      'function normalizeDetailText(value) {',
+      "  if (value == null) return '';",
+      '  return String(value)',
+      "    .replace(/\\\\r\\\\n|\\\\n|\\\\r/g, '\\n')",
+      "    .replace(/\\r\\n?/g, '\\n')",
+      "    .replace(/(^|\\n)\\s*(\\d+)[.)-]?\\s+/g, (_, prefix, number) => `${prefix}${number}. `)",
+      "    .replace(/\\n{3,}/g, '\\n\\n')",
+      '    .trim();',
+      '}',
+      '',
+      'function shortCue(exercise) {',
+      '  const value = normalizeDetailText(',
+      "    exercise?.tips ?? exercise?.instructions ?? exercise?.description ?? ''",
+      '  );',
+      '  if (!value) return null;',
+      '',
+      "  const line = value.split(/\\n+/)[0].replace(/^\\d+\\.\\s*/, '').trim();",
+      "  const sentence = line.match(/^(.{1,150}?[.!?])(?:\\s|$)/)?.[1] ?? line;",
+      '  return sentence.length > 150 ? `${sentence.slice(0, 147).trim()}…` : sentence;',
+      '}',
+      '',
+      'function buildBlockStructure(blockId, source, exercises) {',
+    ]);
+
     text = mustReplace(
       text,
       'insert short instruction helpers',
       '\nfunction buildBlockStructure(blockId, source, exercises) {',
-      `\nfunction normalizeDetailText(value) {\n  if (value == null) return '';\n  return String(value)\n    .replace(/\\\\r\\\\n|\\\\n|\\\\r/g, '\\n')\n    .replace(/\\r\\n?/g, '\\n')\n    .replace(/(^|\\n)\\s*(\\d+)[.)-]?\\s+/g, (_, prefix, number) => \\`${'${prefix}'}${'${number}'}. \\`)\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n}\n\nfunction shortCue(exercise) {\n  const value = normalizeDetailText(\n    exercise?.tips ?? exercise?.instructions ?? exercise?.description ?? ''\n  );\n  if (!value) return null;\n\n  const line = value.split(/\\n+/)[0].replace(/^\\d+\\.\\s*/, '').trim();\n  const sentence = line.match(/^(.{1,150}?[.!?])(?:\\s|$)/)?.[1] ?? line;\n  return sentence.length > 150 ? \\`${'${sentence.slice(0, 147).trim()}'}…\\` : sentence;\n}\n\nfunction buildBlockStructure(blockId, source, exercises) {`
+      helpers
     );
   }
 
@@ -25,7 +55,13 @@ function patchFocusedCore() {
     text,
     'accept player shell callbacks',
     'export default function SessionFocusedCore() {',
-    `export default function SessionFocusedCore({\n  onOpenOverview,\n  onOpenPlanB,\n  showPlanB = false,\n} = {}) {`
+    lines([
+      'export default function SessionFocusedCore({',
+      '  onOpenOverview,',
+      '  onOpenPlanB,',
+      '  showPlanB = false,',
+      '} = {}) {',
+    ])
   );
 
   text = mustReplace(
@@ -36,11 +72,38 @@ function patchFocusedCore() {
   );
 
   if (!text.includes('async function refuseCurrentExercise()')) {
+    const refusal = lines([
+      '',
+      '  async function refuseCurrentExercise() {',
+      '    if (!activeBlock || !activeExercise) return;',
+      '',
+      '    try {',
+      '      await ensureSessionStarted();',
+      '    } catch (error) {',
+      "      Alert.alert('Impossible de démarrer la séance', error?.message ?? 'Réessaie.');",
+      '      return;',
+      '    }',
+      '',
+      '    if (activeExerciseIndex >= activeBlock.exercises.length - 1) {',
+      '      finalizeBlock(activeBlock, {',
+      '        exercise: activeExercise,',
+      "        values: { status: 'not_completed' },",
+      '      });',
+      '      return;',
+      '    }',
+      '',
+      "    patchExercise(activeExercise, { status: 'not_completed' });",
+      '    moveExercise(1);',
+      '  }',
+      '',
+      '  const wodUnlocked = useMemo(() => {',
+    ]);
+
     text = mustReplace(
       text,
       'insert refuse action',
       '\n  const wodUnlocked = useMemo(() => {',
-      `\n  async function refuseCurrentExercise() {\n    if (!activeBlock || !activeExercise) return;\n\n    try {\n      await ensureSessionStarted();\n    } catch (error) {\n      Alert.alert('Impossible de démarrer la séance', error?.message ?? 'Réessaie.');\n      return;\n    }\n\n    if (activeExerciseIndex >= activeBlock.exercises.length - 1) {\n      finalizeBlock(activeBlock, {\n        exercise: activeExercise,\n        values: { status: 'not_completed' },\n      });\n      return;\n    }\n\n    patchExercise(activeExercise, { status: 'not_completed' });\n    moveExercise(1);\n  }\n\n  const wodUnlocked = useMemo(() => {`
+      refusal
     );
   }
 
@@ -48,28 +111,99 @@ function patchFocusedCore() {
     text,
     'compact header meta',
     '          <Text style={styles.headerTitle}>{activeBlock.title}</Text>\n',
-    `          <Text style={styles.headerTitle}>{activeBlock.title}</Text>\n          {activeBlock.structure ? (\n            <Text numberOfLines={1} style={styles.headerMeta}>{activeBlock.structure}</Text>\n          ) : null}\n`
+    lines([
+      '          <Text style={styles.headerTitle}>{activeBlock.title}</Text>',
+      '          {activeBlock.structure ? (',
+      '            <Text numberOfLines={1} style={styles.headerMeta}>{activeBlock.structure}</Text>',
+      '          ) : null}',
+      '',
+    ])
   );
 
   text = mustReplace(
     text,
     'header actions and overview access',
-    `        <View style={styles.durationPill}>\n          <Text style={styles.durationValue}>{activeBlock.durationLabel ?? '—'}</Text>\n        </View>`,
-    `        <View style={styles.headerActions}>\n          <View style={styles.durationPill}>\n            <Text style={styles.durationValue}>{activeBlock.durationLabel ?? '—'}</Text>\n          </View>\n          {typeof onOpenOverview === 'function' ? (\n            <Pressable\n              onPress={onOpenOverview}\n              accessibilityRole="button"\n              accessibilityLabel="Voir ma séance"\n              style={styles.overviewButton}\n            >\n              <Ionicons name="clipboard-outline" size={17} color={colors.text} />\n              <Text style={styles.overviewButtonText}>Séance</Text>\n            </Pressable>\n          ) : null}\n          {showPlanB && typeof onOpenPlanB === 'function' ? (\n            <Pressable\n              onPress={onOpenPlanB}\n              accessibilityRole="button"\n              accessibilityLabel="Plan B"\n              style={styles.planBHeaderButton}\n            >\n              <Ionicons name="shuffle-outline" size={18} color={colors.secondaryAccent} />\n            </Pressable>\n          ) : null}\n        </View>`
+    lines([
+      '        <View style={styles.durationPill}>',
+      "          <Text style={styles.durationValue}>{activeBlock.durationLabel ?? '—'}</Text>",
+      '        </View>',
+    ]),
+    lines([
+      '        <View style={styles.headerActions}>',
+      '          <View style={styles.durationPill}>',
+      "            <Text style={styles.durationValue}>{activeBlock.durationLabel ?? '—'}</Text>",
+      '          </View>',
+      "          {typeof onOpenOverview === 'function' ? (",
+      '            <Pressable',
+      '              onPress={onOpenOverview}',
+      '              accessibilityRole="button"',
+      '              accessibilityLabel="Voir ma séance"',
+      '              style={styles.overviewButton}',
+      '            >',
+      '              <Ionicons name="clipboard-outline" size={17} color={colors.text} />',
+      '              <Text style={styles.overviewButtonText}>Séance</Text>',
+      '            </Pressable>',
+      '          ) : null}',
+      "          {showPlanB && typeof onOpenPlanB === 'function' ? (",
+      '            <Pressable',
+      '              onPress={onOpenPlanB}',
+      '              accessibilityRole="button"',
+      '              accessibilityLabel="Plan B"',
+      '              style={styles.planBHeaderButton}',
+      '            >',
+      '              <Ionicons name="shuffle-outline" size={18} color={colors.secondaryAccent} />',
+      '            </Pressable>',
+      '          ) : null}',
+      '        </View>',
+    ])
   );
 
   text = mustReplace(
     text,
     'remove duplicated block intro',
-    `        <View style={styles.blockIntro}>\n          <View style={styles.blockIntroCopy}>\n            <Text style={styles.blockKicker}>Bloc actif</Text>\n            <Text style={styles.blockTitle}>{activeBlock.title}</Text>\n            {activeBlock.structure ? <Text style={styles.blockStructure}>{activeBlock.structure}</Text> : null}\n          </View>\n          <Text style={styles.blockCounter}>{activeBlockIndex + 1}/{blocks.length}</Text>\n        </View>\n\n`,
+    lines([
+      '        <View style={styles.blockIntro}>',
+      '          <View style={styles.blockIntroCopy}>',
+      '            <Text style={styles.blockKicker}>Bloc actif</Text>',
+      '            <Text style={styles.blockTitle}>{activeBlock.title}</Text>',
+      '            {activeBlock.structure ? <Text style={styles.blockStructure}>{activeBlock.structure}</Text> : null}',
+      '          </View>',
+      '          <Text style={styles.blockCounter}>{activeBlockIndex + 1}/{blocks.length}</Text>',
+      '        </View>',
+      '',
+    ]),
     ''
   );
 
   text = mustReplace(
     text,
     'always visible essential cue',
-    `              {activeExercise?.prescription ? (\n                <Text style={styles.exercisePrescription}>{String(activeExercise.prescription)}</Text>\n              ) : null}\n\n              {activeBlock.objective ? (`,
-    `              {activeExercise?.prescription ? (\n                <Text style={styles.exercisePrescription}>{String(activeExercise.prescription)}</Text>\n              ) : null}\n\n              {cue ? (\n                <View style={styles.cueBox}>\n                  <View style={styles.cueIcon}>\n                    <Ionicons name="flash-outline" size={15} color={colors.secondaryAccent} />\n                  </View>\n                  <View style={styles.cueCopy}>\n                    <Text style={styles.cueLabel}>L’essentiel</Text>\n                    <Text style={styles.cueText}>{cue}</Text>\n                  </View>\n                </View>\n              ) : null}\n\n              {activeBlock.objective ? (`
+    lines([
+      '              {activeExercise?.prescription ? (',
+      '                <Text style={styles.exercisePrescription}>{String(activeExercise.prescription)}</Text>',
+      '              ) : null}',
+      '',
+      '              {activeBlock.objective ? (',
+    ]),
+    lines([
+      '              {activeExercise?.prescription ? (',
+      '                <Text style={styles.exercisePrescription}>{String(activeExercise.prescription)}</Text>',
+      '              ) : null}',
+      '',
+      '              {cue ? (',
+      '                <View style={styles.cueBox}>',
+      '                  <View style={styles.cueIcon}>',
+      '                    <Ionicons name="flash-outline" size={15} color={colors.secondaryAccent} />',
+      '                  </View>',
+      '                  <View style={styles.cueCopy}>',
+      "                    <Text style={styles.cueLabel}>L’essentiel</Text>",
+      '                    <Text style={styles.cueText}>{cue}</Text>',
+      '                  </View>',
+      '                </View>',
+      '              ) : null}',
+      '',
+      '              {activeBlock.objective ? (',
+    ])
   );
 
   text = mustReplace(
@@ -88,41 +222,168 @@ function patchFocusedCore() {
   text = mustReplace(
     text,
     'replace hidden status menu with visible refuse',
-    `                <Pressable onPress={() => setStatusExercise(activeExercise)} style={styles.secondaryActionCompact}>\n                  <Ionicons name="ellipsis-horizontal" size={18} color={colors.text} />\n                </Pressable>`,
-    `                <Pressable onPress={refuseCurrentExercise} style={styles.refuseAction}>\n                  <Ionicons name="close-circle-outline" size={18} color={colors.secondaryAccent} />\n                  <Text style={styles.refuseActionText}>Refuser</Text>\n                </Pressable>`
+    lines([
+      '                <Pressable onPress={() => setStatusExercise(activeExercise)} style={styles.secondaryActionCompact}>',
+      '                  <Ionicons name="ellipsis-horizontal" size={18} color={colors.text} />',
+      '                </Pressable>',
+    ]),
+    lines([
+      '                <Pressable onPress={refuseCurrentExercise} style={styles.refuseAction}>',
+      '                  <Ionicons name="close-circle-outline" size={18} color={colors.secondaryAccent} />',
+      '                  <Text style={styles.refuseActionText}>Refuser</Text>',
+      '                </Pressable>',
+    ])
   );
 
-  text = mustReplace(
-    text,
-    'make completed action explicit',
-    `            <Pressable onPress={completeCurrentExercise} style={styles.primaryButtonLarge}>\n              <Text style={styles.primaryButtonTextLarge}>\n                {activeExerciseIndex >= activeBlock.exercises.length - 1\n                  ? activeBlock.id === 'skill'\n                    ? 'Terminer le Skill'\n                    : \\`Terminer le ${'${activeBlock.title}'}\\`\n                  : 'Exercice terminé'}\n              </Text>\n              <Ionicons name="arrow-forward" size={19} color={colors.textOnAccent} />\n            </Pressable>`,
-    `            <Pressable onPress={completeCurrentExercise} style={styles.primaryButtonLarge}>\n              <Ionicons name="checkmark-circle-outline" size={20} color={colors.textOnAccent} />\n              <Text style={styles.primaryButtonTextLarge}>\n                {activeExerciseIndex >= activeBlock.exercises.length - 1\n                  ? activeBlock.id === 'skill'\n                    ? 'Réalisé · terminer le Skill'\n                    : 'Réalisé · terminer le bloc'\n                  : 'Réalisé · suivant'}\n              </Text>\n            </Pressable>`
-  );
+  const primaryPattern = /            <Pressable onPress=\{completeCurrentExercise\} style=\{styles\.primaryButtonLarge\}>[\s\S]*?            <\/Pressable>/;
+  const primaryReplacement = lines([
+    '            <Pressable onPress={completeCurrentExercise} style={styles.primaryButtonLarge}>',
+    '              <Ionicons name="checkmark-circle-outline" size={20} color={colors.textOnAccent} />',
+    '              <Text style={styles.primaryButtonTextLarge}>',
+    '                {activeExerciseIndex >= activeBlock.exercises.length - 1',
+    "                  ? activeBlock.id === 'skill'",
+    "                    ? 'Réalisé · terminer le Skill'",
+    "                    : 'Réalisé · terminer le bloc'",
+    "                  : 'Réalisé · suivant'}",
+    '              </Text>',
+    '            </Pressable>',
+  ]);
+  text = mustReplace(text, 'make completed action explicit', primaryPattern, primaryReplacement);
 
   text = mustReplace(text, 'compact player header height', '      minHeight: 72,', '      minHeight: 76,');
   text = mustReplace(text, 'header copy shrink', '    headerCopy: { flex: 1 },', '    headerCopy: { flex: 1, minWidth: 0 },');
+
   text = mustReplace(
     text,
     'insert header meta style',
-    `    headerTitle: {\n      marginTop: 1,\n      fontFamily: 'Manrope_800ExtraBold',\n      fontSize: 21,\n      lineHeight: 27,\n      color: colors.text,\n    },`,
-    `    headerTitle: {\n      marginTop: 1,\n      fontFamily: 'Manrope_800ExtraBold',\n      fontSize: 21,\n      lineHeight: 27,\n      color: colors.text,\n    },\n    headerMeta: {\n      marginTop: 1,\n      fontFamily: 'Manrope_500Medium',\n      fontSize: 10,\n      lineHeight: 14,\n      color: colors.textSecondary,\n    },`
+    lines([
+      '    headerTitle: {',
+      '      marginTop: 1,',
+      "      fontFamily: 'Manrope_800ExtraBold',",
+      '      fontSize: 21,',
+      '      lineHeight: 27,',
+      '      color: colors.text,',
+      '    },',
+    ]),
+    lines([
+      '    headerTitle: {',
+      '      marginTop: 1,',
+      "      fontFamily: 'Manrope_800ExtraBold',",
+      '      fontSize: 21,',
+      '      lineHeight: 27,',
+      '      color: colors.text,',
+      '    },',
+      '    headerMeta: {',
+      '      marginTop: 1,',
+      "      fontFamily: 'Manrope_500Medium',",
+      '      fontSize: 10,',
+      '      lineHeight: 14,',
+      '      color: colors.textSecondary,',
+      '    },',
+    ])
   );
 
   text = mustReplace(
     text,
     'insert header action styles',
-    `    durationValue: {\n      fontFamily: 'Manrope_700Bold',\n      fontSize: 11,\n      color: colors.textSecondary,\n    },\n    progressTrack:`,
-    `    durationValue: {\n      fontFamily: 'Manrope_700Bold',\n      fontSize: 11,\n      color: colors.textSecondary,\n    },\n    headerActions: {\n      flexDirection: 'row',\n      alignItems: 'center',\n      gap: 6,\n    },\n    overviewButton: {\n      minHeight: 36,\n      paddingHorizontal: 10,\n      borderRadius: 12,\n      borderWidth: 1,\n      borderColor: colors.border,\n      backgroundColor: colors.surface,\n      flexDirection: 'row',\n      alignItems: 'center',\n      gap: 5,\n    },\n    overviewButtonText: {\n      fontFamily: 'Manrope_700Bold',\n      fontSize: 10,\n      color: colors.text,\n    },\n    planBHeaderButton: {\n      width: 36,\n      height: 36,\n      borderRadius: 12,\n      borderWidth: 1,\n      borderColor: colors.secondaryAccent,\n      backgroundColor: colors.surface,\n      alignItems: 'center',\n      justifyContent: 'center',\n    },\n    progressTrack:`
+    lines([
+      '    durationValue: {',
+      "      fontFamily: 'Manrope_700Bold',",
+      '      fontSize: 11,',
+      '      color: colors.textSecondary,',
+      '    },',
+      '    progressTrack:',
+    ]),
+    lines([
+      '    durationValue: {',
+      "      fontFamily: 'Manrope_700Bold',",
+      '      fontSize: 11,',
+      '      color: colors.textSecondary,',
+      '    },',
+      '    headerActions: {',
+      "      flexDirection: 'row',",
+      "      alignItems: 'center',",
+      '      gap: 6,',
+      '    },',
+      '    overviewButton: {',
+      '      minHeight: 36,',
+      '      paddingHorizontal: 10,',
+      '      borderRadius: 12,',
+      '      borderWidth: 1,',
+      '      borderColor: colors.border,',
+      '      backgroundColor: colors.surface,',
+      "      flexDirection: 'row',",
+      "      alignItems: 'center',",
+      '      gap: 5,',
+      '    },',
+      '    overviewButtonText: {',
+      "      fontFamily: 'Manrope_700Bold',",
+      '      fontSize: 10,',
+      '      color: colors.text,',
+      '    },',
+      '    planBHeaderButton: {',
+      '      width: 36,',
+      '      height: 36,',
+      '      borderRadius: 12,',
+      '      borderWidth: 1,',
+      '      borderColor: colors.secondaryAccent,',
+      '      backgroundColor: colors.surface,',
+      "      alignItems: 'center',",
+      "      justifyContent: 'center',",
+      '    },',
+      '    progressTrack:',
+    ])
   );
 
-  text = mustReplace(text, 'reduce bottom spacing', '    content: { padding: spacing.lg, paddingBottom: 150 },', '    content: { padding: spacing.lg, paddingBottom: 64 },');
+  text = mustReplace(
+    text,
+    'reduce bottom spacing',
+    '    content: { padding: spacing.lg, paddingBottom: 150 },',
+    '    content: { padding: spacing.lg, paddingBottom: 64 },'
+  );
   text = mustReplace(text, 'reduce media height', '      height: 235,', '      height: 210,');
 
   text = mustReplace(
     text,
     'insert cue styles',
-    `    objectiveBox: {`,
-    `    cueBox: {\n      marginTop: 13,\n      padding: 12,\n      borderRadius: 14,\n      borderWidth: 1,\n      borderColor: colors.secondaryAccent,\n      backgroundColor: colors.secondaryAccentSoft,\n      flexDirection: 'row',\n      alignItems: 'flex-start',\n      gap: 10,\n    },\n    cueIcon: {\n      width: 28,\n      height: 28,\n      borderRadius: 14,\n      alignItems: 'center',\n      justifyContent: 'center',\n      backgroundColor: colors.surface,\n    },\n    cueCopy: { flex: 1 },\n    cueLabel: {\n      fontFamily: 'Manrope_800ExtraBold',\n      fontSize: 9,\n      letterSpacing: 0.5,\n      textTransform: 'uppercase',\n      color: colors.secondaryAccent,\n    },\n    cueText: {\n      marginTop: 3,\n      fontFamily: 'Manrope_600SemiBold',\n      fontSize: 12,\n      lineHeight: 18,\n      color: colors.text,\n    },\n    objectiveBox: {`
+    '    objectiveBox: {',
+    lines([
+      '    cueBox: {',
+      '      marginTop: 13,',
+      '      padding: 12,',
+      '      borderRadius: 14,',
+      '      borderWidth: 1,',
+      '      borderColor: colors.secondaryAccent,',
+      '      backgroundColor: colors.secondaryAccentSoft,',
+      "      flexDirection: 'row',",
+      "      alignItems: 'flex-start',",
+      '      gap: 10,',
+      '    },',
+      '    cueIcon: {',
+      '      width: 28,',
+      '      height: 28,',
+      '      borderRadius: 14,',
+      "      alignItems: 'center',",
+      "      justifyContent: 'center',",
+      '      backgroundColor: colors.surface,',
+      '    },',
+      '    cueCopy: { flex: 1 },',
+      '    cueLabel: {',
+      "      fontFamily: 'Manrope_800ExtraBold',",
+      '      fontSize: 9,',
+      '      letterSpacing: 0.5,',
+      "      textTransform: 'uppercase',",
+      '      color: colors.secondaryAccent,',
+      '    },',
+      '    cueText: {',
+      '      marginTop: 3,',
+      "      fontFamily: 'Manrope_600SemiBold',",
+      '      fontSize: 12,',
+      '      lineHeight: 18,',
+      '      color: colors.text,',
+      '    },',
+      '    objectiveBox: {',
+    ])
   );
 
   text = mustReplace(
@@ -135,8 +396,37 @@ function patchFocusedCore() {
   text = mustReplace(
     text,
     'let secondary actions share width',
-    `      justifyContent: 'center',\n      gap: 7,\n    },\n    secondaryActionCompact:`,
-    `      justifyContent: 'center',\n      gap: 7,\n      flexGrow: 1,\n    },\n    refuseAction: {\n      minHeight: 42,\n      paddingHorizontal: 12,\n      borderRadius: 12,\n      borderWidth: 1,\n      borderColor: colors.secondaryAccent,\n      backgroundColor: colors.background,\n      flexDirection: 'row',\n      alignItems: 'center',\n      justifyContent: 'center',\n      gap: 7,\n      flexGrow: 1,\n    },\n    refuseActionText: {\n      fontFamily: 'Manrope_700Bold',\n      fontSize: 11,\n      color: colors.secondaryAccent,\n    },\n    secondaryActionCompact:`
+    lines([
+      "      justifyContent: 'center',",
+      '      gap: 7,',
+      '    },',
+      '    secondaryActionCompact:',
+    ]),
+    lines([
+      "      justifyContent: 'center',",
+      '      gap: 7,',
+      '      flexGrow: 1,',
+      '    },',
+      '    refuseAction: {',
+      '      minHeight: 42,',
+      '      paddingHorizontal: 12,',
+      '      borderRadius: 12,',
+      '      borderWidth: 1,',
+      '      borderColor: colors.secondaryAccent,',
+      '      backgroundColor: colors.background,',
+      "      flexDirection: 'row',",
+      "      alignItems: 'center',",
+      "      justifyContent: 'center',",
+      '      gap: 7,',
+      '      flexGrow: 1,',
+      '    },',
+      '    refuseActionText: {',
+      "      fontFamily: 'Manrope_700Bold',",
+      '      fontSize: 11,',
+      '      color: colors.secondaryAccent,',
+      '    },',
+      '    secondaryActionCompact:',
+    ])
   );
 
   fs.writeFileSync(path, text);
@@ -150,14 +440,36 @@ function patchSessionWrapper() {
     text,
     'pass overview and plan B controls into focused player',
     '        <SessionCore />',
-    `        <SessionCore\n          onOpenOverview={() => setOverviewOpen(true)}\n          onOpenPlanB={() => setPlanBOpen(true)}\n          showPlanB={showPlanBEntry}\n        />`
+    lines([
+      '        <SessionCore',
+      '          onOpenOverview={() => setOverviewOpen(true)}',
+      '          onOpenPlanB={() => setPlanBOpen(true)}',
+      '          showPlanB={showPlanBEntry}',
+      '        />',
+    ])
   );
 
+  const toolsPattern = /      <View style=\{styles\.sessionTools\} pointerEvents="box-none">[\s\S]*?      <\/View>\n\n      <SessionOverviewSheet/;
+  const toolsReplacement = lines([
+    '      {isEnvironmentSession ? (',
+    '        <View style={styles.sessionTools} pointerEvents="box-none">',
+    '          <Pressable',
+    '            onPress={() => setOverviewOpen(true)}',
+    '            style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}',
+    '          >',
+    '            <Ionicons name="clipboard-outline" size={18} color={colors.text} />',
+    '            <Text style={styles.toolButtonText}>Ma séance</Text>',
+    '          </Pressable>',
+    '        </View>',
+    '      ) : null}',
+    '',
+    '      <SessionOverviewSheet',
+  ]);
   text = mustReplace(
     text,
     'remove floating tools from HOME BOX player',
-    `      <View style={styles.sessionTools} pointerEvents="box-none">\n        <Pressable\n          onPress={() => setOverviewOpen(true)}\n          style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}\n        >\n          <Ionicons name="clipboard-outline" size={18} color={colors.text} />\n          <Text style={styles.toolButtonText}>Ma séance</Text>\n        </Pressable>\n\n        {showPlanBEntry ? (\n          <Pressable\n            onPress={() => setPlanBOpen(true)}\n            style={({ pressed }) => [styles.toolButton, styles.planBTool, pressed && styles.pressed]}\n          >\n            <Ionicons name="shuffle-outline" size={18} color={colors.secondaryAccent} />\n            <Text style={[styles.toolButtonText, { color: colors.secondaryAccent }]}>Plan B</Text>\n          </Pressable>\n        ) : null}\n      </View>`,
-    `      {isEnvironmentSession ? (\n        <View style={styles.sessionTools} pointerEvents="box-none">\n          <Pressable\n            onPress={() => setOverviewOpen(true)}\n            style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}\n          >\n            <Ionicons name="clipboard-outline" size={18} color={colors.text} />\n            <Text style={styles.toolButtonText}>Ma séance</Text>\n          </Pressable>\n        </View>\n      ) : null}`
+    toolsPattern,
+    toolsReplacement
   );
 
   fs.writeFileSync(path, text);
