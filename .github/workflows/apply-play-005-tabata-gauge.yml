@@ -1,0 +1,41 @@
+name: Apply PLAY-005 Tabata countdown gauge
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-play-005-tabata-gauge.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Apply PLAY-005 Tabata gauge patch
+        run: node .github/player-patches/apply-play-005-tabata-gauge.mjs
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          grep -n "TABATA_WORK_COLOR\|TABATA_REST_COLOR\|segmentProgressPercent\|tabataCountdownTrack\|tabataGlobalTrack" app/workout/session-focused-core.js
+          git diff -- app/workout/session-focused-core.js
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- app/workout/session-focused-core.js; then
+            echo "No Tabata changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/workout/session-focused-core.js
+          git commit -m "feat(player): restore Tabata countdown gauge"
+          git push origin HEAD:ux-navigation-coach-v1
