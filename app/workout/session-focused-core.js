@@ -43,6 +43,7 @@ const BLOCK_LABELS = {
 // PLAY-005: le Tabata garde la même identité kaki/orange en clair comme en sombre.
 const TABATA_WORK_COLOR = '#FF6B19';
 const TABATA_REST_COLOR = '#5E6633';
+const TABATA_RING_SEGMENTS = 48;
 
 function normalizeBlockId(value) {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -1093,6 +1094,10 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
   const progressPercent = totalSeconds > 0
     ? Math.max(0, Math.min(100, (elapsed / totalSeconds) * 100))
     : 0;
+  const activeRingSegments = Math.max(0, Math.min(
+    TABATA_RING_SEGMENTS,
+    Math.ceil((segmentProgressPercent / 100) * TABATA_RING_SEGMENTS)
+  ));
   const phaseColor = resting ? TABATA_REST_COLOR : TABATA_WORK_COLOR;
   const phaseLabel = finished ? 'Terminé' : started ? (resting ? 'Récupération' : 'Effort') : 'Prêt';
   const scheduledExerciseIndex = resting && hasNextRound
@@ -1116,28 +1121,29 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
         <Text style={[styles.timerEyebrow, { color: phaseColor }]}>{phaseLabel}</Text>
       </View>
 
-      <Text style={styles.timerValue}>{remaining}</Text>
-      <Text style={styles.timerUnit}>secondes</Text>
-
-      <View style={styles.tabataCountdownWrap}>
-        <View style={styles.tabataCountdownHeader}>
-          <Text style={styles.tabataCountdownLabel}>
-            {resting ? 'Décompte récupération' : 'Décompte effort'}
-          </Text>
-          <Text style={[styles.tabataCountdownValue, { color: phaseColor }]}>
-            {remaining}s / {segmentDuration}s
-          </Text>
-        </View>
-        <View style={styles.tabataCountdownTrack}>
-          <View
-            style={[
-              styles.tabataCountdownFill,
-              {
-                width: `${segmentProgressPercent}%`,
-                backgroundColor: phaseColor,
-              },
-            ]}
-          />
+      <View style={styles.tabataTimerRing}>
+        {Array.from({ length: TABATA_RING_SEGMENTS }).map((_, index) => {
+          const angle = (index / TABATA_RING_SEGMENTS) * Math.PI * 2 - Math.PI / 2;
+          const radius = 88;
+          const active = index < activeRingSegments;
+          return (
+            <View
+              key={`tabata-ring-${index}`}
+              style={[
+                styles.tabataRingTick,
+                {
+                  left: 100 + Math.cos(angle) * radius - 2.5,
+                  top: 100 + Math.sin(angle) * radius - 6,
+                  backgroundColor: active ? phaseColor : colors.border,
+                  transform: [{ rotate: `${(index / TABATA_RING_SEGMENTS) * 360}deg` }],
+                },
+              ]}
+            />
+          );
+        })}
+        <View style={styles.tabataTimerCenter}>
+          <Text style={styles.timerValue}>{remaining}</Text>
+          <Text style={styles.timerUnit}>secondes</Text>
         </View>
       </View>
 
@@ -1862,32 +1868,30 @@ function createStyles(colors, isDark) {
       borderColor: colors.border,
     },
     tabataPhaseDot: { width: 8, height: 8, borderRadius: 4 },
-    tabataCountdownWrap: { width: '100%', marginTop: 20 },
-    tabataCountdownHeader: {
-      flexDirection: 'row',
+    tabataTimerRing: {
+      width: 200,
+      height: 200,
+      marginTop: 12,
+      position: 'relative',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 8,
+      justifyContent: 'center',
     },
-    tabataCountdownLabel: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 11,
-      color: colors.textSecondary,
+    tabataRingTick: {
+      position: 'absolute',
+      width: 5,
+      height: 12,
+      borderRadius: 3,
     },
-    tabataCountdownValue: {
-      fontFamily: 'Manrope_800ExtraBold',
-      fontSize: 12,
-    },
-    tabataCountdownTrack: {
-      width: '100%',
-      height: 14,
-      borderRadius: 999,
-      overflow: 'hidden',
-      backgroundColor: colors.surfacePressed,
+    tabataTimerCenter: {
+      width: 152,
+      height: 152,
+      borderRadius: 76,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    tabataCountdownFill: { height: '100%', borderRadius: 999 },
     tabataGlobalHeader: {
       width: '100%',
       marginTop: 14,
