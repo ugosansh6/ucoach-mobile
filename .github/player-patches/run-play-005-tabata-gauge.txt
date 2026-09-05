@@ -1,1 +1,1 @@
-trigger 2026-09-04 PLAY-005 tabata countdown gauge
+trigger 2026-09-05 PLAY-005 radial tabata timer
