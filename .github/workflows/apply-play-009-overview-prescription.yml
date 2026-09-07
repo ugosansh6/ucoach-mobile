@@ -1,0 +1,45 @@
+name: Apply PLAY-009 Session overview prescription
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-play-009-overview-prescription.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Apply PLAY-009 overview patch
+        run: node .github/player-patches/apply-play-009-overview-prescription.mjs
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          grep -n "PrescriptionLine\|ExerciseDetailModal\|ellipsis-horizontal\|exercisePrescriptionStrong" src/components/workout/SessionOverviewSheet.js
+          if grep -n '<Text style={styles.swapText}>Swap</Text>' src/components/workout/SessionOverviewSheet.js; then
+            echo "Visible inline Swap button still present"
+            exit 1
+          fi
+          git diff -- src/components/workout/SessionOverviewSheet.js
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- src/components/workout/SessionOverviewSheet.js; then
+            echo "No PLAY-009 changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/workout/SessionOverviewSheet.js
+          git commit -m "feat(player): clarify overview prescriptions and exercise details"
+          git push origin HEAD:ux-navigation-coach-v1
