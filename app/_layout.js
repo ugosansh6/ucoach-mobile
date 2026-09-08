@@ -28,8 +28,6 @@ import { colors } from '../src/constants';
 import { OnboardingProvider } from '../src/contexts/OnboardingContext';
 import { UgerodThemeProvider } from '../src/contexts/UgerodThemeContext';
 import { WorkoutProvider } from '../src/contexts/WorkoutContext';
-import SessionAdaptationOverlay from '../src/components/workout/SessionAdaptationOverlayThemed';
-import SessionWhyOverlay from '../src/components/workout/SessionWhyOverlay';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -79,8 +77,6 @@ export default function RootLayout() {
               }}
             />
 
-            <SessionWhyOverlay />
-            <SessionAdaptationOverlay />
           </WorkoutProvider>
         </OnboardingProvider>
       </UgerodThemeProvider>

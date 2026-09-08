@@ -24,6 +24,8 @@ import {
   syncEnvironmentBuilderSwapRuntime,
 } from '../../services/environmentSessionRuntimeService';
 
+import SessionPlanBPanel from './SessionPlanBPanel';
+
 const LABELS = {
   unlock: 'Unlock',
   tabata: 'Tabata',
@@ -177,6 +179,17 @@ export default function SessionOverviewSheet({
   onClose,
   onPlanB,
   showPlanB = false,
+  planBOpen = false,
+  canRegeneratePlanB = false,
+  canChangeSkill = false,
+  hasSkill = false,
+  progressRecorded = false,
+  devTestReload = false,
+  busyAction = null,
+  onClosePlanB,
+  onAlternateSkill,
+  onSkipSkill,
+  onAlternateSession,
 }) {
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -455,6 +468,19 @@ export default function SessionOverviewSheet({
             </Pressable>
           </View>
         </SafeAreaView>
+        <SessionPlanBPanel
+          visible={planBOpen}
+          canRegeneratePlanB={canRegeneratePlanB}
+          canChangeSkill={canChangeSkill}
+          hasSkill={hasSkill}
+          progressRecorded={progressRecorded}
+          devTestReload={devTestReload}
+          busyAction={busyAction}
+          onClose={onClosePlanB}
+          onAlternateSkill={onAlternateSkill}
+          onSkipSkill={onSkipSkill}
+          onAlternateSession={onAlternateSession}
+        />
       </Modal>
 
 

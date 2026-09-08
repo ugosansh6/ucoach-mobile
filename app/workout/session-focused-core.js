@@ -221,6 +221,8 @@ function formatOptionTitle(option) {
 export default function SessionFocusedCore({
   onOpenOverview,
   onOpenPlanB,
+  onOpenWhy,
+  onOpenAdjust,
   showPlanB = false,
 } = {}) {
   const { workout, updateWorkout, setExerciseLoad } = useWorkout();
@@ -764,22 +766,19 @@ export default function SessionFocusedCore({
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.replace('/workout/preparation')} hitSlop={12} style={styles.iconButton}>
-          <Ionicons name="arrow-back" size={21} color={colors.text} />
-        </Pressable>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => router.replace('/workout/preparation')} hitSlop={12} style={styles.iconButton}>
+            <Ionicons name="arrow-back" size={21} color={colors.text} />
+          </Pressable>
 
-        <View style={styles.headerCopy}>
-          <Text style={styles.headerEyebrow}>Séance · {activeBlockIndex + 1}/{blocks.length}</Text>
-          <Text style={styles.headerTitle}>{activeBlock.title}</Text>
-          {activeBlock.structure ? (
-            <Text numberOfLines={1} style={styles.headerMeta}>{activeBlock.structure}</Text>
-          ) : null}
-        </View>
-
-        <View style={styles.headerActions}>
-          <View style={styles.durationPill}>
-            <Text style={styles.durationValue}>{activeBlock.durationLabel ?? '—'}</Text>
+          <View style={styles.headerCopy}>
+            <Text style={styles.headerEyebrow}>Bloc {activeBlockIndex + 1}/{blocks.length}</Text>
+            <Text style={styles.headerTitle}>{activeBlock.title}</Text>
+            <Text numberOfLines={1} style={styles.headerMeta}>
+              {[activeBlock.structure, activeBlock.durationLabel].filter(Boolean).join(' · ')}
+            </Text>
           </View>
+
           {typeof onOpenOverview === 'function' ? (
             <Pressable
               onPress={onOpenOverview}
@@ -788,24 +787,35 @@ export default function SessionFocusedCore({
               style={styles.overviewButton}
             >
               <Ionicons name="clipboard-outline" size={17} color={colors.text} />
-              <Text style={styles.overviewButtonText}>Séance</Text>
+              <Text style={styles.overviewButtonText}>Ma séance</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <View style={styles.coachTools}>
+          {typeof onOpenWhy === 'function' ? (
+            <Pressable onPress={onOpenWhy} style={[styles.coachTool, styles.coachToolWhy]}>
+              <Ionicons name="help-circle-outline" size={17} color={colors.textSecondary} />
+              <Text style={styles.coachToolText}>Pourquoi ?</Text>
+            </Pressable>
+          ) : null}
+          {typeof onOpenAdjust === 'function' ? (
+            <Pressable onPress={onOpenAdjust} style={[styles.coachTool, styles.coachToolAdjust]}>
+              <Ionicons name="options-outline" size={17} color={colors.accent} />
+              <Text style={styles.coachToolText}>Ajuster</Text>
             </Pressable>
           ) : null}
           {showPlanB && typeof onOpenPlanB === 'function' ? (
-            <Pressable
-              onPress={onOpenPlanB}
-              accessibilityRole="button"
-              accessibilityLabel="Plan B"
-              style={styles.planBHeaderButton}
-            >
-              <Ionicons name="shuffle-outline" size={18} color={colors.secondaryAccent} />
+            <Pressable onPress={onOpenPlanB} style={[styles.coachTool, styles.coachToolPlanB]}>
+              <Ionicons name="shuffle-outline" size={17} color={colors.secondaryAccent} />
+              <Text style={styles.coachToolText}>Plan B</Text>
             </Pressable>
           ) : null}
         </View>
       </View>
 
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.max(4, Math.round(progress * 100))}%` }]} />
+        <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -1399,19 +1409,22 @@ function createStyles(colors, isDark) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     header: {
-      minHeight: 76,
       paddingHorizontal: spacing.lg,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
+      paddingTop: 12,
+      paddingBottom: 12,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
       backgroundColor: colors.background,
     },
+    headerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
     iconButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.surface,
@@ -1427,62 +1440,66 @@ function createStyles(colors, isDark) {
     headerTitle: {
       marginTop: 1,
       fontFamily: 'Manrope_800ExtraBold',
-      fontSize: 21,
-      lineHeight: 27,
+      fontSize: 22,
+      lineHeight: 28,
       color: colors.text,
     },
     headerMeta: {
       marginTop: 1,
       fontFamily: 'Manrope_500Medium',
-      fontSize: 10,
-      lineHeight: 14,
+      fontSize: 11,
+      lineHeight: 15,
       color: colors.textSecondary,
     },
-    durationPill: {
-      minHeight: 34,
+    overviewButton: {
+      minHeight: 42,
       paddingHorizontal: 11,
-      borderRadius: 17,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.surface,
+      borderRadius: 13,
       borderWidth: 1,
       borderColor: colors.border,
-    },
-    durationValue: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 11,
-      color: colors.textSecondary,
-    },
-    headerActions: {
+      backgroundColor: colors.surface,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
     },
-    overviewButton: {
-      minHeight: 36,
-      paddingHorizontal: 10,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-    },
     overviewButtonText: {
       fontFamily: 'Manrope_700Bold',
-      fontSize: 10,
+      fontSize: 11,
       color: colors.text,
     },
-    planBHeaderButton: {
-      width: 36,
-      height: 36,
+    coachTools: {
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    coachTool: {
+      flex: 1,
+      minHeight: 40,
+      paddingHorizontal: 9,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: colors.secondaryAccent,
-      backgroundColor: colors.surface,
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
+      gap: 6,
+    },
+    coachToolWhy: {
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    coachToolAdjust: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    coachToolPlanB: {
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+    },
+    coachToolText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
     },
     progressTrack: { height: 4, backgroundColor: colors.border },
     progressFill: { height: 4, backgroundColor: colors.accent },

@@ -16,6 +16,8 @@ import SessionCore from './session-core';
 import EnvironmentSessionCore from './environment-session-core';
 import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
 import SessionOverviewSheet from '../../src/components/workout/SessionOverviewSheet';
+import SessionWhySheet from '../../src/components/workout/SessionWhySheet';
+import SessionAdaptationSheet from '../../src/components/workout/SessionAdaptationSheet';
 import { spacing } from '../../src/constants';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
@@ -48,6 +50,8 @@ export default function SessionScreen() {
   const [planBOpen, setPlanBOpen] = useState(false);
   const [busyAction, setBusyAction] = useState(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
+  const [adaptationOpen, setAdaptationOpen] = useState(false);
   const overviewShownForSessionRef = useRef(null);
   const planBTransitionTimerRef = useRef(null);
 
@@ -108,12 +112,7 @@ export default function SessionScreen() {
 
   function openPlanBFromOverview() {
     if (busyAction) return;
-    if (planBTransitionTimerRef.current) clearTimeout(planBTransitionTimerRef.current);
-    setOverviewOpen(false);
-    planBTransitionTimerRef.current = setTimeout(() => {
-      setPlanBOpen(true);
-      planBTransitionTimerRef.current = null;
-    }, 420);
+    setPlanBOpen(true);
   }
 
   async function applySkillPlanB(action) {
@@ -166,8 +165,16 @@ export default function SessionScreen() {
         </>
       ) : (
         <SessionCore
-          onOpenOverview={() => setOverviewOpen(true)}
-          onOpenPlanB={() => setPlanBOpen(true)}
+          onOpenOverview={() => {
+            setPlanBOpen(false);
+            setOverviewOpen(true);
+          }}
+          onOpenPlanB={() => {
+            setOverviewOpen(true);
+            setPlanBOpen(true);
+          }}
+          onOpenWhy={() => setWhyOpen(true)}
+          onOpenAdjust={() => setAdaptationOpen(true)}
           showPlanB={showPlanBEntry}
         />
       )}
@@ -186,14 +193,34 @@ export default function SessionScreen() {
 
       <SessionOverviewSheet
         visible={overviewOpen}
-        onClose={() => setOverviewOpen(false)}
+        onClose={() => {
+          setPlanBOpen(false);
+          setOverviewOpen(false);
+        }}
         showPlanB={canRegeneratePlanB}
         onPlanB={openPlanBFromOverview}
+        planBOpen={planBOpen}
+        canRegeneratePlanB={canRegeneratePlanB}
+        canChangeSkill={canChangeSkill}
+        hasSkill={hasSkill}
+        progressRecorded={progressRecorded}
+        devTestReload={DEV_TEST_RELOAD}
+        busyAction={busyAction}
+        onClosePlanB={() => setPlanBOpen(false)}
+        onAlternateSkill={() => applySkillPlanB('ALTERNATE_SKILL')}
+        onSkipSkill={() => applySkillPlanB('SKIP_SKILL')}
+        onAlternateSession={applyWholePlanB}
+      />
+
+      <SessionWhySheet visible={whyOpen} onClose={() => setWhyOpen(false)} />
+      <SessionAdaptationSheet
+        visible={adaptationOpen}
+        onClose={() => setAdaptationOpen(false)}
       />
 
       {!isEnvironmentSession ? (
         <Modal
-          visible={planBOpen}
+          visible={false}
           transparent
           animationType="slide"
           onRequestClose={() => !busyAction && setPlanBOpen(false)}
