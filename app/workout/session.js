@@ -49,6 +49,7 @@ export default function SessionScreen() {
   const [busyAction, setBusyAction] = useState(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const overviewShownForSessionRef = useRef(null);
+  const planBTransitionTimerRef = useRef(null);
 
   const environmentCode = useMemo(
     () =>
@@ -97,6 +98,23 @@ export default function SessionScreen() {
     overviewShownForSessionRef.current = workout.sessionId;
     if (!progressRecorded) setOverviewOpen(true);
   }, [progressRecorded, workout?.sessionId]);
+
+  useEffect(
+    () => () => {
+      if (planBTransitionTimerRef.current) clearTimeout(planBTransitionTimerRef.current);
+    },
+    []
+  );
+
+  function openPlanBFromOverview() {
+    if (busyAction) return;
+    if (planBTransitionTimerRef.current) clearTimeout(planBTransitionTimerRef.current);
+    setOverviewOpen(false);
+    planBTransitionTimerRef.current = setTimeout(() => {
+      setPlanBOpen(true);
+      planBTransitionTimerRef.current = null;
+    }, 420);
+  }
 
   async function applySkillPlanB(action) {
     if (busyAction || !canChangeSkill) return;
@@ -170,7 +188,7 @@ export default function SessionScreen() {
         visible={overviewOpen}
         onClose={() => setOverviewOpen(false)}
         showPlanB={canRegeneratePlanB}
-        onPlanB={() => setPlanBOpen(true)}
+        onPlanB={openPlanBFromOverview}
       />
 
       {!isEnvironmentSession ? (

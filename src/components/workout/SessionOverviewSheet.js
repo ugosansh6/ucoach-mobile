@@ -397,30 +397,28 @@ export default function SessionOverviewSheet({
                               </View>
 
                               <View style={styles.exerciseCopy}>
-                                <View style={styles.exerciseTitleRow}>
-                                  <Text style={[styles.exerciseName, current && styles.exerciseNameCurrent]}>
-                                    {exercise.name ?? 'Exercice'}
-                                  </Text>
-                                  <Pressable
-                                    onPress={() =>
-                                      setDetailExercise({
-                                        exercise,
-                                        blockTitle: block.title,
-                                        canSwap,
-                                      })
-                                    }
-                                    hitSlop={6}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Détails de ${exercise.name ?? 'l’exercice'}`}
-                                    style={({ pressed }) => [styles.moreButton, pressed && styles.pressed]}
-                                  >
-                                    <Ionicons name="ellipsis-horizontal" size={18} color={colors.text} />
-                                  </Pressable>
-                                </View>
+                                <Text style={[styles.exerciseName, current && styles.exerciseNameCurrent]}>
+                                  {exercise.name ?? 'Exercice'}
+                                </Text>
                                 {exercise.prescription ? (
                                   <PrescriptionLine text={exercise.prescription} styles={styles} />
                                 ) : null}
                               </View>
+
+                              <Pressable
+                                onPress={() =>
+                                  setDetailExercise({
+                                    exercise,
+                                    blockTitle: block.title,
+                                    canSwap,
+                                  })
+                                }
+                                accessibilityRole="button"
+                                accessibilityLabel={`Détails de ${exercise.name ?? 'l’exercice'}`}
+                                style={({ pressed }) => [styles.moreButton, pressed && styles.pressed]}
+                              >
+                                <Ionicons name="ellipsis-horizontal" size={21} color={colors.textSecondary} />
+                              </Pressable>
                             </View>
                           );
                         })}
@@ -433,10 +431,7 @@ export default function SessionOverviewSheet({
 
             {showPlanB ? (
               <Pressable
-                onPress={() => {
-                  onClose?.();
-                  onPlanB?.();
-                }}
+                onPress={onPlanB}
                 style={({ pressed }) => [styles.planBButton, pressed && styles.pressed]}
               >
                 <View style={styles.planBIcon}>
@@ -752,15 +747,14 @@ function createStyles(colors, isDark) {
     exerciseMarker: { width: 18, alignItems: 'center' },
     currentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.secondaryAccent },
     futureDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.border },
-    exerciseCopy: { flex: 1 },
-    exerciseTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    exerciseName: { flex: 1, fontFamily: 'Manrope_700Bold', fontSize: 13, color: colors.text },
+    exerciseCopy: { flex: 1, minWidth: 0 },
+    exerciseName: { fontFamily: 'Manrope_700Bold', fontSize: 13, color: colors.text },
     exerciseNameCurrent: { color: colors.secondaryAccent },
     exercisePrescription: { marginTop: 3, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 17, color: colors.textSecondary },
     exercisePrescriptionStrong: { fontFamily: 'Manrope_800ExtraBold', fontSize: 13, color: colors.accent },
     exercisePrescriptionLarge: { marginTop: 7, fontSize: 16, lineHeight: 23, color: colors.text },
     exercisePrescriptionStrongLarge: { fontSize: 18, color: colors.text },
-    moreButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    moreButton: { width: 44, height: 44, marginRight: -4, flexShrink: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
     swapButton: {
       minHeight: 32,
       paddingHorizontal: 9,
