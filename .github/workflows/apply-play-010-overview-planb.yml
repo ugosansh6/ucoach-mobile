@@ -1,0 +1,50 @@
+name: Apply PLAY-010 overview ellipsis and Plan B
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-play-010-overview-planb.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Apply PLAY-010 patch
+        run: node .github/player-patches/apply-play-010-overview-planb.mjs
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          grep -n "openPlanBFromOverview\|planBTransitionTimerRef" app/workout/session.js
+          grep -n "ellipsis-horizontal\|moreButton" src/components/workout/SessionOverviewSheet.js
+          if grep -q "exerciseTitleRow" src/components/workout/SessionOverviewSheet.js; then
+            echo "Ellipsis is still coupled to exercise title row"
+            exit 1
+          fi
+          if grep -q "onClose?.();" src/components/workout/SessionOverviewSheet.js | grep -q "onPlanB"; then
+            echo "Plan B still opens during overview close"
+            exit 1
+          fi
+          git diff -- app/workout/session.js src/components/workout/SessionOverviewSheet.js
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- app/workout/session.js src/components/workout/SessionOverviewSheet.js; then
+            echo "No PLAY-010 changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/workout/session.js src/components/workout/SessionOverviewSheet.js
+          git commit -m "fix(player): position exercise details and sequence Plan B"
+          git push origin HEAD:ux-navigation-coach-v1
