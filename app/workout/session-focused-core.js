@@ -746,6 +746,17 @@ export default function SessionFocusedCore({
 
   const imageUri = exerciseImageUri(activeExercise);
   const cue = shortCue(activeExercise);
+  const exercisePrescription =
+    activeBlock?.id === 'skill' && activeBlock?.structure
+      ? activeBlock.structure
+      : activeExercise?.prescription ?? null;
+  const objectiveText =
+    activeBlock?.id === 'skill'
+      ? activeBlock?.skillContract?.success_signal ??
+        prescriptionObject(activeExercise)?.curriculum_success_signal ??
+        activeExercise?.expected_outcome?.success_signal ??
+        null
+      : activeBlock?.objective ?? null;
   const swapItem = activeExercise?.sessionExerciseId
     ? swapAvailability?.[activeExercise.sessionExerciseId]
     : null;
@@ -905,8 +916,8 @@ export default function SessionFocusedCore({
 
             <View style={styles.exerciseCard}>
               <Text style={styles.exerciseName}>{displayExerciseName(activeExercise)}</Text>
-              {activeExercise?.prescription ? (
-                <Text style={styles.exercisePrescription}>{String(activeExercise.prescription)}</Text>
+              {exercisePrescription ? (
+                <Text style={styles.exercisePrescription}>{String(exercisePrescription)}</Text>
               ) : null}
 
               {cue ? (
@@ -921,10 +932,10 @@ export default function SessionFocusedCore({
                 </View>
               ) : null}
 
-              {activeBlock.objective ? (
+              {objectiveText ? (
                 <View style={styles.objectiveBox}>
-                  <Text style={styles.objectiveLabel}>Objectif</Text>
-                  <Text style={styles.objectiveText}>{activeBlock.objective}</Text>
+                  <Text style={styles.objectiveLabel}>Objectif du jour</Text>
+                  <Text style={styles.objectiveText}>{objectiveText}</Text>
                 </View>
               ) : null}
 
