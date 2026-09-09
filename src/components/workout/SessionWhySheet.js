@@ -14,6 +14,17 @@ import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 import { useWorkout } from '../../contexts/WorkoutContext';
 import { supabase } from '../../lib/supabase';
 
+const REASON_TITLES = {
+  SKILL_PATH: 'Pourquoi ce Skill ?',
+  SESSION_INTENT: 'Pourquoi cette intensité ?',
+  EQUIPMENT_OPPORTUNITY: 'Pourquoi ce matériel ?',
+  RECOVERY_ADJUSTMENT: 'Pourquoi cette adaptation ?',
+};
+
+function reasonTitle(type) {
+  return REASON_TITLES[String(type ?? '').toUpperCase()] ?? 'Choix du Coach';
+}
+
 export default function SessionWhySheet({ visible = false, onClose }) {
   const { workout } = useWorkout();
   const { colors } = useUgerodTheme();
@@ -39,7 +50,7 @@ export default function SessionWhySheet({ visible = false, onClose }) {
         if (rpcError) throw rpcError;
         if (!cancelled) setWhy(data ?? null);
       } catch (loadError) {
-        console.warn('Session why trace', loadError);
+        console.warn('Session why', loadError);
         if (!cancelled) {
           setWhy(null);
           setError('UGEROD ne peut pas expliquer cette décision pour le moment.');
@@ -93,14 +104,10 @@ export default function SessionWhySheet({ visible = false, onClose }) {
             </Pressable>
           </View>
 
-          <Text style={styles.helper}>
-            UGEROD affiche uniquement les raisons présentes dans la trace de décision de cette séance.
-          </Text>
-
           {loading ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={styles.loadingText}>Lecture de la décision…</Text>
+              <Text style={styles.loadingText}>Le Coach relit ses choix…</Text>
             </View>
           ) : null}
 
@@ -123,14 +130,17 @@ export default function SessionWhySheet({ visible = false, onClose }) {
                     <View style={styles.reasonIndex}>
                       <Text style={styles.reasonIndexText}>{index + 1}</Text>
                     </View>
-                    <Text style={styles.reasonText}>{reason.text}</Text>
+                    <View style={styles.reasonCopy}>
+                      <Text style={styles.reasonTitle}>{reasonTitle(reason.type)}</Text>
+                      <Text style={styles.reasonText}>{reason.text}</Text>
+                    </View>
                   </View>
                 ))
               ) : (
                 <View style={styles.messageBox}>
                   <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
                   <Text style={styles.messageText}>
-                    La trace disponible n’est pas suffisante pour expliquer cette séance sans inventer de causalité.
+                    Aucun choix particulier n’a besoin d’être expliqué sur cette séance.
                   </Text>
                 </View>
               )}
@@ -186,13 +196,6 @@ function createStyles(colors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    helper: {
-      marginTop: 12,
-      fontFamily: 'Manrope_500Medium',
-      fontSize: 13,
-      lineHeight: 19,
-      color: colors.textSecondary,
-    },
     loadingBox: {
       marginTop: 16,
       padding: 14,
@@ -227,10 +230,10 @@ function createStyles(colors) {
       lineHeight: 18,
       color: colors.textSecondary,
     },
-    reasonsScroll: { marginTop: 12 },
+    reasonsScroll: { marginTop: 16 },
     reasons: { paddingBottom: 4, gap: 10 },
     reasonRow: {
-      minHeight: 62,
+      minHeight: 70,
       padding: 12,
       borderRadius: 14,
       borderWidth: 1,
@@ -253,12 +256,18 @@ function createStyles(colors) {
       fontSize: 11,
       color: colors.accent,
     },
-    reasonText: {
-      flex: 1,
-      fontFamily: 'Manrope_600SemiBold',
-      fontSize: 13,
-      lineHeight: 19,
+    reasonCopy: { flex: 1 },
+    reasonTitle: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
       color: colors.text,
+    },
+    reasonText: {
+      marginTop: 3,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
     },
   });
 }
