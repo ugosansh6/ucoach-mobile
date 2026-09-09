@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import SessionCore from './session-core';
 import EnvironmentSessionCore from './environment-session-core';
@@ -32,6 +32,40 @@ function hasRecordedProgress(workout) {
   if ((workout?.validatedBlocks ?? []).length > 0) return true;
   if (workout?.wodRuntime?.started || workout?.wodStarted || workout?.wodStartedAt) return true;
   return (workout?.exercises ?? []).some(exerciseHasRecordedResult);
+}
+
+function visibleWorkoutFingerprint(workout) {
+  return JSON.stringify({
+    format: workout?.format ?? null,
+    mechanic: workout?.mechanic ?? null,
+    exercises: (workout?.exercises ?? []).map((exercise) => [
+      normalizeBlock(exercise?.blockKey ?? exercise?.block),
+      exercise?.exerciseId ?? exercise?.id ?? null,
+      exercise?.prescription ?? null,
+    ]),
+  });
+}
+
+function verifyPlanBReplacement({ sourceWorkout, result, nextWorkout }) {
+  const sourceSessionId = sourceWorkout?.sessionId ?? null;
+  const nextSessionId = nextWorkout?.sessionId ?? null;
+  const returnedSessionId = result?.new_session_id ?? null;
+
+  if (!nextSessionId) {
+    throw new Error('Plan B a répondu sans nouvelle séance exploitable.');
+  }
+
+  if (sourceSessionId && nextSessionId === sourceSessionId) {
+    throw new Error('Plan B n’a pas remplacé la séance affichée.');
+  }
+
+  if (returnedSessionId && returnedSessionId !== nextSessionId) {
+    throw new Error('La séance Plan B rechargée ne correspond pas à la proposition créée.');
+  }
+
+  if (visibleWorkoutFingerprint(sourceWorkout) === visibleWorkoutFingerprint(nextWorkout)) {
+    throw new Error('UGEROD a généré une alternative, mais elle est identique à l’écran. Réessaie.');
+  }
 }
 
 export default function SessionScreen() {
@@ -103,16 +137,25 @@ export default function SessionScreen() {
       return { ok: false, error: 'Plan B n’est plus disponible une fois la séance commencée.' };
     }
 
+    const sourceWorkout = workout;
+
     try {
       setBusyAction(action);
-      const { workout: nextWorkout } = await changeWorkoutSkillPlan({
-        sessionId: workout.sessionId,
+      const { result, workout: nextWorkout } = await changeWorkoutSkillPlan({
+        sessionId: sourceWorkout.sessionId,
         action,
-        preparationSnapshot: workout.preparationSnapshot ?? null,
+        preparationSnapshot: sourceWorkout.preparationSnapshot ?? null,
       });
-      setGeneratedWorkout(nextWorkout);
+
+      verifyPlanBReplacement({ sourceWorkout, result, nextWorkout });
+      setGeneratedWorkout({ ...nextWorkout, playerCursor: null });
       setPlanBOpen(false);
       setOverviewOpen(true);
+
+      Alert.alert(
+        'Plan B appliqué',
+        action === 'SKIP_SKILL' ? 'Le Skill a été retiré et ta séance a été réorganisée.' : 'Un nouveau Skill a été préparé.'
+      );
       return { ok: true };
     } catch (error) {
       console.warn('Plan B Skill', error);
@@ -131,15 +174,21 @@ export default function SessionScreen() {
       return { ok: false, error: 'Plan B n’est plus disponible une fois la séance commencée.' };
     }
 
+    const sourceWorkout = workout;
+
     try {
       setBusyAction('ALTERNATE_SESSION');
-      const { workout: nextWorkout } = await changeWholeWorkoutPlan({
-        sessionId: workout.sessionId,
-        preparationSnapshot: workout.preparationSnapshot ?? null,
+      const { result, workout: nextWorkout } = await changeWholeWorkoutPlan({
+        sessionId: sourceWorkout.sessionId,
+        preparationSnapshot: sourceWorkout.preparationSnapshot ?? null,
       });
-      setGeneratedWorkout(nextWorkout);
+
+      verifyPlanBReplacement({ sourceWorkout, result, nextWorkout });
+      setGeneratedWorkout({ ...nextWorkout, playerCursor: null });
       setPlanBOpen(false);
       setOverviewOpen(true);
+
+      Alert.alert('Plan B appliqué', 'Une nouvelle séance a été préparée avec le même check-in.');
       return { ok: true };
     } catch (error) {
       console.warn('Plan B session', error);
@@ -189,6 +238,7 @@ export default function SessionScreen() {
       ) : null}
 
       <SessionOverviewSheet
+        key={`session-overview:${workout?.sessionId ?? 'none'}`}
         visible={overviewOpen}
         onClose={() => {
           setPlanBOpen(false);
