@@ -18,19 +18,32 @@ export default function SessionPlanBPanel({
   const { colors } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [actionError, setActionError] = useState('');
+  const [pendingAction, setPendingAction] = useState(null);
+  const activeAction = busyAction ?? pendingAction;
 
   useEffect(() => {
-    if (visible) setActionError('');
+    if (visible) {
+      setActionError('');
+      setPendingAction(null);
+    }
   }, [visible]);
 
   if (!visible) return null;
 
-  async function runAction(callback) {
-    if (!callback || busyAction) return;
+  async function runAction(action, callback) {
+    if (!callback || activeAction) return;
     setActionError('');
-    const result = await callback();
-    if (result?.ok === false) {
-      setActionError(result.error || 'UGEROD n’a pas pu modifier cette séance.');
+    setPendingAction(action);
+
+    try {
+      const result = await callback();
+      if (result?.ok === false) {
+        setActionError(result.error || 'UGEROD n’a pas pu modifier cette séance.');
+      }
+    } catch (error) {
+      setActionError(error?.message || 'UGEROD n’a pas pu modifier cette séance.');
+    } finally {
+      setPendingAction(null);
     }
   }
 
@@ -40,23 +53,19 @@ export default function SessionPlanBPanel({
     : 'Plan B est disponible uniquement avant de commencer.';
 
   const busyLabel =
-    busyAction === 'ALTERNATE_SKILL'
+    activeAction === 'ALTERNATE_SKILL'
       ? 'UGEROD prépare un autre Skill…'
-      : busyAction === 'SKIP_SKILL'
+      : activeAction === 'SKIP_SKILL'
         ? 'UGEROD réorganise la séance…'
-        : busyAction === 'ALTERNATE_SESSION'
+        : activeAction === 'ALTERNATE_SESSION'
           ? 'UGEROD prépare une autre séance…'
           : null;
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
-      <Pressable
-        style={styles.backdrop}
-        disabled={Boolean(busyAction)}
-        onPress={() => !busyAction && onClose?.()}
-      />
+      <View style={styles.backdrop} pointerEvents="none" />
       <SafeAreaView style={styles.safe} pointerEvents="box-none">
-        <View style={styles.sheet}>
+        <View style={styles.sheet} pointerEvents="auto">
           <View style={styles.handle} />
           <View style={styles.header}>
             <View style={styles.icon}>
@@ -67,7 +76,7 @@ export default function SessionPlanBPanel({
               <Text style={styles.title}>{title}</Text>
             </View>
             <Pressable
-              disabled={Boolean(busyAction)}
+              disabled={Boolean(activeAction)}
               onPress={onClose}
               style={styles.closeButton}
             >
@@ -99,9 +108,9 @@ export default function SessionPlanBPanel({
                     title="Un autre Skill aujourd’hui"
                     description="Changer uniquement le parcours Skill de cette séance."
                     icon="swap-horizontal-outline"
-                    loading={busyAction === 'ALTERNATE_SKILL'}
-                    disabled={Boolean(busyAction)}
-                    onPress={() => runAction(onAlternateSkill)}
+                    loading={activeAction === 'ALTERNATE_SKILL'}
+                    disabled={Boolean(activeAction)}
+                    onPress={() => runAction('ALTERNATE_SKILL', onAlternateSkill)}
                     styles={styles}
                     colors={colors}
                   />
@@ -109,9 +118,9 @@ export default function SessionPlanBPanel({
                     title="Pas de Skill aujourd’hui"
                     description="Retirer le Skill si le reste de la séance reste cohérent."
                     icon="remove-circle-outline"
-                    loading={busyAction === 'SKIP_SKILL'}
-                    disabled={Boolean(busyAction)}
-                    onPress={() => runAction(onSkipSkill)}
+                    loading={activeAction === 'SKIP_SKILL'}
+                    disabled={Boolean(activeAction)}
+                    onPress={() => runAction('SKIP_SKILL', onSkipSkill)}
                     styles={styles}
                     colors={colors}
                   />
@@ -122,9 +131,9 @@ export default function SessionPlanBPanel({
                 title="Une autre séance"
                 description="Reconstruire une autre proposition avec le même check-in."
                 icon="refresh-outline"
-                loading={busyAction === 'ALTERNATE_SESSION'}
-                disabled={Boolean(busyAction)}
-                onPress={() => runAction(onAlternateSession)}
+                loading={activeAction === 'ALTERNATE_SESSION'}
+                disabled={Boolean(activeAction)}
+                onPress={() => runAction('ALTERNATE_SESSION', onAlternateSession)}
                 styles={styles}
                 colors={colors}
               />
@@ -132,7 +141,7 @@ export default function SessionPlanBPanel({
           ) : null}
 
           <Pressable
-            disabled={Boolean(busyAction)}
+            disabled={Boolean(activeAction)}
             onPress={onClose}
             style={styles.keepButton}
           >
@@ -181,6 +190,8 @@ function createStyles(colors) {
     safe: {
       flex: 1,
       justifyContent: 'flex-end',
+      zIndex: 2,
+      elevation: 2,
     },
     sheet: {
       maxHeight: '86%',
@@ -192,6 +203,8 @@ function createStyles(colors) {
       backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
+      zIndex: 3,
+      elevation: 3,
     },
     handle: {
       width: 42,
