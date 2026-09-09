@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 
@@ -9,8 +9,6 @@ export default function SessionPlanBPanel({
   canRegeneratePlanB = false,
   canChangeSkill = false,
   hasSkill = false,
-  progressRecorded = false,
-  devTestReload = false,
   busyAction = null,
   onClose,
   onAlternateSkill,
@@ -19,13 +17,36 @@ export default function SessionPlanBPanel({
 }) {
   const { colors } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [actionError, setActionError] = useState('');
+
+  useEffect(() => {
+    if (visible) setActionError('');
+  }, [visible]);
 
   if (!visible) return null;
+
+  async function runAction(callback) {
+    if (!callback || busyAction) return;
+    setActionError('');
+    const result = await callback();
+    if (result?.ok === false) {
+      setActionError(result.error || 'UGEROD n’a pas pu modifier cette séance.');
+    }
+  }
 
   const title = canRegeneratePlanB ? 'Envie d’autre chose ?' : 'Ta séance a déjà commencé.';
   const explanation = canRegeneratePlanB
     ? 'Choisis ce que tu veux changer. Rien ne bouge tant que tu n’as pas choisi.'
-    : 'Plan B est disponible uniquement avant de commencer. Pour la suite, utilise Ajuster ou Adapter sur l’exercice concerné.';
+    : 'Plan B est disponible uniquement avant de commencer.';
+
+  const busyLabel =
+    busyAction === 'ALTERNATE_SKILL'
+      ? 'UGEROD prépare un autre Skill…'
+      : busyAction === 'SKIP_SKILL'
+        ? 'UGEROD réorganise la séance…'
+        : busyAction === 'ALTERNATE_SESSION'
+          ? 'UGEROD prépare une autre séance…'
+          : null;
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
@@ -56,6 +77,20 @@ export default function SessionPlanBPanel({
 
           <Text style={styles.explanation}>{explanation}</Text>
 
+          {busyLabel ? (
+            <View style={styles.statusBox}>
+              <ActivityIndicator size="small" color={colors.secondaryAccent} />
+              <Text style={styles.statusText}>{busyLabel}</Text>
+            </View>
+          ) : null}
+
+          {actionError ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle-outline" size={18} color={colors.secondaryAccent} />
+              <Text style={styles.errorText}>{actionError}</Text>
+            </View>
+          ) : null}
+
           {canRegeneratePlanB ? (
             <View style={styles.options}>
               {hasSkill && canChangeSkill ? (
@@ -66,7 +101,7 @@ export default function SessionPlanBPanel({
                     icon="swap-horizontal-outline"
                     loading={busyAction === 'ALTERNATE_SKILL'}
                     disabled={Boolean(busyAction)}
-                    onPress={onAlternateSkill}
+                    onPress={() => runAction(onAlternateSkill)}
                     styles={styles}
                     colors={colors}
                   />
@@ -76,7 +111,7 @@ export default function SessionPlanBPanel({
                     icon="remove-circle-outline"
                     loading={busyAction === 'SKIP_SKILL'}
                     disabled={Boolean(busyAction)}
-                    onPress={onSkipSkill}
+                    onPress={() => runAction(onSkipSkill)}
                     styles={styles}
                     colors={colors}
                   />
@@ -89,7 +124,7 @@ export default function SessionPlanBPanel({
                 icon="refresh-outline"
                 loading={busyAction === 'ALTERNATE_SESSION'}
                 disabled={Boolean(busyAction)}
-                onPress={onAlternateSession}
+                onPress={() => runAction(onAlternateSession)}
                 styles={styles}
                 colors={colors}
               />
@@ -205,6 +240,41 @@ function createStyles(colors) {
       fontSize: 12,
       lineHeight: 18,
       color: colors.textSecondary,
+    },
+    statusBox: {
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      backgroundColor: colors.secondaryAccentSoft,
+    },
+    statusText: {
+      flex: 1,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    errorBox: {
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 9,
+      backgroundColor: colors.surface,
+    },
+    errorText: {
+      flex: 1,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      color: colors.text,
     },
     options: { gap: 10, paddingTop: 16, paddingBottom: 6 },
     option: {
