@@ -22,17 +22,10 @@ export default function SessionPlanBPanel({
 
   if (!visible) return null;
 
-  const title = canRegeneratePlanB
-    ? devTestReload && progressRecorded
-      ? 'Recharger pour continuer les tests ?'
-      : 'Envie d’autre chose ?'
-    : 'Ta séance a déjà commencé.';
-
+  const title = canRegeneratePlanB ? 'Envie d’autre chose ?' : 'Ta séance a déjà commencé.';
   const explanation = canRegeneratePlanB
-    ? devTestReload && progressRecorded
-      ? 'Mode développement : tu peux recharger une nouvelle séance pour continuer les tests. Les résultats déjà persistés restent protégés.'
-      : 'Tu peux encore changer de proposition : aucun résultat d’exercice n’a été enregistré.'
-    : 'Les résultats déjà réalisés restent intacts. Pour la suite, utilise Adapter ou Refuser sur l’exercice concerné.';
+    ? 'Choisis ce que tu veux changer. Rien ne bouge tant que tu n’as pas choisi.'
+    : 'Plan B est disponible uniquement avant de commencer. Pour la suite, utilise Ajuster ou Adapter sur l’exercice concerné.';
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
@@ -69,7 +62,7 @@ export default function SessionPlanBPanel({
                 <>
                   <PlanBOption
                     title="Un autre Skill aujourd’hui"
-                    description="UGEROD choisit un autre parcours compatible et ajuste l’échauffement spécifique."
+                    description="Changer uniquement le parcours Skill de cette séance."
                     icon="swap-horizontal-outline"
                     loading={busyAction === 'ALTERNATE_SKILL'}
                     disabled={Boolean(busyAction)}
@@ -79,7 +72,7 @@ export default function SessionPlanBPanel({
                   />
                   <PlanBOption
                     title="Pas de Skill aujourd’hui"
-                    description="Le bloc disparaît uniquement si le reste de la séance reste cohérent et sûr."
+                    description="Retirer le Skill si le reste de la séance reste cohérent."
                     icon="remove-circle-outline"
                     loading={busyAction === 'SKIP_SKILL'}
                     disabled={Boolean(busyAction)}
@@ -91,12 +84,8 @@ export default function SessionPlanBPanel({
               ) : null}
 
               <PlanBOption
-                title={devTestReload && progressRecorded ? 'Recharger une séance de test' : 'Une autre séance'}
-                description={
-                  devTestReload && progressRecorded
-                    ? 'La session de test en cours est abandonnée proprement, puis UGEROD recharge une nouvelle proposition avec le même check-in.'
-                    : 'Même durée, matériel et forme du jour. UGEROD reconstruit une proposition différente.'
-                }
+                title="Une autre séance"
+                description="Reconstruire une autre proposition avec le même check-in."
                 icon="refresh-outline"
                 loading={busyAction === 'ALTERNATE_SESSION'}
                 disabled={Boolean(busyAction)}
@@ -112,9 +101,7 @@ export default function SessionPlanBPanel({
             onPress={onClose}
             style={styles.keepButton}
           >
-            <Text style={styles.keepText}>
-              {canRegeneratePlanB ? 'Garder la séance' : 'Retour à la séance'}
-            </Text>
+            <Text style={styles.keepText}>{canRegeneratePlanB ? 'Garder la séance' : 'Retour à la séance'}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
