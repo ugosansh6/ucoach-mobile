@@ -20,12 +20,20 @@ export async function getEquipmentCatalog() {
     .order('name', { ascending: true });
 
   if (!categorizedError) {
-    return (categorizedData ?? []).map((item) => ({
-      ...item,
-      locations: Array.isArray(item.locations)
-        ? item.locations
-        : [],
-    }));
+    return (categorizedData ?? [])
+      .filter(
+        (item) =>
+          item.id === 'E00' ||
+          item.exercise_count === null ||
+          item.exercise_count === undefined ||
+          Number(item.exercise_count) > 0
+      )
+      .map((item) => ({
+        ...item,
+        locations: Array.isArray(item.locations)
+          ? item.locations
+          : [],
+      }));
   }
 
   /*

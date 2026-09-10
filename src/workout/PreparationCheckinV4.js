@@ -935,7 +935,13 @@ export default function PreparationCheckinV4() {
                 <Text style={styles.quickButtonText}>Tout mon matériel</Text>
               </Pressable>
               <Pressable
-                onPress={() => updatePreparation({ equipment: ['Poids du corps'] })}
+                onPress={() =>
+                  updatePreparation({
+                    equipment: ['Poids du corps'],
+                    equipmentEnvironmentCode: environmentCode,
+                    equipmentSelectionSource: 'session_override',
+                  })
+                }
                 style={styles.quickButton}
               >
                 <Text style={styles.quickButtonText}>Poids du corps</Text>
