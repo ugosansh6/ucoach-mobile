@@ -780,13 +780,13 @@ export default function PreparationCheckinV4() {
               <Text style={styles.resumeTitle}>
                 {sessionStarted ? 'Séance en cours' : 'Séance déjà générée'}
               </Text>
-              <Text style={styles.resumeText}>Reprends la séance existante.</Text>
+              <Text style={styles.resumeText}>Reprends exactement là où tu t’es arrêté.</Text>
             </View>
             <Pressable
               onPress={() => router.replace('/workout/session')}
               style={styles.resumeButton}
             >
-              <Text style={styles.resumeButtonText}>Reprendre</Text>
+              <Text style={styles.resumeButtonText}>Continuer</Text>
             </Pressable>
           </View>
         ) : null}

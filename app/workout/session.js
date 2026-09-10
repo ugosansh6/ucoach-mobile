@@ -99,6 +99,10 @@ export default function SessionScreen() {
 
   const isEnvironmentSession = ['GYM', 'OUTDOOR'].includes(environmentCode);
   const progressRecorded = hasRecordedProgress(workout);
+  const hasResumeCursor = Boolean(
+    workout?.playerCursor?.blockId &&
+      (!workout?.playerCursor?.sessionId || workout.playerCursor.sessionId === workout?.sessionId)
+  );
 
   const hasSkill = useMemo(
     () =>
@@ -119,8 +123,8 @@ export default function SessionScreen() {
   useEffect(() => {
     if (!workout?.sessionId || overviewShownForSessionRef.current === workout.sessionId) return;
     overviewShownForSessionRef.current = workout.sessionId;
-    if (!progressRecorded) setOverviewOpen(true);
-  }, [progressRecorded, workout?.sessionId]);
+    if (!progressRecorded && !hasResumeCursor) setOverviewOpen(true);
+  }, [hasResumeCursor, progressRecorded, workout?.sessionId]);
 
   useEffect(() => {
     if (progressRecorded && planBOpen) setPlanBOpen(false);

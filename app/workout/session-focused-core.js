@@ -269,10 +269,33 @@ export default function SessionFocusedCore({
     setDetailsOpen(false);
   }, [activeBlock?.id]);
 
+  const savedPlayerCursor = workout?.playerCursor ?? null;
+  const savedCursorMatchesBlock =
+    Boolean(activeBlock) &&
+    normalizeBlockId(savedPlayerCursor?.blockId) === activeBlock.id &&
+    (!savedPlayerCursor?.sessionId || savedPlayerCursor.sessionId === workout?.sessionId);
+  const savedCursorInstanceIndex =
+    savedCursorMatchesBlock && savedPlayerCursor?.sessionExerciseId
+      ? activeBlock.exercises.findIndex(
+          (exercise) => exercise?.sessionExerciseId === savedPlayerCursor.sessionExerciseId
+        )
+      : -1;
+  const savedCursorNumericIndex = Number(savedPlayerCursor?.exerciseIndex);
+  const savedCursorIndex = savedCursorMatchesBlock
+    ? savedCursorInstanceIndex >= 0
+      ? savedCursorInstanceIndex
+      : Number.isFinite(savedCursorNumericIndex)
+        ? savedCursorNumericIndex
+        : 0
+    : 0;
+
   const activeExerciseIndex = activeBlock
-    ? Math.min(
-        exerciseIndexes[activeBlock.id] ?? 0,
-        Math.max(0, activeBlock.exercises.length - 1)
+    ? Math.max(
+        0,
+        Math.min(
+          exerciseIndexes[activeBlock.id] ?? savedCursorIndex,
+          Math.max(0, activeBlock.exercises.length - 1)
+        )
       )
     : 0;
   const activeExercise = activeBlock?.exercises?.[activeExerciseIndex] ?? null;
@@ -281,6 +304,7 @@ export default function SessionFocusedCore({
     if (!activeBlock || !activeExercise) return;
 
     const nextCursor = {
+      sessionId: workout?.sessionId ?? null,
       blockId: activeBlock.id,
       exerciseIndex: activeExerciseIndex,
       sessionExerciseId: activeExercise?.sessionExerciseId ?? null,
@@ -289,6 +313,7 @@ export default function SessionFocusedCore({
     const currentCursor = workout?.playerCursor ?? null;
 
     if (
+      (currentCursor?.sessionId ?? null) === nextCursor.sessionId &&
       currentCursor?.blockId === nextCursor.blockId &&
       Number(currentCursor?.exerciseIndex ?? -1) === nextCursor.exerciseIndex &&
       (currentCursor?.sessionExerciseId ?? null) === nextCursor.sessionExerciseId &&
@@ -305,6 +330,8 @@ export default function SessionFocusedCore({
     activeExercise?.exerciseId,
     activeExercise?.id,
     updateWorkout,
+    workout?.sessionId,
+    workout?.playerCursor?.sessionId,
     workout?.playerCursor?.blockId,
     workout?.playerCursor?.exerciseIndex,
     workout?.playerCursor?.sessionExerciseId,
