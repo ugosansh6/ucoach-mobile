@@ -29,7 +29,8 @@ import {
   swapWorkoutExercise,
 } from '../../src/services/workoutService';
 import { adaptSessionExercise } from '../../src/services/sessionAdaptationService';
-import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayer';
+import { applyWodRuntimeStatuses } from '../../src/services/wodRuntimeStatus';
+import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayerV3';
 
 const BLOCK_ORDER = ['unlock', 'tabata', 'warmup', 'skill', 'wod'];
 const BLOCK_LABELS = {
@@ -407,7 +408,10 @@ export default function SessionFocusedCore({
 
   function finalizeBlock(block, extraExercisePatch = null) {
     const nextValidated = Array.from(new Set([...validatedBlocks, block.id]));
-    const nextExercises = (workout?.exercises ?? []).map((exercise) => {
+    const completionBaseExercises = block.id === 'wod'
+      ? applyWodRuntimeStatuses(workout?.exercises ?? [], block, workout?.wodRuntime ?? null)
+      : (workout?.exercises ?? []);
+    const nextExercises = completionBaseExercises.map((exercise) => {
       if (normalizeBlockId(exercise?.blockKey ?? exercise?.block) !== block.id) return exercise;
 
       let next = exercise;
@@ -427,6 +431,7 @@ export default function SessionFocusedCore({
         };
       }
 
+      if (block.id === 'wod') return next;
       return statusValue(next) === 'pending' ? { ...next, status: 'completed' } : next;
     });
 
@@ -675,7 +680,8 @@ export default function SessionFocusedCore({
   );
 
   async function openFormatModal() {
-    if (!workout?.sessionId || workout?.formatLocked || workout?.wodRuntime?.started) return;
+    const wodHasStarted = Boolean(workout?.wodRuntime?.started || workout?.wodStarted || workout?.wodStartedAt);
+    if (!workout?.sessionId || wodHasStarted) return;
 
     try {
       setFormatOpen(true);
@@ -786,7 +792,11 @@ export default function SessionFocusedCore({
             <Text style={styles.headerEyebrow}>Bloc {activeBlockIndex + 1}/{blocks.length}</Text>
             <Text style={styles.headerTitle}>{activeBlock.title}</Text>
             <Text numberOfLines={1} style={styles.headerMeta}>
-              {[activeBlock.structure, activeBlock.durationLabel].filter(Boolean).join(' · ')}
+              {(activeBlock.id === 'wod'
+                ? [workout?.format ?? activeBlock?.source?.mechanicLabel, activeBlock.durationLabel]
+                : [activeBlock.structure, activeBlock.durationLabel])
+                .filter(Boolean)
+                .join(' · ')}
             </Text>
           </View>
 
@@ -847,10 +857,10 @@ export default function SessionFocusedCore({
                     <Text style={styles.formatLabel}>Format</Text>
                     <Text style={styles.formatValue}>{String(workout?.format ?? activeBlock?.source?.mechanicLabel ?? 'UGEROD')}</Text>
                   </View>
-                  {remainingFormatChanges > 0 && !workout?.formatLocked ? (
+                  {remainingFormatChanges > 0 && !workout?.wodStarted && !workout?.wodStartedAt ? (
                     <Pressable onPress={openFormatModal} style={styles.smallActionButton}>
                       <Ionicons name="options-outline" size={16} color={colors.accent} />
-                      <Text style={styles.smallActionText}>Modifier</Text>
+                      <Text style={styles.smallActionText}>Changer</Text>
                     </Pressable>
                   ) : null}
                 </View>
@@ -866,10 +876,10 @@ export default function SessionFocusedCore({
                     <Text style={styles.formatLabel}>Format du WOD</Text>
                     <Text style={styles.formatValue}>{String(workout?.format ?? activeBlock?.source?.mechanicLabel ?? 'UGEROD')}</Text>
                   </View>
-                  {remainingFormatChanges > 0 && !workout?.formatLocked && !workout?.wodRuntime?.started ? (
+                  {remainingFormatChanges > 0 && !workout?.wodStarted && !workout?.wodStartedAt && !workout?.wodRuntime?.started ? (
                     <Pressable onPress={openFormatModal} style={styles.smallActionButton}>
                       <Ionicons name="options-outline" size={16} color={colors.accent} />
-                      <Text style={styles.smallActionText}>Modifier</Text>
+                      <Text style={styles.smallActionText}>Changer</Text>
                     </Pressable>
                   ) : null}
                 </View>

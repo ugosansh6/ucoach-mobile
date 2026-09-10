@@ -1361,18 +1361,9 @@ function parseLoadKg(value) {
 }
 
 function normalizeUserExecutionStatus(status) {
-  if (status === 'adapted') {
-    return 'adapted';
-  }
-
-  if (
-    status === 'not_completed' ||
-    status === 'skipped'
-  ) {
-    return 'not_completed';
-  }
-
-  return 'completed';
+  if (status === 'completed') return 'completed';
+  if (status === 'adapted') return 'adapted';
+  return 'not_completed';
 }
 
 function toLegacyStatus(userExecutionStatus) {

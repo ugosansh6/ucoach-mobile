@@ -122,19 +122,9 @@ const FALLBACK_EXERCISES = [
 ];
 
 function executionStatus(exercise) {
-  if (exercise.status === 'adapted') {
-    return 'adapted';
-  }
-
-  if (
-    exercise.status ===
-      'not_completed' ||
-    exercise.status === 'skipped'
-  ) {
-    return 'not_completed';
-  }
-
-  return 'completed';
+  if (exercise.status === 'completed') return 'completed';
+  if (exercise.status === 'adapted') return 'adapted';
+  return 'not_completed';
 }
 
 function exerciseKey(exercise) {
