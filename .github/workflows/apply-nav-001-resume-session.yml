@@ -1,0 +1,46 @@
+name: Apply NAV-001 resume session
+
+on:
+  push:
+    paths:
+      - '.github/player-patches/run-nav-001-resume-session.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply NAV-001 patch
+        run: node .github/player-patches/apply-nav-001-resume-session.mjs
+      - name: Verify resume contract and export web
+        run: |
+          grep -q "savedCursorMatchesBlock" app/workout/session-focused-core.js
+          grep -q "hasResumeCursor" app/workout/session.js
+          grep -q "Reprends exactement là où tu t’es arrêté" src/workout/PreparationCheckinV4.js
+          grep -q ">Continuer<" src/workout/PreparationCheckinV4.js
+          npx expo export --platform web
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/workout/session-focused-core.js app/workout/session.js src/workout/PreparationCheckinV4.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix(nav): resume workout at saved player cursor"
+            git push origin ux-navigation-coach-v1
+          fi
