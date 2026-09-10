@@ -1,0 +1,82 @@
+name: Apply PLAY-012-013 WOD runtime polish
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-play-012-013-wod-runtime-polish.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_WEB_BASE_URL: /ucoach-mobile
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply runtime polish
+        run: node .github/player-patches/apply-play-012-013-wod-runtime-polish.mjs
+
+      - name: Smoke test partial status matrix
+        run: |
+          cp src/services/wodRuntimeStatus.js /tmp/wodRuntimeStatus.mjs
+          node --input-type=module <<'NODE'
+          import { deriveWodExerciseStatuses } from 'file:///tmp/wodRuntimeStatus.mjs';
+          const ex = [
+            { id: 'A', sessionExerciseId: 'a' },
+            { id: 'B', sessionExerciseId: 'b' },
+          ];
+          const block = { mechanic: 'CIRCUIT', exercises: ex };
+          const full = deriveWodExerciseStatuses(block, { started: true, finished: true, mechanic: 'CIRCUIT', finishReason: 'rounds_complete', completedRounds: 3, parameters: { rounds: 3 } });
+          if ([...full.values()].some((v) => v !== 'completed')) throw new Error('Full circuit must be completed');
+          const partial = deriveWodExerciseStatuses(block, { started: true, finished: true, mechanic: 'CIRCUIT', finishReason: 'manual_stop', completedRounds: 1, parameters: { rounds: 3 } });
+          if ([...partial.values()].some((v) => v === 'completed')) throw new Error('Partial circuit must not create completed capability rows');
+          const sets = deriveWodExerciseStatuses({ mechanic: 'SETS_REPS', exercises: ex }, { started: true, finished: true, mechanic: 'SETS_REPS', finishReason: 'manual_stop', manualStep: 4, parameters: { sets: 3 } });
+          if (sets.get('a') !== 'adapted' || sets.get('b') !== 'adapted') throw new Error('Partial sets/reps status mismatch');
+          const chipper = deriveWodExerciseStatuses({ mechanic: 'CHIPPER', exercises: ex }, { started: true, finished: true, mechanic: 'CHIPPER', finishReason: 'manual_stop', currentItemIndex: 1, parameters: {} });
+          if (chipper.get('a') !== 'completed' || chipper.get('b') !== 'not_completed') throw new Error('Partial chipper status mismatch');
+          console.log('WOD partial status smoke matrix OK');
+          NODE
+
+      - name: Verify and export web
+        run: |
+          git diff --check
+          grep -n "canChangeFormat\|appendRuntimeEvent\|phaseKey\|play-013-wod-player-v3" src/components/workout/WodProtocolPlayerV3.js
+          grep -n "canChangeFormat={remainingFormatChanges" app/workout/session-focused-core.js
+          grep -n "completedRepTarget\|target_reps" src/services/wodProtocolOutcome.js
+          if grep -q "controlled_interval\|every_x_cycle\|controlled_work_interval" src/services/wodProtocolOutcome.js; then
+            echo "Unsafe time-only capability inference still present"
+            exit 1
+          fi
+          npx expo export --platform web --output-dir dist-play-013-polish
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- app/workout/session-focused-core.js src/components/workout/WodProtocolPlayerV3.js src/services/wodProtocolOutcome.js; then
+            echo "No PLAY-012-013 changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/workout/session-focused-core.js src/components/workout/WodProtocolPlayerV3.js src/services/wodProtocolOutcome.js
+          git commit -m "fix(wod): harden runtime semantics and simplify player"
+          git push origin HEAD:ux-navigation-coach-v1
