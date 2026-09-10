@@ -23,11 +23,6 @@ import {
   getEquipmentCatalog,
   getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
-import { getEquipmentUxSections } from '../constants/equipmentUxCategories';
-
-const BRAND_KAKI = '#5E6633';
-const BRAND_ORANGE = '#FF6B19';
-const BRAND_KAKI_SOFT = 'rgba(94, 102, 51, 0.14)';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -145,7 +140,7 @@ function buildReferenceEquipment(catalog, inventory) {
         detail = `×${quantity}`;
       }
 
-      return { ...item, detail };
+      return { id: item.id, name: item.name, detail };
     });
 }
 
@@ -457,7 +452,6 @@ export default function PreparationCheckinV4() {
 
   const [sheet, setSheet] = useState(null);
   const [referenceEquipment, setReferenceEquipment] = useState([]);
-  const [equipmentCategory, setEquipmentCategory] = useState(null);
   const [equipmentLoading, setEquipmentLoading] = useState(true);
   const [equipmentError, setEquipmentError] = useState('');
   const [equipmentNeedsLogin, setEquipmentNeedsLogin] = useState(false);
@@ -473,24 +467,6 @@ export default function PreparationCheckinV4() {
     ? Number(preparation.duration)
     : 45;
   const environmentCode = String(preparation?.environmentCode ?? 'HOME').toUpperCase();
-  const equipmentBrandColors = useMemo(
-    () => ({ ...colors, accent: BRAND_KAKI, accentSoft: BRAND_KAKI_SOFT }),
-    [colors]
-  );
-  const equipmentSections = useMemo(
-    () => getEquipmentUxSections(
-      referenceEquipment,
-      environmentCode,
-      referenceEquipment.map((item) => item.id)
-    ),
-    [environmentCode, referenceEquipment]
-  );
-  const resolvedEquipmentCategory =
-    equipmentSections.some((section) => section.key === equipmentCategory)
-      ? equipmentCategory
-      : equipmentSections[0]?.key ?? null;
-  const visibleReferenceEquipment =
-    equipmentSections.find((section) => section.key === resolvedEquipmentCategory)?.items ?? [];
   const readiness = Number(preparation?.readiness ?? 6);
   const readinessOption = readinessBand(readiness);
   const painZones = Array.isArray(preparation?.painZones) ? preparation.painZones : [];
@@ -603,7 +579,6 @@ export default function PreparationCheckinV4() {
   }
 
   function selectEnvironment(code) {
-    setEquipmentCategory(null);
     updatePreparation({
       environmentCode: code,
       formatCode: null,
@@ -907,7 +882,7 @@ export default function PreparationCheckinV4() {
         styles={styles}
         colors={colors}
         footer={
-          <Pressable onPress={() => setSheet(null)} style={[styles.sheetDoneButton, { backgroundColor: BRAND_ORANGE }] }>
+          <Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}>
             <Text style={styles.sheetDoneButtonText}>Terminé</Text>
           </Pressable>
         }
@@ -935,75 +910,32 @@ export default function PreparationCheckinV4() {
                 <Text style={styles.quickButtonText}>Tout mon matériel</Text>
               </Pressable>
               <Pressable
-                onPress={() =>
-                  updatePreparation({
-                    equipment: ['Poids du corps'],
-                    equipmentEnvironmentCode: environmentCode,
-                    equipmentSelectionSource: 'session_override',
-                  })
-                }
+                onPress={() => updatePreparation({
+                  equipment: ['Poids du corps'],
+                  equipmentEnvironmentCode: environmentCode,
+                  equipmentSelectionSource: 'session_override',
+                })}
                 style={styles.quickButton}
               >
                 <Text style={styles.quickButtonText}>Poids du corps</Text>
               </Pressable>
             </View>
 
-            {equipmentSections.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.equipmentCategoryTabs}
-              >
-                {equipmentSections.map((category) => {
-                  const selected = resolvedEquipmentCategory === category.key;
-                  const selectedCount = category.items.filter((item) =>
-                    equipment.includes(item.name)
-                  ).length;
-
-                  return (
-                    <Pressable
-                      key={category.key}
-                      onPress={() => setEquipmentCategory(category.key)}
-                      style={[
-                        styles.equipmentCategoryTab,
-                        selected && styles.equipmentCategoryTabSelected,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.equipmentCategoryIcon,
-                          selected && styles.equipmentCategoryIconSelected,
-                        ]}
-                      >
-                        <Ionicons
-                          name={category.icon}
-                          size={18}
-                          color={selected ? '#FFFFFF' : BRAND_KAKI}
-                        />
-                      </View>
-                      <View style={styles.flexOne}>
-                        <Text style={styles.equipmentCategoryLabel}>{category.label}</Text>
-                        <Text numberOfLines={1} style={styles.equipmentCategoryMeta}>
-                          {category.groups.map((group) => group.label).join(' · ')}
-                        </Text>
-                        <Text style={styles.equipmentCategoryCount}>
-                          {selectedCount}/{category.items.length}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            )}
-
             <View style={styles.equipmentGrid}>
-              {visibleReferenceEquipment.map((item) => (
+              <EquipmentChoice
+                item={{ name: 'Poids du corps', detail: null }}
+                selected={equipment.includes('Poids du corps')}
+                onPress={() => toggleEquipment('Poids du corps')}
+                colors={colors}
+                styles={styles}
+              />
+              {referenceEquipment.map((item) => (
                 <EquipmentChoice
                   key={item.id}
                   item={item}
                   selected={equipment.includes(item.name)}
                   onPress={() => toggleEquipment(item.name)}
-                  colors={equipmentBrandColors}
+                  colors={colors}
                   styles={styles}
                 />
               ))}
@@ -1019,8 +951,8 @@ export default function PreparationCheckinV4() {
               }}
               style={styles.inlineLink}
             >
-              <Text style={[styles.inlineLinkText, { color: BRAND_KAKI }]}>Modifier mon matériel</Text>
-              <Ionicons name="chevron-forward" size={18} color={BRAND_KAKI} />
+              <Text style={styles.inlineLinkText}>Modifier mon matériel</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.accent} />
             </Pressable>
           </>
         )}
@@ -1466,57 +1398,6 @@ function createStyles(colors) {
       fontFamily: MANROPE.semiBold,
       fontSize: 12,
       color: colors.textSecondary,
-    },
-    equipmentCategoryTabs: {
-      marginTop: 14,
-      gap: 9,
-      paddingRight: 18,
-    },
-    equipmentCategoryTab: {
-      width: 164,
-      minHeight: 94,
-      padding: 11,
-      borderRadius: 15,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceElevated,
-      flexDirection: 'row',
-      gap: 9,
-    },
-    equipmentCategoryTabSelected: {
-      borderColor: BRAND_KAKI,
-      backgroundColor: BRAND_KAKI_SOFT,
-    },
-    equipmentCategoryIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: BRAND_KAKI_SOFT,
-    },
-    equipmentCategoryIconSelected: {
-      backgroundColor: BRAND_KAKI,
-    },
-    equipmentCategoryLabel: {
-      fontFamily: MANROPE.bold,
-      fontSize: 13,
-      lineHeight: 18,
-      color: colors.text,
-    },
-    equipmentCategoryMeta: {
-      marginTop: 2,
-      fontFamily: MANROPE.regular,
-      fontSize: 10,
-      lineHeight: 14,
-      color: colors.textMuted,
-    },
-    equipmentCategoryCount: {
-      marginTop: 4,
-      fontFamily: MANROPE.bold,
-      fontSize: 11,
-      lineHeight: 14,
-      color: BRAND_ORANGE,
     },
     equipmentGrid: {
       marginTop: 10,
