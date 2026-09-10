@@ -1,0 +1,44 @@
+name: Apply PLAY-011-013 WOD stabilisation
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-play-011-013-wod-stabilisation.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Apply WOD stabilisation patch
+        run: node .github/player-patches/apply-play-011-013-wod-stabilisation.mjs
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          grep -n "WodProtocolPlayerV3\|applyWodRuntimeStatuses\|wodHasStarted" app/workout/session-focused-core.js
+          grep -n "return 'not_completed'" app/workout/completion-core.js src/services/workoutService.js
+          grep -n "controlled_interval\|every_x_cycle\|controlled_work_interval" src/services/wodProtocolOutcome.js
+          grep -n "play-013-wod-player-v3\|EVERY_X_MINUTES\|SETS_REPS\|DECK" src/components/workout/WodProtocolPlayerV3.js
+          npx expo export --platform web --output-dir dist-play-013
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- app/workout/session-focused-core.js app/workout/completion-core.js src/services/workoutService.js src/services/wodProtocolOutcome.js; then
+            echo "No PLAY-011-013 changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/workout/session-focused-core.js app/workout/completion-core.js src/services/workoutService.js src/services/wodProtocolOutcome.js
+          git commit -m "feat(wod): stabilize format lifecycle and runtime player"
+          git push origin HEAD:ux-navigation-coach-v1
