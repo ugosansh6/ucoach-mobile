@@ -871,23 +871,12 @@ export default function SessionFocusedCore({
               </View>
             ) : (
               <View style={styles.wodWrap}>
-                <View style={styles.formatRowStandalone}>
-                  <View style={styles.formatCopy}>
-                    <Text style={styles.formatLabel}>Format du WOD</Text>
-                    <Text style={styles.formatValue}>{String(workout?.format ?? activeBlock?.source?.mechanicLabel ?? 'UGEROD')}</Text>
-                  </View>
-                  {remainingFormatChanges > 0 && !workout?.wodStarted && !workout?.wodStartedAt && !workout?.wodRuntime?.started ? (
-                    <Pressable onPress={openFormatModal} style={styles.smallActionButton}>
-                      <Ionicons name="options-outline" size={16} color={colors.accent} />
-                      <Text style={styles.smallActionText}>Changer</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-
                 <WodProtocolPlayer
                   key={`${workout?.sessionId ?? 'dev'}-${workout?.format ?? activeBlock?.mechanic ?? 'wod'}`}
                   block={activeBlock}
                   initialRuntime={workout?.wodRuntime ?? null}
+                  canChangeFormat={remainingFormatChanges > 0 && !workout?.wodStarted && !workout?.wodStartedAt && !workout?.wodRuntime?.started}
+                  onChangeFormat={openFormatModal}
                   onBeforeStart={handleWodStart}
                   onRuntimeChange={handleWodRuntime}
                 />

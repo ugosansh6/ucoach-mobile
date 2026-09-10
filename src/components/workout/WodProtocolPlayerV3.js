@@ -175,6 +175,20 @@ function protocolSummary(mechanic, params, exercises, durationMinutes) {
   return `${durationMinutes} min`;
 }
 
+function appendRuntimeEvent(current, eventType, elapsedSeconds, payload = {}) {
+  const safeElapsed = Math.max(0, Math.floor(numberOr(elapsedSeconds, 0)));
+  const ordinal = Array.isArray(current) ? current.length : 0;
+  return [
+    ...(Array.isArray(current) ? current : []),
+    {
+      event_type: eventType,
+      occurred_at: new Date().toISOString(),
+      idempotency_key: `play013:${eventType}:${ordinal}:${safeElapsed}`,
+      payload: { elapsed_seconds: safeElapsed, ...payload },
+    },
+  ];
+}
+
 function useSecondClock({ started, paused, finished, maxSeconds, initialElapsed, onAutoFinish }) {
   const [elapsed, setElapsed] = useState(Math.max(0, numberOr(initialElapsed, 0)));
   useEffect(() => {
@@ -199,6 +213,8 @@ export default function WodProtocolPlayerV3({
   initialRuntime = null,
   onBeforeStart,
   onRuntimeChange,
+  canChangeFormat = false,
+  onChangeFormat = null,
 }) {
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -248,11 +264,12 @@ export default function WodProtocolPlayerV3({
     setFinished(true);
     setPaused(false);
     setFinishReason(reason);
-    setEvents((current) => [...current, {
-      event_type: 'WOD_FINISHED',
-      elapsed_seconds: elapsedOverride,
-      reason,
-    }]);
+    setEvents((current) => appendRuntimeEvent(
+      current,
+      'WOD_FINISHED',
+      elapsedOverride,
+      { reason }
+    ));
     playBeep(2);
     Vibration.vibrate([0, 100, 60, 100]);
   }, [finished, playBeep]);
@@ -292,6 +309,7 @@ export default function WodProtocolPlayerV3({
       const minuteIndex = Math.floor(elapsed / stationSeconds);
       const exerciseIndex = minuteIndex % Math.max(1, exercises.length);
       return {
+        phaseKey: `emom-${minuteIndex}`,
         currentExercise: exercises[exerciseIndex] ?? null,
         nextExercise: exercises[(exerciseIndex + 1) % Math.max(1, exercises.length)] ?? null,
         phaseRemaining: Math.max(0, stationSeconds - (elapsed % stationSeconds)),
@@ -309,6 +327,7 @@ export default function WodProtocolPlayerV3({
       const exerciseCount = Math.max(1, numberOr(params.exercise_count, exercises.length || 1));
       const exerciseIndex = stationIndex % Math.max(1, exercises.length);
       return {
+        phaseKey: `hiit-${stationIndex}-${inWork ? 'work' : 'rest'}`,
         currentExercise: exercises[exerciseIndex] ?? null,
         nextExercise: exercises[(exerciseIndex + 1) % Math.max(1, exercises.length)] ?? null,
         phaseRemaining: inWork ? Math.max(0, work - within) : Math.max(0, stationDuration - within),
@@ -323,6 +342,7 @@ export default function WodProtocolPlayerV3({
       const odd = (minuteIndex + 1) % 2 === 1;
       const index = Math.max(0, numberOr(odd ? params.odd_position : params.even_position, odd ? 1 : 2) - 1);
       return {
+        phaseKey: `odd-even-${minuteIndex}`,
         currentExercise: exercises[index] ?? exercises[0] ?? null,
         phaseRemaining: Math.max(0, stationSeconds - (elapsed % stationSeconds)),
         phaseDuration: stationSeconds,
@@ -333,6 +353,7 @@ export default function WodProtocolPlayerV3({
       const interval = Math.max(1, numberOr(params.interval_seconds, 120));
       const cycleIndex = Math.floor(elapsed / interval);
       return {
+        phaseKey: `every-${cycleIndex}`,
         phaseRemaining: Math.max(0, interval - (elapsed % interval)),
         phaseDuration: interval,
         label: `Cycle ${cycleIndex + 1} / ${Math.max(1, numberOr(params.cycles, 1))}`,
@@ -340,8 +361,9 @@ export default function WodProtocolPlayerV3({
     }
     if (mechanic === 'PROGRESSIVE_INTERVAL') {
       const interval = Math.max(1, numberOr(params.interval_seconds, 60));
-      const stage = Math.floor(Math.max(0, elapsed - 1) / interval) + 1;
+      const stage = Math.floor(elapsed / interval) + 1;
       return {
+        phaseKey: `progressive-${stage}`,
         stage,
         phaseRemaining: Math.max(0, interval - (elapsed % interval)),
         phaseDuration: interval,
@@ -350,6 +372,28 @@ export default function WodProtocolPlayerV3({
     }
     return {};
   }, [elapsed, exercises, mechanic, params]);
+
+  const lastPhaseKey = useRef(null);
+
+  useEffect(() => {
+    if (!started || paused || finished || !derived.phaseKey) return;
+    if (lastPhaseKey.current === derived.phaseKey) return;
+    if (lastPhaseKey.current != null) {
+      playBeep();
+      Vibration.vibrate(70);
+    }
+    lastPhaseKey.current = derived.phaseKey;
+  }, [derived.phaseKey, finished, paused, playBeep, started]);
+
+  useEffect(() => {
+    if (!started || paused || finished) return;
+    const remaining = derived.phaseRemaining ??
+      (totalSeconds != null ? Math.max(0, totalSeconds - elapsed) : null);
+    if (remaining != null && remaining > 0 && remaining <= 3) {
+      playBeep();
+      Vibration.vibrate(30);
+    }
+  }, [derived.phaseRemaining, elapsed, finished, paused, playBeep, started, totalSeconds]);
 
   const runtime = useMemo(() => ({
     version: 'play-013-wod-player-v3',
@@ -390,7 +434,7 @@ export default function WodProtocolPlayerV3({
       await onBeforeStart?.();
       setStarted(true);
       setPaused(false);
-      setEvents((current) => [...current, { event_type: 'WOD_STARTED', elapsed_seconds: 0 }]);
+      setEvents((current) => appendRuntimeEvent(current, 'WOD_STARTED', 0));
       playBeep();
       Vibration.vibrate(60);
     } catch (error) {
@@ -404,10 +448,11 @@ export default function WodProtocolPlayerV3({
     if (!started || finished) return;
     const next = !paused;
     setPaused(next);
-    setEvents((current) => [...current, {
-      event_type: next ? 'WOD_PAUSED' : 'WOD_RESUMED',
-      elapsed_seconds: elapsed,
-    }]);
+    setEvents((current) => appendRuntimeEvent(
+      current,
+      next ? 'WOD_PAUSED' : 'WOD_RESUMED',
+      elapsed
+    ));
   }
 
   function completeRound() {
@@ -415,7 +460,7 @@ export default function WodProtocolPlayerV3({
     const next = completedRounds + 1;
     setCompletedRounds(next);
     setRoundSplits((current) => [...current, { round_index: next, elapsed_seconds: elapsed }]);
-    setEvents((current) => [...current, { event_type: 'ROUND_COMPLETED', round_index: next, elapsed_seconds: elapsed }]);
+    setEvents((current) => appendRuntimeEvent(current, 'ROUND_COMPLETED', elapsed, { round_index: next }));
     const target = params.rounds != null ? Math.max(1, numberOr(params.rounds, 1)) : null;
     if (mechanic !== 'AMRAP' && target != null && next >= target) {
       finish('rounds_complete', elapsed);
@@ -426,20 +471,20 @@ export default function WodProtocolPlayerV3({
   }
 
   function completeStep(maxSteps) {
+    setEvents((current) => appendRuntimeEvent(current, 'STEP_COMPLETED', elapsed, { step: manualStep }));
     if (manualStep >= maxSteps) {
       finish('steps_complete', elapsed);
       return;
     }
-    setEvents((current) => [...current, { event_type: 'STEP_COMPLETED', step: manualStep, elapsed_seconds: elapsed }]);
     setManualStep((value) => value + 1);
   }
 
   function completeItem() {
+    setEvents((current) => appendRuntimeEvent(current, 'ITEM_COMPLETED', elapsed, { item_index: currentItemIndex }));
     if (currentItemIndex >= exercises.length - 1) {
       finish('sequence_complete', elapsed);
       return;
     }
-    setEvents((current) => [...current, { event_type: 'ITEM_COMPLETED', item_index: currentItemIndex, elapsed_seconds: elapsed }]);
     setCurrentItemIndex((value) => value + 1);
   }
 
@@ -447,11 +492,11 @@ export default function WodProtocolPlayerV3({
     if (restRemaining > 0) return;
     const sets = Math.max(1, numberOr(params.sets, 1));
     const total = sets * Math.max(1, exercises.length);
+    setEvents((current) => appendRuntimeEvent(current, 'SET_COMPLETED', elapsed, { set_station: manualStep }));
     if (manualStep >= total) {
       finish('sets_complete', elapsed);
       return;
     }
-    setEvents((current) => [...current, { event_type: 'SET_COMPLETED', set_station: manualStep, elapsed_seconds: elapsed }]);
     setManualStep((value) => value + 1);
     setRestRemaining(Math.max(0, numberOr(params.rest_between_exercises_seconds, 0)));
   }
@@ -478,6 +523,8 @@ export default function WodProtocolPlayerV3({
           loading={starting}
           error={startError}
           onStart={start}
+          canChangeFormat={canChangeFormat}
+          onChangeFormat={onChangeFormat}
           styles={styles}
           colors={colors}
         />
@@ -516,6 +563,7 @@ export default function WodProtocolPlayerV3({
             onFailure={() => finish('observed_failure', elapsed)}
             onDeckNext={() => {
               const deck = Array.isArray(params.deck_order) ? params.deck_order : [];
+              setEvents((current) => appendRuntimeEvent(current, 'CARD_COMPLETED', elapsed, { card_index: currentItemIndex }));
               if (currentItemIndex >= deck.length - 1) finish('deck_complete', elapsed);
               else setCurrentItemIndex((value) => value + 1);
             }}
@@ -545,12 +593,20 @@ export default function WodProtocolPlayerV3({
   );
 }
 
-function StartPanel({ title, summary, exercises, loading, error, onStart, styles, colors }) {
+function StartPanel({ title, summary, exercises, loading, error, onStart, canChangeFormat, onChangeFormat, styles, colors }) {
   return (
     <>
-      <View style={styles.startHeader}>
-        <View style={styles.readyDot} />
-        <Text style={styles.readyLabel}>Prêt à démarrer</Text>
+      <View style={styles.startTopRow}>
+        <View style={styles.startHeader}>
+          <View style={styles.readyDot} />
+          <Text style={styles.readyLabel}>Prêt à démarrer</Text>
+        </View>
+        {canChangeFormat && typeof onChangeFormat === 'function' ? (
+          <Pressable onPress={onChangeFormat} style={styles.changeFormatButton}>
+            <Ionicons name="options-outline" size={16} color={WOD_ACCENT} />
+            <Text style={styles.changeFormatText}>Changer</Text>
+          </Pressable>
+        ) : null}
       </View>
       <Text style={styles.startTitle}>{title}</Text>
       <Text style={styles.startSummary}>{summary}</Text>
@@ -784,7 +840,10 @@ function createStyles(colors, isDark) {
       borderWidth: 1,
       borderColor: colors.border,
     },
+    startTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
     startHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    changeFormatButton: { minHeight: 38, paddingHorizontal: 10, borderRadius: 11, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
+    changeFormatText: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: WOD_ACCENT },
     readyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: WOD_ACCENT },
     readyLabel: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: WOD_ACCENT },
     startTitle: { marginTop: 8, fontFamily: 'Manrope_800ExtraBold', fontSize: 27, lineHeight: 33, color: colors.text },
