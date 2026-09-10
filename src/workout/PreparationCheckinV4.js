@@ -481,14 +481,6 @@ export default function PreparationCheckinV4() {
   const normalizedStatus = String(workout?.status ?? '').toLowerCase();
   const hasActiveSession =
     Boolean(workout?.sessionId) && !['completed', 'abandoned'].includes(normalizedStatus);
-  const sessionStarted = Boolean(
-    workout?.sessionStarted ||
-      workout?.startedAt ||
-      workout?.wodStarted ||
-      workout?.wodStartedAt ||
-      workout?.wodRuntime?.started ||
-      normalizedStatus === 'in_progress'
-  );
 
   const loadEquipment = useCallback(async () => {
     setEquipmentLoading(true);
@@ -761,35 +753,29 @@ export default function PreparationCheckinV4() {
         </View>
 
         <Pressable
-          onPress={handleGenerate}
-          disabled={equipmentLoading}
+          onPress={() => {
+            if (hasActiveSession) {
+              router.replace('/workout/session');
+              return;
+            }
+            handleGenerate();
+          }}
+          disabled={!hasActiveSession && equipmentLoading}
           style={({ pressed }) => [
             styles.primaryButton,
-            !canGenerate && styles.primaryButtonPending,
-            pressed && !equipmentLoading && styles.pressed,
+            !hasActiveSession && !canGenerate && styles.primaryButtonPending,
+            pressed && (hasActiveSession || !equipmentLoading) && styles.pressed,
           ]}
         >
-          <Text style={styles.primaryButtonText}>Voir ma séance</Text>
-          <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
+          <Text style={styles.primaryButtonText}>
+            {hasActiveSession ? 'Reprendre sa séance' : 'Voir ma séance'}
+          </Text>
+          <Ionicons
+            name={hasActiveSession ? 'play' : 'arrow-forward'}
+            size={21}
+            color={colors.textOnAccent}
+          />
         </Pressable>
-
-        {hasActiveSession ? (
-          <View style={styles.resumePanel}>
-            <Ionicons name="play-circle-outline" size={22} color={colors.accent} />
-            <View style={styles.flexOne}>
-              <Text style={styles.resumeTitle}>
-                {sessionStarted ? 'Séance en cours' : 'Séance déjà générée'}
-              </Text>
-              <Text style={styles.resumeText}>Reprends exactement là où tu t’es arrêté.</Text>
-            </View>
-            <Pressable
-              onPress={() => router.replace('/workout/session')}
-              style={styles.resumeButton}
-            >
-              <Text style={styles.resumeButtonText}>Continuer</Text>
-            </Pressable>
-          </View>
-        ) : null}
 
         <View style={styles.bottomSpace} />
       </ScrollView>
@@ -1230,42 +1216,6 @@ function createStyles(colors) {
       color: colors.textOnAccent,
     },
 
-    resumePanel: {
-      marginTop: 12,
-      padding: 12,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 9,
-    },
-    resumeTitle: {
-      fontFamily: MANROPE.bold,
-      fontSize: 13,
-      color: colors.text,
-    },
-    resumeText: {
-      marginTop: 2,
-      fontFamily: MANROPE.regular,
-      fontSize: 13,
-      lineHeight: 18,
-      color: colors.textSecondary,
-    },
-    resumeButton: {
-      minHeight: 36,
-      paddingHorizontal: 12,
-      borderRadius: 10,
-      backgroundColor: colors.surfaceElevated,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    resumeButtonText: {
-      fontFamily: MANROPE.bold,
-      fontSize: 12,
-      color: colors.accent,
-    },
 
     modalRoot: {
       flex: 1,
