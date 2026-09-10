@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
@@ -17,10 +18,10 @@ import {
 } from 'react-native';
 
 import {
-  colors,
   spacing,
   typography,
 } from '../../src/constants';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 
 import {
   getEquipmentCatalog,
@@ -37,8 +38,12 @@ const backgroundImage = require(
   '../../assets/backgrounds/welcome-default.jpg'
 );
 
-const brandIcon = require(
+const darkBrandIcon = require(
   '../../assets/branding/ugerod-icon.png'
+);
+
+const lightBrandIcon = require(
+  '../../assets/branding/LOGO VERSION NOIR.png'
 );
 
 const FIXED_LOAD_CAPABLE_IDS = new Set([
@@ -294,6 +299,40 @@ function sanitizeInventory(rows) {
 
 export default function ProfileEquipmentScreen() {
   const { returnTo } = useLocalSearchParams();
+  const { colors: themeColors, isDark } = useUgerodTheme();
+
+  const colors = useMemo(
+    () => ({
+      ...themeColors,
+      // Cette page applique la nouvelle charte UGEROD dans les deux thèmes.
+      accent: BRAND_KAKI,
+      accentStrong: BRAND_KAKI,
+      accentSoft: isDark
+        ? 'rgba(94,102,51,0.22)'
+        : 'rgba(94,102,51,0.12)',
+      secondaryAccent: BRAND_ORANGE,
+      secondaryAccentStrong: BRAND_ORANGE,
+      secondaryAccentSoft: isDark
+        ? 'rgba(255,107,25,0.18)'
+        : 'rgba(255,107,25,0.12)',
+      primary: BRAND_KAKI,
+      primaryLight: isDark ? '#A8B09A' : BRAND_KAKI,
+      textPrimary: themeColors.text,
+      brandWhite: '#FFFFFF',
+    }),
+    [themeColors, isDark]
+  );
+
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
+
+  const QuantityControl = (props) => (
+    <EquipmentQuantityControl {...props} styles={styles} colors={colors} />
+  );
+
+  const LoadInput = (props) => (
+    <EquipmentLoadInput {...props} styles={styles} colors={colors} />
+  );
   const [catalog, setCatalog] =
     useState([]);
 
@@ -874,35 +913,30 @@ export default function ProfileEquipmentScreen() {
   return (
     <View style={styles.screen}>
       <ImageBackground
-        source={backgroundImage}
+        source={isDark ? backgroundImage : undefined}
         resizeMode="cover"
         style={styles.background}
       >
-        <View
-          style={styles.darkOverlay}
-        />
-
-        <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.45)',
-            'rgba(7,9,12,0.72)',
-            'rgba(7,9,12,0.95)',
-            'rgba(7,9,12,1)',
-          ]}
-          locations={[
-            0,
-            0.26,
-            0.68,
-            1,
-          ]}
-          style={
-            StyleSheet.absoluteFill
-          }
-        />
+        {isDark && (
+          <>
+            <View style={styles.darkOverlay} />
+            <LinearGradient
+              colors={[
+                'rgba(7,9,12,0.42)',
+                'rgba(7,9,12,0.62)',
+                'rgba(7,9,12,0.90)',
+                'rgba(7,9,12,0.99)',
+              ]}
+              locations={[0, 0.24, 0.62, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </>
+        )}
 
         <SafeAreaView
           style={styles.safeArea}
         >
+          <StatusBar style={isDark ? 'light' : 'dark'} />
           <ScrollView
             showsVerticalScrollIndicator={
               false
@@ -2135,11 +2169,13 @@ export default function ProfileEquipmentScreen() {
   );
 }
 
-function QuantityControl({
+function EquipmentQuantityControl({
   row,
   onMinus,
   onPlus,
   compact = false,
+  styles,
+  colors,
 }) {
   return (
     <View
@@ -2195,11 +2231,13 @@ function QuantityControl({
   );
 }
 
-function LoadInput({
+function EquipmentLoadInput({
   label,
   value,
   placeholder,
   onChange,
+  styles,
+  colors,
 }) {
   return (
     <View
@@ -2235,7 +2273,8 @@ function LoadInput({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors, isDark) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor:
@@ -2244,10 +2283,12 @@ const styles = StyleSheet.create({
 
   background: {
     flex: 1,
+    backgroundColor: colors.background,
   },
 
   safeArea: {
     flex: 1,
+    backgroundColor: isDark ? 'transparent' : colors.background,
   },
 
   darkOverlay: {
@@ -2258,7 +2299,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal:
-      spacing.xl,
+      spacing.lg,
     paddingTop: 8,
   },
 
@@ -2281,7 +2322,7 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    minHeight: 74,
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -2290,12 +2331,14 @@ const styles = StyleSheet.create({
   backButton: {
     width: 42,
     height: 42,
-    borderRadius: 21,
-    backgroundColor:
-      'rgba(17,21,26,0.90)',
+    borderRadius: 14,
+    backgroundColor: isDark
+      ? 'rgba(17,21,26,0.92)'
+      : colors.surfaceElevated,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.10)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.10)'
+      : colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2333,14 +2376,14 @@ const styles = StyleSheet.create({
   },
 
   intro: {
-    marginTop: 25,
+    marginTop: 18,
   },
 
   introTitle: {
     fontFamily:
       'BebasNeue_400Regular',
-    fontSize: 31,
-    lineHeight: 34,
+    fontSize: 29,
+    lineHeight: 33,
     letterSpacing: 1.4,
     color:
       colors.textPrimary,
@@ -2358,11 +2401,10 @@ const styles = StyleSheet.create({
   },
 
   infoCard: {
-    marginTop: 22,
+    marginTop: 18,
     borderRadius: 16,
     padding: 14,
-    backgroundColor:
-      'rgba(94,102,51,0.08)',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
     borderColor:
       'rgba(94,102,51,0.20)',
@@ -2385,8 +2427,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 16,
     padding: 14,
-    backgroundColor:
-      'rgba(255,107,25,0.08)',
+    backgroundColor: colors.secondaryAccentSoft,
     borderWidth: 1,
     borderColor:
       'rgba(255,107,25,0.28)',
@@ -2425,8 +2466,8 @@ const styles = StyleSheet.create({
     minHeight: 50,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)',
-    backgroundColor: 'rgba(17,21,26,0.92)',
+    borderColor: isDark ? 'rgba(255,255,255,0.11)' : colors.border,
+    backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2451,8 +2492,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    backgroundColor: 'rgba(17,21,26,0.82)',
+    borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
+    backgroundColor: isDark ? 'rgba(17,21,26,0.82)' : colors.surfaceElevated,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2486,15 +2527,15 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    backgroundColor: 'rgba(17,21,26,0.88)',
+    borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
+    backgroundColor: isDark ? 'rgba(17,21,26,0.88)' : colors.surfaceElevated,
     flexDirection: 'row',
     gap: 10,
   },
 
   categoryTabSelected: {
     borderColor: BRAND_KAKI,
-    backgroundColor: 'rgba(94,102,51,0.18)',
+    backgroundColor: colors.accentSoft,
   },
 
   categoryIcon: {
@@ -2566,11 +2607,13 @@ const styles = StyleSheet.create({
 
   equipmentCard: {
     borderRadius: 17,
-    backgroundColor:
-      'rgba(17,21,26,0.92)',
+    backgroundColor: isDark
+      ? 'rgba(17,21,26,0.92)'
+      : colors.surfaceElevated,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.09)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.09)'
+      : colors.border,
     overflow: 'hidden',
   },
 
@@ -2580,8 +2623,9 @@ const styles = StyleSheet.create({
   },
 
   bodyweightCard: {
-    borderColor:
-      'rgba(255,255,255,0.08)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.08)'
+      : colors.border,
   },
 
   bodyweightIcon: {
@@ -2634,25 +2678,28 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.20)',
-    backgroundColor:
-      'rgba(255,255,255,0.03)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.20)'
+      : colors.borderStrong,
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.03)'
+      : colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   checkboxSelected: {
     backgroundColor:
-      BRAND_KAKI,
+      BRAND_ORANGE,
     borderColor:
       BRAND_KAKI,
   },
 
   configurationArea: {
     borderTopWidth: 1,
-    borderTopColor:
-      'rgba(255,255,255,0.07)',
+    borderTopColor: isDark
+      ? 'rgba(255,255,255,0.07)'
+      : colors.border,
     padding: 14,
     gap: 12,
   },
@@ -2661,8 +2708,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 3,
     borderRadius: 12,
-    backgroundColor:
-      'rgba(255,255,255,0.04)',
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.04)'
+      : colors.surface,
     gap: 3,
   },
 
@@ -2676,7 +2724,7 @@ const styles = StyleSheet.create({
 
   modeTabSelected: {
     backgroundColor:
-      BRAND_KAKI,
+      BRAND_ORANGE,
   },
 
   modeTabText: {
@@ -2710,10 +2758,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.10)',
-    backgroundColor:
-      'rgba(255,255,255,0.03)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.10)'
+      : colors.border,
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.03)'
+      : colors.surface,
     overflow: 'hidden',
   },
 
@@ -2741,11 +2791,13 @@ const styles = StyleSheet.create({
   loadGroup: {
     borderRadius: 13,
     padding: 12,
-    backgroundColor:
-      'rgba(255,255,255,0.025)',
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.025)'
+      : colors.surface,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.07)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.07)'
+      : colors.border,
   },
 
   loadGroupTop: {
@@ -2786,10 +2838,12 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.11)',
-    backgroundColor:
-      'rgba(255,255,255,0.035)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.11)'
+      : colors.border,
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.035)'
+      : colors.surfaceElevated,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 11,
@@ -2873,8 +2927,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderColor: isDark ? 'rgba(255,255,255,0.11)' : colors.border,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : colors.surfaceElevated,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -2914,7 +2968,7 @@ const styles = StyleSheet.create({
   noResultCard: {
     borderRadius: 16,
     padding: 14,
-    backgroundColor: 'rgba(94,102,51,0.06)',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
     borderColor: 'rgba(94,102,51,0.18)',
     flexDirection: 'row',
@@ -2945,8 +2999,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderRadius: 16,
     padding: 14,
-    backgroundColor:
-      'rgba(94,102,51,0.06)',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
     borderColor:
       'rgba(94,102,51,0.18)',
@@ -2980,7 +3033,7 @@ const styles = StyleSheet.create({
     marginTop: 22,
     borderRadius: 16,
     backgroundColor:
-      BRAND_KAKI,
+      BRAND_ORANGE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2989,7 +3042,7 @@ const styles = StyleSheet.create({
 
   saveButtonDone: {
     backgroundColor:
-      BRAND_KAKI,
+      BRAND_ORANGE,
   },
 
   saveButtonDisabled: {
@@ -3031,4 +3084,5 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.72,
   },
-});
+  });
+}
