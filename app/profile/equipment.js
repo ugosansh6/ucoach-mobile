@@ -466,29 +466,33 @@ export default function ProfileEquipmentScreen() {
   const resolvedActiveCategory =
     categoryOptions.some((section) => section.key === activeCategory)
       ? activeCategory
-      : categoryOptions[0]?.key ?? null;
+      : null;
 
-  const environmentCatalog = useMemo(
-    () => equipmentSections.flatMap((section) => section.items),
-    [equipmentSections]
+  const activeCategoryOption = useMemo(
+    () => categoryOptions.find((section) => section.key === resolvedActiveCategory) ?? null,
+    [categoryOptions, resolvedActiveCategory]
   );
 
   const visibleCatalog = useMemo(() => {
+    const source = activeCategoryOption?.items ?? [];
     const normalizedQuery = normalizeSearchValue(searchQuery.trim());
-    const source = normalizedQuery
-      ? environmentCatalog
-      : categoryOptions.find((section) => section.key === resolvedActiveCategory)?.items ?? [];
 
     if (!normalizedQuery) return source;
 
     return source.filter((equipment) =>
       normalizeSearchValue(
-        [equipment.name, equipment.category, equipment.description, equipment.uxGroup]
+        [
+          equipment.displayName,
+          equipment.name,
+          equipment.category,
+          equipment.description,
+          equipment.uxGroup,
+        ]
           .filter(Boolean)
           .join(' ')
       ).includes(normalizedQuery)
     );
-  }, [categoryOptions, environmentCatalog, resolvedActiveCategory, searchQuery]);
+  }, [activeCategoryOption, searchQuery]);
 
   const selectedEquipmentCount = selectedEquipmentIds.size;
 
@@ -1085,74 +1089,32 @@ export default function ProfileEquipmentScreen() {
             )}
 
             <View style={styles.catalogTools}>
-              <View style={styles.searchShell}>
-                <Ionicons
-                  name="search-outline"
-                  size={19}
-                  color={colors.textMuted}
-                />
-
-                <TextInput
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Rechercher un équipement…"
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="search"
-                  style={styles.searchInput}
-                />
-
-                {searchQuery.length > 0 && (
-                  <Pressable
-                    onPress={() => setSearchQuery('')}
-                    hitSlop={8}
-                  >
-                    <Ionicons
-                      name="close-circle"
-                      size={19}
-                      color={colors.textMuted}
-                    />
-                  </Pressable>
-                )}
-              </View>
-
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.locationTabs}
               >
                 {PROFILE_ENVIRONMENTS.map((location) => {
-                  const selected =
-                    activeEnvironment === location.key;
+                  const selected = activeEnvironment === location.key;
 
                   return (
                     <Pressable
                       key={location.key}
-                      onPress={() =>
-                        selectProfileEnvironment(location.key)
-                      }
+                      onPress={() => selectProfileEnvironment(location.key)}
                       style={[
                         styles.locationTab,
-                        selected &&
-                          styles.locationTabSelected,
+                        selected && styles.locationTabSelected,
                       ]}
                     >
                       <Ionicons
                         name={location.icon}
                         size={16}
-                        color={
-                          selected
-                            ? colors.brandWhite
-                            : colors.textSecondary
-                        }
+                        color={selected ? colors.brandWhite : colors.textSecondary}
                       />
-
                       <Text
                         style={[
                           styles.locationTabText,
-                          selected &&
-                            styles.locationTabTextSelected,
+                          selected && styles.locationTabTextSelected,
                         ]}
                       >
                         {location.label}
@@ -1162,64 +1124,136 @@ export default function ProfileEquipmentScreen() {
                 })}
               </ScrollView>
 
-              {categoryOptions.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.categoryTabs}
-                >
-                  {categoryOptions.map((category) => {
-                    const selected =
-                      searchQuery.length === 0 && resolvedActiveCategory === category.key;
-                    const groups = category.groups.map((group) => group.label).join(' · ');
+              {!resolvedActiveCategory ? (
+                <>
+                  <View style={styles.categoryIntroRow}>
+                    <View style={styles.categoryIntroCopy}>
+                      <Text style={styles.categoryIntroTitle}>CHOISIS UNE CATÉGORIE</Text>
+                      <Text style={styles.categoryIntroText}>
+                        {selectedEquipmentCount} équipement{selectedEquipmentCount > 1 ? 's' : ''} sélectionné{selectedEquipmentCount > 1 ? 's' : ''} pour {activeEnvironmentLabel.toLowerCase()}.
+                      </Text>
+                    </View>
+                  </View>
 
-                    return (
+                  <View style={styles.categoryGrid}>
+                    {categoryOptions.map((category) => (
                       <Pressable
                         key={category.key}
                         onPress={() => {
                           setSearchQuery('');
                           setActiveCategory(category.key);
                         }}
-                        style={[
-                          styles.categoryTab,
-                          selected && styles.categoryTabSelected,
+                        style={({ pressed }) => [
+                          styles.categoryCard,
+                          pressed && styles.categoryCardPressed,
                         ]}
                       >
-                        <View
-                          style={[
-                            styles.categoryIcon,
-                            selected && styles.categoryIconSelected,
-                          ]}
-                        >
+                        <View style={styles.categoryHeroIcon}>
                           <Ionicons
                             name={category.icon}
-                            size={19}
-                            color={selected ? colors.brandWhite : BRAND_KAKI}
+                            size={32}
+                            color={BRAND_KAKI}
                           />
                         </View>
-                        <View style={styles.categoryTabCopy}>
-                          <Text style={styles.categoryTabLabel}>{category.label}</Text>
-                          <Text numberOfLines={1} style={styles.categoryTabMeta}>
-                            {groups}
-                          </Text>
-                          <Text style={styles.categoryTabCount}>
+
+                        <Text style={styles.categoryCardLabel}>
+                          {category.label.toUpperCase()}
+                        </Text>
+
+                        <Text numberOfLines={2} style={styles.categoryCardDescription}>
+                          {category.description}
+                        </Text>
+
+                        <View style={styles.categoryCardFooter}>
+                          <Text style={styles.categoryCardCount}>
                             {category.selectedCount}/{category.items.length} sélectionné{category.selectedCount > 1 ? 's' : ''}
                           </Text>
+                          <Ionicons
+                            name="arrow-forward"
+                            size={18}
+                            color={BRAND_ORANGE}
+                          />
                         </View>
                       </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              )}
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={() => {
+                      setSearchQuery('');
+                      setActiveCategory(null);
+                    }}
+                    style={({ pressed }) => [
+                      styles.categoryBackRow,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Ionicons name="arrow-back" size={18} color={BRAND_KAKI} />
+                    <Text style={styles.categoryBackText}>TOUTES LES CATÉGORIES</Text>
+                  </Pressable>
 
-              <View style={styles.catalogSummaryRow}>
-                <Text style={styles.catalogSummaryText}>
-                  {searchQuery.length > 0 ? `${visibleCatalog.length} RÉSULTAT${visibleCatalog.length > 1 ? 'S' : ''}` : `${visibleCatalog.length} DANS LA CATÉGORIE`}
-                </Text>
-                <Text style={styles.catalogSummarySelected}>
-                  {selectedEquipmentCount} SÉLECTIONNÉ{selectedEquipmentCount > 1 ? 'S' : ''}
-                </Text>
-              </View>
+                  <View style={styles.activeCategoryHero}>
+                    <View style={styles.activeCategoryIcon}>
+                      <Ionicons
+                        name={activeCategoryOption?.icon ?? 'grid-outline'}
+                        size={28}
+                        color={colors.brandWhite}
+                      />
+                    </View>
+                    <View style={styles.activeCategoryCopy}>
+                      <Text style={styles.activeCategoryTitle}>
+                        {String(activeCategoryOption?.label ?? '').toUpperCase()}
+                      </Text>
+                      <Text style={styles.activeCategoryDescription}>
+                        {activeCategoryOption?.description}
+                      </Text>
+                    </View>
+                    <Text style={styles.activeCategoryCount}>
+                      {activeCategoryOption?.selectedCount ?? 0}/{activeCategoryOption?.items?.length ?? 0}
+                    </Text>
+                  </View>
+
+                  <View style={styles.searchShell}>
+                    <Ionicons
+                      name="search-outline"
+                      size={19}
+                      color={colors.textMuted}
+                    />
+                    <TextInput
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder={`Rechercher dans ${String(activeCategoryOption?.label ?? '').toLowerCase()}…`}
+                      placeholderTextColor={colors.textMuted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="search"
+                      style={styles.searchInput}
+                    />
+                    {searchQuery.length > 0 && (
+                      <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                        <Ionicons
+                          name="close-circle"
+                          size={19}
+                          color={colors.textMuted}
+                        />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  <View style={styles.catalogSummaryRow}>
+                    <Text style={styles.catalogSummaryText}>
+                      {searchQuery.length > 0
+                        ? `${visibleCatalog.length} RÉSULTAT${visibleCatalog.length > 1 ? 'S' : ''}`
+                        : `${visibleCatalog.length} ÉQUIPEMENT${visibleCatalog.length > 1 ? 'S' : ''}`}
+                    </Text>
+                    <Text style={styles.catalogSummarySelected}>
+                      {activeCategoryOption?.selectedCount ?? 0} SÉLECTIONNÉ{(activeCategoryOption?.selectedCount ?? 0) > 1 ? 'S' : ''}
+                    </Text>
+                  </View>
+                </>
+              )}
             </View>
 
             {/* INVENTAIRE */}
@@ -1228,27 +1262,6 @@ export default function ProfileEquipmentScreen() {
                 styles.equipmentList
               }
             >
-              <View
-                style={[
-                  styles.equipmentCard,
-                  styles.bodyweightCard,
-                ]}
-              >
-                <View style={styles.equipmentHeader}>
-                  <View style={styles.bodyweightIcon}>
-                    <Ionicons
-                      name="body-outline"
-                      size={20}
-                      color={colors.textPrimary}
-                    />
-                  </View>
-
-                  <Text style={styles.equipmentName}>
-                    POIDS DU CORPS
-                  </Text>
-                </View>
-              </View>
-
               {visibleCatalog.map(
                 (equipment) => {
                   const rows =
@@ -1369,7 +1382,8 @@ export default function ProfileEquipmentScreen() {
                             }
                           >
                             {String(
-                              equipment.name ??
+                              equipment.displayName ??
+                                equipment.name ??
                                 ''
                             ).toUpperCase()}
                           </Text>
@@ -2054,7 +2068,7 @@ export default function ProfileEquipmentScreen() {
                 }
               )}
 
-              {visibleCatalog.length === 0 && (
+              {resolvedActiveCategory && visibleCatalog.length === 0 && (
                 <View style={styles.noResultCard}>
                   <Ionicons
                     name="search-outline"
@@ -2514,6 +2528,164 @@ function createStyles(colors, isDark) {
 
   locationTabTextSelected: {
     color: colors.brandWhite,
+  },
+
+  categoryIntroRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  categoryIntroCopy: {
+    flex: 1,
+  },
+
+  categoryIntroTitle: {
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 24,
+    lineHeight: 27,
+    letterSpacing: 1.1,
+    color: colors.textPrimary,
+  },
+
+  categoryIntroText: {
+    marginTop: 3,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+
+  categoryCard: {
+    width: '48%',
+    minHeight: 168,
+    padding: 15,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
+    backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
+    shadowColor: colors.shadow,
+    shadowOpacity: isDark ? 0.16 : 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
+  },
+
+  categoryCardPressed: {
+    opacity: 0.84,
+    transform: [{ scale: 0.985 }],
+  },
+
+  categoryHeroIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+    marginBottom: 13,
+  },
+
+  categoryCardLabel: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: 0.45,
+    color: colors.textPrimary,
+  },
+
+  categoryCardDescription: {
+    marginTop: 4,
+    minHeight: 34,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textSecondary,
+  },
+
+  categoryCardFooter: {
+    marginTop: 'auto',
+    paddingTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  categoryCardCount: {
+    flexShrink: 1,
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 10,
+    lineHeight: 14,
+    color: BRAND_ORANGE,
+  },
+
+  categoryBackRow: {
+    alignSelf: 'flex-start',
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  categoryBackText: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: BRAND_KAKI,
+  },
+
+  activeCategoryHero: {
+    minHeight: 92,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(94,102,51,0.28)',
+    backgroundColor: colors.accentSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  activeCategoryIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: BRAND_KAKI,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  activeCategoryCopy: {
+    flex: 1,
+  },
+
+  activeCategoryTitle: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 18,
+    lineHeight: 23,
+    color: colors.textPrimary,
+  },
+
+  activeCategoryDescription: {
+    marginTop: 2,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textSecondary,
+  },
+
+  activeCategoryCount: {
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 25,
+    lineHeight: 28,
+    color: BRAND_ORANGE,
   },
 
   categoryTabs: {
