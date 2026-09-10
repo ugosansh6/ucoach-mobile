@@ -1,0 +1,1 @@
+deploy EQP-002 equipment category UI after functional commits e4d02307 + 253826ba
