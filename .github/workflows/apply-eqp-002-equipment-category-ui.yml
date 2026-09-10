@@ -1,0 +1,68 @@
+name: Apply EQP-002 equipment category UI
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-eqp-002-equipment-category-ui.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_WEB_BASE_URL: /ucoach-mobile
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply EQP-002 patch
+        run: node .github/player-patches/apply-eqp-002-equipment-category-ui.mjs
+
+      - name: Verify category mapping
+        run: |
+          git diff --check
+          node --input-type=module - <<'NODE'
+          import { getEquipmentUxCategoryDefinitions } from './src/constants/equipmentUxCategories.js';
+          const labels = getEquipmentUxCategoryDefinitions().map((item) => item.label);
+          const expected = ['Musculation', 'Gym', 'Cardio', 'Explosivité', 'Accessoires'];
+          for (const label of expected) {
+            if (!labels.includes(label)) throw new Error(`Missing UX category: ${label}`);
+          }
+          console.log('UX categories:', labels.join(', '));
+          NODE
+          grep -n "exercise_count" src/services/equipmentService.js
+          grep -n "getEquipmentUxSections\|categoryOptions\|categoryTab" app/profile/equipment.js
+          grep -n "getEquipmentUxSections\|equipmentCategoryTabs\|visibleReferenceEquipment" src/workout/PreparationCheckinV4.js
+
+      - name: Export Expo web
+        run: npx expo export --platform web --output-dir dist-eqp-002
+
+      - name: Commit EQP-002
+        run: |
+          if git diff --quiet -- src/constants/equipmentUxCategories.js src/services/equipmentService.js app/profile/equipment.js src/workout/PreparationCheckinV4.js; then
+            echo "No EQP-002 changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/constants/equipmentUxCategories.js src/services/equipmentService.js app/profile/equipment.js src/workout/PreparationCheckinV4.js
+          git commit -m "feat(equipment): navigate catalog by exercise-backed categories"
+          git push origin HEAD:ux-navigation-coach-v1
