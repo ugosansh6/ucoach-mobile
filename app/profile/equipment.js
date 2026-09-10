@@ -24,7 +24,8 @@ import {
 
 import {
   getEquipmentCatalog,
-  getUserEquipmentInventory,
+  getUserEnvironmentEquipmentPreset,
+  replaceUserEnvironmentEquipmentPreset,
   replaceUserEquipmentInventory,
 } from '../../src/services/equipmentService';
 
@@ -62,32 +63,11 @@ const RESISTANCE_OPTIONS = [
   { value: 'Forte', label: 'FORTE' },
 ];
 
-const EQUIPMENT_LOCATIONS = [
-  {
-    key: 'ALL',
-    label: 'TOUT',
-    icon: 'grid-outline',
-  },
-  {
-    key: 'HOME',
-    label: 'MAISON',
-    icon: 'home-outline',
-  },
-  {
-    key: 'OUTDOOR',
-    label: 'EXTÉRIEUR',
-    icon: 'leaf-outline',
-  },
-  {
-    key: 'GYM_BOX',
-    label: 'SALLE / BOX',
-    icon: 'barbell-outline',
-  },
-  {
-    key: 'GARAGE',
-    label: 'HOME GYM / GARAGE',
-    icon: 'construct-outline',
-  },
+const PROFILE_ENVIRONMENTS = [
+  { key: 'HOME', label: 'MAISON', icon: 'home-outline' },
+  { key: 'BOX', label: 'BOX', icon: 'fitness-outline' },
+  { key: 'GYM', label: 'SALLE', icon: 'barbell-outline' },
+  { key: 'OUTDOOR', label: 'EXTÉRIEUR', icon: 'leaf-outline' },
 ];
 
 function normalizeSearchValue(value) {
@@ -331,8 +311,8 @@ export default function ProfileEquipmentScreen() {
   const [searchQuery, setSearchQuery] =
     useState('');
 
-  const [activeLocation, setActiveLocation] =
-    useState('ALL');
+  const [activeEnvironment, setActiveEnvironment] =
+    useState('HOME');
 
   const [
     expandedEquipmentIds,
@@ -352,7 +332,7 @@ export default function ProfileEquipmentScreen() {
           inventoryData,
         ] = await Promise.all([
           getEquipmentCatalog(),
-          getUserEquipmentInventory(),
+          getUserEnvironmentEquipmentPreset('HOME'),
         ]);
 
         if (cancelled) {
@@ -387,43 +367,46 @@ export default function ProfileEquipmentScreen() {
     };
   }, []);
 
+  const activeEnvironmentLabel =
+    PROFILE_ENVIRONMENTS.find((item) => item.key === activeEnvironment)?.label ?? 'MAISON';
+
+  async function selectProfileEnvironment(code) {
+    const environment = String(code ?? 'HOME').toUpperCase();
+    if (environment === activeEnvironment || isSaving) return;
+
+    try {
+      setIsLoading(true);
+      setErrorMessage('');
+      setSaved(false);
+      setActiveEnvironment(environment);
+      setExpandedEquipmentIds(new Set());
+
+      const rows = await getUserEnvironmentEquipmentPreset(environment);
+      setDraftInventory((rows ?? []).map(normalizeLoadedRow));
+    } catch (error) {
+      setErrorMessage(
+        error?.message ?? 'Impossible de charger le matériel de cet environnement.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   const visibleCatalog = useMemo(() => {
     const normalizedQuery =
       normalizeSearchValue(searchQuery.trim());
 
     return catalog.filter((equipment) => {
-      if (equipment.id === 'E00') {
-        return false;
-      }
-
-      const locations = Array.isArray(
-        equipment.locations
-      )
-        ? equipment.locations
-        : [];
-
-      if (
-        activeLocation !== 'ALL' &&
-        !locations.includes(activeLocation)
-      ) {
-        return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
-      }
+      if (equipment.id === 'E00') return false;
+      if (!normalizedQuery) return true;
 
       return normalizeSearchValue(
-        [
-          equipment.name,
-          equipment.category,
-          equipment.description,
-        ]
+        [equipment.name, equipment.category, equipment.description]
           .filter(Boolean)
           .join(' ')
       ).includes(normalizedQuery);
     });
-  }, [catalog, activeLocation, searchQuery]);
+  }, [catalog, searchQuery]);
 
   const selectedEquipmentCount = useMemo(
     () =>
@@ -438,7 +421,7 @@ export default function ProfileEquipmentScreen() {
   const canSave =
     !isLoading &&
     !isSaving &&
-    draftInventory.every(validateRow);
+    (activeEnvironment !== 'HOME' || draftInventory.every(validateRow));
 
   function rowsForEquipment(
     equipmentId
@@ -519,13 +502,15 @@ export default function ProfileEquipmentScreen() {
       equipment.id ===
       BARBELL_EQUIPMENT_ID;
 
-    const defaultMode = isBarbell
-      ? 'adjustable_load'
-      : FIXED_LOAD_CAPABLE_IDS.has(
-          equipment.id
-        )
-        ? 'load_unknown'
-        : 'non_load';
+    const defaultMode = activeEnvironment !== 'HOME'
+      ? 'non_load'
+      : isBarbell
+        ? 'adjustable_load'
+        : FIXED_LOAD_CAPABLE_IDS.has(
+            equipment.id
+          )
+          ? 'load_unknown'
+          : 'non_load';
 
     const nextRow = createInventoryRow(
       equipment.id,
@@ -543,12 +528,13 @@ export default function ProfileEquipmentScreen() {
     ]);
 
     const configurable =
-      isBarbell ||
-      FIXED_LOAD_CAPABLE_IDS.has(
-        equipment.id
-      ) ||
-      equipment.id ===
-        RESISTANCE_EQUIPMENT_ID;
+      activeEnvironment === 'HOME' &&
+      (isBarbell ||
+        FIXED_LOAD_CAPABLE_IDS.has(
+          equipment.id
+        ) ||
+        equipment.id ===
+          RESISTANCE_EQUIPMENT_ID);
 
     if (configurable) {
       setEquipmentExpanded(
@@ -773,21 +759,24 @@ export default function ProfileEquipmentScreen() {
       setErrorMessage('');
       setSaved(false);
 
-      const payload =
-        sanitizeInventory(
-          draftInventory
+      if (activeEnvironment === 'HOME') {
+        const payload = sanitizeInventory(draftInventory);
+        const savedRows = await replaceUserEquipmentInventory(payload);
+        setDraftInventory((savedRows ?? []).map(normalizeLoadedRow));
+      } else {
+        const equipmentIds = Array.from(
+          new Set(draftInventory.map((row) => row.equipment_id).filter(Boolean))
         );
-
-      const savedRows =
-        await replaceUserEquipmentInventory(
-          payload
+        const savedIds = await replaceUserEnvironmentEquipmentPreset(
+          activeEnvironment,
+          equipmentIds
         );
-
-      setDraftInventory(
-        (savedRows ?? []).map(
-          normalizeLoadedRow
-        )
-      );
+        setDraftInventory(
+          (savedIds ?? []).map((equipmentId) =>
+            normalizeLoadedRow(createInventoryRow(equipmentId, 'non_load'))
+          )
+        );
+      }
 
       setSaved(true);
 
@@ -953,7 +942,9 @@ export default function ProfileEquipmentScreen() {
                   styles.introTitle
                 }
               >
-                TON INVENTAIRE HABITUEL
+                {activeEnvironment === 'HOME'
+                  ? 'TON MATÉRIEL À LA MAISON'
+                  : `TON MATÉRIEL HABITUEL — ${activeEnvironmentLabel}`}
               </Text>
 
               <Text
@@ -961,7 +952,9 @@ export default function ProfileEquipmentScreen() {
                   styles.introText
                 }
               >
-                Ici, tu peux mettre à jour le matériel que tu possèdes et renseigner les charges associées.
+                {activeEnvironment === 'HOME'
+                  ? 'Ici, tu peux mettre à jour le matériel que tu possèdes et renseigner les charges associées.'
+                  : `Sélectionne le matériel que tu as habituellement à disposition quand tu t’entraînes en ${activeEnvironmentLabel.toLowerCase()}.`}
               </Text>
             </View>
 
@@ -980,7 +973,9 @@ export default function ProfileEquipmentScreen() {
               <Text
                 style={styles.infoText}
               >
-                Renseigner les charges permet à UGEROD d’adapter plus précisément tes entraînements. Tu peux enregistrer un matériel même si tu ne connais pas sa charge.
+                {activeEnvironment === 'HOME'
+                  ? 'Renseigner les charges permet à UGEROD d’adapter plus précisément tes entraînements. Tu peux enregistrer un matériel même si tu ne connais pas sa charge.'
+                  : 'Ce preset est utilisé automatiquement dans la préparation quand tu choisis cet environnement. Les changements faits pendant une préparation restent ponctuels.'}
               </Text>
             </View>
 
@@ -1058,15 +1053,15 @@ export default function ProfileEquipmentScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.locationTabs}
               >
-                {EQUIPMENT_LOCATIONS.map((location) => {
+                {PROFILE_ENVIRONMENTS.map((location) => {
                   const selected =
-                    activeLocation === location.key;
+                    activeEnvironment === location.key;
 
                   return (
                     <Pressable
                       key={location.key}
                       onPress={() =>
-                        setActiveLocation(location.key)
+                        selectProfileEnvironment(location.key)
                       }
                       style={[
                         styles.locationTab,
@@ -1176,9 +1171,10 @@ export default function ProfileEquipmentScreen() {
                     RESISTANCE_EQUIPMENT_ID;
 
                   const hasConfiguration =
-                    isBarbell ||
-                    supportsFixed ||
-                    supportsResistance;
+                    activeEnvironment === 'HOME' &&
+                    (isBarbell ||
+                      supportsFixed ||
+                      supportsResistance);
 
                   const mode =
                     rows[0]
@@ -1259,9 +1255,7 @@ export default function ProfileEquipmentScreen() {
                             ).toUpperCase()}
                           </Text>
 
-                          {(isBarbell ||
-                            supportsFixed ||
-                            supportsResistance) && (
+                          {hasConfiguration && (
                             <View style={styles.equipmentMetaRow}>
                               {(isBarbell || supportsFixed) && (
                                 <Ionicons

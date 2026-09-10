@@ -65,6 +65,58 @@ export async function getUserEquipmentInventory() {
   return data ?? [];
 }
 
+function normalizeEnvironmentCode(value) {
+  const code = String(value ?? 'HOME').trim().toUpperCase();
+  return ['HOME', 'BOX', 'GYM', 'OUTDOOR'].includes(code) ? code : 'HOME';
+}
+
+export async function getUserEnvironmentEquipmentPreset(environmentCode = 'HOME') {
+  const environment = normalizeEnvironmentCode(environmentCode);
+
+  // HOME reste l'inventaire personnel historique, avec quantité/charges.
+  if (environment === 'HOME') {
+    return getUserEquipmentInventory();
+  }
+
+  const user = await getAuthenticatedUser();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase
+      .from('user_environment_equipment_presets')
+      .select('equipment_id, created_at, updated_at')
+      .eq('user_id', user.id)
+      .eq('environment_code', environment)
+      .order('equipment_id', { ascending: true })
+  );
+
+  return (data ?? []).map((row) => ({
+    ...row,
+    inventory_mode: 'non_load',
+    quantity: 1,
+    active: true,
+  }));
+}
+
+export async function replaceUserEnvironmentEquipmentPreset(environmentCode, equipmentIds) {
+  await getAuthenticatedUser();
+  const environment = normalizeEnvironmentCode(environmentCode);
+  const ids = Array.from(
+    new Set(
+      (Array.isArray(equipmentIds) ? equipmentIds : [])
+        .map((value) => String(value ?? '').trim())
+        .filter((value) => value && value !== 'E00')
+    )
+  );
+
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('replace_user_environment_equipment_preset', {
+      p_environment_code: environment,
+      p_equipment_ids: ids,
+    })
+  );
+
+  return Array.isArray(data) ? data : [];
+}
+
 function normalizeInventoryRow(row) {
   const inventoryMode =
     row.inventory_mode ?? 'non_load';

@@ -15,6 +15,9 @@ const WorkoutContext = createContext(null);
 const INITIAL_PREPARATION = {
   duration: null,
   equipment: [],
+  environmentCode: 'HOME',
+  equipmentEnvironmentCode: null,
+  equipmentSelectionSource: null,
   readiness: null,
   painZones: [],
   region: null,

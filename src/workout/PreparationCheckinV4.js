@@ -21,7 +21,7 @@ import { useUgerodTheme } from '../contexts/UgerodThemeContext';
 import { useWorkout } from '../contexts/WorkoutContext';
 import {
   getEquipmentCatalog,
-  getUserEquipmentInventory,
+  getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -458,7 +458,10 @@ export default function PreparationCheckinV4() {
   const [painConfirmedToday, setPainConfirmedToday] = useState(false);
   const painScreenOpenedRef = useRef(false);
   const equipmentRef = useRef(preparation?.equipment ?? []);
+  const preparationRef = useRef(preparation);
+  const equipmentRequestRef = useRef(0);
   equipmentRef.current = preparation?.equipment ?? [];
+  preparationRef.current = preparation;
 
   const duration = DURATIONS.includes(Number(preparation?.duration))
     ? Number(preparation.duration)
@@ -482,53 +485,81 @@ export default function PreparationCheckinV4() {
   const hasActiveSession =
     Boolean(workout?.sessionId) && !['completed', 'abandoned'].includes(normalizedStatus);
 
-  const loadEquipment = useCallback(async () => {
+  const loadEquipment = useCallback(async (targetEnvironment = 'HOME') => {
+    const environment = String(targetEnvironment ?? 'HOME').toUpperCase();
+    const requestId = ++equipmentRequestRef.current;
+
     setEquipmentLoading(true);
     setEquipmentError('');
     setEquipmentNeedsLogin(false);
 
     try {
-      const [catalog, inventory] = await Promise.all([
+      const [catalog, presetRows] = await Promise.all([
         getEquipmentCatalog(),
-        getUserEquipmentInventory(),
+        getUserEnvironmentEquipmentPreset(environment),
       ]);
-      const reference = buildReferenceEquipment(catalog, inventory);
+
+      if (requestId !== equipmentRequestRef.current) return;
+
+      const reference = buildReferenceEquipment(catalog, presetRows);
       setReferenceEquipment(reference);
 
       const current = Array.isArray(equipmentRef.current) ? equipmentRef.current : [];
-      const allowedNames = new Set(reference.map((item) => item.name));
+      const allowedNames = new Set((catalog ?? []).map((item) => item.name));
+      const storedEnvironment = String(
+        preparationRef.current?.equipmentEnvironmentCode ?? ''
+      ).toUpperCase();
+      const selectionSource = preparationRef.current?.equipmentSelectionSource ?? null;
+      const shouldLoadPreset =
+        storedEnvironment !== environment ||
+        current.length === 0 ||
+        selectionSource !== 'session_override';
 
-      if (current.length === 0) {
-        updatePreparation({
-          equipment:
-            reference.length > 0
-              ? reference.map((item) => item.name)
-              : ['Poids du corps'],
-        });
+      let normalized;
+      if (shouldLoadPreset) {
+        normalized =
+          reference.length > 0
+            ? reference.map((item) => item.name)
+            : ['Poids du corps'];
       } else {
         const sanitized = current.filter(
           (name) => name === 'Poids du corps' || allowedNames.has(name)
         );
-        const normalized = sanitized.length > 0 ? sanitized : ['Poids du corps'];
-        if (normalized.join('|') !== current.join('|')) {
-          updatePreparation({ equipment: normalized });
-        }
+        normalized = sanitized.length > 0 ? sanitized : ['Poids du corps'];
+      }
+
+      if (requestId !== equipmentRequestRef.current) return;
+
+      if (
+        shouldLoadPreset ||
+        normalized.join('|') !== current.join('|') ||
+        storedEnvironment !== environment
+      ) {
+        equipmentRef.current = normalized;
+        updatePreparation({
+          equipment: normalized,
+          equipmentEnvironmentCode: environment,
+          equipmentSelectionSource: shouldLoadPreset ? 'preset' : selectionSource,
+        });
       }
     } catch (error) {
+      if (requestId !== equipmentRequestRef.current) return;
       if (isAuthSessionError(error)) {
         setEquipmentNeedsLogin(true);
       } else {
         setEquipmentError('Impossible de charger ton matériel pour le moment.');
       }
     } finally {
-      setEquipmentLoading(false);
+      if (requestId === equipmentRequestRef.current) {
+        setEquipmentLoading(false);
+      }
     }
   }, [updatePreparation]);
 
   useFocusEffect(
     useCallback(() => {
-      loadEquipment();
-    }, [loadEquipment])
+      loadEquipment(environmentCode);
+    }, [environmentCode, loadEquipment])
   );
 
   useFocusEffect(
@@ -585,7 +616,11 @@ export default function PreparationCheckinV4() {
       next = [...equipment.filter((item) => item !== 'Poids du corps'), name];
     }
 
-    updatePreparation({ equipment: next });
+    updatePreparation({
+      equipment: next,
+      equipmentEnvironmentCode: environmentCode,
+      equipmentSelectionSource: 'session_override',
+    });
   }
 
   function selectAllProfileEquipment() {
@@ -594,6 +629,8 @@ export default function PreparationCheckinV4() {
         referenceEquipment.length > 0
           ? referenceEquipment.map((item) => item.name)
           : ['Poids du corps'],
+      equipmentEnvironmentCode: environmentCode,
+      equipmentSelectionSource: 'session_override',
     });
   }
 
