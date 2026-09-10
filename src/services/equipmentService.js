@@ -15,7 +15,7 @@ export async function getEquipmentCatalog() {
   } = await supabase
     .from('equipment_catalog_v2')
     .select(
-      'id, name, category, description, locations'
+      'id, name, category, description, locations, exercise_count'
     )
     .order('name', { ascending: true });
 

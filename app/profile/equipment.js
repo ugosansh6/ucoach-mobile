@@ -28,6 +28,10 @@ import {
   replaceUserEnvironmentEquipmentPreset,
   replaceUserEquipmentInventory,
 } from '../../src/services/equipmentService';
+import { getEquipmentUxSections } from '../../src/constants/equipmentUxCategories';
+
+const BRAND_KAKI = '#5E6633';
+const BRAND_ORANGE = '#FF6B19';
 
 const backgroundImage = require(
   '../../assets/backgrounds/welcome-default.jpg'
@@ -311,6 +315,9 @@ export default function ProfileEquipmentScreen() {
   const [searchQuery, setSearchQuery] =
     useState('');
 
+  const [activeCategory, setActiveCategory] =
+    useState(null);
+
   const [activeEnvironment, setActiveEnvironment] =
     useState('HOME');
 
@@ -379,6 +386,8 @@ export default function ProfileEquipmentScreen() {
       setErrorMessage('');
       setSaved(false);
       setActiveEnvironment(environment);
+      setActiveCategory(null);
+      setSearchQuery('');
       setExpandedEquipmentIds(new Set());
 
       const rows = await getUserEnvironmentEquipmentPreset(environment);
@@ -392,31 +401,57 @@ export default function ProfileEquipmentScreen() {
     }
   }
 
-  const visibleCatalog = useMemo(() => {
-    const normalizedQuery =
-      normalizeSearchValue(searchQuery.trim());
-
-    return catalog.filter((equipment) => {
-      if (equipment.id === 'E00') return false;
-      if (!normalizedQuery) return true;
-
-      return normalizeSearchValue(
-        [equipment.name, equipment.category, equipment.description]
-          .filter(Boolean)
-          .join(' ')
-      ).includes(normalizedQuery);
-    });
-  }, [catalog, searchQuery]);
-
-  const selectedEquipmentCount = useMemo(
-    () =>
-      new Set(
-        draftInventory.map(
-          (row) => row.equipment_id
-        )
-      ).size,
+  const selectedEquipmentIdList = useMemo(
+    () => Array.from(new Set(draftInventory.map((row) => row.equipment_id).filter(Boolean))),
     [draftInventory]
   );
+
+  const selectedEquipmentIds = useMemo(
+    () => new Set(selectedEquipmentIdList),
+    [selectedEquipmentIdList]
+  );
+
+  const equipmentSections = useMemo(
+    () => getEquipmentUxSections(catalog, activeEnvironment, selectedEquipmentIdList),
+    [catalog, activeEnvironment, selectedEquipmentIdList]
+  );
+
+  const categoryOptions = useMemo(
+    () => equipmentSections.map((section) => ({
+      ...section,
+      selectedCount: section.items.filter((item) => selectedEquipmentIds.has(item.id)).length,
+    })),
+    [equipmentSections, selectedEquipmentIds]
+  );
+
+  const resolvedActiveCategory =
+    categoryOptions.some((section) => section.key === activeCategory)
+      ? activeCategory
+      : categoryOptions[0]?.key ?? null;
+
+  const environmentCatalog = useMemo(
+    () => equipmentSections.flatMap((section) => section.items),
+    [equipmentSections]
+  );
+
+  const visibleCatalog = useMemo(() => {
+    const normalizedQuery = normalizeSearchValue(searchQuery.trim());
+    const source = normalizedQuery
+      ? environmentCatalog
+      : categoryOptions.find((section) => section.key === resolvedActiveCategory)?.items ?? [];
+
+    if (!normalizedQuery) return source;
+
+    return source.filter((equipment) =>
+      normalizeSearchValue(
+        [equipment.name, equipment.category, equipment.description, equipment.uxGroup]
+          .filter(Boolean)
+          .join(' ')
+      ).includes(normalizedQuery)
+    );
+  }, [categoryOptions, environmentCatalog, resolvedActiveCategory, searchQuery]);
+
+  const selectedEquipmentCount = selectedEquipmentIds.size;
 
   const canSave =
     !isLoading &&
@@ -824,7 +859,7 @@ export default function ProfileEquipmentScreen() {
       >
         <ActivityIndicator
           size="large"
-          color={colors.primary}
+          color={BRAND_KAKI}
         />
 
         <Text
@@ -966,7 +1001,7 @@ export default function ProfileEquipmentScreen() {
                 name="information-circle-outline"
                 size={21}
                 color={
-                  colors.primaryLight
+                  BRAND_KAKI
                 }
               />
 
@@ -987,7 +1022,7 @@ export default function ProfileEquipmentScreen() {
                   name="alert-circle-outline"
                   size={20}
                   color={
-                    colors.brandRed
+                    BRAND_ORANGE
                   }
                 />
 
@@ -1093,9 +1128,59 @@ export default function ProfileEquipmentScreen() {
                 })}
               </ScrollView>
 
+              {categoryOptions.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryTabs}
+                >
+                  {categoryOptions.map((category) => {
+                    const selected =
+                      searchQuery.length === 0 && resolvedActiveCategory === category.key;
+                    const groups = category.groups.map((group) => group.label).join(' · ');
+
+                    return (
+                      <Pressable
+                        key={category.key}
+                        onPress={() => {
+                          setSearchQuery('');
+                          setActiveCategory(category.key);
+                        }}
+                        style={[
+                          styles.categoryTab,
+                          selected && styles.categoryTabSelected,
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.categoryIcon,
+                            selected && styles.categoryIconSelected,
+                          ]}
+                        >
+                          <Ionicons
+                            name={category.icon}
+                            size={19}
+                            color={selected ? colors.brandWhite : BRAND_KAKI}
+                          />
+                        </View>
+                        <View style={styles.categoryTabCopy}>
+                          <Text style={styles.categoryTabLabel}>{category.label}</Text>
+                          <Text numberOfLines={1} style={styles.categoryTabMeta}>
+                            {groups}
+                          </Text>
+                          <Text style={styles.categoryTabCount}>
+                            {category.selectedCount}/{category.items.length} sélectionné{category.selectedCount > 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+
               <View style={styles.catalogSummaryRow}>
                 <Text style={styles.catalogSummaryText}>
-                  {visibleCatalog.length} MATÉRIEL{visibleCatalog.length > 1 ? 'S' : ''}
+                  {searchQuery.length > 0 ? `${visibleCatalog.length} RÉSULTAT${visibleCatalog.length > 1 ? 'S' : ''}` : `${visibleCatalog.length} DANS LA CATÉGORIE`}
                 </Text>
                 <Text style={styles.catalogSummarySelected}>
                   {selectedEquipmentCount} SÉLECTIONNÉ{selectedEquipmentCount > 1 ? 'S' : ''}
@@ -1261,7 +1346,7 @@ export default function ProfileEquipmentScreen() {
                                 <Ionicons
                                   name="barbell-outline"
                                   size={14}
-                                  color={colors.primaryLight}
+                                  color={BRAND_KAKI}
                                 />
                               )}
 
@@ -1437,7 +1522,7 @@ export default function ProfileEquipmentScreen() {
                                     name="checkmark-circle-outline"
                                     size={18}
                                     color={
-                                      colors.primaryLight
+                                      BRAND_KAKI
                                     }
                                   />
 
@@ -1628,7 +1713,7 @@ export default function ProfileEquipmentScreen() {
                                             18
                                           }
                                           color={
-                                            colors.brandRed
+                                            BRAND_ORANGE
                                           }
                                         />
                                       </Pressable>
@@ -1750,7 +1835,7 @@ export default function ProfileEquipmentScreen() {
                                   name="add-circle-outline"
                                   size={18}
                                   color={
-                                    colors.primaryLight
+                                    BRAND_KAKI
                                   }
                                 />
 
@@ -1919,7 +2004,7 @@ export default function ProfileEquipmentScreen() {
                                           <Ionicons
                                             name="checkmark-circle"
                                             size={17}
-                                            color={colors.primaryLight}
+                                            color={BRAND_KAKI}
                                           />
                                         )}
                                       </Pressable>
@@ -1940,7 +2025,7 @@ export default function ProfileEquipmentScreen() {
                   <Ionicons
                     name="search-outline"
                     size={22}
-                    color={colors.primaryLight}
+                    color={BRAND_KAKI}
                   />
                   <View style={styles.noResultTextArea}>
                     <Text style={styles.noResultTitle}>
@@ -1965,7 +2050,7 @@ export default function ProfileEquipmentScreen() {
                   name="body-outline"
                   size={22}
                   color={
-                    colors.primaryLight
+                    BRAND_KAKI
                   }
                 />
 
@@ -2239,7 +2324,7 @@ const styles = StyleSheet.create({
   },
 
   blueDot: {
-    color: colors.primary,
+    color: BRAND_KAKI,
   },
 
   brandIcon: {
@@ -2277,10 +2362,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     backgroundColor:
-      'rgba(8,104,255,0.08)',
+      'rgba(94,102,51,0.08)',
     borderWidth: 1,
     borderColor:
-      'rgba(8,104,255,0.20)',
+      'rgba(94,102,51,0.20)',
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
@@ -2301,10 +2386,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     backgroundColor:
-      'rgba(255,59,59,0.08)',
+      'rgba(255,107,25,0.08)',
     borderWidth: 1,
     borderColor:
-      'rgba(255,59,59,0.28)',
+      'rgba(255,107,25,0.28)',
     flexDirection: 'row',
     gap: 10,
   },
@@ -2318,7 +2403,7 @@ const styles = StyleSheet.create({
       'Oswald_700Bold',
     fontSize: 10,
     letterSpacing: 0.7,
-    color: colors.brandRed,
+    color: BRAND_ORANGE,
   },
 
   errorText: {
@@ -2375,8 +2460,8 @@ const styles = StyleSheet.create({
   },
 
   locationTabSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: BRAND_KAKI,
+    borderColor: BRAND_KAKI,
   },
 
   locationTabText: {
@@ -2388,6 +2473,69 @@ const styles = StyleSheet.create({
 
   locationTabTextSelected: {
     color: colors.brandWhite,
+  },
+
+  categoryTabs: {
+    gap: 10,
+    paddingRight: 8,
+  },
+
+  categoryTab: {
+    width: 174,
+    minHeight: 104,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(17,21,26,0.88)',
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  categoryTabSelected: {
+    borderColor: BRAND_KAKI,
+    backgroundColor: 'rgba(94,102,51,0.18)',
+  },
+
+  categoryIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(94,102,51,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  categoryIconSelected: {
+    backgroundColor: BRAND_KAKI,
+  },
+
+  categoryTabCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  categoryTabLabel: {
+    fontFamily: 'Oswald_700Bold',
+    fontSize: 14,
+    lineHeight: 18,
+    color: colors.textPrimary,
+  },
+
+  categoryTabMeta: {
+    marginTop: 3,
+    fontFamily: 'Oswald_400Regular',
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.textMuted,
+  },
+
+  categoryTabCount: {
+    marginTop: 6,
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 9,
+    lineHeight: 13,
+    color: BRAND_ORANGE,
   },
 
   catalogSummaryRow: {
@@ -2408,7 +2556,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Oswald_700Bold',
     fontSize: 10,
     letterSpacing: 0.6,
-    color: colors.primaryLight,
+    color: BRAND_KAKI,
   },
 
   equipmentList: {
@@ -2428,7 +2576,7 @@ const styles = StyleSheet.create({
 
   equipmentCardSelected: {
     borderColor:
-      'rgba(8,104,255,0.42)',
+      'rgba(94,102,51,0.42)',
   },
 
   bodyweightCard: {
@@ -2496,9 +2644,9 @@ const styles = StyleSheet.create({
 
   checkboxSelected: {
     backgroundColor:
-      colors.primary,
+      BRAND_KAKI,
     borderColor:
-      colors.primary,
+      BRAND_KAKI,
   },
 
   configurationArea: {
@@ -2528,7 +2676,7 @@ const styles = StyleSheet.create({
 
   modeTabSelected: {
     backgroundColor:
-      colors.primary,
+      BRAND_KAKI,
   },
 
   modeTabText: {
@@ -2671,9 +2819,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor:
-      'rgba(8,104,255,0.35)',
+      'rgba(94,102,51,0.35)',
     backgroundColor:
-      'rgba(8,104,255,0.05)',
+      'rgba(94,102,51,0.05)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2686,7 +2834,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.5,
     color:
-      colors.primaryLight,
+      BRAND_KAKI,
   },
 
   unknownLoadArea: {
@@ -2734,8 +2882,8 @@ const styles = StyleSheet.create({
   },
 
   resistanceChipSelected: {
-    borderColor: colors.primary,
-    backgroundColor: 'rgba(8,104,255,0.12)',
+    borderColor: BRAND_KAKI,
+    backgroundColor: 'rgba(94,102,51,0.12)',
   },
 
   resistanceChipText: {
@@ -2747,7 +2895,7 @@ const styles = StyleSheet.create({
   },
 
   resistanceChipTextSelected: {
-    color: colors.primaryLight,
+    color: BRAND_KAKI,
   },
 
   adjustableArea: {
@@ -2766,9 +2914,9 @@ const styles = StyleSheet.create({
   noResultCard: {
     borderRadius: 16,
     padding: 14,
-    backgroundColor: 'rgba(8,104,255,0.06)',
+    backgroundColor: 'rgba(94,102,51,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(8,104,255,0.18)',
+    borderColor: 'rgba(94,102,51,0.18)',
     flexDirection: 'row',
     gap: 10,
     alignItems: 'center',
@@ -2798,10 +2946,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     backgroundColor:
-      'rgba(8,104,255,0.06)',
+      'rgba(94,102,51,0.06)',
     borderWidth: 1,
     borderColor:
-      'rgba(8,104,255,0.18)',
+      'rgba(94,102,51,0.18)',
     flexDirection: 'row',
     gap: 10,
     alignItems: 'flex-start',
@@ -2823,7 +2971,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 17,
     color:
-      colors.brandRed,
+      BRAND_ORANGE,
     marginTop: 12,
   },
 
@@ -2832,7 +2980,7 @@ const styles = StyleSheet.create({
     marginTop: 22,
     borderRadius: 16,
     backgroundColor:
-      colors.primary,
+      BRAND_KAKI,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2841,7 +2989,7 @@ const styles = StyleSheet.create({
 
   saveButtonDone: {
     backgroundColor:
-      colors.primary,
+      BRAND_KAKI,
   },
 
   saveButtonDisabled: {
