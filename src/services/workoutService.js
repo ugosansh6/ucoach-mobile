@@ -1597,18 +1597,37 @@ export async function getWorkoutFormatOptions(sessionId) {
     );
   }
 
-  const { data, error } = await supabase.rpc(
-    'get_workout_format_options',
-    {
-      p_session_id: sessionId,
-    }
-  );
+  const { data, error } =
+    await supabase.functions.invoke(
+      'change-workout-format',
+      {
+        body: {
+          action: 'OPTIONS',
+          session_id: sessionId,
+        },
+      }
+    );
 
   if (error) {
+    let detail = null;
+
+    try {
+      detail =
+        await error?.context?.json();
+    } catch {
+      detail = null;
+    }
+
     throw new Error(
-      error?.message ??
+      detail?.error ??
+        detail?.message ??
+        error?.message ??
         'Impossible de charger les formats disponibles.'
     );
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
   }
 
   return {
@@ -1638,6 +1657,8 @@ export async function getWorkoutFormatOptions(sessionId) {
         : [],
     version:
       data?.version ?? null,
+    timingMs:
+      Number(data?.timing_ms ?? 0),
   };
 }
 
