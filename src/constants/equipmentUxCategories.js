@@ -1,9 +1,34 @@
 const CATEGORY_DEFINITIONS = {
-  MUSCULATION: { key: 'MUSCULATION', label: 'Musculation', icon: 'barbell-outline' },
-  GYM: { key: 'GYM', label: 'Gym', icon: 'body-outline' },
-  CARDIO: { key: 'CARDIO', label: 'Cardio', icon: 'heart-outline' },
-  EXPLOSIVITE: { key: 'EXPLOSIVITE', label: 'Explosivité', icon: 'flash-outline' },
-  ACCESSOIRES: { key: 'ACCESSOIRES', label: 'Accessoires', icon: 'construct-outline' },
+  MUSCULATION: {
+    key: 'MUSCULATION',
+    label: 'Musculation',
+    icon: 'barbell-outline',
+    description: 'Poids libres, barres et machines',
+  },
+  GYM: {
+    key: 'GYM',
+    label: 'Gym',
+    icon: 'body-outline',
+    description: 'Traction, suspension et appuis',
+  },
+  CARDIO: {
+    key: 'CARDIO',
+    label: 'Cardio',
+    icon: 'heart-outline',
+    description: 'Ergomètres et corde',
+  },
+  EXPLOSIVITE: {
+    key: 'EXPLOSIVITE',
+    label: 'Explosivité',
+    icon: 'flash-outline',
+    description: 'Plyométrie, sled et lancers',
+  },
+  ACCESSOIRES: {
+    key: 'ACCESSOIRES',
+    label: 'Accessoires',
+    icon: 'construct-outline',
+    description: 'Élastiques, lest et récupération',
+  },
 };
 
 const EQUIPMENT_UX = {
@@ -58,6 +83,25 @@ const EQUIPMENT_UX = {
   E49: ['GYM', 'Appuis & structures'],
 };
 
+// Libellés orientés utilisateur. Les IDs et noms techniques du catalogue restent inchangés.
+const EQUIPMENT_DISPLAY_NAMES = {
+  E28: 'Poulie / câbles',
+  E31: 'Presse pectoraux',
+  E32: 'Presse à cuisses',
+  E33: 'Extension des jambes',
+  E34: 'Leg curl (ischios)',
+  E35: 'Tirage horizontal assis',
+  E36: 'Tirage vertical',
+  E37: 'Presse épaules',
+  E38: 'Butterfly / Pec Deck',
+  E39: 'Barre guidée (Smith)',
+  E40: 'Machine à mollets',
+  E41: 'Machine hip thrust',
+  E42: 'Hack squat',
+  E46: 'Abducteurs',
+  E47: 'Adducteurs',
+};
+
 const TECHNICAL_CATEGORY_FALLBACK = {
   'Poids libre': ['MUSCULATION', 'Poids libres'],
   Machine: ['MUSCULATION', 'Machines & poulies'],
@@ -87,6 +131,29 @@ const LOCATION_TAGS = {
   OUTDOOR: ['OUTDOOR'],
 };
 
+// Le catalogue historique regroupe BOX et GYM dans GYM_BOX.
+// On garde cette vérité technique pour le moteur, mais l'UX Box ne doit pas
+// proposer les machines typiques d'une salle de musculation traditionnelle.
+const ENVIRONMENT_EXCLUDED_EQUIPMENT = {
+  BOX: new Set([
+    'E28', // Poulies / câbles
+    'E31', // Presse pectoraux
+    'E32', // Presse à cuisses
+    'E33', // Extension des jambes
+    'E34', // Leg curl
+    'E35', // Tirage horizontal assis
+    'E36', // Tirage vertical
+    'E37', // Presse épaules
+    'E38', // Pec Deck
+    'E39', // Smith machine
+    'E40', // Mollets
+    'E41', // Hip thrust machine
+    'E42', // Hack squat
+    'E46', // Abducteurs
+    'E47', // Adducteurs
+  ]),
+};
+
 const GROUP_ORDER = {
   MUSCULATION: ['Poids libres', 'Barres & charges', 'Machines & poulies', 'Supports'],
   GYM: ['Traction & suspension', 'Appuis & structures', 'Gym'],
@@ -106,6 +173,10 @@ function hasExerciseBacking(item) {
 }
 
 function matchesEnvironment(item, environment) {
+  const id = String(item?.id ?? '');
+  const excluded = ENVIRONMENT_EXCLUDED_EQUIPMENT[environment];
+  if (excluded?.has(id)) return false;
+
   const locations = Array.isArray(item?.locations) ? item.locations : [];
   if (locations.length === 0) return true;
   const allowed = LOCATION_TAGS[environment] ?? LOCATION_TAGS.HOME;
@@ -117,6 +188,11 @@ export function getEquipmentUxMeta(item) {
   const fallback = TECHNICAL_CATEGORY_FALLBACK[String(item?.category ?? '')];
   const [category, group] = explicit ?? fallback ?? ['ACCESSOIRES', 'Accessoires'];
   return { ...CATEGORY_DEFINITIONS[category], group };
+}
+
+export function getEquipmentUxDisplayName(item) {
+  const id = String(item?.id ?? '');
+  return EQUIPMENT_DISPLAY_NAMES[id] ?? item?.name ?? '';
 }
 
 export function getEquipmentUxSections(catalog, environmentCode = 'HOME', includeEquipmentIds = []) {
@@ -134,7 +210,11 @@ export function getEquipmentUxSections(catalog, environmentCode = 'HOME', includ
     if (!sections.has(meta.key)) {
       sections.set(meta.key, { ...meta, items: [] });
     }
-    sections.get(meta.key).items.push({ ...item, uxGroup: meta.group });
+    sections.get(meta.key).items.push({
+      ...item,
+      displayName: getEquipmentUxDisplayName(item),
+      uxGroup: meta.group,
+    });
   }
 
   return Array.from(sections.values())
@@ -145,7 +225,10 @@ export function getEquipmentUxSections(catalog, environmentCode = 'HOME', includ
         const ar = groupRank.has(a.uxGroup) ? groupRank.get(a.uxGroup) : 999;
         const br = groupRank.has(b.uxGroup) ? groupRank.get(b.uxGroup) : 999;
         if (ar !== br) return ar - br;
-        return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'fr');
+        return String(a.displayName ?? a.name ?? '').localeCompare(
+          String(b.displayName ?? b.name ?? ''),
+          'fr'
+        );
       });
       const groups = Array.from(new Set(items.map((item) => item.uxGroup).filter(Boolean))).map((label) => ({ label }));
       return { ...section, items, groups };
