@@ -1,0 +1,1 @@
+trigger EQP-002 hardening
