@@ -1,0 +1,52 @@
+name: Apply EQP-005b equipment back copy
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/eqp-005b-back-copy.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply patch
+        run: python .github/scripts/eqp005_patch.py
+      - name: Verify patch
+        run: |
+          grep -q "router.replace('/profile')" app/profile/equipment.js
+          grep -q "if (activeCategory)" app/profile/equipment.js
+          grep -q "Renseigner les charges aide UGEROD" app/profile/equipment.js
+          ! grep -q "Ce preset est utilisé automatiquement" app/profile/equipment.js
+      - name: Export Expo web
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: npx expo export --platform web --output-dir dist-eqp005
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/profile/equipment.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix(equipment): repair back navigation and simplify copy"
+            git push origin HEAD:ux-navigation-coach-v1
+          fi
