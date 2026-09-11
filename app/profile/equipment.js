@@ -867,7 +867,7 @@ export default function ProfileEquipmentScreen() {
           return;
         }
 
-        router.back();
+        router.replace('/profile');
       }, 450);
     } catch (error) {
       console.log(
@@ -890,7 +890,25 @@ export default function ProfileEquipmentScreen() {
   }
 
   function handleBack() {
-    router.back();
+    if (isSaving) {
+      return;
+    }
+
+    if (activeCategory) {
+      setSearchQuery('');
+      setActiveCategory(null);
+      return;
+    }
+
+    if (
+      typeof returnTo === 'string' &&
+      returnTo.length > 0
+    ) {
+      router.replace(returnTo);
+      return;
+    }
+
+    router.replace('/profile');
   }
 
   if (isLoading) {
@@ -1031,26 +1049,19 @@ export default function ProfileEquipmentScreen() {
               </Text>
             </View>
 
-            {/* INFO */}
-            <View
-              style={styles.infoCard}
-            >
-              <Ionicons
-                name="information-circle-outline"
-                size={21}
-                color={
-                  BRAND_KAKI
-                }
-              />
-
-              <Text
-                style={styles.infoText}
-              >
-                {activeEnvironment === 'HOME'
-                  ? 'Renseigner les charges permet à UGEROD d’adapter plus précisément tes entraînements. Tu peux enregistrer un matériel même si tu ne connais pas sa charge.'
-                  : 'Ce preset est utilisé automatiquement dans la préparation quand tu choisis cet environnement. Les changements faits pendant une préparation restent ponctuels.'}
-              </Text>
-            </View>
+            {/* INFO — utile uniquement pour l'inventaire Maison */}
+            {activeEnvironment === 'HOME' && (
+              <View style={styles.infoCard}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={21}
+                  color={BRAND_KAKI}
+                />
+                <Text style={styles.infoText}>
+                  Renseigner les charges aide UGEROD à adapter plus précisément tes séances. Tu peux aussi enregistrer un équipement sans connaître sa charge.
+                </Text>
+              </View>
+            )}
 
             {!!errorMessage && (
               <View
