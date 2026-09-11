@@ -946,7 +946,10 @@ export default function PreparationCheckinV4() {
                 setSheet(null);
                 router.push({
                   pathname: '/profile/equipment',
-                  params: { returnTo: '/workout/preparation' },
+                  params: {
+                    returnTo: '/workout/preparation',
+                    environment: environmentCode,
+                  },
                 });
               }}
               style={styles.inlineLink}

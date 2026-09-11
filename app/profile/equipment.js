@@ -298,8 +298,19 @@ function sanitizeInventory(rows) {
 }
 
 export default function ProfileEquipmentScreen() {
-  const { returnTo } = useLocalSearchParams();
+  const { returnTo, environment } = useLocalSearchParams();
   const { colors: themeColors, isDark } = useUgerodTheme();
+
+  const initialEnvironment = useMemo(() => {
+    const rawEnvironment = Array.isArray(environment)
+      ? environment[0]
+      : environment;
+    const code = String(rawEnvironment ?? 'HOME').trim().toUpperCase();
+
+    return PROFILE_ENVIRONMENTS.some((item) => item.key === code)
+      ? code
+      : 'HOME';
+  }, [environment]);
 
   const colors = useMemo(
     () => ({
@@ -358,7 +369,7 @@ export default function ProfileEquipmentScreen() {
     useState(null);
 
   const [activeEnvironment, setActiveEnvironment] =
-    useState('HOME');
+    useState(initialEnvironment);
 
   const [
     expandedEquipmentIds,
@@ -378,7 +389,7 @@ export default function ProfileEquipmentScreen() {
           inventoryData,
         ] = await Promise.all([
           getEquipmentCatalog(),
-          getUserEnvironmentEquipmentPreset('HOME'),
+          getUserEnvironmentEquipmentPreset(initialEnvironment),
         ]);
 
         if (cancelled) {
@@ -411,7 +422,7 @@ export default function ProfileEquipmentScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialEnvironment]);
 
   const activeEnvironmentLabel =
     PROFILE_ENVIRONMENTS.find((item) => item.key === activeEnvironment)?.label ?? 'MAISON';
@@ -1048,20 +1059,6 @@ export default function ProfileEquipmentScreen() {
                   : `Sélectionne le matériel que tu as habituellement à disposition quand tu t’entraînes en ${activeEnvironmentLabel.toLowerCase()}.`}
               </Text>
             </View>
-
-            {/* INFO — utile uniquement pour l'inventaire Maison */}
-            {activeEnvironment === 'HOME' && (
-              <View style={styles.infoCard}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={21}
-                  color={BRAND_KAKI}
-                />
-                <Text style={styles.infoText}>
-                  Renseigner les charges aide UGEROD à adapter plus précisément tes séances. Tu peux aussi enregistrer un équipement sans connaître sa charge.
-                </Text>
-              </View>
-            )}
 
             {!!errorMessage && (
               <View
