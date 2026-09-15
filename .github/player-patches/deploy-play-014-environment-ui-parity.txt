@@ -1,0 +1,4 @@
+PLAY-014 environment UI parity
+functional-head=e0ad455c811ecc01ee96056b938a0c60c2243c80
+date=2026-09-16
+scope=DEV web deploy marker only
