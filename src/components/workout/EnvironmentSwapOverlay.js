@@ -65,7 +65,7 @@ function directionAvailable(item, direction) {
   return item?.directions?.[direction]?.available === true;
 }
 
-export default function EnvironmentSwapOverlay() {
+export default function EnvironmentSwapOverlay({ variant = 'floating' } = {}) {
   const {
     workout,
     updateWorkout,
@@ -78,12 +78,12 @@ export default function EnvironmentSwapOverlay() {
 
   const current = useMemo(() => currentRuntimeTarget(workout), [workout]);
   const isManualBuilderBlock = Boolean(current?.block?.builder_block_id) || current?.block?.manual_selection === true;
-  const swapExercise =
-    current &&
-    isManualBuilderBlock &&
-    SUPPORTED_SWAP_RUNTIME_BLOCKS.has(current.key)
-      ? current.pendingExercises?.[0] ?? null
-      : null;
+  // The UI may expose adaptation for any current exercise, but the existing
+  // backend availability remains the authority on whether a swap is possible.
+  const swapExercise = current?.pendingExercises?.[0] ?? null;
+  const needsBuilderRuntimeSync = Boolean(
+    current && isManualBuilderBlock && SUPPORTED_SWAP_RUNTIME_BLOCKS.has(current.key)
+  );
   const instanceId = swapExercise?.sessionExerciseId ?? null;
   const item = instanceId ? availability?.[instanceId] ?? null : null;
   const hasSwapChoice =
@@ -145,11 +145,13 @@ export default function EnvironmentSwapOverlay() {
         reason,
       });
 
-      await syncEnvironmentBuilderSwapRuntime({
-        sessionExerciseId: swapExercise.sessionExerciseId,
-        oldExerciseId,
-        substitute: result?.substitute ?? {},
-      });
+      if (needsBuilderRuntimeSync) {
+        await syncEnvironmentBuilderSwapRuntime({
+          sessionExerciseId: swapExercise.sessionExerciseId,
+          oldExerciseId,
+          substitute: result?.substitute ?? {},
+        });
+      }
 
       const refreshed = await reloadWorkoutSession({
         sessionId: workout.sessionId,
@@ -252,10 +254,17 @@ export default function EnvironmentSwapOverlay() {
     <>
       <Pressable
         onPress={() => setVisible(true)}
-        style={({ pressed }) => [styles.floatingButton, pressed && styles.pressed]}
+        style={({ pressed }) => [
+          variant === 'inline' ? styles.inlineButton : styles.floatingButton,
+          pressed && styles.pressed,
+        ]}
       >
-        <Ionicons name="ellipsis-horizontal" size={17} color={colors.textPrimary} />
-        <Text style={styles.floatingText}>OPTIONS</Text>
+        <Ionicons
+          name={hasSwapChoice ? 'swap-horizontal-outline' : 'ellipsis-horizontal'}
+          size={17}
+          color={colors.textPrimary}
+        />
+        <Text style={styles.floatingText}>{hasSwapChoice ? 'Adapter' : 'Options'}</Text>
       </Pressable>
 
       <Modal visible={visible} transparent animationType="slide" onRequestClose={() => !busy && setVisible(false)}>
@@ -334,6 +343,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
     zIndex: 20,
+  },
+  inlineButton: {
+    minHeight: 36,
+    paddingHorizontal: 11,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
   },
   floatingText: {
     fontFamily: 'Oswald_700Bold',

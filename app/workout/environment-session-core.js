@@ -14,7 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import EnvironmentWodBlock from '../../src/components/workout/EnvironmentWodBlock';
+import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
 import { markWorkoutSessionStarted } from '../../src/services/workoutService';
 
 function normalize(value) {
@@ -241,24 +243,90 @@ function initialSetDrafts(exercises, block) {
 }
 
 function SimpleBlock({ block, exercises, onComplete }) {
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const focusedStyles = useMemo(
+    () => createEnvironmentFocusedStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+  const [exerciseIndex, setExerciseIndex] = useState(0);
+  const exercise = exercises[exerciseIndex] ?? exercises[0] ?? null;
+
+  if (!exercise) {
+    return (
+      <View style={focusedStyles.exerciseCard}>
+        <Text style={focusedStyles.exerciseName}>Bloc vide</Text>
+        <Text style={focusedStyles.exercisePrescription}>Aucun exercice exécutable n’a été reçu.</Text>
+      </View>
+    );
+  }
+
+  const isLast = exerciseIndex >= exercises.length - 1;
+
+  function validateCurrent() {
+    if (isLast) {
+      onComplete();
+      return;
+    }
+    setExerciseIndex((current) => Math.min(exercises.length - 1, current + 1));
+  }
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{blockTitle(block)}</Text>
-      {exercises.map((exercise) => (
-        <View key={exerciseKey(exercise)} style={styles.exerciseRow}>
-          <View style={styles.bullet} />
-          <View style={styles.exerciseCopy}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {exercise.prescription ? (
-              <Text style={styles.prescription}>{exercise.prescription}</Text>
-            ) : null}
+    <>
+      <View style={focusedStyles.mediaCard}>
+        <View style={focusedStyles.mediaFallback}>
+          <View style={focusedStyles.mediaFallbackIcon}>
+            <Ionicons name="barbell-outline" size={34} color={themeColors.accent} />
           </View>
+          <Text style={focusedStyles.mediaFallbackText}>{blockTitle(block)}</Text>
         </View>
-      ))}
-      <Pressable onPress={onComplete} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-        <Text style={styles.primaryButtonText}>VALIDER LE BLOC</Text>
+        <View style={focusedStyles.mediaOverlayTop}>
+          <Text style={focusedStyles.exercisePosition}>
+            Exercice {exerciseIndex + 1} / {exercises.length}
+          </Text>
+        </View>
+      </View>
+
+      <View style={focusedStyles.exerciseCard}>
+        <Text style={focusedStyles.exerciseName}>{exercise.name}</Text>
+        {exercise.prescription ? (
+          <Text style={focusedStyles.exercisePrescription}>{exercise.prescription}</Text>
+        ) : null}
+      </View>
+
+      {exercises.length > 1 ? (
+        <View style={focusedStyles.exerciseNav}>
+          <Pressable
+            onPress={() => setExerciseIndex((current) => Math.max(0, current - 1))}
+            disabled={exerciseIndex === 0}
+            style={[focusedStyles.navButton, exerciseIndex === 0 && focusedStyles.actionDisabled]}
+          >
+            <Ionicons name="chevron-back" size={20} color={themeColors.text} />
+          </Pressable>
+          <View style={focusedStyles.navDots}>
+            {exercises.map((row, index) => (
+              <View
+                key={exerciseKey(row) ?? `${index}`}
+                style={[focusedStyles.navDot, index === exerciseIndex && focusedStyles.navDotActive]}
+              />
+            ))}
+          </View>
+          <Pressable
+            onPress={() => setExerciseIndex((current) => Math.min(exercises.length - 1, current + 1))}
+            disabled={isLast}
+            style={[focusedStyles.navButton, isLast && focusedStyles.actionDisabled]}
+          >
+            <Ionicons name="chevron-forward" size={20} color={themeColors.text} />
+          </Pressable>
+        </View>
+      ) : null}
+
+      <Pressable onPress={validateCurrent} style={focusedStyles.primaryButtonLarge}>
+        <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
+        <Text style={focusedStyles.primaryButtonTextLarge}>
+          {isLast ? 'Réalisé · terminer le bloc' : 'Réalisé · suivant'}
+        </Text>
       </Pressable>
-    </View>
+    </>
   );
 }
 
@@ -858,8 +926,20 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
   );
 }
 
-export default function EnvironmentSessionCore({ environmentCode }) {
+export default function EnvironmentSessionCore({
+  environmentCode,
+  onOpenOverview,
+  onOpenPlanB,
+  onOpenWhy,
+  onOpenAdjust,
+  showPlanB = false,
+}) {
   const { workout, updateWorkout } = useWorkout();
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const shellStyles = useMemo(
+    () => createShellStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const sessionStartPromise = useRef(null);
 
@@ -1094,20 +1174,77 @@ export default function EnvironmentSessionCore({ environmentCode }) {
   const canonicalWod = currentKey === 'wod' && !isRunMechanic(mechanic);
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.iconButton}>
-          <Ionicons name="arrow-back" size={21} color={colors.textPrimary} />
-        </Pressable>
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>{environmentCode === 'GYM' ? 'SALLE' : 'EXTÉRIEUR'}</Text>
-          <Text style={styles.headerTitle}>{blockTitle(currentBlock, currentKey.toUpperCase())}</Text>
+    <SafeAreaView style={[styles.screen, { backgroundColor: themeColors.background }]}>
+      <View style={shellStyles.header}>
+        <View style={shellStyles.headerTop}>
+          <Pressable
+            onPress={() => router.replace('/workout/preparation')}
+            hitSlop={12}
+            style={shellStyles.iconButton}
+          >
+            <Ionicons name="arrow-back" size={21} color={themeColors.text} />
+          </Pressable>
+
+          <View style={shellStyles.headerCopy}>
+            <Text style={shellStyles.headerEyebrow}>
+              {(environmentCode === 'GYM' ? 'SALLE' : 'EXTÉRIEUR')} · Bloc {currentIndex + 1}/{blocks.length}
+            </Text>
+            <Text style={shellStyles.headerTitle}>
+              {blockTitle(currentBlock, currentKey.toUpperCase())}
+            </Text>
+            <Text numberOfLines={1} style={shellStyles.headerMeta}>
+              {[
+                currentBlock?.structure ?? currentBlock?.execution_style?.label_fr ?? null,
+                Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes) > 0
+                  ? `${Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes)} min`
+                  : null,
+              ].filter(Boolean).join(' · ')}
+            </Text>
+          </View>
+
+          {typeof onOpenOverview === 'function' ? (
+            <Pressable
+              onPress={onOpenOverview}
+              accessibilityRole="button"
+              accessibilityLabel="Voir ma séance"
+              style={shellStyles.overviewButton}
+            >
+              <Ionicons name="clipboard-outline" size={17} color={themeColors.text} />
+              <Text style={shellStyles.overviewButtonText}>Ma séance</Text>
+            </Pressable>
+          ) : null}
         </View>
-        <Text style={styles.stepText}>{currentIndex + 1}/{blocks.length}</Text>
+
+        <View style={shellStyles.coachTools}>
+          {typeof onOpenWhy === 'function' ? (
+            <Pressable onPress={onOpenWhy} style={shellStyles.coachTool}>
+              <Ionicons name="help-circle-outline" size={17} color={themeColors.textSecondary} />
+              <Text style={shellStyles.coachToolText}>Pourquoi ?</Text>
+            </Pressable>
+          ) : null}
+          {typeof onOpenAdjust === 'function' ? (
+            <Pressable onPress={onOpenAdjust} style={shellStyles.coachTool}>
+              <Ionicons name="options-outline" size={17} color={themeColors.accent} />
+              <Text style={shellStyles.coachToolText}>Ajuster</Text>
+            </Pressable>
+          ) : null}
+          {showPlanB && typeof onOpenPlanB === 'function' ? (
+            <Pressable onPress={onOpenPlanB} style={shellStyles.coachTool}>
+              <Ionicons name="shuffle-outline" size={17} color={themeColors.secondaryAccent} />
+              <Text style={shellStyles.coachToolText}>Plan B</Text>
+            </Pressable>
+          ) : null}
+          <EnvironmentSwapOverlay variant="inline" />
+        </View>
       </View>
 
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${((currentIndex + 1) / blocks.length) * 100}%` }]} />
+      <View style={shellStyles.progressTrack}>
+        <View
+          style={[
+            shellStyles.progressFill,
+            { width: `${blocks.length > 0 ? Math.round((currentIndex / blocks.length) * 100) : 0}%` },
+          ]}
+        />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -1157,6 +1294,203 @@ export default function EnvironmentSessionCore({ environmentCode }) {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function createShellStyles(colors, isDark) {
+  return StyleSheet.create({
+    header: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: 8,
+      paddingBottom: 10,
+      backgroundColor: colors.background,
+    },
+    headerTop: {
+      minHeight: 64,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    iconButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    headerCopy: { flex: 1, minWidth: 0 },
+    headerEyebrow: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      textTransform: 'uppercase',
+      color: colors.accent,
+    },
+    headerTitle: {
+      marginTop: 2,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 22,
+      lineHeight: 27,
+      color: colors.text,
+    },
+    headerMeta: {
+      marginTop: 2,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 14,
+      color: colors.textSecondary,
+    },
+    overviewButton: {
+      minHeight: 38,
+      paddingHorizontal: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    overviewButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 10,
+      color: colors.text,
+    },
+    coachTools: {
+      marginTop: 8,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    coachTool: {
+      minHeight: 36,
+      paddingHorizontal: 11,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    coachToolText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 10,
+      color: colors.text,
+    },
+    progressTrack: { height: 3, backgroundColor: colors.border },
+    progressFill: { height: 3, backgroundColor: colors.accent },
+  });
+}
+
+function createEnvironmentFocusedStyles(colors, isDark) {
+  return StyleSheet.create({
+    mediaCard: {
+      minHeight: 190,
+      borderRadius: 18,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    mediaFallback: {
+      flex: 1,
+      minHeight: 190,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      backgroundColor: colors.surface,
+    },
+    mediaFallbackIcon: {
+      width: 64,
+      height: 64,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accentSoft,
+    },
+    mediaFallbackText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    mediaOverlayTop: {
+      position: 'absolute',
+      top: 12,
+      right: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: isDark ? 'rgba(0,0,0,0.58)' : 'rgba(255,255,255,0.88)',
+    },
+    exercisePosition: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      color: colors.text,
+    },
+    exerciseCard: {
+      marginTop: 12,
+      padding: 18,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+    },
+    exerciseName: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 20,
+      lineHeight: 25,
+      color: colors.text,
+    },
+    exercisePrescription: {
+      marginTop: 6,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.textSecondary,
+    },
+    exerciseNav: {
+      marginTop: 12,
+      minHeight: 42,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    navButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    navDots: { flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 7 },
+    navDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.borderStrong },
+    navDotActive: { width: 20, backgroundColor: colors.accent },
+    actionDisabled: { opacity: 0.35 },
+    primaryButtonLarge: {
+      minHeight: 54,
+      marginTop: 14,
+      paddingHorizontal: 18,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: colors.accent,
+    },
+    primaryButtonTextLarge: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      color: colors.textOnAccent,
+    },
+  });
 }
 
 const styles = StyleSheet.create({
