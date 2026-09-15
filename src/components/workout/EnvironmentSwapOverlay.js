@@ -65,7 +65,7 @@ function directionAvailable(item, direction) {
   return item?.directions?.[direction]?.available === true;
 }
 
-export default function EnvironmentSwapOverlay({ variant = 'floating' } = {}) {
+export default function EnvironmentSwapOverlay({ variant = 'floating', targetExercise = null } = {}) {
   const {
     workout,
     updateWorkout,
@@ -80,7 +80,7 @@ export default function EnvironmentSwapOverlay({ variant = 'floating' } = {}) {
   const isManualBuilderBlock = Boolean(current?.block?.builder_block_id) || current?.block?.manual_selection === true;
   // The UI may expose adaptation for any current exercise, but the existing
   // backend availability remains the authority on whether a swap is possible.
-  const swapExercise = current?.pendingExercises?.[0] ?? null;
+  const swapExercise = targetExercise ?? current?.pendingExercises?.[0] ?? null;
   const needsBuilderRuntimeSync = Boolean(
     current && isManualBuilderBlock && SUPPORTED_SWAP_RUNTIME_BLOCKS.has(current.key)
   );

@@ -291,6 +291,9 @@ function SimpleBlock({ block, exercises, onComplete }) {
         {exercise.prescription ? (
           <Text style={focusedStyles.exercisePrescription}>{exercise.prescription}</Text>
         ) : null}
+        <View style={{ marginTop: 12, alignItems: 'flex-start' }}>
+          <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+        </View>
       </View>
 
       {exercises.length > 1 ? (
@@ -360,6 +363,9 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
           <View key={key} style={styles.strengthExercise}>
             <Text style={styles.exerciseName}>{exercise.name}</Text>
             {exercise.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
+            <View style={{ marginTop: 10, alignItems: 'flex-start' }}>
+              <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+            </View>
 
             {rows.length === 0 ? (
               <Text style={styles.warningText}>
@@ -485,6 +491,9 @@ function ManualGymBlock({ block, exercises, onComplete }) {
           <View key={key} style={styles.strengthExercise}>
             <Text style={styles.exerciseName}>{exercise.name}</Text>
             {exercise.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
+            <View style={{ marginTop: 10, alignItems: 'flex-start' }}>
+              <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+            </View>
             <View style={styles.setRow}>
               {showReps ? (
                 <TextInput
@@ -633,6 +642,11 @@ function TabataBlock({ block, exercises, onComplete }) {
         <Text style={styles.cardMeta}>Round {phase.round}/{rounds}</Text>
         {phase.label === 'EFFORT' && activeExercise ? (
           <Text style={styles.exerciseName}>{activeExercise.name}</Text>
+        ) : null}
+        {!started && activeExercise ? (
+          <View style={{ marginTop: 10, alignItems: 'center' }}>
+            <EnvironmentSwapOverlay variant="inline" targetExercise={activeExercise} />
+          </View>
         ) : null}
       </View>
 
@@ -816,6 +830,11 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
     <View style={[styles.card, styles.runCard]}>
       <Text style={styles.runEyebrow}>CONDITIONING COURSE</Text>
       <Text style={styles.cardTitle}>{title}</Text>
+      {!started && exercise ? (
+        <View style={{ marginTop: 10, alignItems: 'flex-start' }}>
+          <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+        </View>
+      ) : null}
 
       <View style={styles.runBriefPanel}>
         <Text style={styles.runBriefEyebrow}>TA SÉANCE</Text>
@@ -1234,7 +1253,6 @@ export default function EnvironmentSessionCore({
               <Text style={shellStyles.coachToolText}>Plan B</Text>
             </Pressable>
           ) : null}
-          <EnvironmentSwapOverlay variant="inline" />
         </View>
       </View>
 
