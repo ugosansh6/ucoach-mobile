@@ -1,14 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import SessionCore from './session-core';
-import EnvironmentSessionCore from './environment-session-core';
-import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
 import SessionOverviewSheet from '../../src/components/workout/SessionOverviewSheet';
 import SessionWhySheet from '../../src/components/workout/SessionWhySheet';
 import SessionAdaptationSheet from '../../src/components/workout/SessionAdaptationSheet';
-import { spacing } from '../../src/constants';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
@@ -80,24 +76,6 @@ export default function SessionScreen() {
   const [adaptationOpen, setAdaptationOpen] = useState(false);
   const overviewShownForSessionRef = useRef(null);
 
-  const environmentCode = useMemo(
-    () =>
-      String(
-        workout?.meta?.environment_code ??
-          workout?.meta?.environmentCode ??
-          workout?.preparationSnapshot?.environmentCode ??
-          ''
-      )
-        .trim()
-        .toUpperCase(),
-    [
-      workout?.meta?.environmentCode,
-      workout?.meta?.environment_code,
-      workout?.preparationSnapshot?.environmentCode,
-    ]
-  );
-
-  const isEnvironmentSession = ['GYM', 'OUTDOOR'].includes(environmentCode);
   const progressRecorded = hasRecordedProgress(workout);
   const hasResumeCursor = Boolean(
     workout?.playerCursor?.blockId &&
@@ -115,8 +93,9 @@ export default function SessionScreen() {
     [workout?.exercises, workout?.rawBlocks]
   );
 
-  const canRegeneratePlanB =
-    Boolean(workout?.sessionId) && !isEnvironmentSession && !progressRecorded;
+  // PLAY-014: même règle pour Maison, Box, Salle et Extérieur.
+  // L'environnement adapte le contenu de la séance, jamais les capacités du Player.
+  const canRegeneratePlanB = Boolean(workout?.sessionId) && !progressRecorded;
   const showPlanBEntry = canRegeneratePlanB;
   const canChangeSkill = canRegeneratePlanB && hasSkill;
 
@@ -207,39 +186,20 @@ export default function SessionScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {isEnvironmentSession ? (
-        <>
-          <EnvironmentSessionCore environmentCode={environmentCode} />
-          <EnvironmentSwapOverlay />
-        </>
-      ) : (
-        <SessionCore
-          onOpenOverview={() => {
-            setPlanBOpen(false);
-            setOverviewOpen(true);
-          }}
-          onOpenPlanB={() => {
-            if (!canRegeneratePlanB) return;
-            setOverviewOpen(true);
-            setPlanBOpen(true);
-          }}
-          onOpenWhy={() => setWhyOpen(true)}
-          onOpenAdjust={() => setAdaptationOpen(true)}
-          showPlanB={showPlanBEntry}
-        />
-      )}
-
-      {isEnvironmentSession ? (
-        <View style={styles.sessionTools} pointerEvents="box-none">
-          <Pressable
-            onPress={() => setOverviewOpen(true)}
-            style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}
-          >
-            <Ionicons name="clipboard-outline" size={18} color={colors.text} />
-            <Text style={styles.toolButtonText}>Ma séance</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <SessionCore
+        onOpenOverview={() => {
+          setPlanBOpen(false);
+          setOverviewOpen(true);
+        }}
+        onOpenPlanB={() => {
+          if (!canRegeneratePlanB) return;
+          setOverviewOpen(true);
+          setPlanBOpen(true);
+        }}
+        onOpenWhy={() => setWhyOpen(true)}
+        onOpenAdjust={() => setAdaptationOpen(true)}
+        showPlanB={showPlanBEntry}
+      />
 
       <SessionOverviewSheet
         key={`session-overview:${workout?.sessionId ?? 'none'}`}
@@ -271,40 +231,8 @@ export default function SessionScreen() {
   );
 }
 
-function createStyles(colors, isDark) {
+function createStyles() {
   return StyleSheet.create({
     root: { flex: 1 },
-    sessionTools: {
-      position: 'absolute',
-      left: spacing.lg,
-      right: spacing.lg,
-      bottom: 84,
-      zIndex: 32,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      pointerEvents: 'box-none',
-    },
-    toolButton: {
-      minHeight: 40,
-      paddingHorizontal: 12,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceElevated,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      shadowColor: colors.shadow,
-      shadowOpacity: isDark ? 0.24 : 0.08,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-    },
-    toolButtonText: {
-      fontFamily: 'Manrope_700Bold',
-      fontSize: 10,
-      color: colors.text,
-    },
-    pressed: { opacity: 0.76 },
   });
 }
