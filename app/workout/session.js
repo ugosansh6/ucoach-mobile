@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import SessionCore from './session-core';
+import EnvironmentSessionCore from './environment-session-core';
 import SessionOverviewSheet from '../../src/components/workout/SessionOverviewSheet';
 import SessionWhySheet from '../../src/components/workout/SessionWhySheet';
 import SessionAdaptationSheet from '../../src/components/workout/SessionAdaptationSheet';
@@ -66,8 +67,8 @@ function verifyPlanBReplacement({ sourceWorkout, result, nextWorkout }) {
 
 export default function SessionScreen() {
   const { workout, setGeneratedWorkout } = useWorkout();
-  const { colors, isDark } = useUgerodTheme();
-  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { colors } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(), []);
 
   const [planBOpen, setPlanBOpen] = useState(false);
   const [busyAction, setBusyAction] = useState(null);
@@ -76,6 +77,26 @@ export default function SessionScreen() {
   const [adaptationOpen, setAdaptationOpen] = useState(false);
   const overviewShownForSessionRef = useRef(null);
 
+  const environmentCode = useMemo(
+    () =>
+      String(
+        workout?.meta?.environment_code ??
+          workout?.meta?.environmentCode ??
+          workout?.preparationSnapshot?.environmentCode ??
+          ''
+      )
+        .trim()
+        .toUpperCase(),
+    [
+      workout?.meta?.environmentCode,
+      workout?.meta?.environment_code,
+      workout?.preparationSnapshot?.environmentCode,
+    ]
+  );
+
+  // GYM et OUTDOOR conservent leurs runtimes spécialisés (séries, cardio, course),
+  // mais leur shell et leurs actions sont alignés sur le Player commun.
+  const usesSpecializedEnvironmentRuntime = ['GYM', 'OUTDOOR'].includes(environmentCode);
   const progressRecorded = hasRecordedProgress(workout);
   const hasResumeCursor = Boolean(
     workout?.playerCursor?.blockId &&
@@ -93,8 +114,8 @@ export default function SessionScreen() {
     [workout?.exercises, workout?.rawBlocks]
   );
 
-  // PLAY-014: même règle pour Maison, Box, Salle et Extérieur.
-  // L'environnement adapte le contenu de la séance, jamais les capacités du Player.
+  // UI rule shared by every environment. Backend remains authoritative on whether
+  // an actual alternative can be produced.
   const canRegeneratePlanB = Boolean(workout?.sessionId) && !progressRecorded;
   const showPlanBEntry = canRegeneratePlanB;
   const canChangeSkill = canRegeneratePlanB && hasSkill;
@@ -137,7 +158,9 @@ export default function SessionScreen() {
 
       Alert.alert(
         'Plan B appliqué',
-        action === 'SKIP_SKILL' ? 'Le Skill a été retiré et ta séance a été réorganisée.' : 'Un nouveau Skill a été préparé.'
+        action === 'SKIP_SKILL'
+          ? 'Le Skill a été retiré et ta séance a été réorganisée.'
+          : 'Un nouveau Skill a été préparé.'
       );
       return { ok: true };
     } catch (error) {
@@ -184,22 +207,31 @@ export default function SessionScreen() {
     }
   }
 
+  const commonPlayerActions = {
+    onOpenOverview: () => {
+      setPlanBOpen(false);
+      setOverviewOpen(true);
+    },
+    onOpenPlanB: () => {
+      if (!canRegeneratePlanB) return;
+      setOverviewOpen(true);
+      setPlanBOpen(true);
+    },
+    onOpenWhy: () => setWhyOpen(true),
+    onOpenAdjust: () => setAdaptationOpen(true),
+    showPlanB: showPlanBEntry,
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <SessionCore
-        onOpenOverview={() => {
-          setPlanBOpen(false);
-          setOverviewOpen(true);
-        }}
-        onOpenPlanB={() => {
-          if (!canRegeneratePlanB) return;
-          setOverviewOpen(true);
-          setPlanBOpen(true);
-        }}
-        onOpenWhy={() => setWhyOpen(true)}
-        onOpenAdjust={() => setAdaptationOpen(true)}
-        showPlanB={showPlanBEntry}
-      />
+      {usesSpecializedEnvironmentRuntime ? (
+        <EnvironmentSessionCore
+          environmentCode={environmentCode}
+          {...commonPlayerActions}
+        />
+      ) : (
+        <SessionCore {...commonPlayerActions} />
+      )}
 
       <SessionOverviewSheet
         key={`session-overview:${workout?.sessionId ?? 'none'}`}
