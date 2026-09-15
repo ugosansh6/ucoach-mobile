@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '../../constants';
-import WodProtocolPlayer from './WodProtocolPlayer';
+import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
+import WodProtocolPlayerV3 from './WodProtocolPlayerV3';
 
 function numberOr(value, fallback = 0) {
   const numeric = Number(value);
@@ -16,6 +17,8 @@ export default function EnvironmentWodBlock({
   onRuntimeChange,
   onComplete,
 }) {
+  const { colors } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const durationMinutes = Math.max(
     1,
     numberOr(block?.duration_minutes ?? block?.durationMinutes, 10)
@@ -33,7 +36,7 @@ export default function EnvironmentWodBlock({
 
   return (
     <View style={styles.container}>
-      <WodProtocolPlayer
+      <WodProtocolPlayerV3
         block={playerBlock}
         initialRuntime={runtime ?? null}
         onBeforeStart={onBeforeStart}
@@ -48,28 +51,29 @@ export default function EnvironmentWodBlock({
             pressed && styles.pressed,
           ]}
         >
-          <Text style={styles.completeButtonText}>VALIDER LE WOD</Text>
+          <Text style={styles.completeButtonText}>Terminer le bloc</Text>
         </Pressable>
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { gap: 12 },
-  completeButton: {
-    minHeight: 50,
-    paddingHorizontal: 16,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-  },
-  completeButtonText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 0.8,
-    color: colors.brandWhite,
-  },
-  pressed: { opacity: 0.72 },
-});
+function createStyles(colors) {
+  return StyleSheet.create({
+    container: { gap: 12 },
+    completeButton: {
+      minHeight: 54,
+      paddingHorizontal: 18,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+    },
+    completeButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      color: colors.textOnAccent,
+    },
+    pressed: { opacity: 0.72 },
+  });
+}
