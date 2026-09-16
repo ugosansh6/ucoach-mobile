@@ -145,7 +145,7 @@ export default function GeneratingThemedScreen() {
 
         const nextWorkout = await generateWorkoutSession(preparation, {
           forceRecalculateStarted,
-          protectedSessionExerciseIds,
+          protectedSessionExerciseIds: newSessionRequested ? [] : protectedSessionExerciseIds,
         });
         applyGenerationResult(nextWorkout);
       } catch (generationError) {
@@ -208,7 +208,7 @@ export default function GeneratingThemedScreen() {
     setControl(null);
     try {
       await discardUnstartedWorkoutSession(control.sessionId);
-      const nextWorkout = await generateWorkoutSession(preparation, { protectedSessionExerciseIds });
+      const nextWorkout = await generateWorkoutSession(preparation, { protectedSessionExerciseIds: [] });
       applyGenerationResult(nextWorkout);
     } catch (replaceError) {
       setError(replaceError?.message ?? 'Impossible de remplacer la séance précédente.');
@@ -226,7 +226,7 @@ export default function GeneratingThemedScreen() {
     setControl(null);
     try {
       await replaceWorkoutSessionByUser(control.sessionId, { allowStarted: true });
-      const nextWorkout = await generateWorkoutSession(preparation, { protectedSessionExerciseIds });
+      const nextWorkout = await generateWorkoutSession(preparation, { protectedSessionExerciseIds: [] });
       applyGenerationResult(nextWorkout);
     } catch (replaceError) {
       setError(replaceError?.message ?? 'Impossible de remplacer la séance commencée.');
