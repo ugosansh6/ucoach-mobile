@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   PanResponder,
@@ -482,8 +483,25 @@ export default function PreparationCheckinV4() {
     environmentCode === 'OUTDOOR' && selectedPlace && !selectedPlace.surface;
 
   const normalizedStatus = String(workout?.status ?? '').toLowerCase();
-  const hasActiveSession =
+  const hasExistingSession =
     Boolean(workout?.sessionId) && !['completed', 'abandoned'].includes(normalizedStatus);
+  const hasStartedSession = Boolean(
+    hasExistingSession &&
+      (workout?.sessionStarted ||
+        workout?.startedAt ||
+        workout?.startedLocalDate ||
+        workout?.wodStarted ||
+        workout?.wodStartedAt ||
+        workout?.wodRuntime?.started ||
+        normalizedStatus === 'in_progress' ||
+        (workout?.validatedBlocks ?? []).length > 0 ||
+        (workout?.exercises ?? []).some((exercise) => {
+          const status = String(exercise?.userExecutionStatus ?? exercise?.status ?? 'pending')
+            .trim()
+            .toLowerCase();
+          return ['completed', 'adapted', 'not_completed', 'skipped'].includes(status);
+        }))
+  );
 
   const loadEquipment = useCallback(async (targetEnvironment = 'HOME') => {
     const environment = String(targetEnvironment ?? 'HOME').toUpperCase();
@@ -651,7 +669,7 @@ export default function PreparationCheckinV4() {
     router.push('/workout/injuries');
   }
 
-  function handleGenerate() {
+  function handleGenerate({ replaceExisting = false } = {}) {
     if (!painConfirmedToday) {
       setSheet('pain');
       return;
@@ -672,7 +690,28 @@ export default function PreparationCheckinV4() {
       region: focus,
       environmentCode,
     });
-    router.push('/workout/generating');
+
+    const navigate = () => {
+      if (replaceExisting) {
+        router.push({ pathname: '/workout/generating', params: { mode: 'new' } });
+      } else {
+        router.push('/workout/generating');
+      }
+    };
+
+    if (replaceExisting && hasStartedSession) {
+      Alert.alert(
+        'Générer une nouvelle séance ?',
+        'Cette séance contient déjà du travail enregistré. Elle sera conservée comme abandonnée et UGEROD préparera une nouvelle séance avec ton check-in actuel.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Nouvelle séance', style: 'destructive', onPress: navigate },
+        ]
+      );
+      return;
+    }
+
+    navigate();
   }
 
   const equipmentSummary = equipmentLoading
@@ -789,30 +828,45 @@ export default function PreparationCheckinV4() {
           </ScrollView>
         </View>
 
-        <Pressable
-          onPress={() => {
-            if (hasActiveSession) {
-              router.replace('/workout/session');
-              return;
-            }
-            handleGenerate();
-          }}
-          disabled={!hasActiveSession && equipmentLoading}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            !hasActiveSession && !canGenerate && styles.primaryButtonPending,
-            pressed && (hasActiveSession || !equipmentLoading) && styles.pressed,
-          ]}
-        >
-          <Text style={styles.primaryButtonText}>
-            {hasActiveSession ? 'Reprendre sa séance' : 'Voir ma séance'}
-          </Text>
-          <Ionicons
-            name={hasActiveSession ? 'play' : 'arrow-forward'}
-            size={21}
-            color={colors.textOnAccent}
-          />
-        </Pressable>
+        <View style={styles.sessionActions}>
+          {hasExistingSession ? (
+            <>
+              <Pressable
+                onPress={() => router.replace('/workout/session')}
+                style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.primaryButtonText}>Reprendre ma séance</Text>
+                <Ionicons name="play" size={21} color={colors.textOnAccent} />
+              </Pressable>
+
+              <Pressable
+                onPress={() => handleGenerate({ replaceExisting: true })}
+                disabled={equipmentLoading}
+                style={({ pressed }) => [
+                  styles.newSessionButton,
+                  !canGenerate && styles.primaryButtonPending,
+                  pressed && !equipmentLoading && styles.pressed,
+                ]}
+              >
+                <Text style={styles.newSessionButtonText}>Générer une nouvelle séance</Text>
+                <Ionicons name="refresh-outline" size={20} color={colors.accent} />
+              </Pressable>
+            </>
+          ) : (
+            <Pressable
+              onPress={() => handleGenerate()}
+              disabled={equipmentLoading}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                !canGenerate && styles.primaryButtonPending,
+                pressed && !equipmentLoading && styles.pressed,
+              ]}
+            >
+              <Text style={styles.primaryButtonText}>Voir ma séance</Text>
+              <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
+            </Pressable>
+          )}
+        </View>
 
         <View style={styles.bottomSpace} />
       </ScrollView>
@@ -1241,8 +1295,11 @@ function createStyles(colors) {
     },
     focusRow: { paddingTop: 11, paddingRight: 20, gap: 8 },
 
-    primaryButton: {
+    sessionActions: {
       marginTop: 20,
+      gap: 10,
+    },
+    primaryButton: {
       minHeight: 58,
       borderRadius: 16,
       backgroundColor: colors.accent,
@@ -1258,6 +1315,24 @@ function createStyles(colors) {
       lineHeight: 22,
       letterSpacing: -0.1,
       color: colors.textOnAccent,
+    },
+    newSessionButton: {
+      minHeight: 54,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 9,
+    },
+    newSessionButtonText: {
+      fontFamily: MANROPE.bold,
+      fontSize: 15,
+      lineHeight: 20,
+      letterSpacing: -0.1,
+      color: colors.accent,
     },
 
 

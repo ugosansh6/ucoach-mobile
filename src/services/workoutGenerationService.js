@@ -309,6 +309,31 @@ async function generateEnvironmentWorkoutSession(preparation) {
   };
 }
 
+export async function replaceWorkoutSessionByUser(sessionId, { allowStarted = false } = {}) {
+  if (!sessionId) {
+    throw new Error('Aucune séance à remplacer.');
+  }
+
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('replace_workout_session_by_user_v1', {
+      p_session_id: sessionId,
+      p_allow_started: Boolean(allowStarted),
+    })
+  );
+
+  if (data?.status === 'STARTED_SESSION_CONFIRM_REQUIRED') {
+    const error = new Error('Cette séance a réellement commencé. Confirme la création d’une nouvelle séance.');
+    error.code = 'STARTED_SESSION_CONFIRM_REQUIRED';
+    throw error;
+  }
+
+  if (!data?.replaced) {
+    throw new Error('La séance actuelle ne peut pas être remplacée.');
+  }
+
+  return data;
+}
+
 export async function discardUnstartedWorkoutSession(sessionId) {
   if (!sessionId) {
     throw new Error('Aucune séance à remplacer.');

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
   Image,
@@ -19,6 +19,7 @@ import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   discardUnstartedWorkoutSession,
   generateWorkoutSession,
+  replaceWorkoutSessionByUser,
 } from '../../src/services/workoutGenerationService';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -40,6 +41,8 @@ function environmentLabel(code) {
 }
 
 export default function GeneratingThemedScreen() {
+  const searchParams = useLocalSearchParams();
+  const newSessionRequested = String(searchParams?.mode ?? '').toLowerCase() === 'new';
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
@@ -55,6 +58,21 @@ export default function GeneratingThemedScreen() {
   const missingOutdoorContext =
     environmentCode === 'OUTDOOR' &&
     (!preparation?.outdoorPlaceCode || !preparation?.surfaceCode);
+
+  const normalizedWorkoutStatus = String(workout?.status ?? '').toLowerCase();
+  const existingWorkoutActive =
+    Boolean(workout?.sessionId) && !['completed', 'abandoned'].includes(normalizedWorkoutStatus);
+  const existingWorkoutStarted = Boolean(
+    existingWorkoutActive &&
+      (workout?.sessionStarted ||
+        workout?.startedAt ||
+        workout?.startedLocalDate ||
+        workout?.wodStarted ||
+        workout?.wodStartedAt ||
+        workout?.wodRuntime?.started ||
+        normalizedWorkoutStatus === 'in_progress' ||
+        (workout?.validatedBlocks ?? []).length > 0)
+  );
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -119,6 +137,12 @@ export default function GeneratingThemedScreen() {
       setElapsedSeconds(0);
 
       try {
+        if (newSessionRequested && existingWorkoutActive && workout?.sessionId) {
+          await replaceWorkoutSessionByUser(workout.sessionId, {
+            allowStarted: existingWorkoutStarted,
+          });
+        }
+
         const nextWorkout = await generateWorkoutSession(preparation, {
           forceRecalculateStarted,
           protectedSessionExerciseIds,
@@ -130,7 +154,17 @@ export default function GeneratingThemedScreen() {
         busyRef.current = false;
         setBusy(false);
       }
-    }, [applyGenerationResult, label, missingOutdoorContext, preparation, protectedSessionExerciseIds]
+    }, [
+      applyGenerationResult,
+      existingWorkoutActive,
+      existingWorkoutStarted,
+      label,
+      missingOutdoorContext,
+      newSessionRequested,
+      preparation,
+      protectedSessionExerciseIds,
+      workout?.sessionId,
+    ]
   );
 
   useEffect(() => {
@@ -161,9 +195,10 @@ export default function GeneratingThemedScreen() {
     control?.environmentControlStatus === 'EXISTING_GENERATED_SESSION_CONFLICT' &&
     !control?.existingSessionStarted &&
     Boolean(control?.sessionId);
+  const canReplaceStarted =
+    controlStatus === 'STARTED_SESSION_CONFIRM_REQUIRED' && Boolean(control?.sessionId);
   const canForceRecalculate =
-    !control?.environmentControlStatus &&
-    ['STARTED_SESSION_CONFIRM_REQUIRED', 'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED'].includes(controlStatus);
+    controlStatus === 'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED';
 
   async function replaceExisting() {
     if (!canReplaceExisting || busyRef.current) return;
@@ -177,6 +212,24 @@ export default function GeneratingThemedScreen() {
       applyGenerationResult(nextWorkout);
     } catch (replaceError) {
       setError(replaceError?.message ?? 'Impossible de remplacer la séance précédente.');
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function replaceStartedAndGenerate() {
+    if (!canReplaceStarted || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    setControl(null);
+    try {
+      await replaceWorkoutSessionByUser(control.sessionId, { allowStarted: true });
+      const nextWorkout = await generateWorkoutSession(preparation, { protectedSessionExerciseIds });
+      applyGenerationResult(nextWorkout);
+    } catch (replaceError) {
+      setError(replaceError?.message ?? 'Impossible de remplacer la séance commencée.');
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -208,11 +261,13 @@ export default function GeneratingThemedScreen() {
     return {
       eyebrow: 'SÉANCE EN COURS',
       title: 'UNE SÉANCE A DÉJÀ COMMENCÉ.',
-      body: canForceRecalculate
-        ? 'Tu peux la reprendre. Un recalcul complet effacera la progression enregistrée sur cette séance.'
-        : 'UGEROD protège cette séance : reprends-la ou retourne au check-in.',
+      body: canReplaceStarted
+        ? 'Tu peux la reprendre ou choisir une nouvelle séance. Le travail déjà enregistré restera attaché à la séance abandonnée.'
+        : canForceRecalculate
+          ? 'Tu peux la reprendre ou recalculer les éléments restants.'
+          : 'UGEROD protège cette séance : reprends-la ou retourne au check-in.',
     };
-  }, [canForceRecalculate, canReplaceExisting, controlStatus]);
+  }, [canForceRecalculate, canReplaceExisting, canReplaceStarted, controlStatus]);
 
   if (control || error) {
     const copy = error
@@ -248,13 +303,22 @@ export default function GeneratingThemedScreen() {
               <Text style={styles.dangerButtonText}>GÉNÉRER UNE NOUVELLE SÉANCE</Text>
             </Pressable>
           ) : null}
+          {canReplaceStarted ? (
+            <Pressable
+              onPress={replaceStartedAndGenerate}
+              disabled={busy}
+              style={styles.dangerButton}
+            >
+              <Text style={styles.dangerButtonText}>GÉNÉRER UNE NOUVELLE SÉANCE</Text>
+            </Pressable>
+          ) : null}
           {canForceRecalculate ? (
             <Pressable
               onPress={() => generate({ forceRecalculateStarted: true })}
               disabled={busy}
               style={styles.dangerButton}
             >
-              <Text style={styles.dangerButtonText}>TOUT RECALCULER</Text>
+              <Text style={styles.dangerButtonText}>RECALCULER LES ÉLÉMENTS RESTANTS</Text>
             </Pressable>
           ) : null}
           <Pressable onPress={() => router.replace('/workout/preparation')} style={styles.secondaryButton}>
