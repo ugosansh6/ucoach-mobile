@@ -277,12 +277,14 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
             <View style={styles.handle} />
             <View style={styles.sheetHeader}>
               <View style={styles.flex}>
-                <Text style={styles.eyebrow}>OPTIONS DU BLOC</Text>
-                <Text style={styles.title}>{current.block?.title ?? current.block?.block_name ?? current.key}</Text>
+                <Text style={styles.eyebrow}>{targetExercise ? 'ADAPTER L’EXERCICE' : 'OPTIONS DU BLOC'}</Text>
+                <Text style={styles.title}>
+                  {targetExercise?.name ?? current.block?.title ?? current.block?.block_name ?? current.key}
+                </Text>
                 <Text style={styles.body}>
                   {hasSwapChoice
-                    ? 'Les remplacements proposés sont déjà validés comme compatibles avec cette séance.'
-                    : 'Tu peux passer ce bloc : il restera enregistré comme non réalisé.'}
+                    ? 'Choisis uniquement si le mouvement ne te convient pas aujourd’hui.'
+                    : 'Aucune alternative sûre n’est disponible pour cet exercice. Tu peux toujours passer le bloc.'}
                 </Text>
               </View>
               <Pressable disabled={busy} onPress={() => setVisible(false)} hitSlop={10}>
