@@ -29,7 +29,7 @@ const STEPS = [
   'Temps disponible',
   'Matériel',
   'Forme du jour',
-  'Construction des blocs',
+  'Construction de la séance',
 ];
 
 function environmentLabel(code) {
@@ -354,11 +354,9 @@ export default function GeneratingThemedScreen() {
         />
 
         <View style={styles.titleArea}>
-          <Text style={styles.eyebrow}>UGEROD PRÉPARE TA SÉANCE</Text>
           <Text style={styles.title}>
             CRÉATION DE{`\n`}TA SÉANCE<Text style={styles.accentDot}>.</Text>
           </Text>
-          <Text style={styles.subtitle}>UGEROD construit la séance adaptée à ton contexte du jour.</Text>
         </View>
 
         <View style={styles.stepsCard}>
@@ -389,7 +387,7 @@ export default function GeneratingThemedScreen() {
               <View style={[styles.dot, { backgroundColor: isDark ? colors.text : colors.borderStrong }]} />
               <View style={[styles.dot, { backgroundColor: colors.secondaryAccent }]} />
             </View>
-            <Text style={styles.statusText}>GÉNÉRATION {label} · {elapsedSeconds} S</Text>
+            <Text style={styles.statusText}>{label} · {elapsedSeconds} S</Text>
           </View>
         </View>
       </ScrollView>
