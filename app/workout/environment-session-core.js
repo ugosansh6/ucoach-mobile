@@ -1299,7 +1299,6 @@ export default function EnvironmentSessionCore({
       updates[key] = {
         status: 'completed',
         userExecutionStatus: 'completed',
-        repsCompleted: reps,
         performanceActualJson: {
           ...(exercise.performanceActualJson ?? {}),
           gym_sets: gymSets,
