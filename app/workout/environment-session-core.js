@@ -291,7 +291,7 @@ function initialSetDrafts(exercises, block) {
   return next;
 }
 
-function SimpleBlock({ block, exercises, onComplete }) {function SimpleBlock({ block, exercises, onComplete }) {
+function SimpleBlock({ block, exercises, onComplete }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const focusedStyles = useMemo(
     () => createEnvironmentFocusedStyles(themeColors, isDark),
@@ -721,7 +721,7 @@ function ManualGymBlock({ block, exercises, onComplete }) {
   );
 }
 
-function TabataBlock({ block, exercises, onComplete }) {function TabataBlock({ block, exercises, onComplete }) {
+function TabataBlock({ block, exercises, onComplete }) {
   const firstProtocol = exercises?.[0]?.prescriptionJson?.protocol ?? {};
   const settings = block?.settings ?? {};
   const rounds = positiveInt(settings.rounds ?? firstProtocol.rounds, 0);
@@ -1311,7 +1311,7 @@ export default function EnvironmentSessionCore({
     advanceWithUpdates(updates);
   }
 
-  function completeTimedBlock(result) {  function completeTimedBlock(result) {
+  function completeTimedBlock(result) {
     const exercise = currentExercises[0];
     if (!exercise) {
       Alert.alert('Bloc incomplet', 'Aucun exercice exécutable n’a été reçu.');
