@@ -391,6 +391,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
   const mechanic = blockMechanic(block);
   const isCircuit = mechanic === 'CIRCUIT';
   const [activeKey, setActiveKey] = useState(() => exerciseKey(exercises?.[0]) ?? null);
+  const [detailsKey, setDetailsKey] = useState(null);
 
   useEffect(() => {
     if (exercises.some((exercise) => exerciseKey(exercise) === activeKey)) return;
@@ -436,13 +437,6 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
 
   return (
     <>
-      <View style={gymStyles.blockHint}>
-        <Ionicons name="checkmark-circle-outline" size={18} color={themeColors.accent} />
-        <Text style={gymStyles.blockHintText}>
-          La séance est déjà préparée. Ajuste seulement les reps, la charge ou l’exercice si nécessaire.
-        </Text>
-      </View>
-
       {exercises.map((exercise, exerciseIndex) => {
         const key = exerciseKey(exercise);
         const draft = drafts[key] ?? { reps: '', sets: [] };
@@ -467,7 +461,6 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
                 <Text style={gymStyles.exerciseSummary}>
                   {rows.length || '—'} {seriesLabel}
                   {repsEnabled ? ` · ${draft.reps || '—'} reps` : ''}
-                  {loadEnabled ? ' · charge ajustable' : ''}
                 </Text>
               </View>
 
@@ -488,10 +481,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
                 {repsEnabled ? (
                   <View style={gymStyles.globalFieldRow}>
                     <View style={gymStyles.globalFieldCopy}>
-                      <Text style={gymStyles.fieldLabel}>RÉPÉTITIONS PAR SÉRIE</Text>
-                      <Text style={gymStyles.fieldHelp}>
-                        Une modification s’applique à toutes les séries.
-                      </Text>
+                      <Text style={gymStyles.fieldLabel}>REPS / SÉRIE</Text>
                     </View>
                     <View style={gymStyles.repsInputWrap}>
                       <TextInput
@@ -509,11 +499,43 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
                 ) : null}
 
                 <View style={gymStyles.exerciseActionsRow}>
+                  {(exercise?.description || exercise?.instructions || exercise?.tips) ? (
+                    <Pressable
+                      onPress={() => setDetailsKey((current) => current === key ? null : key)}
+                      style={({ pressed }) => [gymStyles.detailButton, pressed && gymStyles.pressed]}
+                    >
+                      <Ionicons
+                        name={detailsKey === key ? 'chevron-up' : 'information-circle-outline'}
+                        size={17}
+                        color={themeColors.text}
+                      />
+                      <Text style={gymStyles.detailButtonText}>
+                        {detailsKey === key ? 'Réduire' : 'Consignes'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
                   <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
-                  <Text style={gymStyles.exerciseActionHelp}>
-                    Trop simple, trop difficile ou besoin d’un autre mouvement ? Adapte l’exercice.
-                  </Text>
                 </View>
+
+                {detailsKey === key ? (
+                  <View style={gymStyles.detailsPanel}>
+                    {exercise?.description ? (
+                      <Text style={gymStyles.detailsText}>{String(exercise.description).replace(/\\n/g, '\n')}</Text>
+                    ) : null}
+                    {exercise?.instructions ? (
+                      <>
+                        <Text style={gymStyles.detailsLabel}>EXÉCUTION</Text>
+                        <Text style={gymStyles.detailsText}>{String(exercise.instructions).replace(/\\n/g, '\n')}</Text>
+                      </>
+                    ) : null}
+                    {exercise?.tips ? (
+                      <>
+                        <Text style={gymStyles.detailsLabel}>CONSEIL</Text>
+                        <Text style={gymStyles.detailsText}>{String(exercise.tips).replace(/\\n/g, '\n')}</Text>
+                      </>
+                    ) : null}
+                  </View>
+                ) : null}
 
                 {rows.length === 0 ? (
                   <Text style={gymStyles.warningText}>
@@ -1610,25 +1632,7 @@ function createShellStyles(colors, isDark) {
 function createGymStyles(colors, isDark) {
   return StyleSheet.create({
     pressed: { opacity: 0.72 },
-    blockHint: {
-      marginBottom: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.accentSoft,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    blockHintText: {
-      flex: 1,
-      fontFamily: 'Manrope_600SemiBold',
-      fontSize: 11,
-      lineHeight: 16,
-      color: colors.textSecondary,
-    },
+
     exerciseCard: {
       marginBottom: 12,
       borderRadius: 18,
@@ -1705,13 +1709,7 @@ function createGymStyles(colors, isDark) {
       letterSpacing: 0.65,
       color: colors.textSecondary,
     },
-    fieldHelp: {
-      marginTop: 3,
-      fontFamily: 'Manrope_500Medium',
-      fontSize: 10,
-      lineHeight: 14,
-      color: colors.textMuted,
-    },
+
     repsInputWrap: {
       minWidth: 112,
       minHeight: 46,
@@ -1739,19 +1737,52 @@ function createGymStyles(colors, isDark) {
     },
     exerciseActionsRow: {
       paddingTop: 12,
-      paddingBottom: 14,
+      paddingBottom: 12,
       borderTopWidth: 1,
       borderTopColor: colors.border,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 8,
     },
-    exerciseActionHelp: {
-      flex: 1,
+    detailButton: {
+      minHeight: 36,
+      paddingHorizontal: 11,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    detailButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.35,
+      color: colors.text,
+    },
+    detailsPanel: {
+      marginBottom: 12,
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    detailsLabel: {
+      marginTop: 10,
+      marginBottom: 3,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.6,
+      color: colors.accent,
+    },
+    detailsText: {
       fontFamily: 'Manrope_500Medium',
-      fontSize: 9.5,
-      lineHeight: 14,
-      color: colors.textMuted,
+      fontSize: 11,
+      lineHeight: 17,
+      color: colors.textSecondary,
     },
     setsPanel: {
       borderRadius: 14,
