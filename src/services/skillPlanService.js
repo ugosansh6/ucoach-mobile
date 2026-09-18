@@ -79,7 +79,9 @@ export async function changeWholeWorkoutPlan({
     throw new Error(
       message.includes('SESSION_PLAN_B_NO_MEANINGFUL_ALTERNATIVE_AVAILABLE')
         ? 'UGEROD n’a pas trouvé de deuxième proposition suffisamment différente et cohérente.'
-        : message || 'Impossible de proposer une autre séance.'
+        : /statement timeout|canceling statement due to statement timeout/i.test(message)
+          ? 'UGEROD a mis trop de temps à préparer une autre séance. Réessaie.'
+          : message || 'Impossible de proposer une autre séance.'
     );
   }
 
