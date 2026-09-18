@@ -213,6 +213,46 @@ function usesLoad(exercise) {
   return exerciseTrackingModes(exercise).includes('load');
 }
 
+function usesReps(exercise) {
+  const modes = exerciseTrackingModes(exercise);
+  return modes.includes('reps') || modes.length === 0;
+}
+
+function prescribedReps(exercise) {
+  const prescription = exercise?.prescriptionJson ?? {};
+  const candidates = [
+    prescription?.execution_target_reps,
+    prescription?.reps,
+    prescription?.reps_max,
+    prescription?.reps_min,
+  ];
+
+  for (const candidate of candidates) {
+    const value = optionalNumber(candidate);
+    if (value != null) return String(value);
+  }
+
+  const text = String(exercise?.prescription ?? '');
+  const match = text.match(/(\d+(?:[.,]\d+)?)\s*reps?/i);
+  return match?.[1]?.replace(',', '.') ?? '';
+}
+
+function prescribedLoad(exercise) {
+  const prescription = exercise?.prescriptionJson ?? {};
+  const candidates = [
+    prescription?.execution_target_load_kg,
+    prescription?.load_kg,
+    prescription?.target_load_kg,
+  ];
+
+  for (const candidate of candidates) {
+    const value = optionalNumber(candidate);
+    if (value != null) return String(value);
+  }
+
+  return '';
+}
+
 function initialSetDrafts(exercises, block) {
   const next = {};
 
@@ -220,29 +260,38 @@ function initialSetDrafts(exercises, block) {
     const key = exerciseKey(exercise);
     const existing = exercise?.performanceActualJson?.gym_sets;
     const setCount = getSetCount(exercise, block);
+    const defaultReps = prescribedReps(exercise);
+    const defaultLoad = prescribedLoad(exercise);
 
     if (Array.isArray(existing) && existing.length > 0) {
-      next[key] = existing.map((set, index) => ({
-        setIndex: positiveInt(set?.set_index, index + 1),
-        reps: set?.reps != null ? String(set.reps) : '',
-        load: set?.load_kg != null ? String(set.load_kg) : '',
-        rpe: set?.rpe != null ? String(set.rpe) : '',
-      }));
+      next[key] = {
+        reps:
+          existing.find((set) => set?.reps != null)?.reps != null
+            ? String(existing.find((set) => set?.reps != null).reps)
+            : defaultReps,
+        sets: existing.map((set, index) => ({
+          setIndex: positiveInt(set?.set_index, index + 1),
+          load: set?.load_kg != null ? String(set.load_kg) : defaultLoad,
+          done: set?.status === 'completed' || set?.completed === true,
+        })),
+      };
       continue;
     }
 
-    next[key] = Array.from({ length: setCount }, (_, index) => ({
-      setIndex: index + 1,
-      reps: '',
-      load: '',
-      rpe: '',
-    }));
+    next[key] = {
+      reps: defaultReps,
+      sets: Array.from({ length: setCount }, (_, index) => ({
+        setIndex: index + 1,
+        load: defaultLoad,
+        done: false,
+      })),
+    };
   }
 
   return next;
 }
 
-function SimpleBlock({ block, exercises, onComplete }) {
+function SimpleBlock({ block, exercises, onComplete }) {function SimpleBlock({ block, exercises, onComplete }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const focusedStyles = useMemo(
     () => createEnvironmentFocusedStyles(themeColors, isDark),
@@ -334,88 +383,215 @@ function SimpleBlock({ block, exercises, onComplete }) {
 }
 
 function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const gymStyles = useMemo(
+    () => createGymStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
   const mechanic = blockMechanic(block);
   const isCircuit = mechanic === 'CIRCUIT';
+  const [activeKey, setActiveKey] = useState(() => exerciseKey(exercises?.[0]) ?? null);
 
-  function updateDraft(exercise, setIndex, field, value) {
+  useEffect(() => {
+    if (exercises.some((exercise) => exerciseKey(exercise) === activeKey)) return;
+    setActiveKey(exerciseKey(exercises?.[0]) ?? null);
+  }, [activeKey, exercises]);
+
+  function updateExerciseReps(exercise, value) {
     const key = exerciseKey(exercise);
     setDrafts((current) => ({
       ...current,
-      [key]: (current[key] ?? []).map((row, index) =>
-        index === setIndex ? { ...row, [field]: value } : row
-      ),
+      [key]: {
+        ...(current[key] ?? { reps: '', sets: [] }),
+        reps: value,
+      },
+    }));
+  }
+
+  function updateSetLoad(exercise, setIndex, value) {
+    const key = exerciseKey(exercise);
+    setDrafts((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] ?? { reps: '', sets: [] }),
+        sets: (current[key]?.sets ?? []).map((row, index) =>
+          index === setIndex ? { ...row, load: value } : row
+        ),
+      },
+    }));
+  }
+
+  function toggleSet(exercise, setIndex) {
+    const key = exerciseKey(exercise);
+    setDrafts((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] ?? { reps: '', sets: [] }),
+        sets: (current[key]?.sets ?? []).map((row, index) =>
+          index === setIndex ? { ...row, done: !row.done } : row
+        ),
+      },
     }));
   }
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{blockTitle(block, 'Musculation / Gym')}</Text>
-      <Text style={styles.cardMeta}>
-        {isCircuit ? 'Circuit · saisis chaque tour réalisé' : 'Saisis les séries réellement réalisées'}
-      </Text>
+    <>
+      <View style={gymStyles.blockHint}>
+        <Ionicons name="checkmark-circle-outline" size={18} color={themeColors.accent} />
+        <Text style={gymStyles.blockHintText}>
+          La séance est déjà préparée. Ajuste seulement les reps, la charge ou l’exercice si nécessaire.
+        </Text>
+      </View>
 
-      {exercises.map((exercise) => {
+      {exercises.map((exercise, exerciseIndex) => {
         const key = exerciseKey(exercise);
-        const rows = drafts[key] ?? [];
+        const draft = drafts[key] ?? { reps: '', sets: [] };
+        const rows = draft.sets ?? [];
         const loadEnabled = usesLoad(exercise);
+        const repsEnabled = usesReps(exercise);
+        const isActive = activeKey === key;
+        const completedCount = rows.filter((row) => row.done).length;
+        const seriesLabel = isCircuit ? 'tours' : 'séries';
 
         return (
-          <View key={key} style={styles.strengthExercise}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {exercise.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
-            <View style={{ marginTop: 10, alignItems: 'flex-start' }}>
-              <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
-            </View>
+          <View key={key} style={[gymStyles.exerciseCard, isActive && gymStyles.exerciseCardActive]}>
+            <Pressable
+              onPress={() => setActiveKey(isActive ? null : key)}
+              style={({ pressed }) => [gymStyles.exerciseHeader, pressed && gymStyles.pressed]}
+            >
+              <View style={gymStyles.exerciseHeaderCopy}>
+                <Text style={gymStyles.exerciseEyebrow}>
+                  EXERCICE {exerciseIndex + 1}/{exercises.length}
+                </Text>
+                <Text style={gymStyles.exerciseName}>{exercise.name}</Text>
+                <Text style={gymStyles.exerciseSummary}>
+                  {rows.length || '—'} {seriesLabel}
+                  {repsEnabled ? ` · ${draft.reps || '—'} reps` : ''}
+                  {loadEnabled ? ' · charge ajustable' : ''}
+                </Text>
+              </View>
 
-            {rows.length === 0 ? (
-              <Text style={styles.warningText}>
-                Aucun nombre de séries/tours reçu du moteur. Ce bloc ne peut pas être validé automatiquement.
-              </Text>
-            ) : (
-              rows.map((row, index) => (
-                <View key={`${key}:${row.setIndex}`} style={styles.setRow}>
-                  <Text style={styles.setLabel}>{isCircuit ? 'T' : 'S'}{row.setIndex}</Text>
-                  <TextInput
-                    value={row.reps}
-                    onChangeText={(value) => updateDraft(exercise, index, 'reps', value)}
-                    placeholder="reps"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="numeric"
-                    style={styles.input}
-                  />
-                  {loadEnabled ? (
-                    <TextInput
-                      value={row.load}
-                      onChangeText={(value) => updateDraft(exercise, index, 'load', value)}
-                      placeholder="kg"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="decimal-pad"
-                      style={styles.input}
-                    />
-                  ) : null}
-                  <TextInput
-                    value={row.rpe}
-                    onChangeText={(value) => updateDraft(exercise, index, 'rpe', value)}
-                    placeholder="RPE"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="numeric"
-                    style={styles.input}
-                  />
+              <View style={gymStyles.exerciseHeaderStatus}>
+                <Text style={gymStyles.exerciseProgress}>
+                  {completedCount}/{rows.length || 0}
+                </Text>
+                <Ionicons
+                  name={isActive ? 'chevron-up' : 'chevron-down'}
+                  size={19}
+                  color={themeColors.textSecondary}
+                />
+              </View>
+            </Pressable>
+
+            {isActive ? (
+              <View style={gymStyles.exerciseBody}>
+                {repsEnabled ? (
+                  <View style={gymStyles.globalFieldRow}>
+                    <View style={gymStyles.globalFieldCopy}>
+                      <Text style={gymStyles.fieldLabel}>RÉPÉTITIONS PAR SÉRIE</Text>
+                      <Text style={gymStyles.fieldHelp}>
+                        Une modification s’applique à toutes les séries.
+                      </Text>
+                    </View>
+                    <View style={gymStyles.repsInputWrap}>
+                      <TextInput
+                        value={draft.reps}
+                        onChangeText={(value) => updateExerciseReps(exercise, value)}
+                        placeholder="—"
+                        placeholderTextColor={themeColors.textMuted}
+                        keyboardType="numeric"
+                        selectTextOnFocus
+                        style={gymStyles.repsInput}
+                      />
+                      <Text style={gymStyles.inputSuffix}>reps</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={gymStyles.exerciseActionsRow}>
+                  <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+                  <Text style={gymStyles.exerciseActionHelp}>
+                    Trop simple, trop difficile ou besoin d’un autre mouvement ? Adapte l’exercice.
+                  </Text>
                 </View>
-              ))
-            )}
+
+                {rows.length === 0 ? (
+                  <Text style={gymStyles.warningText}>
+                    Aucun nombre de séries/tours reçu du moteur. Ce bloc ne peut pas être validé automatiquement.
+                  </Text>
+                ) : (
+                  <View style={gymStyles.setsPanel}>
+                    <Text style={gymStyles.setsTitle}>
+                      {isCircuit ? 'TOURS' : 'SÉRIES'}
+                    </Text>
+
+                    {rows.map((row, index) => (
+                      <View
+                        key={`${key}:${row.setIndex}`}
+                        style={[gymStyles.setRow, row.done && gymStyles.setRowDone]}
+                      >
+                        <Pressable
+                          onPress={() => toggleSet(exercise, index)}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: Boolean(row.done) }}
+                          style={[gymStyles.checkButton, row.done && gymStyles.checkButtonDone]}
+                        >
+                          <Ionicons
+                            name={row.done ? 'checkmark' : 'ellipse-outline'}
+                            size={18}
+                            color={row.done ? themeColors.textOnAccent : themeColors.textSecondary}
+                          />
+                        </Pressable>
+
+                        <Text style={gymStyles.setLabel}>
+                          {isCircuit ? 'T' : 'S'}{row.setIndex}
+                        </Text>
+
+                        <Text style={gymStyles.setRepsText}>
+                          {repsEnabled ? `${draft.reps || '—'} reps` : 'À réaliser'}
+                        </Text>
+
+                        {loadEnabled ? (
+                          <View style={gymStyles.loadInputWrap}>
+                            <TextInput
+                              value={row.load}
+                              onChangeText={(value) => updateSetLoad(exercise, index, value)}
+                              placeholder="—"
+                              placeholderTextColor={themeColors.textMuted}
+                              keyboardType="decimal-pad"
+                              selectTextOnFocus
+                              style={gymStyles.loadInput}
+                            />
+                            <Text style={gymStyles.inputSuffix}>kg</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ) : null}
           </View>
         );
       })}
 
-      <Pressable onPress={onComplete} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-        <Text style={styles.primaryButtonText}>VALIDER MUSCULATION</Text>
+      <Pressable
+        onPress={onComplete}
+        style={({ pressed }) => [gymStyles.primaryButton, pressed && gymStyles.pressed]}
+      >
+        <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
+        <Text style={gymStyles.primaryButtonText}>VALIDER LE BLOC</Text>
       </Pressable>
-    </View>
+    </>
   );
 }
 
 function ManualGymBlock({ block, exercises, onComplete }) {
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const gymStyles = useMemo(
+    () => createGymStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
   const [drafts, setDrafts] = useState(() =>
     Object.fromEntries(
       exercises.map((exercise) => [
@@ -423,7 +599,6 @@ function ManualGymBlock({ block, exercises, onComplete }) {
         {
           reps: exercise?.repsCompleted != null ? String(exercise.repsCompleted) : '',
           seconds: exercise?.durationSeconds != null ? String(exercise.durationSeconds) : '',
-          rpe: exercise?.rpe != null ? String(exercise.rpe) : '',
         },
       ])
     )
@@ -448,7 +623,6 @@ function ManualGymBlock({ block, exercises, onComplete }) {
       const wantsTime = modes.includes('time');
       const reps = optionalNumber(draft.reps);
       const seconds = optionalNumber(draft.seconds);
-      const exerciseRpe = optionalNumber(draft.rpe);
 
       if ((wantsReps || wantsTime) && reps == null && seconds == null) {
         Alert.alert(
@@ -463,7 +637,6 @@ function ManualGymBlock({ block, exercises, onComplete }) {
         userExecutionStatus: 'completed',
         repsCompleted: wantsReps ? reps : null,
         durationSeconds: wantsTime ? seconds : null,
-        rpe: exerciseRpe,
         performanceActualJson: {
           ...(exercise.performanceActualJson ?? {}),
           source: 'ugerod_environment_gym_manual',
@@ -476,11 +649,15 @@ function ManualGymBlock({ block, exercises, onComplete }) {
   }
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{blockTitle(block, 'Gym')}</Text>
-      <Text style={styles.cardMeta}>Renseigne uniquement ce que tu as réellement réalisé.</Text>
+    <>
+      <View style={gymStyles.blockHint}>
+        <Ionicons name="create-outline" size={18} color={themeColors.accent} />
+        <Text style={gymStyles.blockHintText}>
+          Ajuste uniquement les valeurs qui diffèrent de ce que tu as réellement fait.
+        </Text>
+      </View>
 
-      {exercises.map((exercise) => {
+      {exercises.map((exercise, index) => {
         const key = exerciseKey(exercise);
         const draft = drafts[key] ?? {};
         const modes = exerciseTrackingModes(exercise);
@@ -488,54 +665,63 @@ function ManualGymBlock({ block, exercises, onComplete }) {
         const showTime = modes.includes('time');
 
         return (
-          <View key={key} style={styles.strengthExercise}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {exercise.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
-            <View style={{ marginTop: 10, alignItems: 'flex-start' }}>
-              <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
-            </View>
-            <View style={styles.setRow}>
-              {showReps ? (
-                <TextInput
-                  value={draft.reps ?? ''}
-                  onChangeText={(value) => patch(exercise, 'reps', value)}
-                  placeholder="reps réelles"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                  style={styles.input}
-                />
+          <View key={key} style={gymStyles.exerciseCard}>
+            <View style={gymStyles.exerciseBody}>
+              <Text style={gymStyles.exerciseEyebrow}>EXERCICE {index + 1}/{exercises.length}</Text>
+              <Text style={gymStyles.exerciseName}>{exercise.name}</Text>
+              {exercise.prescription ? (
+                <Text style={gymStyles.exerciseSummary}>{exercise.prescription}</Text>
               ) : null}
-              {showTime ? (
-                <TextInput
-                  value={draft.seconds ?? ''}
-                  onChangeText={(value) => patch(exercise, 'seconds', value)}
-                  placeholder="secondes"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                  style={styles.input}
-                />
-              ) : null}
-              <TextInput
-                value={draft.rpe ?? ''}
-                onChangeText={(value) => patch(exercise, 'rpe', value)}
-                placeholder="RPE"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="numeric"
-                style={styles.input}
-              />
+
+              <View style={gymStyles.exerciseActionsRow}>
+                <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+              </View>
+
+              <View style={gymStyles.manualFieldsRow}>
+                {showReps ? (
+                  <View style={gymStyles.manualField}>
+                    <Text style={gymStyles.fieldLabel}>RÉPÉTITIONS</Text>
+                    <TextInput
+                      value={draft.reps ?? ''}
+                      onChangeText={(value) => patch(exercise, 'reps', value)}
+                      placeholder="—"
+                      placeholderTextColor={themeColors.textMuted}
+                      keyboardType="numeric"
+                      style={gymStyles.manualInput}
+                    />
+                  </View>
+                ) : null}
+                {showTime ? (
+                  <View style={gymStyles.manualField}>
+                    <Text style={gymStyles.fieldLabel}>SECONDES</Text>
+                    <TextInput
+                      value={draft.seconds ?? ''}
+                      onChangeText={(value) => patch(exercise, 'seconds', value)}
+                      placeholder="—"
+                      placeholderTextColor={themeColors.textMuted}
+                      keyboardType="numeric"
+                      style={gymStyles.manualInput}
+                    />
+                  </View>
+                ) : null}
+              </View>
             </View>
           </View>
         );
       })}
 
-      <Pressable onPress={finish} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-        <Text style={styles.primaryButtonText}>VALIDER GYM</Text>
+      <Pressable
+        onPress={finish}
+        style={({ pressed }) => [gymStyles.primaryButton, pressed && gymStyles.pressed]}
+      >
+        <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
+        <Text style={gymStyles.primaryButtonText}>VALIDER LE BLOC</Text>
       </Pressable>
-    </View>
+    </>
   );
 }
 
-function TabataBlock({ block, exercises, onComplete }) {
+function TabataBlock({ block, exercises, onComplete }) {function TabataBlock({ block, exercises, onComplete }) {
   const firstProtocol = exercises?.[0]?.prescriptionJson?.protocol ?? {};
   const settings = block?.settings ?? {};
   const rounds = positiveInt(settings.rounds ?? firstProtocol.rounds, 0);
@@ -1068,7 +1254,9 @@ export default function EnvironmentSessionCore({
 
     for (const exercise of currentExercises) {
       const key = exerciseKey(exercise);
-      const rows = setDrafts[key] ?? [];
+      const draft = setDrafts[key] ?? { reps: '', sets: [] };
+      const rows = draft.sets ?? [];
+      const repsEnabled = usesReps(exercise);
 
       if (rows.length === 0) {
         Alert.alert(
@@ -1078,24 +1266,40 @@ export default function EnvironmentSessionCore({
         return;
       }
 
-      const gymSets = rows
-        .filter((row) => row.reps.trim() || row.load.trim() || row.rpe.trim())
-        .map((row) => ({
-          set_index: row.setIndex,
-          status: 'completed',
-          reps: row.reps.trim() ? numberOr(row.reps.replace(',', '.'), null) : null,
-          load_kg: row.load.trim() ? numberOr(row.load.replace(',', '.'), null) : null,
-          rpe: row.rpe.trim() ? numberOr(row.rpe.replace(',', '.'), null) : null,
-        }));
+      const reps = repsEnabled
+        ? optionalNumber(draft.reps)
+        : null;
 
-      if (gymSets.length === 0) {
-        Alert.alert('Performance manquante', `Renseigne au moins une série réellement réalisée pour ${exercise.name}.`);
+      if (repsEnabled && reps == null) {
+        Alert.alert(
+          'Répétitions manquantes',
+          `Renseigne le nombre de répétitions prévu pour toutes les séries de ${exercise.name}.`
+        );
         return;
       }
+
+      const completedRows = rows.filter((row) => row.done);
+
+      if (completedRows.length !== rows.length) {
+        Alert.alert(
+          'Séries restantes',
+          `Valide les ${rows.length - completedRows.length} série(s) restante(s) de ${exercise.name} avant de terminer le bloc.`
+        );
+        return;
+      }
+
+      const gymSets = completedRows.map((row) => ({
+        set_index: row.setIndex,
+        status: 'completed',
+        reps,
+        load_kg: row.load.trim() ? numberOr(row.load.replace(',', '.'), null) : null,
+        rpe: null,
+      }));
 
       updates[key] = {
         status: 'completed',
         userExecutionStatus: 'completed',
+        repsCompleted: reps,
         performanceActualJson: {
           ...(exercise.performanceActualJson ?? {}),
           gym_sets: gymSets,
@@ -1107,7 +1311,7 @@ export default function EnvironmentSessionCore({
     advanceWithUpdates(updates);
   }
 
-  function completeTimedBlock(result) {
+  function completeTimedBlock(result) {  function completeTimedBlock(result) {
     const exercise = currentExercises[0];
     if (!exercise) {
       Alert.alert('Bloc incomplet', 'Aucun exercice exécutable n’a été reçu.');
@@ -1401,6 +1605,272 @@ function createShellStyles(colors, isDark) {
     },
     progressTrack: { height: 3, backgroundColor: colors.border },
     progressFill: { height: 3, backgroundColor: colors.accent },
+  });
+}
+
+function createGymStyles(colors, isDark) {
+  return StyleSheet.create({
+    pressed: { opacity: 0.72 },
+    blockHint: {
+      marginBottom: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.accentSoft,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    blockHintText: {
+      flex: 1,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      color: colors.textSecondary,
+    },
+    exerciseCard: {
+      marginBottom: 12,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      overflow: 'hidden',
+    },
+    exerciseCardActive: {
+      borderColor: colors.accent,
+      shadowColor: colors.shadow,
+      shadowOpacity: isDark ? 0.18 : 0.08,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+    exerciseHeader: {
+      minHeight: 88,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    exerciseHeaderCopy: { flex: 1, minWidth: 0 },
+    exerciseHeaderStatus: {
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    exerciseEyebrow: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.75,
+      color: colors.accent,
+    },
+    exerciseName: {
+      marginTop: 3,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 18,
+      lineHeight: 23,
+      color: colors.text,
+    },
+    exerciseSummary: {
+      marginTop: 4,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 11,
+      lineHeight: 16,
+      color: colors.textSecondary,
+    },
+    exerciseProgress: {
+      minWidth: 34,
+      textAlign: 'right',
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    exerciseBody: {
+      paddingHorizontal: 16,
+      paddingBottom: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    globalFieldRow: {
+      paddingVertical: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+    globalFieldCopy: { flex: 1 },
+    fieldLabel: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.65,
+      color: colors.textSecondary,
+    },
+    fieldHelp: {
+      marginTop: 3,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 14,
+      color: colors.textMuted,
+    },
+    repsInputWrap: {
+      minWidth: 112,
+      minHeight: 46,
+      paddingHorizontal: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    repsInput: {
+      minWidth: 44,
+      paddingVertical: 8,
+      textAlign: 'right',
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 16,
+      color: colors.text,
+    },
+    inputSuffix: {
+      marginLeft: 6,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 10,
+      color: colors.textMuted,
+    },
+    exerciseActionsRow: {
+      paddingTop: 12,
+      paddingBottom: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    exerciseActionHelp: {
+      flex: 1,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 9.5,
+      lineHeight: 14,
+      color: colors.textMuted,
+    },
+    setsPanel: {
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      overflow: 'hidden',
+    },
+    setsTitle: {
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 7,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.75,
+      color: colors.textMuted,
+    },
+    setRow: {
+      minHeight: 54,
+      paddingHorizontal: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      backgroundColor: colors.surface,
+    },
+    setRowDone: {
+      backgroundColor: colors.successSoft,
+    },
+    checkButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkButtonDone: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    setLabel: {
+      width: 28,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    setRepsText: {
+      flex: 1,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    loadInputWrap: {
+      minWidth: 100,
+      minHeight: 40,
+      paddingHorizontal: 9,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+    },
+    loadInput: {
+      minWidth: 45,
+      paddingVertical: 7,
+      textAlign: 'right',
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    warningText: {
+      marginTop: 12,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.error,
+    },
+    primaryButton: {
+      minHeight: 54,
+      marginTop: 4,
+      paddingHorizontal: 18,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: colors.accent,
+    },
+    primaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      letterSpacing: 0.4,
+      color: colors.textOnAccent,
+    },
+    manualFieldsRow: {
+      marginTop: 14,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    manualField: { flex: 1 },
+    manualInput: {
+      minHeight: 44,
+      marginTop: 6,
+      paddingHorizontal: 11,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 12,
+      color: colors.text,
+    },
   });
 }
 
