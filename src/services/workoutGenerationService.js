@@ -1,10 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { runSupabaseRequestWithAuthRetry } from '../lib/supabaseAuthRetry';
 import {
-  getEquipmentCatalog,
-  getUserEquipmentInventory,
-} from './equipmentService';
-import {
   generateWorkoutSession as generateLegacyWorkoutSession,
   reloadWorkoutSession,
 } from './workoutService';
@@ -51,33 +47,15 @@ async function buildSelectedInventory(preparation) {
     };
   }
 
-  const [catalog, inventory] = await Promise.all([
-    getEquipmentCatalog(),
-    getUserEquipmentInventory(),
-  ]);
-
-  const selectedNameSet = new Set(names);
-  const selectedIds = new Set(
-    (catalog ?? [])
-      .filter((item) => selectedNameSet.has(item.name))
-      .map((item) => item.id)
+  const inventory = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('resolve_user_equipment_inventory', {
+      p_selected_names: names,
+      p_policy_key: 'c4-final-default',
+    })
   );
 
-  const selectedInventory = (inventory ?? [])
-    .filter((row) => selectedIds.has(row.equipment_id))
-    .map((row) => ({
-      equipment_id: row.equipment_id,
-      inventory_mode: row.inventory_mode ?? 'non_load',
-      quantity: Math.max(1, Number(row.quantity ?? 1)),
-      load_kg: row.load_kg ?? null,
-      min_load_kg: row.min_load_kg ?? null,
-      max_load_kg: row.max_load_kg ?? null,
-      increment_kg: row.increment_kg ?? null,
-      resistance_label: row.resistance_label ?? null,
-    }));
-
   return {
-    inventory: selectedInventory,
+    inventory: Array.isArray(inventory) ? inventory : [],
     availableEquipment: names,
   };
 }
