@@ -881,6 +881,310 @@ function TabataBlock({ block, exercises, onComplete }) {
   );
 }
 
+
+function gymCardioTarget(exercise, block) {
+  const prescription = exercise?.prescriptionJson ?? {};
+  const params = blockParameters(block);
+
+  const calories = optionalNumber(
+    prescription?.execution_target_calories ??
+      prescription?.target_calories ??
+      prescription?.calories ??
+      params?.target_calories ??
+      params?.calories
+  );
+  if (calories != null && calories > 0) {
+    return { kind: 'calories', value: calories, label: `${Math.round(calories)} cal` };
+  }
+
+  const distanceMeters = optionalNumber(
+    prescription?.execution_target_distance_meters ??
+      prescription?.target_distance_meters ??
+      prescription?.distance_meters ??
+      params?.target_distance_meters ??
+      params?.distance_meters
+  );
+  if (distanceMeters != null && distanceMeters > 0) {
+    return { kind: 'distance', value: distanceMeters, label: `${Math.round(distanceMeters)} m` };
+  }
+
+  const durationSeconds = positiveInt(
+    prescription?.execution_target_seconds ??
+      prescription?.duration_seconds ??
+      params?.duration_seconds ??
+      numberOr(
+        prescription?.block_duration_minutes ??
+          block?.duration_minutes ??
+          block?.durationMinutes,
+        1
+      ) * 60,
+    60
+  );
+
+  return {
+    kind: 'time',
+    value: durationSeconds,
+    label: formatClock(durationSeconds),
+  };
+}
+
+function GymCardioBlock({ block, exercise, onComplete }) {
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const cardioStyles = useMemo(
+    () => createGymCardioStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+
+  const target = useMemo(() => gymCardioTarget(exercise, block), [block, exercise]);
+  const modes = exerciseTrackingModes(exercise);
+  const machineCode = normalize(exercise?.name);
+  const machineSupportsCalories =
+    modes.includes('calories') ||
+    ['RAMEUR', 'ROWER', 'AIR_BIKE_ASSAULT_BIKE', 'SKIERG', 'VELO_BIKE'].some((token) =>
+      machineCode.includes(token)
+    );
+  const machineSupportsDistance =
+    modes.includes('distance') ||
+    ['RAMEUR', 'ROWER', 'AIR_BIKE_ASSAULT_BIKE', 'SKIERG', 'VELO_BIKE', 'TAPIS_DE_COURSE'].some((token) =>
+      machineCode.includes(token)
+    );
+
+  const initialElapsed = positiveInt(exercise?.durationSeconds, 0);
+  const initialActual = exercise?.performanceActualJson ?? {};
+  const [started, setStarted] = useState(initialElapsed > 0);
+  const [paused, setPaused] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [elapsed, setElapsed] = useState(initialElapsed);
+  const [distance, setDistance] = useState(
+    exercise?.distanceMeters != null
+      ? String(exercise.distanceMeters)
+      : initialActual?.distance_meters != null
+        ? String(initialActual.distance_meters)
+        : ''
+  );
+  const [calories, setCalories] = useState(
+    initialActual?.calories != null ? String(initialActual.calories) : ''
+  );
+  const [rpe, setRpe] = useState(exercise?.rpe != null ? String(exercise.rpe) : '');
+
+  useEffect(() => {
+    if (!started || paused || reviewing) return undefined;
+    if (target.kind === 'time' && elapsed >= target.value) return undefined;
+
+    const timer = setInterval(() => {
+      setElapsed((current) =>
+        target.kind === 'time'
+          ? Math.min(target.value, current + 1)
+          : current + 1
+      );
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [elapsed, paused, reviewing, started, target.kind, target.value]);
+
+  useEffect(() => {
+    if (
+      target.kind === 'time' &&
+      started &&
+      elapsed >= target.value &&
+      !reviewing
+    ) {
+      setPaused(true);
+      setReviewing(true);
+    }
+  }, [elapsed, reviewing, started, target.kind, target.value]);
+
+  function openReview() {
+    if (!started || elapsed <= 0) return;
+    setPaused(true);
+    setReviewing(true);
+  }
+
+  function validateResult() {
+    const distanceMeters = distance.trim()
+      ? numberOr(distance.replace(',', '.'), null)
+      : null;
+    const caloriesValue = calories.trim()
+      ? numberOr(calories.replace(',', '.'), null)
+      : null;
+    const rpeValue = rpe.trim() ? positiveInt(rpe, null) : null;
+
+    if (target.kind === 'distance' && distanceMeters == null) {
+      Alert.alert('Distance manquante', 'Renseigne la distance affichée par la machine.');
+      return;
+    }
+    if (target.kind === 'calories' && caloriesValue == null) {
+      Alert.alert('Calories manquantes', 'Renseigne les calories affichées par la machine.');
+      return;
+    }
+
+    const protocolCompleted =
+      target.kind === 'time'
+        ? elapsed >= target.value
+        : target.kind === 'distance'
+          ? distanceMeters != null && distanceMeters >= target.value
+          : caloriesValue != null && caloriesValue >= target.value;
+
+    onComplete({
+      elapsedSeconds: elapsed,
+      distanceMeters,
+      calories: caloriesValue,
+      rpe: rpeValue,
+      intervalsCompleted: null,
+      protocolCompleted,
+      mechanic: blockMechanic(block),
+      parameters: blockParameters(block),
+      controlledTiming: true,
+      targetKind: target.kind,
+      targetValue: target.value,
+    });
+  }
+
+  const mainValue =
+    target.kind === 'time'
+      ? formatClock(elapsed)
+      : target.label;
+
+  const targetSuffix =
+    target.kind === 'time' ? `/ ${target.label}` : null;
+
+  return (
+    <View style={cardioStyles.card}>
+      <View style={cardioStyles.topRow}>
+        <View style={cardioStyles.machineIcon}>
+          <Ionicons name="fitness-outline" size={21} color={themeColors.accent} />
+        </View>
+        <View style={cardioStyles.topCopy}>
+          <Text style={cardioStyles.machineName}>{exercise?.name ?? 'Cardio'}</Text>
+          <Text style={cardioStyles.targetLabel}>
+            OBJECTIF · {target.kind === 'time' ? 'TEMPS' : target.kind === 'distance' ? 'DISTANCE' : 'CALORIES'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={cardioStyles.metricHero}>
+        <Text style={cardioStyles.metricMain}>{mainValue}</Text>
+        {targetSuffix ? <Text style={cardioStyles.metricTarget}>{targetSuffix}</Text> : null}
+        {target.kind !== 'time' && started ? (
+          <Text style={cardioStyles.secondaryMetric}>Temps · {formatClock(elapsed)}</Text>
+        ) : null}
+      </View>
+
+      {!started ? (
+        <>
+          <Text style={cardioStyles.preStartHint}>
+            Lance la machine puis démarre le chrono UGEROD.
+          </Text>
+          <Pressable
+            onPress={() => setStarted(true)}
+            style={({ pressed }) => [
+              cardioStyles.primaryButton,
+              pressed && cardioStyles.pressed,
+            ]}
+          >
+            <Ionicons name="play" size={18} color={themeColors.textOnAccent} />
+            <Text style={cardioStyles.primaryButtonText}>DÉMARRER</Text>
+          </Pressable>
+        </>
+      ) : !reviewing ? (
+        <View style={cardioStyles.liveActions}>
+          <Pressable
+            onPress={() => setPaused((current) => !current)}
+            style={({ pressed }) => [
+              cardioStyles.secondaryButton,
+              pressed && cardioStyles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={paused ? 'play' : 'pause'}
+              size={17}
+              color={themeColors.text}
+            />
+            <Text style={cardioStyles.secondaryButtonText}>
+              {paused ? 'REPRENDRE' : 'PAUSE'}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={openReview}
+            style={({ pressed }) => [
+              cardioStyles.finishButton,
+              pressed && cardioStyles.pressed,
+            ]}
+          >
+            <Ionicons name="checkmark" size={17} color={themeColors.text} />
+            <Text style={cardioStyles.finishButtonText}>TERMINER</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={cardioStyles.results}>
+          <View style={cardioStyles.resultsHeader}>
+            <Ionicons name="checkmark-circle" size={20} color={themeColors.accent} />
+            <View>
+              <Text style={cardioStyles.resultsTitle}>Effort terminé</Text>
+              <Text style={cardioStyles.resultsSubtitle}>
+                Ajoute seulement ce que la machine t’affiche.
+              </Text>
+            </View>
+          </View>
+
+          <View style={cardioStyles.resultFields}>
+            {machineSupportsDistance ? (
+              <View style={cardioStyles.resultField}>
+                <Text style={cardioStyles.fieldLabel}>DISTANCE (M)</Text>
+                <TextInput
+                  value={distance}
+                  onChangeText={setDistance}
+                  placeholder="—"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="decimal-pad"
+                  style={cardioStyles.input}
+                />
+              </View>
+            ) : null}
+
+            {machineSupportsCalories ? (
+              <View style={cardioStyles.resultField}>
+                <Text style={cardioStyles.fieldLabel}>CALORIES</Text>
+                <TextInput
+                  value={calories}
+                  onChangeText={setCalories}
+                  placeholder="—"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="decimal-pad"
+                  style={cardioStyles.input}
+                />
+              </View>
+            ) : null}
+
+            <View style={cardioStyles.resultFieldSmall}>
+              <Text style={cardioStyles.fieldLabel}>RPE</Text>
+              <TextInput
+                value={rpe}
+                onChangeText={setRpe}
+                placeholder="1–10"
+                placeholderTextColor={themeColors.textMuted}
+                keyboardType="numeric"
+                style={cardioStyles.input}
+              />
+            </View>
+          </View>
+
+          <Pressable
+            onPress={validateResult}
+            style={({ pressed }) => [
+              cardioStyles.primaryButton,
+              pressed && cardioStyles.pressed,
+            ]}
+          >
+            <Ionicons name="checkmark" size={18} color={themeColors.textOnAccent} />
+            <Text style={cardioStyles.primaryButtonText}>VALIDER LE BLOC</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function TimedBlock({ block, exercise, environmentCode, onComplete }) {
   const mechanic = blockMechanic(block);
   const params = blockParameters(block);
@@ -1349,6 +1653,9 @@ export default function EnvironmentSessionCore({
     };
 
     if (result.distanceMeters != null) actual.distance_meters = result.distanceMeters;
+    if (result.calories != null) actual.calories = result.calories;
+    if (result.targetKind) actual.target_kind = result.targetKind;
+    if (result.targetValue != null) actual.target_value = result.targetValue;
 
     if (isOutdoorRun) {
       actual.running_mechanic = result.mechanic;
@@ -1371,6 +1678,7 @@ export default function EnvironmentSessionCore({
         userExecutionStatus: 'completed',
         durationSeconds: result.elapsedSeconds,
         distanceMeters: result.distanceMeters,
+        calories: result.calories,
         rpe: result.rpe,
         performanceActualJson: actual,
       },
@@ -1413,6 +1721,7 @@ export default function EnvironmentSessionCore({
 
   const mechanic = blockMechanic(currentBlock);
   const timed = isRunMechanic(mechanic) || currentKey === 'cardio' || mechanic === 'CARDIO_CONTINUOUS';
+  const gymCardio = environmentCode === 'GYM' && timed && !isRunMechanic(mechanic);
   const tabata = currentKey === 'tabata' || ['TABATA', 'TABATA_ABS'].includes(normalize(currentBlock?.module_code));
   const manualGym = currentKey === 'gym' && !structuredStrength;
   const canonicalWod = currentKey === 'wod' && !isRunMechanic(mechanic);
@@ -1491,7 +1800,14 @@ export default function EnvironmentSessionCore({
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {timed ? (
+        {gymCardio ? (
+          <GymCardioBlock
+            key={`${currentKey}:${mechanic}:gym`}
+            block={currentBlock}
+            exercise={currentExercises[0]}
+            onComplete={completeTimedBlock}
+          />
+        ) : timed ? (
           <TimedBlock
             key={`${currentKey}:${mechanic}`}
             block={currentBlock}
@@ -2007,6 +2323,190 @@ function createEnvironmentFocusedStyles(colors, isDark) {
       fontFamily: 'Manrope_800ExtraBold',
       fontSize: 12,
       color: colors.textOnAccent,
+    },
+  });
+}
+
+
+function createGymCardioStyles(colors, isDark) {
+  return StyleSheet.create({
+    pressed: { opacity: 0.72 },
+    card: {
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      padding: 18,
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    machineIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accentSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    topCopy: { flex: 1 },
+    machineName: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 20,
+      lineHeight: 25,
+      color: colors.text,
+    },
+    targetLabel: {
+      marginTop: 2,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textSecondary,
+    },
+    metricHero: {
+      paddingVertical: 30,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    metricMain: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 58,
+      lineHeight: 64,
+      color: colors.text,
+      fontVariant: ['tabular-nums'],
+    },
+    metricTarget: {
+      marginTop: 2,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 14,
+      color: colors.textMuted,
+      fontVariant: ['tabular-nums'],
+    },
+    secondaryMetric: {
+      marginTop: 8,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    preStartHint: {
+      marginTop: -4,
+      marginBottom: 14,
+      fontFamily: 'Manrope_400Regular',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    primaryButton: {
+      minHeight: 52,
+      borderRadius: 14,
+      backgroundColor: colors.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    primaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      letterSpacing: 0.5,
+      color: colors.textOnAccent,
+    },
+    liveActions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    secondaryButton: {
+      flex: 1,
+      minHeight: 50,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    secondaryButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    finishButton: {
+      flex: 1,
+      minHeight: 50,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong ?? colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    finishButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    results: {
+      marginTop: 4,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    resultsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 14,
+    },
+    resultsTitle: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 14,
+      color: colors.text,
+    },
+    resultsSubtitle: {
+      marginTop: 1,
+      fontFamily: 'Manrope_400Regular',
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    resultFields: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 14,
+    },
+    resultField: {
+      flexGrow: 1,
+      flexBasis: 120,
+    },
+    resultFieldSmall: {
+      width: 86,
+    },
+    fieldLabel: {
+      marginBottom: 5,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 8,
+      letterSpacing: 0.6,
+      color: colors.textSecondary,
+    },
+    input: {
+      minHeight: 46,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: isDark ? colors.surface : colors.background,
+      paddingHorizontal: 12,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 14,
+      color: colors.text,
     },
   });
 }
