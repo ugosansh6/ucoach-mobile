@@ -435,6 +435,35 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
     }));
   }
 
+  function markWholeBlockDone() {
+    setDrafts((current) => {
+      const next = { ...current };
+
+      for (const exercise of exercises) {
+        const key = exerciseKey(exercise);
+        const draft = current[key] ?? { reps: '', sets: [] };
+
+        next[key] = {
+          ...draft,
+          sets: (draft.sets ?? []).map((row) => ({
+            ...row,
+            done: true,
+          })),
+        };
+      }
+
+      return next;
+    });
+  }
+
+  const blockSetRows = exercises.flatMap((exercise) => {
+    const key = exerciseKey(exercise);
+    return drafts[key]?.sets ?? [];
+  });
+  const blockHasSets = blockSetRows.length > 0;
+  const wholeBlockDone =
+    blockHasSets && blockSetRows.every((row) => Boolean(row.done));
+
   return (
     <>
       {exercises.map((exercise, exerciseIndex) => {
@@ -596,6 +625,32 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
           </View>
         );
       })}
+
+      {blockHasSets ? (
+        <Pressable
+          onPress={markWholeBlockDone}
+          disabled={wholeBlockDone}
+          style={({ pressed }) => [
+            gymStyles.validateAllButton,
+            wholeBlockDone && gymStyles.validateAllButtonDone,
+            pressed && !wholeBlockDone && gymStyles.pressed,
+          ]}
+        >
+          <Ionicons
+            name={wholeBlockDone ? 'checkmark-done-circle' : 'checkmark-done-outline'}
+            size={19}
+            color={wholeBlockDone ? themeColors.accent : themeColors.text}
+          />
+          <Text
+            style={[
+              gymStyles.validateAllButtonText,
+              wholeBlockDone && gymStyles.validateAllButtonTextDone,
+            ]}
+          >
+            {wholeBlockDone ? 'TOUTES LES SÉRIES SONT VALIDÉES' : 'TOUT MARQUER COMME RÉALISÉ'}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <Pressable
         onPress={onComplete}
@@ -2182,6 +2237,33 @@ function createGymStyles(colors, isDark) {
       fontSize: 10,
       lineHeight: 15,
       color: colors.error,
+    },
+    validateAllButton: {
+      minHeight: 48,
+      marginTop: 6,
+      marginBottom: 10,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong ?? colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    validateAllButtonDone: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    validateAllButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 10,
+      letterSpacing: 0.4,
+      color: colors.text,
+    },
+    validateAllButtonTextDone: {
+      color: colors.accent,
     },
     primaryButton: {
       minHeight: 54,
