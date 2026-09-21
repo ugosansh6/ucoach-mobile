@@ -28,11 +28,7 @@ import {
   replaceUserEnvironmentEquipmentPreset,
   replaceUserEquipmentInventory,
 } from '../../src/services/equipmentService';
-import {
-  getEquipmentUxDisplayName,
-  getEquipmentUxMeta,
-  getEquipmentUxSections,
-} from '../../src/constants/equipmentUxCategories';
+import { getEquipmentUxSections } from '../../src/constants/equipmentUxCategories';
 
 const BRAND_KAKI = '#5E6633';
 const BRAND_ORANGE = '#FF6B19';
@@ -510,35 +506,20 @@ export default function ProfileEquipmentScreen() {
 
   const globalEquipmentCatalog = useMemo(
     () =>
-      (catalog ?? [])
-        .filter((item) => {
-          const id = String(item?.id ?? '');
-          if (!id || id === 'E00') return false;
-          if (
-            item?.exercise_count !== null &&
-            item?.exercise_count !== undefined &&
-            Number(item.exercise_count) <= 0
-          ) {
-            return false;
-          }
-          return true;
-        })
-        .map((item) => {
-          const meta = getEquipmentUxMeta(item);
-          return {
+      equipmentSections
+        .flatMap((section) =>
+          (section.items ?? []).map((item) => ({
             ...item,
-            displayName: getEquipmentUxDisplayName(item),
-            uxGroup: meta.group,
-            uxCategoryLabel: meta.label,
-          };
-        })
+            uxCategoryLabel: section.label,
+          }))
+        )
         .sort((a, b) =>
           String(a.displayName ?? a.name ?? '').localeCompare(
             String(b.displayName ?? b.name ?? ''),
             'fr'
           )
         ),
-    [catalog]
+    [equipmentSections]
   );
 
   const normalizedEquipmentSearch = normalizeSearchValue(searchQuery.trim());
