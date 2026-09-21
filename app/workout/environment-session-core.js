@@ -928,7 +928,7 @@ function gymCardioTarget(exercise, block) {
   };
 }
 
-function GymCardioBlock({ block, exercise, onComplete }) {
+function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const cardioStyles = useMemo(
     () => createGymCardioStyles(themeColors, isDark),
@@ -1042,11 +1042,25 @@ function GymCardioBlock({ block, exercise, onComplete }) {
 
   const mainValue =
     target.kind === 'time'
-      ? formatClock(elapsed)
+      ? started
+        ? formatClock(elapsed)
+        : target.label
       : target.label;
 
   const targetSuffix =
-    target.kind === 'time' ? `/ ${target.label}` : null;
+    target.kind === 'time' && started ? `/ ${target.label}` : null;
+
+  async function startEffort() {
+    try {
+      if (typeof onBeforeStart === 'function') await onBeforeStart();
+      setStarted(true);
+    } catch (error) {
+      Alert.alert(
+        'Impossible de démarrer la séance',
+        error?.message ?? 'Réessaie.'
+      );
+    }
+  }
 
   return (
     <View style={cardioStyles.card}>
@@ -1076,7 +1090,7 @@ function GymCardioBlock({ block, exercise, onComplete }) {
             Lance la machine puis démarre le chrono UGEROD.
           </Text>
           <Pressable
-            onPress={() => setStarted(true)}
+            onPress={startEffort}
             style={({ pressed }) => [
               cardioStyles.primaryButton,
               pressed && cardioStyles.pressed,
@@ -1656,6 +1670,7 @@ export default function EnvironmentSessionCore({
     if (result.calories != null) actual.calories = result.calories;
     if (result.targetKind) actual.target_kind = result.targetKind;
     if (result.targetValue != null) actual.target_value = result.targetValue;
+    if (environmentCode === 'GYM') actual.source = 'ugerod_gym_cardio_player';
 
     if (isOutdoorRun) {
       actual.running_mechanic = result.mechanic;
@@ -1805,6 +1820,7 @@ export default function EnvironmentSessionCore({
             key={`${currentKey}:${mechanic}:gym`}
             block={currentBlock}
             exercise={currentExercises[0]}
+            onBeforeStart={ensureStarted}
             onComplete={completeTimedBlock}
           />
         ) : timed ? (
