@@ -80,10 +80,10 @@ const RESISTANCE_OPTIONS = [
 ];
 
 const PROFILE_ENVIRONMENTS = [
-  { key: 'HOME', label: 'MAISON', icon: 'home-outline' },
-  { key: 'BOX', label: 'BOX', icon: 'fitness-outline' },
-  { key: 'GYM', label: 'SALLE', icon: 'barbell-outline' },
-  { key: 'OUTDOOR', label: 'EXTÉRIEUR', icon: 'leaf-outline' },
+  { key: 'HOME', label: 'Maison', icon: 'home-outline' },
+  { key: 'BOX', label: 'Box', icon: 'fitness-outline' },
+  { key: 'GYM', label: 'Salle', icon: 'barbell-outline' },
+  { key: 'OUTDOOR', label: 'Extérieur', icon: 'leaf-outline' },
 ];
 
 function normalizeSearchValue(value) {
@@ -957,7 +957,7 @@ export default function ProfileEquipmentScreen() {
         <Text
           style={styles.loadingText}
         >
-          CHARGEMENT DU MATÉRIEL...
+          Chargement du matériel…
         </Text>
       </View>
     );
@@ -1031,7 +1031,7 @@ export default function ProfileEquipmentScreen() {
                     styles.headerEyebrow
                   }
                 >
-                  PROFIL SPORTIF
+                  Profil sportif
                 </Text>
 
                 <Text
@@ -1039,7 +1039,7 @@ export default function ProfileEquipmentScreen() {
                     styles.headerTitle
                   }
                 >
-                  TON MATÉRIEL
+                  Ton matériel
                   <Text
                     style={styles.blueDot}
                   >
@@ -1059,24 +1059,10 @@ export default function ProfileEquipmentScreen() {
 
             {/* INTRO */}
             <View style={styles.intro}>
-              <Text
-                style={
-                  styles.introTitle
-                }
-              >
+              <Text style={styles.introText}>
                 {activeEnvironment === 'HOME'
-                  ? 'TON MATÉRIEL À LA MAISON'
-                  : `TON MATÉRIEL HABITUEL — ${activeEnvironmentLabel}`}
-              </Text>
-
-              <Text
-                style={
-                  styles.introText
-                }
-              >
-                {activeEnvironment === 'HOME'
-                  ? 'Ici, tu peux mettre à jour le matériel que tu possèdes et renseigner les charges associées.'
-                  : `Sélectionne le matériel que tu as habituellement à disposition quand tu t’entraînes en ${activeEnvironmentLabel.toLowerCase()}.`}
+                  ? 'Sélectionne le matériel que tu as à disposition chez toi.'
+                  : `Sélectionne le matériel que tu as habituellement à disposition en ${activeEnvironmentLabel.toLowerCase()}.`}
               </Text>
             </View>
 
@@ -1102,7 +1088,7 @@ export default function ProfileEquipmentScreen() {
                       styles.errorTitle
                     }
                   >
-                    ERREUR
+                    Erreur
                   </Text>
 
                   <Text
@@ -1156,9 +1142,9 @@ export default function ProfileEquipmentScreen() {
                 <>
                   <View style={styles.categoryIntroRow}>
                     <View style={styles.categoryIntroCopy}>
-                      <Text style={styles.categoryIntroTitle}>CHOISIS UNE CATÉGORIE</Text>
+                      <Text style={styles.categoryIntroTitle}>Catégories</Text>
                       <Text style={styles.categoryIntroText}>
-                        {selectedEquipmentCount} équipement{selectedEquipmentCount > 1 ? 's' : ''} sélectionné{selectedEquipmentCount > 1 ? 's' : ''} pour {activeEnvironmentLabel.toLowerCase()}.
+                        {selectedEquipmentCount} équipement{selectedEquipmentCount !== 1 ? 's' : ''} sélectionné{selectedEquipmentCount !== 1 ? 's' : ''} pour {activeEnvironmentLabel.toLowerCase()}.
                       </Text>
                     </View>
                   </View>
@@ -1179,13 +1165,13 @@ export default function ProfileEquipmentScreen() {
                         <View style={styles.categoryHeroIcon}>
                           <Ionicons
                             name={category.icon}
-                            size={32}
-                            color={BRAND_KAKI}
+                            size={24}
+                            color={colors.accent}
                           />
                         </View>
 
                         <Text style={styles.categoryCardLabel}>
-                          {category.label.toUpperCase()}
+                          {category.label}
                         </Text>
 
                         <Text numberOfLines={2} style={styles.categoryCardDescription}>
@@ -1194,12 +1180,12 @@ export default function ProfileEquipmentScreen() {
 
                         <View style={styles.categoryCardFooter}>
                           <Text style={styles.categoryCardCount}>
-                            {category.selectedCount}/{category.items.length} sélectionné{category.selectedCount > 1 ? 's' : ''}
+                            {category.selectedCount}/{category.items.length} sélectionné{category.selectedCount !== 1 ? 's' : ''}
                           </Text>
                           <Ionicons
-                            name="arrow-forward"
-                            size={18}
-                            color={BRAND_ORANGE}
+                            name="chevron-forward"
+                            size={17}
+                            color={colors.textMuted}
                           />
                         </View>
                       </Pressable>
@@ -1218,21 +1204,21 @@ export default function ProfileEquipmentScreen() {
                       pressed && styles.pressed,
                     ]}
                   >
-                    <Ionicons name="arrow-back" size={18} color={BRAND_KAKI} />
-                    <Text style={styles.categoryBackText}>TOUTES LES CATÉGORIES</Text>
+                    <Ionicons name="arrow-back" size={18} color={colors.accent} />
+                    <Text style={styles.categoryBackText}>Toutes les catégories</Text>
                   </Pressable>
 
                   <View style={styles.activeCategoryHero}>
                     <View style={styles.activeCategoryIcon}>
                       <Ionicons
                         name={activeCategoryOption?.icon ?? 'grid-outline'}
-                        size={28}
-                        color={colors.brandWhite}
+                        size={22}
+                        color={colors.accent}
                       />
                     </View>
                     <View style={styles.activeCategoryCopy}>
                       <Text style={styles.activeCategoryTitle}>
-                        {String(activeCategoryOption?.label ?? '').toUpperCase()}
+                        {String(activeCategoryOption?.label ?? '')}
                       </Text>
                       <Text style={styles.activeCategoryDescription}>
                         {activeCategoryOption?.description}
@@ -1273,11 +1259,11 @@ export default function ProfileEquipmentScreen() {
                   <View style={styles.catalogSummaryRow}>
                     <Text style={styles.catalogSummaryText}>
                       {searchQuery.length > 0
-                        ? `${visibleCatalog.length} RÉSULTAT${visibleCatalog.length > 1 ? 'S' : ''}`
-                        : `${visibleCatalog.length} ÉQUIPEMENT${visibleCatalog.length > 1 ? 'S' : ''}`}
+                        ? `${visibleCatalog.length} résultat${visibleCatalog.length !== 1 ? 's' : ''}`
+                        : `${visibleCatalog.length} équipement${visibleCatalog.length !== 1 ? 's' : ''}`}
                     </Text>
                     <Text style={styles.catalogSummarySelected}>
-                      {activeCategoryOption?.selectedCount ?? 0} SÉLECTIONNÉ{(activeCategoryOption?.selectedCount ?? 0) > 1 ? 'S' : ''}
+                      {activeCategoryOption?.selectedCount ?? 0} sélectionné{(activeCategoryOption?.selectedCount ?? 0) !== 1 ? 's' : ''}
                     </Text>
                   </View>
                 </>
@@ -1413,7 +1399,7 @@ export default function ProfileEquipmentScreen() {
                               equipment.displayName ??
                                 equipment.name ??
                                 ''
-                            ).toUpperCase()}
+                            )}
                           </Text>
 
                           {hasConfiguration && (
@@ -2182,8 +2168,8 @@ export default function ProfileEquipmentScreen() {
                     }
                   >
                     {saved
-                      ? 'MATÉRIEL ENREGISTRÉ'
-                      : 'ENREGISTRER MON MATÉRIEL'}
+                      ? 'Matériel enregistré'
+                      : 'Enregistrer mon matériel'}
                   </Text>
 
                   <Ionicons
@@ -2340,9 +2326,9 @@ function createStyles(colors, isDark) {
   },
 
   content: {
-    paddingHorizontal:
-      spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingTop: 8,
+    paddingBottom: 30,
   },
 
   loadingScreen: {
@@ -2363,7 +2349,7 @@ function createStyles(colors, isDark) {
   },
 
   header: {
-    minHeight: 60,
+    minHeight: 70,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -2372,14 +2358,10 @@ function createStyles(colors, isDark) {
   backButton: {
     width: 42,
     height: 42,
-    borderRadius: 14,
-    backgroundColor: isDark
-      ? 'rgba(17,21,26,0.92)'
-      : colors.surfaceElevated,
+    borderRadius: 21,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: isDark
-      ? 'rgba(255,255,255,0.10)'
-      : colors.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2411,31 +2393,19 @@ function createStyles(colors, isDark) {
   },
 
   brandIcon: {
-    width: 45,
-    height: 45,
+    width: 44,
+    height: 44,
   },
 
   intro: {
-    marginTop: 18,
-  },
-
-  introTitle: {
-    fontFamily: MANROPE.bold,
-    fontSize: 21,
-    lineHeight: 28,
-    letterSpacing: -0.45,
-    color:
-      colors.textPrimary,
+    marginTop: 4,
   },
 
   introText: {
     fontFamily: MANROPE.regular,
-    fontSize: 14,
-    lineHeight: 21,
-    color:
-      colors.textSecondary,
-    marginTop: 6,
-    maxWidth: 355,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.textSecondary,
   },
 
   infoCard: {
@@ -2494,12 +2464,12 @@ function createStyles(colors, isDark) {
 
   catalogTools: {
     marginTop: 18,
-    gap: 12,
+    gap: 14,
   },
 
   searchShell: {
-    minHeight: 50,
-    borderRadius: 14,
+    minHeight: 48,
+    borderRadius: 13,
     borderWidth: 1,
     borderColor: isDark ? 'rgba(255,255,255,0.11)' : colors.border,
     backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
@@ -2519,16 +2489,16 @@ function createStyles(colors, isDark) {
 
   locationTabs: {
     gap: 8,
-    paddingRight: 8,
+    paddingRight: 4,
   },
 
   locationTab: {
-    minHeight: 40,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
-    backgroundColor: isDark ? 'rgba(17,21,26,0.82)' : colors.surfaceElevated,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2552,7 +2522,7 @@ function createStyles(colors, isDark) {
   },
 
   categoryIntroRow: {
-    marginTop: 4,
+    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -2564,9 +2534,9 @@ function createStyles(colors, isDark) {
 
   categoryIntroTitle: {
     fontFamily: MANROPE.bold,
-    fontSize: 18,
-    lineHeight: 23,
-    letterSpacing: -0.25,
+    fontSize: 15,
+    lineHeight: 21,
+    letterSpacing: -0.2,
     color: colors.textPrimary,
   },
 
@@ -2574,29 +2544,24 @@ function createStyles(colors, isDark) {
     marginTop: 3,
     fontFamily: MANROPE.regular,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 18,
     color: colors.textSecondary,
   },
 
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
 
   categoryCard: {
     width: '48%',
-    minHeight: 168,
-    padding: 15,
-    borderRadius: 20,
+    minHeight: 132,
+    padding: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
-    backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
-    shadowColor: colors.shadow,
-    shadowOpacity: isDark ? 0.16 : 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
   },
 
   categoryCardPressed: {
@@ -2605,13 +2570,13 @@ function createStyles(colors, isDark) {
   },
 
   categoryHeroIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 17,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accentSoft,
-    marginBottom: 13,
+    marginBottom: 10,
   },
 
   categoryCardLabel: {
@@ -2623,7 +2588,7 @@ function createStyles(colors, isDark) {
   },
 
   categoryCardDescription: {
-    marginTop: 4,
+    marginTop: 3,
     minHeight: 34,
     fontFamily: MANROPE.regular,
     fontSize: 12,
@@ -2644,12 +2609,12 @@ function createStyles(colors, isDark) {
     fontFamily: MANROPE.semiBold,
     fontSize: 11,
     lineHeight: 16,
-    color: BRAND_ORANGE,
+    color: colors.accent,
   },
 
   categoryBackRow: {
     alignSelf: 'flex-start',
-    minHeight: 38,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
@@ -2663,22 +2628,22 @@ function createStyles(colors, isDark) {
   },
 
   activeCategoryHero: {
-    minHeight: 92,
-    padding: 14,
-    borderRadius: 18,
+    minHeight: 76,
+    padding: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(94,102,51,0.28)',
-    backgroundColor: colors.accentSoft,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
 
   activeCategoryIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: BRAND_KAKI,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2689,8 +2654,8 @@ function createStyles(colors, isDark) {
 
   activeCategoryTitle: {
     fontFamily: MANROPE.bold,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 22,
     color: colors.textPrimary,
   },
 
@@ -2703,10 +2668,10 @@ function createStyles(colors, isDark) {
   },
 
   activeCategoryCount: {
-    fontFamily: MANROPE.extraBold,
-    fontSize: 20,
-    lineHeight: 24,
-    color: BRAND_ORANGE,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.accent,
   },
 
   categoryTabs: {
@@ -2794,19 +2759,15 @@ function createStyles(colors, isDark) {
   },
 
   equipmentList: {
-    marginTop: 18,
-    gap: 10,
+    marginTop: 12,
+    gap: 8,
   },
 
   equipmentCard: {
-    borderRadius: 17,
-    backgroundColor: isDark
-      ? 'rgba(17,21,26,0.92)'
-      : colors.surfaceElevated,
+    borderRadius: 13,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: isDark
-      ? 'rgba(255,255,255,0.09)'
-      : colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
 
@@ -2829,8 +2790,8 @@ function createStyles(colors, isDark) {
   },
 
   equipmentHeader: {
-    minHeight: 74,
-    paddingHorizontal: 14,
+    minHeight: 64,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -2848,9 +2809,9 @@ function createStyles(colors, isDark) {
   },
 
   equipmentName: {
-    fontFamily: MANROPE.bold,
-    fontSize: 15,
-    lineHeight: 20,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 14,
+    lineHeight: 19,
     letterSpacing: -0.15,
     color:
       colors.textPrimary,
@@ -2867,7 +2828,7 @@ function createStyles(colors, isDark) {
   checkbox: {
     width: 24,
     height: 24,
-    borderRadius: 7,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: isDark
       ? 'rgba(255,255,255,0.20)'
@@ -2880,10 +2841,8 @@ function createStyles(colors, isDark) {
   },
 
   checkboxSelected: {
-    backgroundColor:
-      BRAND_ORANGE,
-    borderColor:
-      BRAND_KAKI,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
 
   configurationArea: {
@@ -2914,8 +2873,7 @@ function createStyles(colors, isDark) {
   },
 
   modeTabSelected: {
-    backgroundColor:
-      BRAND_ORANGE,
+    backgroundColor: colors.accent,
   },
 
   modeTabText: {
@@ -3211,11 +3169,10 @@ function createStyles(colors, isDark) {
   },
 
   saveButton: {
-    minHeight: 56,
-    marginTop: 22,
+    minHeight: 58,
+    marginTop: 18,
     borderRadius: 16,
-    backgroundColor:
-      BRAND_ORANGE,
+    backgroundColor: colors.accent,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3223,8 +3180,7 @@ function createStyles(colors, isDark) {
   },
 
   saveButtonDone: {
-    backgroundColor:
-      BRAND_ORANGE,
+    backgroundColor: colors.accent,
   },
 
   saveButtonDisabled: {
@@ -3241,8 +3197,8 @@ function createStyles(colors, isDark) {
 
   saveButtonText: {
     fontFamily: MANROPE.bold,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 22,
     letterSpacing: -0.1,
     color:
       colors.brandWhite,
