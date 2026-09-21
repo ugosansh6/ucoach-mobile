@@ -80,7 +80,7 @@ const EQUIPMENT_UX = {
   E46: ['MUSCULATION', 'Machines & poulies'],
   E47: ['MUSCULATION', 'Machines & poulies'],
   E48: ['MUSCULATION', 'Supports'],
-  E49: ['GYM', 'Appuis & structures'],
+  E49: ['EXPLOSIVITE', 'Lancers & ballons'],
 };
 
 // Libellés orientés utilisateur. Les IDs et noms techniques du catalogue restent inchangés.
