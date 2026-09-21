@@ -19,7 +19,6 @@ import {
 
 import {
   spacing,
-  typography,
 } from '../../src/constants';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 
@@ -33,6 +32,14 @@ import { getEquipmentUxSections } from '../../src/constants/equipmentUxCategorie
 
 const BRAND_KAKI = '#5E6633';
 const BRAND_ORANGE = '#FF6B19';
+
+const MANROPE = {
+  regular: 'Manrope_400Regular',
+  medium: 'Manrope_500Medium',
+  semiBold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+  extraBold: 'Manrope_800ExtraBold',
+};
 
 const backgroundImage = require(
   '../../assets/backgrounds/welcome-default.jpg'
@@ -2348,10 +2355,9 @@ function createStyles(colors, isDark) {
   },
 
   loadingText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 11,
-    letterSpacing: 0.8,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 13,
+    letterSpacing: 0.1,
     color:
       colors.textSecondary,
   },
@@ -2383,20 +2389,19 @@ function createStyles(colors, isDark) {
   },
 
   headerEyebrow: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 1,
+    fontFamily: 'Oswald_500Medium',
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.35,
     color:
       colors.textSecondary,
   },
 
   headerTitle: {
-    ...typography.display,
+    fontFamily: MANROPE.extraBold,
     fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: 1.7,
+    lineHeight: 38,
+    letterSpacing: -0.8,
     color:
       colors.textPrimary,
   },
@@ -2415,20 +2420,18 @@ function createStyles(colors, isDark) {
   },
 
   introTitle: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 29,
-    lineHeight: 33,
-    letterSpacing: 1.4,
+    fontFamily: MANROPE.bold,
+    fontSize: 21,
+    lineHeight: 28,
+    letterSpacing: -0.45,
     color:
       colors.textPrimary,
   },
 
   introText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 13,
-    lineHeight: 20,
+    fontFamily: MANROPE.regular,
+    fontSize: 14,
+    lineHeight: 21,
     color:
       colors.textSecondary,
     marginTop: 6,
@@ -2450,10 +2453,9 @@ function createStyles(colors, isDark) {
 
   infoText: {
     flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color:
       colors.textSecondary,
   },
@@ -2475,18 +2477,16 @@ function createStyles(colors, isDark) {
   },
 
   errorTitle: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.7,
+    fontFamily: MANROPE.bold,
+    fontSize: 12,
+    letterSpacing: 0.2,
     color: BRAND_ORANGE,
   },
 
   errorText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color:
       colors.textSecondary,
     marginTop: 3,
@@ -2512,7 +2512,7 @@ function createStyles(colors, isDark) {
   searchInput: {
     flex: 1,
     paddingVertical: 0,
-    fontFamily: 'Oswald_400Regular',
+    fontFamily: MANROPE.regular,
     fontSize: 14,
     color: colors.textPrimary,
   },
@@ -2541,9 +2541,9 @@ function createStyles(colors, isDark) {
   },
 
   locationTabText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.55,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 12,
+    letterSpacing: 0,
     color: colors.textSecondary,
   },
 
@@ -2563,18 +2563,18 @@ function createStyles(colors, isDark) {
   },
 
   categoryIntroTitle: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 24,
-    lineHeight: 27,
-    letterSpacing: 1.1,
+    fontFamily: MANROPE.bold,
+    fontSize: 18,
+    lineHeight: 23,
+    letterSpacing: -0.25,
     color: colors.textPrimary,
   },
 
   categoryIntroText: {
     marginTop: 3,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color: colors.textSecondary,
   },
 
@@ -2615,19 +2615,19 @@ function createStyles(colors, isDark) {
   },
 
   categoryCardLabel: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 17,
-    lineHeight: 22,
-    letterSpacing: 0.45,
+    fontFamily: MANROPE.bold,
+    fontSize: 15,
+    lineHeight: 20,
+    letterSpacing: -0.15,
     color: colors.textPrimary,
   },
 
   categoryCardDescription: {
     marginTop: 4,
     minHeight: 34,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color: colors.textSecondary,
   },
 
@@ -2641,9 +2641,9 @@ function createStyles(colors, isDark) {
 
   categoryCardCount: {
     flexShrink: 1,
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    lineHeight: 16,
     color: BRAND_ORANGE,
   },
 
@@ -2656,9 +2656,9 @@ function createStyles(colors, isDark) {
   },
 
   categoryBackText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.6,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 12,
+    letterSpacing: 0,
     color: BRAND_KAKI,
   },
 
@@ -2688,24 +2688,24 @@ function createStyles(colors, isDark) {
   },
 
   activeCategoryTitle: {
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: MANROPE.bold,
     fontSize: 18,
-    lineHeight: 23,
+    lineHeight: 24,
     color: colors.textPrimary,
   },
 
   activeCategoryDescription: {
     marginTop: 2,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color: colors.textSecondary,
   },
 
   activeCategoryCount: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 25,
-    lineHeight: 28,
+    fontFamily: MANROPE.extraBold,
+    fontSize: 20,
+    lineHeight: 24,
     color: BRAND_ORANGE,
   },
 
@@ -2750,25 +2750,25 @@ function createStyles(colors, isDark) {
   },
 
   categoryTabLabel: {
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: MANROPE.bold,
     fontSize: 14,
-    lineHeight: 18,
+    lineHeight: 19,
     color: colors.textPrimary,
   },
 
   categoryTabMeta: {
     marginTop: 3,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 10,
-    lineHeight: 14,
+    fontFamily: MANROPE.regular,
+    fontSize: 11,
+    lineHeight: 16,
     color: colors.textMuted,
   },
 
   categoryTabCount: {
     marginTop: 6,
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 9,
-    lineHeight: 13,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 10,
+    lineHeight: 15,
     color: BRAND_ORANGE,
   },
 
@@ -2780,16 +2780,16 @@ function createStyles(colors, isDark) {
   },
 
   catalogSummaryText: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.6,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
     color: colors.textMuted,
   },
 
   catalogSummarySelected: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.6,
+    fontFamily: MANROPE.bold,
+    fontSize: 11,
+    letterSpacing: 0.1,
     color: BRAND_KAKI,
   },
 
@@ -2848,20 +2848,18 @@ function createStyles(colors, isDark) {
   },
 
   equipmentName: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 16,
-    lineHeight: 21,
-    letterSpacing: 0.35,
+    fontFamily: MANROPE.bold,
+    fontSize: 15,
+    lineHeight: 20,
+    letterSpacing: -0.15,
     color:
       colors.textPrimary,
   },
 
   equipmentHint: {
-    fontFamily:
-      'Oswald_400Regular',
+    fontFamily: MANROPE.regular,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
     color:
       colors.textMuted,
   },
@@ -2921,10 +2919,9 @@ function createStyles(colors, isDark) {
   },
 
   modeTabText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
     color:
       colors.textMuted,
   },
@@ -2935,10 +2932,9 @@ function createStyles(colors, isDark) {
   },
 
   fieldLabel: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.6,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 10,
+    letterSpacing: 0.2,
     color:
       colors.textMuted,
     marginBottom: 6,
@@ -2974,9 +2970,8 @@ function createStyles(colors, isDark) {
   quantityValue: {
     minWidth: 34,
     textAlign: 'center',
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 22,
+    fontFamily: MANROPE.extraBold,
+    fontSize: 18,
     color:
       colors.textPrimary,
   },
@@ -3002,10 +2997,9 @@ function createStyles(colors, isDark) {
   },
 
   loadGroupTitle: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.7,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
     color:
       colors.textSecondary,
   },
@@ -3045,17 +3039,15 @@ function createStyles(colors, isDark) {
   input: {
     flex: 1,
     paddingVertical: 0,
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: MANROPE.semiBold,
     fontSize: 15,
     color:
       colors.textPrimary,
   },
 
   inputSuffix: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 10,
     color:
       colors.textMuted,
   },
@@ -3076,10 +3068,9 @@ function createStyles(colors, isDark) {
   },
 
   addLoadText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
     color:
       BRAND_KAKI,
   },
@@ -3089,9 +3080,9 @@ function createStyles(colors, isDark) {
   },
 
   unknownLoadText: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color: colors.textSecondary,
   },
 
@@ -3100,9 +3091,9 @@ function createStyles(colors, isDark) {
   },
 
   resistanceHelp: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color: colors.textSecondary,
     marginBottom: 2,
   },
@@ -3135,9 +3126,9 @@ function createStyles(colors, isDark) {
 
   resistanceChipText: {
     flexShrink: 1,
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: MANROPE.semiBold,
     fontSize: 12,
-    letterSpacing: 0.45,
+    letterSpacing: 0,
     color: colors.textSecondary,
   },
 
@@ -3174,17 +3165,17 @@ function createStyles(colors, isDark) {
   },
 
   noResultTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 0.6,
+    fontFamily: MANROPE.bold,
+    fontSize: 13,
+    letterSpacing: 0,
     color: colors.textPrimary,
   },
 
   noResultText: {
     marginTop: 3,
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color: colors.textSecondary,
   },
 
@@ -3203,19 +3194,17 @@ function createStyles(colors, isDark) {
 
   emptyText: {
     flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color:
       colors.textSecondary,
   },
 
   validationText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color:
       BRAND_ORANGE,
     marginTop: 12,
@@ -3251,19 +3240,18 @@ function createStyles(colors, isDark) {
   },
 
   saveButtonText: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 13,
-    letterSpacing: 0.8,
+    fontFamily: MANROPE.bold,
+    fontSize: 15,
+    lineHeight: 20,
+    letterSpacing: -0.1,
     color:
       colors.brandWhite,
   },
 
   footerText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color:
       colors.textMuted,
     textAlign: 'center',
