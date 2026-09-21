@@ -28,7 +28,11 @@ import {
   replaceUserEnvironmentEquipmentPreset,
   replaceUserEquipmentInventory,
 } from '../../src/services/equipmentService';
-import { getEquipmentUxSections } from '../../src/constants/equipmentUxCategories';
+import {
+  getEquipmentUxDisplayName,
+  getEquipmentUxMeta,
+  getEquipmentUxSections,
+} from '../../src/constants/equipmentUxCategories';
 
 const BRAND_KAKI = '#5E6633';
 const BRAND_ORANGE = '#FF6B19';
@@ -504,26 +508,67 @@ export default function ProfileEquipmentScreen() {
     [categoryOptions, resolvedActiveCategory]
   );
 
+  const globalEquipmentCatalog = useMemo(
+    () =>
+      (catalog ?? [])
+        .filter((item) => {
+          const id = String(item?.id ?? '');
+          if (!id || id === 'E00') return false;
+          if (
+            item?.exercise_count !== null &&
+            item?.exercise_count !== undefined &&
+            Number(item.exercise_count) <= 0
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((item) => {
+          const meta = getEquipmentUxMeta(item);
+          return {
+            ...item,
+            displayName: getEquipmentUxDisplayName(item),
+            uxGroup: meta.group,
+            uxCategoryLabel: meta.label,
+          };
+        })
+        .sort((a, b) =>
+          String(a.displayName ?? a.name ?? '').localeCompare(
+            String(b.displayName ?? b.name ?? ''),
+            'fr'
+          )
+        ),
+    [catalog]
+  );
+
+  const normalizedEquipmentSearch = normalizeSearchValue(searchQuery.trim());
+  const equipmentSearchActive = normalizedEquipmentSearch.length > 0;
+
   const visibleCatalog = useMemo(() => {
-    const source = activeCategoryOption?.items ?? [];
-    const normalizedQuery = normalizeSearchValue(searchQuery.trim());
+    if (equipmentSearchActive) {
+      return globalEquipmentCatalog.filter((equipment) =>
+        normalizeSearchValue(
+          [
+            equipment.displayName,
+            equipment.name,
+            equipment.category,
+            equipment.description,
+            equipment.uxCategoryLabel,
+            equipment.uxGroup,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        ).includes(normalizedEquipmentSearch)
+      );
+    }
 
-    if (!normalizedQuery) return source;
-
-    return source.filter((equipment) =>
-      normalizeSearchValue(
-        [
-          equipment.displayName,
-          equipment.name,
-          equipment.category,
-          equipment.description,
-          equipment.uxGroup,
-        ]
-          .filter(Boolean)
-          .join(' ')
-      ).includes(normalizedQuery)
-    );
-  }, [activeCategoryOption, searchQuery]);
+    return activeCategoryOption?.items ?? [];
+  }, [
+    activeCategoryOption,
+    equipmentSearchActive,
+    globalEquipmentCatalog,
+    normalizedEquipmentSearch,
+  ]);
 
   const selectedEquipmentCount = selectedEquipmentIds.size;
 
@@ -1138,7 +1183,41 @@ export default function ProfileEquipmentScreen() {
                 })}
               </ScrollView>
 
-              {!resolvedActiveCategory ? (
+              <View style={styles.searchShell}>
+                <Ionicons
+                  name="search-outline"
+                  size={19}
+                  color={colors.textMuted}
+                />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Rechercher un matériel…"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                />
+                {searchQuery.length > 0 && (
+                  <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                    <Ionicons
+                      name="close-circle"
+                      size={19}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                )}
+              </View>
+
+              {equipmentSearchActive ? (
+                <View style={styles.searchResultsHeader}>
+                  <Text style={styles.categoryIntroTitle}>Résultats</Text>
+                  <Text style={styles.categoryIntroText}>
+                    {visibleCatalog.length} matériel{visibleCatalog.length !== 1 ? 's' : ''} trouvé{visibleCatalog.length !== 1 ? 's' : ''} dans le catalogue.
+                  </Text>
+                </View>
+              ) : !resolvedActiveCategory ? (
                 <>
                   <View style={styles.categoryIntroRow}>
                     <View style={styles.categoryIntroCopy}>
@@ -1229,38 +1308,9 @@ export default function ProfileEquipmentScreen() {
                     </Text>
                   </View>
 
-                  <View style={styles.searchShell}>
-                    <Ionicons
-                      name="search-outline"
-                      size={19}
-                      color={colors.textMuted}
-                    />
-                    <TextInput
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      placeholder={`Rechercher dans ${String(activeCategoryOption?.label ?? '').toLowerCase()}…`}
-                      placeholderTextColor={colors.textMuted}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="search"
-                      style={styles.searchInput}
-                    />
-                    {searchQuery.length > 0 && (
-                      <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-                        <Ionicons
-                          name="close-circle"
-                          size={19}
-                          color={colors.textMuted}
-                        />
-                      </Pressable>
-                    )}
-                  </View>
-
                   <View style={styles.catalogSummaryRow}>
                     <Text style={styles.catalogSummaryText}>
-                      {searchQuery.length > 0
-                        ? `${visibleCatalog.length} résultat${visibleCatalog.length !== 1 ? 's' : ''}`
-                        : `${visibleCatalog.length} équipement${visibleCatalog.length !== 1 ? 's' : ''}`}
+                      {visibleCatalog.length} équipement{visibleCatalog.length !== 1 ? 's' : ''}
                     </Text>
                     <Text style={styles.catalogSummarySelected}>
                       {activeCategoryOption?.selectedCount ?? 0} sélectionné{(activeCategoryOption?.selectedCount ?? 0) !== 1 ? 's' : ''}
@@ -1401,6 +1451,14 @@ export default function ProfileEquipmentScreen() {
                                 ''
                             )}
                           </Text>
+
+                          {equipmentSearchActive ? (
+                            <Text style={styles.searchResultMeta}>
+                              {[equipment.uxCategoryLabel, equipment.uxGroup]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </Text>
+                          ) : null}
 
                           {hasConfiguration && (
                             <View style={styles.equipmentMetaRow}>
@@ -2465,6 +2523,18 @@ function createStyles(colors, isDark) {
   catalogTools: {
     marginTop: 18,
     gap: 14,
+  },
+
+  searchResultsHeader: {
+    marginTop: 2,
+  },
+
+  searchResultMeta: {
+    marginTop: 2,
+    fontFamily: MANROPE.regular,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textMuted,
   },
 
   searchShell: {
