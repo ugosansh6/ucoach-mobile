@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -298,7 +298,7 @@ function sanitizeInventory(rows) {
 }
 
 export default function ProfileEquipmentScreen() {
-  const { returnTo, environment } = useLocalSearchParams();
+  const { returnTo, environment, view } = useLocalSearchParams();
   const { colors: themeColors, isDark } = useUgerodTheme();
 
   const initialEnvironment = useMemo(() => {
@@ -370,6 +370,19 @@ export default function ProfileEquipmentScreen() {
 
   const [activeEnvironment, setActiveEnvironment] =
     useState(initialEnvironment);
+
+  useFocusEffect(
+    useCallback(() => {
+      const requestedView = Array.isArray(view) ? view[0] : view;
+
+      if (requestedView === 'categories') {
+        setActiveEnvironment(initialEnvironment);
+        setActiveCategory(null);
+        setSearchQuery('');
+        setExpandedEquipmentIds(new Set());
+      }
+    }, [initialEnvironment, view])
+  );
 
   const [
     expandedEquipmentIds,
