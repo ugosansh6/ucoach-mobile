@@ -24,6 +24,7 @@ import {
   getEquipmentCatalog,
   getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
+import { getEquipmentUxSections } from '../constants/equipmentUxCategories';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -143,6 +144,46 @@ function buildReferenceEquipment(catalog, inventory) {
 
       return { id: item.id, name: item.name, detail };
     });
+}
+
+
+function buildSessionEquipmentOptions(catalog, presetRows, environmentCode) {
+  const environment = String(environmentCode ?? 'HOME').toUpperCase();
+  const presetReference = buildReferenceEquipment(catalog, presetRows);
+
+  if (!['BOX', 'GYM'].includes(environment)) {
+    return {
+      presetReference,
+      options: presetReference,
+    };
+  }
+
+  const presetById = new Map(
+    presetReference.map((item) => [item.id, item])
+  );
+  const presetIds = presetReference.map((item) => item.id);
+  const sections = getEquipmentUxSections(catalog, environment, presetIds);
+  const seen = new Set();
+  const options = [];
+
+  for (const section of sections) {
+    for (const item of section.items ?? []) {
+      if (!item?.id || seen.has(item.id)) continue;
+      seen.add(item.id);
+
+      const presetItem = presetById.get(item.id);
+      options.push({
+        id: item.id,
+        name: item.name,
+        detail: presetItem?.detail ?? item.uxGroup ?? section.label ?? null,
+      });
+    }
+  }
+
+  return {
+    presetReference,
+    options,
+  };
 }
 
 function readinessBand(value) {
@@ -453,6 +494,7 @@ export default function PreparationCheckinV4() {
 
   const [sheet, setSheet] = useState(null);
   const [referenceEquipment, setReferenceEquipment] = useState([]);
+  const [presetEquipmentNames, setPresetEquipmentNames] = useState([]);
   const [equipmentLoading, setEquipmentLoading] = useState(true);
   const [equipmentError, setEquipmentError] = useState('');
   const [equipmentNeedsLogin, setEquipmentNeedsLogin] = useState(false);
@@ -471,10 +513,19 @@ export default function PreparationCheckinV4() {
   const readiness = Number(preparation?.readiness ?? 6);
   const readinessOption = readinessBand(readiness);
   const painZones = Array.isArray(preparation?.painZones) ? preparation.painZones : [];
+  const rawEquipment = Array.isArray(preparation?.equipment)
+    ? preparation.equipment
+    : [];
+  const hasExplicitEmptyEquipment =
+    ['BOX', 'GYM'].includes(environmentCode) &&
+    preparation?.equipmentSelectionSource === 'session_override' &&
+    rawEquipment.length === 0;
   const equipment =
-    Array.isArray(preparation?.equipment) && preparation.equipment.length > 0
-      ? preparation.equipment
-      : ['Poids du corps'];
+    rawEquipment.length > 0
+      ? rawEquipment
+      : hasExplicitEmptyEquipment
+        ? []
+        : ['Poids du corps'];
   const focus = preparation?.region ?? null;
   const selectedPlace = OUTDOOR_PLACES.find(
     (item) => item.code === preparation?.outdoorPlaceCode
@@ -519,8 +570,10 @@ export default function PreparationCheckinV4() {
 
       if (requestId !== equipmentRequestRef.current) return;
 
-      const reference = buildReferenceEquipment(catalog, presetRows);
-      setReferenceEquipment(reference);
+      const { presetReference, options } =
+        buildSessionEquipmentOptions(catalog, presetRows, environment);
+      setReferenceEquipment(options);
+      setPresetEquipmentNames(presetReference.map((item) => item.name));
 
       const current = Array.isArray(equipmentRef.current) ? equipmentRef.current : [];
       const allowedNames = new Set((catalog ?? []).map((item) => item.name));
@@ -530,20 +583,28 @@ export default function PreparationCheckinV4() {
       const selectionSource = preparationRef.current?.equipmentSelectionSource ?? null;
       const shouldLoadPreset =
         storedEnvironment !== environment ||
-        current.length === 0 ||
-        selectionSource !== 'session_override';
+        selectionSource === null ||
+        selectionSource === undefined ||
+        (current.length === 0 && selectionSource !== 'session_override');
 
       let normalized;
       if (shouldLoadPreset) {
         normalized =
-          reference.length > 0
-            ? reference.map((item) => item.name)
-            : ['Poids du corps'];
+          presetReference.length > 0
+            ? presetReference.map((item) => item.name)
+            : ['BOX', 'GYM'].includes(environment)
+              ? []
+              : ['Poids du corps'];
       } else {
         const sanitized = current.filter(
           (name) => name === 'Poids du corps' || allowedNames.has(name)
         );
-        normalized = sanitized.length > 0 ? sanitized : ['Poids du corps'];
+        normalized =
+          sanitized.length > 0
+            ? sanitized
+            : ['BOX', 'GYM'].includes(environment)
+              ? []
+              : ['Poids du corps'];
       }
 
       if (requestId !== equipmentRequestRef.current) return;
@@ -627,7 +688,12 @@ export default function PreparationCheckinV4() {
 
     if (isSelected) {
       const filtered = equipment.filter((item) => item !== name);
-      next = filtered.length > 0 ? filtered : ['Poids du corps'];
+      next =
+        filtered.length > 0
+          ? filtered
+          : ['BOX', 'GYM'].includes(environmentCode)
+            ? []
+            : ['Poids du corps'];
     } else if (name === 'Poids du corps') {
       next = ['Poids du corps'];
     } else {
@@ -644,9 +710,11 @@ export default function PreparationCheckinV4() {
   function selectAllProfileEquipment() {
     updatePreparation({
       equipment:
-        referenceEquipment.length > 0
-          ? referenceEquipment.map((item) => item.name)
-          : ['Poids du corps'],
+        presetEquipmentNames.length > 0
+          ? presetEquipmentNames
+          : ['BOX', 'GYM'].includes(environmentCode)
+            ? []
+            : ['Poids du corps'],
       equipmentEnvironmentCode: environmentCode,
       equipmentSelectionSource: 'session_override',
     });
@@ -718,7 +786,9 @@ export default function PreparationCheckinV4() {
     ? 'Chargement…'
     : equipmentNeedsLogin
       ? 'Profil non chargé'
-      : summarizeEquipment(equipment);
+      : equipment.length === 0 && ['BOX', 'GYM'].includes(environmentCode)
+        ? 'Aucun matériel'
+        : summarizeEquipment(equipment);
   const painSummary = painConfirmedToday ? summarizePain(painZones) : 'À confirmer';
   const painAccent =
     painConfirmedToday && painZones.includes('Aucune')
@@ -973,6 +1043,18 @@ export default function PreparationCheckinV4() {
               >
                 <Text style={styles.quickButtonText}>Poids du corps</Text>
               </Pressable>
+              {['BOX', 'GYM'].includes(environmentCode) ? (
+                <Pressable
+                  onPress={() => updatePreparation({
+                    equipment: [],
+                    equipmentEnvironmentCode: environmentCode,
+                    equipmentSelectionSource: 'session_override',
+                  })}
+                  style={styles.quickButton}
+                >
+                  <Text style={styles.quickButtonText}>Aucun matériel</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             <View style={styles.equipmentGrid}>
@@ -1003,6 +1085,7 @@ export default function PreparationCheckinV4() {
                   params: {
                     returnTo: '/workout/preparation',
                     environment: environmentCode,
+                    view: 'categories',
                   },
                 });
               }}
