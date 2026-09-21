@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
-import { runSupabaseRequestWithAuthRetry } from '../lib/supabaseAuthRetry';
+import {
+  getAuthenticatedUserWithRetry,
+  runSupabaseRequestWithAuthRetry,
+} from '../lib/supabaseAuthRetry';
 import {
   generateWorkoutSession as generateLegacyWorkoutSession,
   reloadWorkoutSession,
@@ -47,8 +50,11 @@ async function buildSelectedInventory(preparation) {
     };
   }
 
+  const user = await getAuthenticatedUserWithRetry();
+
   const inventory = await runSupabaseRequestWithAuthRetry(() =>
     supabase.rpc('resolve_user_equipment_inventory', {
+      p_user_id: user.id,
       p_selected_names: names,
       p_policy_key: 'c4-final-default',
     })
