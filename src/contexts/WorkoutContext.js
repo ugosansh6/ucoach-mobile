@@ -18,6 +18,7 @@ const INITIAL_PREPARATION = {
   environmentCode: 'HOME',
   equipmentEnvironmentCode: null,
   equipmentSelectionSource: null,
+  equipmentSelectionDate: null,
   readiness: null,
   painZones: [],
   region: null,
