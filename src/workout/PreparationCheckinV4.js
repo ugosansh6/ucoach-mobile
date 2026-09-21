@@ -24,7 +24,6 @@ import {
   getEquipmentCatalog,
   getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
-import { getEquipmentUxSections } from '../constants/equipmentUxCategories';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -57,6 +56,13 @@ const OUTDOOR_PLACES = [
   { code: 'STREET_WORKOUT', label: 'Street workout', surface: null },
   { code: 'OTHER', label: 'Autre', surface: null },
 ];
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 const TERRAIN_OPTIONS = [
   { code: 'GRASS', label: 'Herbe / sol souple' },
@@ -147,42 +153,11 @@ function buildReferenceEquipment(catalog, inventory) {
 }
 
 
-function buildSessionEquipmentOptions(catalog, presetRows, environmentCode) {
-  const environment = String(environmentCode ?? 'HOME').toUpperCase();
+function buildSessionEquipmentOptions(catalog, presetRows) {
   const presetReference = buildReferenceEquipment(catalog, presetRows);
-
-  if (!['BOX', 'GYM'].includes(environment)) {
-    return {
-      presetReference,
-      options: presetReference,
-    };
-  }
-
-  const presetById = new Map(
-    presetReference.map((item) => [item.id, item])
-  );
-  const presetIds = presetReference.map((item) => item.id);
-  const sections = getEquipmentUxSections(catalog, environment, presetIds);
-  const seen = new Set();
-  const options = [];
-
-  for (const section of sections) {
-    for (const item of section.items ?? []) {
-      if (!item?.id || seen.has(item.id)) continue;
-      seen.add(item.id);
-
-      const presetItem = presetById.get(item.id);
-      options.push({
-        id: item.id,
-        name: item.name,
-        detail: presetItem?.detail ?? item.uxGroup ?? section.label ?? null,
-      });
-    }
-  }
-
   return {
     presetReference,
-    options,
+    options: presetReference,
   };
 }
 
@@ -573,31 +548,33 @@ export default function PreparationCheckinV4() {
       const { presetReference, options } =
         buildSessionEquipmentOptions(catalog, presetRows, environment);
       setReferenceEquipment(options);
-      setPresetEquipmentNames(presetReference.map((item) => item.name));
+      const presetNames = presetReference.map((item) => item.name);
+      setPresetEquipmentNames(presetNames);
 
       const current = Array.isArray(equipmentRef.current) ? equipmentRef.current : [];
-      const allowedNames = new Set((catalog ?? []).map((item) => item.name));
+      const allowedPresetNames = new Set(presetNames);
       const storedEnvironment = String(
         preparationRef.current?.equipmentEnvironmentCode ?? ''
       ).toUpperCase();
       const selectionSource = preparationRef.current?.equipmentSelectionSource ?? null;
+      const today = localDateKey();
+      const selectionDate = preparationRef.current?.equipmentSelectionDate ?? null;
       const shouldLoadPreset =
         storedEnvironment !== environment ||
-        selectionSource === null ||
-        selectionSource === undefined ||
-        (current.length === 0 && selectionSource !== 'session_override');
+        selectionDate !== today ||
+        selectionSource !== 'session_override';
 
       let normalized;
       if (shouldLoadPreset) {
         normalized =
           presetReference.length > 0
-            ? presetReference.map((item) => item.name)
+            ? presetNames
             : ['BOX', 'GYM'].includes(environment)
               ? []
               : ['Poids du corps'];
       } else {
         const sanitized = current.filter(
-          (name) => name === 'Poids du corps' || allowedNames.has(name)
+          (name) => name === 'Poids du corps' || allowedPresetNames.has(name)
         );
         normalized =
           sanitized.length > 0
@@ -619,6 +596,7 @@ export default function PreparationCheckinV4() {
           equipment: normalized,
           equipmentEnvironmentCode: environment,
           equipmentSelectionSource: shouldLoadPreset ? 'preset' : selectionSource,
+          equipmentSelectionDate: localDateKey(),
         });
       }
     } catch (error) {
@@ -704,6 +682,7 @@ export default function PreparationCheckinV4() {
       equipment: next,
       equipmentEnvironmentCode: environmentCode,
       equipmentSelectionSource: 'session_override',
+      equipmentSelectionDate: localDateKey(),
     });
   }
 
@@ -717,6 +696,7 @@ export default function PreparationCheckinV4() {
             : ['Poids du corps'],
       equipmentEnvironmentCode: environmentCode,
       equipmentSelectionSource: 'session_override',
+      equipmentSelectionDate: localDateKey(),
     });
   }
 
