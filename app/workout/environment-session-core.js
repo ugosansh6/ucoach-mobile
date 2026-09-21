@@ -965,8 +965,6 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
   const [calories, setCalories] = useState(
     initialActual?.calories != null ? String(initialActual.calories) : ''
   );
-  const [rpe, setRpe] = useState(exercise?.rpe != null ? String(exercise.rpe) : '');
-
   useEffect(() => {
     if (!started || paused || reviewing) return undefined;
     if (target.kind === 'time' && elapsed >= target.value) return undefined;
@@ -1007,8 +1005,6 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
     const caloriesValue = calories.trim()
       ? numberOr(calories.replace(',', '.'), null)
       : null;
-    const rpeValue = rpe.trim() ? positiveInt(rpe, null) : null;
-
     if (target.kind === 'distance' && distanceMeters == null) {
       Alert.alert('Distance manquante', 'Renseigne la distance affichée par la machine.');
       return;
@@ -1029,7 +1025,7 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
       elapsedSeconds: elapsed,
       distanceMeters,
       calories: caloriesValue,
-      rpe: rpeValue,
+      rpe: null,
       intervalsCompleted: null,
       protocolCompleted,
       mechanic: blockMechanic(block),
@@ -1170,17 +1166,6 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
               </View>
             ) : null}
 
-            <View style={cardioStyles.resultFieldSmall}>
-              <Text style={cardioStyles.fieldLabel}>RPE</Text>
-              <TextInput
-                value={rpe}
-                onChangeText={setRpe}
-                placeholder="1–10"
-                placeholderTextColor={themeColors.textMuted}
-                keyboardType="numeric"
-                style={cardioStyles.input}
-              />
-            </View>
           </View>
 
           <Pressable
