@@ -1882,7 +1882,11 @@ export default function EnvironmentSessionCore({
       }
 
       const executionStatus =
-        result.protocolCompleted || result.elapsedSeconds > 0 ? 'completed' : 'not_completed';
+        result.protocolCompleted
+          ? 'completed'
+          : result.elapsedSeconds > 0
+            ? 'adapted'
+            : 'not_completed';
 
       updates[key] = {
         status: executionStatus,
