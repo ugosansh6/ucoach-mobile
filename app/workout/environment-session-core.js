@@ -983,16 +983,33 @@ function gymCardioTarget(exercise, block) {
   };
 }
 
-function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
+function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const cardioStyles = useMemo(
     () => createGymCardioStyles(themeColors, isDark),
     [themeColors, isDark]
   );
 
-  const target = useMemo(() => gymCardioTarget(exercise, block), [block, exercise]);
-  const modes = exerciseTrackingModes(exercise);
-  const machineCode = normalize(exercise?.name);
+  const machineExercise = exercises?.[0] ?? null;
+  const supportExercise = exercises?.[1] ?? null;
+  const target = useMemo(
+    () => gymCardioTarget(machineExercise, block),
+    [block, machineExercise]
+  );
+  const params = blockParameters(block);
+  const mechanic = blockMechanic(block);
+  const protocolFamily = normalize(
+    block?.protocol_family ??
+      block?.mechanic_json?.variant_key ??
+      block?.mechanicJson?.variant_key ??
+      params?.protocol_family ??
+      'CONTINUOUS'
+  );
+  const isMachineIntervals = mechanic === 'CARDIO_INTERVALS';
+  const isMixedIntervals = mechanic === 'CARDIO_MIXED_INTERVALS';
+
+  const modes = exerciseTrackingModes(machineExercise);
+  const machineCode = normalize(machineExercise?.name);
   const machineSupportsCalories =
     modes.includes('calories') ||
     ['RAMEUR', 'ROWER', 'AIR_BIKE_ASSAULT_BIKE', 'SKIERG', 'VELO_BIKE'].some((token) =>
@@ -1004,15 +1021,30 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
       machineCode.includes(token)
     );
 
-  const initialElapsed = positiveInt(exercise?.durationSeconds, 0);
-  const initialActual = exercise?.performanceActualJson ?? {};
+  const totalSeconds = Math.max(
+    1,
+    positiveInt(
+      params?.duration_seconds,
+      target.kind === 'time'
+        ? target.value
+        : numberOr(block?.duration_minutes ?? block?.durationMinutes, 1) * 60
+    )
+  );
+  const workSeconds = Math.max(1, positiveInt(params?.work_seconds, 60));
+  const recoverySeconds = Math.max(0, positiveInt(params?.recovery_seconds, 0));
+  const machineSeconds = Math.max(1, positiveInt(params?.machine_seconds, 60));
+  const supportSeconds = Math.max(1, positiveInt(params?.support_seconds, 60));
+  const repeats = Math.max(1, positiveInt(params?.repeats, 1));
+
+  const initialElapsed = positiveInt(machineExercise?.durationSeconds, 0);
+  const initialActual = machineExercise?.performanceActualJson ?? {};
   const [started, setStarted] = useState(initialElapsed > 0);
   const [paused, setPaused] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [elapsed, setElapsed] = useState(initialElapsed);
   const [distance, setDistance] = useState(
-    exercise?.distanceMeters != null
-      ? String(exercise.distanceMeters)
+    machineExercise?.distanceMeters != null
+      ? String(machineExercise.distanceMeters)
       : initialActual?.distance_meters != null
         ? String(initialActual.distance_meters)
         : ''
@@ -1020,32 +1052,107 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
   const [calories, setCalories] = useState(
     initialActual?.calories != null ? String(initialActual.calories) : ''
   );
+
   useEffect(() => {
-    if (!started || paused || reviewing) return undefined;
-    if (target.kind === 'time' && elapsed >= target.value) return undefined;
+    if (!started || paused || reviewing || elapsed >= totalSeconds) return undefined;
 
     const timer = setInterval(() => {
-      setElapsed((current) =>
-        target.kind === 'time'
-          ? Math.min(target.value, current + 1)
-          : current + 1
-      );
+      setElapsed((current) => Math.min(totalSeconds, current + 1));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [elapsed, paused, reviewing, started, target.kind, target.value]);
+  }, [elapsed, paused, reviewing, started, totalSeconds]);
 
   useEffect(() => {
-    if (
-      target.kind === 'time' &&
-      started &&
-      elapsed >= target.value &&
-      !reviewing
-    ) {
+    if (started && elapsed >= totalSeconds && !reviewing) {
       setPaused(true);
       setReviewing(true);
     }
-  }, [elapsed, reviewing, started, target.kind, target.value]);
+  }, [elapsed, reviewing, started, totalSeconds]);
+
+  const phase = useMemo(() => {
+    if (elapsed >= totalSeconds) {
+      return {
+        label: 'TERMINÉ',
+        remaining: 0,
+        round: repeats,
+        completedIntervals: repeats,
+        activeExercise: machineExercise,
+      };
+    }
+
+    if (isMixedIntervals) {
+      const cycle = Math.max(1, machineSeconds + supportSeconds);
+      const fullCycles = Math.floor(elapsed / cycle);
+      const within = elapsed % cycle;
+      const onSupport = within >= machineSeconds;
+      return {
+        label: onSupport ? 'EXERCICE' : 'MACHINE',
+        remaining: onSupport
+          ? Math.max(0, cycle - within)
+          : Math.max(0, machineSeconds - within),
+        round: Math.min(repeats, fullCycles + 1),
+        completedIntervals: Math.min(repeats, fullCycles),
+        activeExercise: onSupport ? supportExercise : machineExercise,
+      };
+    }
+
+    if (isMachineIntervals) {
+      const cycle = Math.max(1, workSeconds + recoverySeconds);
+      const fullCycles = Math.floor(elapsed / cycle);
+      const within = elapsed % cycle;
+      const inRecovery = recoverySeconds > 0 && within >= workSeconds;
+      return {
+        label: inRecovery ? 'RÉCUPÉRATION' : 'EFFORT',
+        remaining: inRecovery
+          ? Math.max(0, cycle - within)
+          : Math.max(0, workSeconds - within),
+        round: Math.min(repeats, fullCycles + 1),
+        completedIntervals: Math.min(repeats, fullCycles + (inRecovery ? 1 : 0)),
+        activeExercise: machineExercise,
+      };
+    }
+
+    return {
+      label: 'EFFORT',
+      remaining: Math.max(0, totalSeconds - elapsed),
+      round: 1,
+      completedIntervals: 0,
+      activeExercise: machineExercise,
+    };
+  }, [
+    elapsed,
+    isMachineIntervals,
+    isMixedIntervals,
+    machineExercise,
+    machineSeconds,
+    recoverySeconds,
+    repeats,
+    supportExercise,
+    supportSeconds,
+    totalSeconds,
+    workSeconds,
+  ]);
+
+  const protocolSummary = useMemo(() => {
+    if (isMixedIntervals && supportExercise) {
+      return `${formatRunDuration(machineSeconds)} ${machineExercise?.name ?? 'machine'} · ${formatRunDuration(supportSeconds)} ${supportExercise.name}`;
+    }
+    if (isMachineIntervals) {
+      return `${formatRunDuration(workSeconds)} soutenu · ${formatRunDuration(recoverySeconds)} facile`;
+    }
+    return `${formatRunDuration(totalSeconds)} en continu`;
+  }, [
+    isMachineIntervals,
+    isMixedIntervals,
+    machineExercise?.name,
+    machineSeconds,
+    recoverySeconds,
+    supportExercise,
+    supportSeconds,
+    totalSeconds,
+    workSeconds,
+  ]);
 
   function openReview() {
     if (!started || elapsed <= 0) return;
@@ -1060,6 +1167,7 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
     const caloriesValue = calories.trim()
       ? numberOr(calories.replace(',', '.'), null)
       : null;
+
     if (target.kind === 'distance' && distanceMeters == null) {
       Alert.alert('Distance manquante', 'Renseigne la distance affichée par la machine.');
       return;
@@ -1069,37 +1177,25 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
       return;
     }
 
-    const protocolCompleted =
-      target.kind === 'time'
-        ? elapsed >= target.value
-        : target.kind === 'distance'
-          ? distanceMeters != null && distanceMeters >= target.value
-          : caloriesValue != null && caloriesValue >= target.value;
+    const protocolCompleted = elapsed >= totalSeconds;
 
     onComplete({
       elapsedSeconds: elapsed,
       distanceMeters,
       calories: caloriesValue,
       rpe: null,
-      intervalsCompleted: null,
+      intervalsCompleted:
+        isMachineIntervals || isMixedIntervals ? phase.completedIntervals : null,
       protocolCompleted,
-      mechanic: blockMechanic(block),
-      parameters: blockParameters(block),
+      mechanic,
+      parameters: params,
       controlledTiming: true,
       targetKind: target.kind,
       targetValue: target.value,
+      protocolFamily,
+      mixedProtocol: isMixedIntervals,
     });
   }
-
-  const mainValue =
-    target.kind === 'time'
-      ? started
-        ? formatClock(elapsed)
-        : target.label
-      : target.label;
-
-  const targetSuffix =
-    target.kind === 'time' && started ? `/ ${target.label}` : null;
 
   async function startEffort() {
     try {
@@ -1113,6 +1209,13 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
     }
   }
 
+  const displayMain =
+    started && (isMachineIntervals || isMixedIntervals)
+      ? formatClock(phase.remaining)
+      : started
+        ? formatClock(elapsed)
+        : formatClock(totalSeconds);
+
   return (
     <View style={cardioStyles.card}>
       <View style={cardioStyles.topRow}>
@@ -1120,26 +1223,54 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
           <Ionicons name="fitness-outline" size={21} color={themeColors.accent} />
         </View>
         <View style={cardioStyles.topCopy}>
-          <Text style={cardioStyles.machineName}>{exercise?.name ?? 'Cardio'}</Text>
-          <Text style={cardioStyles.targetLabel}>
-            OBJECTIF · {target.kind === 'time' ? 'TEMPS' : target.kind === 'distance' ? 'DISTANCE' : 'CALORIES'}
+          <Text style={cardioStyles.machineName}>
+            {isMixedIntervals ? 'Cardio alterné' : machineExercise?.name ?? 'Cardio'}
           </Text>
+          <Text style={cardioStyles.targetLabel}>{protocolSummary}</Text>
         </View>
       </View>
 
       <View style={cardioStyles.metricHero}>
-        <Text style={cardioStyles.metricMain}>{mainValue}</Text>
-        {targetSuffix ? <Text style={cardioStyles.metricTarget}>{targetSuffix}</Text> : null}
-        {target.kind !== 'time' && started ? (
-          <Text style={cardioStyles.secondaryMetric}>Temps · {formatClock(elapsed)}</Text>
-        ) : null}
+        {started && (isMachineIntervals || isMixedIntervals) ? (
+          <>
+            <Text style={cardioStyles.phaseLabel}>{phase.label}</Text>
+            <Text style={cardioStyles.metricMain}>{displayMain}</Text>
+            <Text style={cardioStyles.activeExercise}>
+              {phase.activeExercise?.name ?? machineExercise?.name ?? 'Cardio'}
+            </Text>
+            <Text style={cardioStyles.secondaryMetric}>
+              Passage {phase.round}/{repeats} · Total {formatClock(elapsed)} / {formatClock(totalSeconds)}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={cardioStyles.metricMain}>{displayMain}</Text>
+            {started ? (
+              <Text style={cardioStyles.metricTarget}>/ {formatClock(totalSeconds)}</Text>
+            ) : null}
+          </>
+        )}
       </View>
 
       {!started ? (
         <>
-          <Text style={cardioStyles.preStartHint}>
-            Lance la machine puis démarre le chrono UGEROD.
-          </Text>
+          <View style={cardioStyles.protocolBox}>
+            <Text style={cardioStyles.protocolTitle}>Protocole</Text>
+            <Text style={cardioStyles.protocolText}>{protocolSummary}</Text>
+            {isMixedIntervals && supportExercise ? (
+              <Text style={cardioStyles.protocolHint}>
+                Alterne automatiquement entre {machineExercise?.name} et {supportExercise.name}.
+              </Text>
+            ) : isMachineIntervals ? (
+              <Text style={cardioStyles.protocolHint}>
+                Les phases effort et récupération s’enchaînent automatiquement.
+              </Text>
+            ) : (
+              <Text style={cardioStyles.protocolHint}>
+                Allure régulière et contrôlée.
+              </Text>
+            )}
+          </View>
           <Pressable
             onPress={startEffort}
             style={({ pressed }) => [
@@ -1220,7 +1351,6 @@ function GymCardioBlock({ block, exercise, onBeforeStart, onComplete }) {
                 />
               </View>
             ) : null}
-
           </View>
 
           <Pressable
@@ -1697,47 +1827,75 @@ export default function EnvironmentSessionCore({
       return;
     }
 
-    const key = exerciseKey(exercise);
     const isOutdoorRun = environmentCode === 'OUTDOOR' && isRunMechanic(result.mechanic);
-    const actual = {
-      ...(exercise.performanceActualJson ?? {}),
-      elapsed_seconds: result.elapsedSeconds,
-      controlled_timing: result.controlledTiming,
-      protocol_completed: result.protocolCompleted,
-    };
+    const isGymCardio = environmentCode === 'GYM' && currentKey === 'cardio';
+    const updates = {};
 
-    if (result.distanceMeters != null) actual.distance_meters = result.distanceMeters;
-    if (result.calories != null) actual.calories = result.calories;
-    if (result.targetKind) actual.target_kind = result.targetKind;
-    if (result.targetValue != null) actual.target_value = result.targetValue;
-    if (environmentCode === 'GYM') actual.source = 'ugerod_gym_cardio_player';
+    currentExercises.forEach((row, index) => {
+      const key = exerciseKey(row);
+      const actual = {
+        ...(row.performanceActualJson ?? {}),
+        elapsed_seconds: result.elapsedSeconds,
+        controlled_timing: result.controlledTiming,
+        protocol_completed: result.protocolCompleted,
+      };
 
-    if (isOutdoorRun) {
-      actual.running_mechanic = result.mechanic;
-      actual.running_family_code =
-        currentBlock?.mechanic_json?.variant_key ??
-        currentBlock?.mechanicJson?.variant_key ??
-        currentBlock?.running_protocol?.family_code ??
-        null;
-      actual.planned_duration_seconds = positiveInt(result.parameters?.duration_seconds, 0);
-      actual.planned_work_seconds = positiveInt(result.parameters?.work_seconds, 0);
-      actual.planned_recovery_seconds = positiveInt(result.parameters?.recovery_seconds, 0);
-      actual.reliable_distance = Boolean(result.parameters?.reliable_distance);
-      if (result.intervalsCompleted != null) actual.intervals_completed = result.intervalsCompleted;
-      actual.source = 'ugerod_environment_player';
-    }
+      if (index === 0 && result.distanceMeters != null) actual.distance_meters = result.distanceMeters;
+      if (index === 0 && result.calories != null) actual.calories = result.calories;
+      if (index === 0 && result.targetKind) actual.target_kind = result.targetKind;
+      if (index === 0 && result.targetValue != null) actual.target_value = result.targetValue;
 
-    advanceWithUpdates({
-      [key]: {
-        status: 'completed',
-        userExecutionStatus: 'completed',
+      if (isGymCardio) {
+        actual.source = 'ugerod_gym_cardio_player';
+        actual.cardio_mechanic = result.mechanic;
+        actual.cardio_protocol_family =
+          result.protocolFamily ??
+          currentBlock?.protocol_family ??
+          currentBlock?.mechanic_json?.variant_key ??
+          null;
+        actual.planned_duration_seconds = positiveInt(result.parameters?.duration_seconds, 0);
+        actual.planned_work_seconds = positiveInt(
+          result.parameters?.work_seconds ?? result.parameters?.machine_seconds,
+          0
+        );
+        actual.planned_recovery_seconds = positiveInt(result.parameters?.recovery_seconds, 0);
+        actual.planned_support_seconds = positiveInt(result.parameters?.support_seconds, 0);
+        actual.cardio_role = index === 0 ? 'MACHINE' : 'SUPPORT';
+        if (result.intervalsCompleted != null) {
+          actual.intervals_completed = result.intervalsCompleted;
+        }
+      }
+
+      if (isOutdoorRun) {
+        actual.running_mechanic = result.mechanic;
+        actual.running_family_code =
+          currentBlock?.mechanic_json?.variant_key ??
+          currentBlock?.mechanicJson?.variant_key ??
+          currentBlock?.running_protocol?.family_code ??
+          null;
+        actual.planned_duration_seconds = positiveInt(result.parameters?.duration_seconds, 0);
+        actual.planned_work_seconds = positiveInt(result.parameters?.work_seconds, 0);
+        actual.planned_recovery_seconds = positiveInt(result.parameters?.recovery_seconds, 0);
+        actual.reliable_distance = Boolean(result.parameters?.reliable_distance);
+        if (result.intervalsCompleted != null) actual.intervals_completed = result.intervalsCompleted;
+        actual.source = 'ugerod_environment_player';
+      }
+
+      const executionStatus =
+        result.protocolCompleted || result.elapsedSeconds > 0 ? 'completed' : 'not_completed';
+
+      updates[key] = {
+        status: executionStatus,
+        userExecutionStatus: executionStatus,
         durationSeconds: result.elapsedSeconds,
-        distanceMeters: result.distanceMeters,
-        calories: result.calories,
+        distanceMeters: index === 0 ? result.distanceMeters : null,
+        calories: index === 0 ? result.calories : null,
         rpe: result.rpe,
         performanceActualJson: actual,
-      },
+      };
     });
+
+    advanceWithUpdates(updates);
   }
 
   function completeWodBlock() {
@@ -1859,7 +2017,7 @@ export default function EnvironmentSessionCore({
           <GymCardioBlock
             key={`${currentKey}:${mechanic}:gym`}
             block={currentBlock}
-            exercise={currentExercises[0]}
+            exercises={currentExercises}
             onBeforeStart={ensureStarted}
             onComplete={completeTimedBlock}
           />
@@ -2449,6 +2607,47 @@ function createGymCardioStyles(colors, isDark) {
       fontSize: 9,
       letterSpacing: 0.7,
       color: colors.textSecondary,
+    },
+    protocolBox: {
+      marginBottom: 14,
+      padding: 13,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    protocolTitle: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    protocolText: {
+      marginTop: 3,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.text,
+    },
+    protocolHint: {
+      marginTop: 4,
+      fontFamily: 'Manrope_400Regular',
+      fontSize: 11,
+      lineHeight: 17,
+      color: colors.textSecondary,
+    },
+    phaseLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      letterSpacing: 0.7,
+      color: colors.accent,
+    },
+    activeExercise: {
+      marginTop: 5,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 17,
+      lineHeight: 22,
+      color: colors.text,
+      textAlign: 'center',
     },
     metricHero: {
       paddingVertical: 30,
