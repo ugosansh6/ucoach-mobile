@@ -1016,9 +1016,10 @@ export default function PreparationCheckinV4() {
               {['BOX', 'GYM'].includes(environmentCode) ? (
                 <Pressable
                   onPress={() => updatePreparation({
-                    equipment: [],
+                    equipment: ['Poids du corps'],
                     equipmentEnvironmentCode: environmentCode,
                     equipmentSelectionSource: 'session_override',
+                    equipmentSelectionDate: localDateKey(),
                   })}
                   style={styles.quickButton}
                 >
