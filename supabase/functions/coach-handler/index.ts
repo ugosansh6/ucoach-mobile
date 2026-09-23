@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v13-canonical-environment-v3";
+const VERSION = "coach-handler-v19-unified-program-context";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -71,19 +71,103 @@ serve(async (req: Request) => {
     if (inventoryError) throw new Error(inventoryError.message);
 
     if (environmentCode === "GYM" || environmentCode === "OUTDOOR") {
+      const requestedProgressionIntent = normalizeIntent(body.progression_intent);
+      let resolvedFocus = focusOverride;
+      let resolvedTargetRegion = body.target_region ?? null;
+      let resolvedProgressionIntent = requestedProgressionIntent;
+      let resolvedSessionContext: any = null;
+      let contextSource = "PROGRAM_COACH_WEEKLY_CONTEXT";
+
+      // Preserve the existing-session lifecycle. If a current-day generated or
+      // in-progress session exists, do not let the weekly resolver abandon it
+      // before the environment gateway has a chance to RESUME or raise its
+      // explicit conflict.
+      let existingOpenSession: any = null;
+      if (localDate) {
+        const { data: openSessions, error: openSessionError } = await supabase
+          .from("workout_sessions")
+          .select("id,status,focus,target_region,progression_intent,planned_environment_code,generation_local_date,started_local_date")
+          .eq("user_id", userId)
+          .in("status", ["generated", "in_progress"])
+          .or(`started_local_date.eq.${localDate},generation_local_date.eq.${localDate}`)
+          .order("updated_at", { ascending: false })
+          .limit(1);
+        if (openSessionError) throw new Error(openSessionError.message);
+        existingOpenSession = Array.isArray(openSessions) ? openSessions[0] ?? null : null;
+      }
+
+      if (existingOpenSession) {
+        resolvedFocus = focusOverride ?? normalizeFocus(existingOpenSession.focus) ?? "General Fitness";
+        resolvedTargetRegion = body.target_region ?? existingOpenSession.target_region ?? null;
+        resolvedProgressionIntent =
+          requestedProgressionIntent ?? normalizeIntent(existingOpenSession.progression_intent);
+        resolvedSessionContext = {
+          status: "EXISTING_SESSION_CONTEXT_PRESERVED",
+          session_id: existingOpenSession.id,
+          environment_code: existingOpenSession.planned_environment_code ?? null,
+          focus: resolvedFocus,
+          target_region: resolvedTargetRegion,
+          progression_intent: resolvedProgressionIntent,
+        };
+        contextSource = "EXISTING_SESSION_CONTEXT";
+      } else {
+        const { data: sessionContext, error: sessionContextError } = await supabase.rpc(
+          "d_resolve_session_context_v6",
+          {
+            p_user_id: userId,
+            p_anchor_date: localDate,
+            p_duration_minutes: duration,
+            p_readiness: readiness,
+            p_focus_override: focusOverride,
+            p_target_region_override: body.target_region ?? null,
+            p_progression_intent_override: requestedProgressionIntent,
+            p_available_equipment: equipment,
+            p_zone_terms: injuredZones,
+            p_force_recalculate_started: false,
+          },
+        );
+        if (sessionContextError) throw new Error(sessionContextError.message);
+
+        const contextStatus = String(sessionContext?.status ?? "");
+        if (!["READY", "RESUME_EXISTING"].includes(contextStatus)) {
+          return json(
+            {
+              error: "UGEROD n’a pas pu résoudre le contexte de programmation de cette séance.",
+              code: contextStatus || "SESSION_CONTEXT_NOT_READY",
+              session_context: sessionContext ?? null,
+              version: VERSION,
+            },
+            409,
+          );
+        }
+
+        resolvedSessionContext = sessionContext ?? null;
+        resolvedFocus = focusOverride ?? normalizeFocus(sessionContext?.focus) ?? "General Fitness";
+        resolvedTargetRegion = body.target_region ?? sessionContext?.target_region ?? null;
+        resolvedProgressionIntent =
+          requestedProgressionIntent ?? normalizeIntent(sessionContext?.progression_intent);
+      }
+
+      const environmentFormatCode =
+        environmentCode === "GYM" &&
+        !body.environment_format_code &&
+        resolvedFocus === "Strength"
+          ? "GYM_STRENGTH"
+          : body.environment_format_code ?? null;
+
       const { data: environmentGenerated, error: environmentError } = await supabase.rpc(
         "generate_environment_session_v3",
         {
           p_user_id: userId,
           p_environment_code: environmentCode,
           p_surface_code: body.surface_code ?? null,
-          p_requested_format_code: body.environment_format_code ?? null,
+          p_requested_format_code: environmentFormatCode,
           p_execution_style: body.gym_execution_style ?? null,
-          p_user_focus: focusOverride ?? "General Fitness",
+          p_user_focus: resolvedFocus ?? "General Fitness",
           p_duration_minutes: duration,
           p_readiness: readiness,
-          p_target_region: body.target_region ?? null,
-          p_progression_intent: normalizeIntent(body.progression_intent),
+          p_target_region: resolvedTargetRegion,
+          p_progression_intent: resolvedProgressionIntent,
           p_zone_terms: injuredZones,
           p_inventory: inventory ?? [],
           p_available_equipment: equipment,
@@ -167,8 +251,13 @@ serve(async (req: Request) => {
           backend_authority: "environment_session_generator_v3",
           legacy_scaffold_authority: false,
           environment_code: environmentCode,
-          environment_format_code: environmentGenerated?.format_code ?? body.environment_format_code ?? null,
+          environment_format_code: environmentGenerated?.format_code ?? environmentFormatCode ?? null,
           gym_execution_style: body.gym_execution_style ?? workout?.meta?.execution_style?.style_code ?? null,
+          resolved_focus: resolvedFocus ?? null,
+          resolved_target_region: resolvedTargetRegion ?? null,
+          resolved_progression_intent: resolvedProgressionIntent ?? null,
+          session_context_source: contextSource,
+          session_context: resolvedSessionContext,
           resumed_existing_session: resumedExisting,
           generation_control_status: resumedExisting ? "resume_existing" : null,
           coach_note: coachNote,
@@ -191,7 +280,10 @@ serve(async (req: Request) => {
       p_available_equipment: equipment,
       p_max_complexity: maxComplexity,
       p_max_difficulty: experience,
-      p_candidate_count: 12,
+      // HOME/BOX share the same staged search budget: 8 candidates first,
+      // then the SQL engine may widen to 12 only when the first pass cannot
+      // produce a READY plan. This keeps generation latency homogeneous.
+      p_candidate_count: ["HOME", "BOX"].includes(environmentCode) ? 8 : 12,
       p_policy_key: "c4-final-default",
       p_anchor_date: localDate,
       p_force_recalculate_started: Boolean(body.force_recalculate_started),
