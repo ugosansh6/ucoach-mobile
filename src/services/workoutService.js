@@ -225,6 +225,34 @@ function formatNumber(value) {
       );
 }
 
+function formatDurationSeconds(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+
+  const totalSeconds = Math.round(numeric);
+  if (totalSeconds < 60) return `${totalSeconds} sec`;
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0
+    ? `${minutes} min ${seconds} sec`
+    : `${minutes} min`;
+}
+
+function formatDurationRange(minValue, maxValue) {
+  const min = Number(minValue);
+  const max = Number(maxValue);
+  const hasMin = Number.isFinite(min) && min > 0;
+  const hasMax = Number.isFinite(max) && max > 0;
+
+  if (!hasMin && !hasMax) return null;
+  if (hasMin && hasMax && Math.round(min) !== Math.round(max)) {
+    return `${formatDurationSeconds(min)} – ${formatDurationSeconds(max)}`;
+  }
+  return formatDurationSeconds(hasMin ? min : max);
+}
+
+
 function formatRange(
   minValue,
   maxValue,
@@ -265,7 +293,7 @@ function formatExecutionTargetPrescription(exercise) {
   const reps = formatNumber(
     prescription.execution_target_reps
   );
-  const duration = formatNumber(
+  const duration = formatDurationSeconds(
     prescription.execution_target_duration_seconds
   );
   const distance = formatNumber(
@@ -296,7 +324,7 @@ function formatExecutionTargetPrescription(exercise) {
       }`
     );
   } else if (duration) {
-    pieces.push(`${duration} sec`);
+    pieces.push(duration);
   } else if (distance) {
     pieces.push(`${distance} m`);
   }
@@ -440,10 +468,9 @@ function formatPrescription(exercise) {
       : 'reps'
   );
 
-  const duration = formatRange(
+  const duration = formatDurationRange(
     prescription.duration_seconds_min,
-    prescription.duration_seconds_max,
-    'sec'
+    prescription.duration_seconds_max
   );
 
   const distance = formatRange(
