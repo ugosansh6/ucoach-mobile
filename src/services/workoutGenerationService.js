@@ -236,7 +236,7 @@ async function generateEnvironmentWorkoutSession(preparation) {
     p_calibration_opportunity: Boolean(preparation?.calibrationOpportunity),
     p_max_complexity: 3,
     p_max_difficulty: 'Intermédiaire',
-    p_candidate_count: environmentCode === 'OUTDOOR' ? 16 : 20,
+    p_candidate_count: environmentCode === 'OUTDOOR' ? 8 : 20,
     p_policy_key: 'c4-final-default',
     p_start_now: false,
     p_anchor_date: localDateKey(),
