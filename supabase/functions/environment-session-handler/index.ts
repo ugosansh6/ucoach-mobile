@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "environment-session-handler-v1-long-running-rpc";
+const VERSION = "environment-session-handler-v2-outdoor-bounded-search";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -103,6 +103,13 @@ serve(async (req: Request) => {
       if (Object.prototype.hasOwnProperty.call(requested, key)) {
         params[key] = requested[key];
       }
+    }
+
+    if (environmentCode === "OUTDOOR") {
+      const requestedCandidateCount = Number(params.p_candidate_count ?? 8);
+      params.p_candidate_count = Number.isFinite(requestedCandidateCount)
+        ? Math.max(8, Math.min(8, Math.round(requestedCandidateCount)))
+        : 8;
     }
 
     const admin = createClient(url, serviceRole, {
