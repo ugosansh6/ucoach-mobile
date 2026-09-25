@@ -1106,7 +1106,7 @@ export default function SessionFocusedCore({
   );
 }
 
-function FocusedTabata({ block, onFinish, styles, colors }) {
+export function FocusedTabata({ block, onFinish, styles, colors }) {
   const protocol = prescriptionObject(block?.exercises?.[0])?.protocol ?? {};
   const rounds = Math.max(1, Number(block?.source?.rounds ?? protocol?.rounds ?? 8) || 8);
   const workSeconds = Math.max(1, Number(block?.source?.workSeconds ?? block?.source?.work_seconds ?? protocol?.work_seconds ?? 20) || 20);
@@ -1159,6 +1159,23 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
   function moveDisplayedExercise(direction) {
     if (exerciseCount <= 1) return;
     setDisplayExerciseIndex((current) => (current + direction + exerciseCount) % exerciseCount);
+  }
+
+  function finishTabata() {
+    if (typeof onFinish !== 'function') return;
+    const completedWorkIntervals = finished
+      ? rounds
+      : Math.min(rounds, roundIndex + (resting ? 1 : 0));
+
+    onFinish({
+      elapsedSeconds: elapsed,
+      totalSeconds,
+      rounds,
+      workSeconds,
+      restSeconds,
+      completedWorkIntervals,
+      protocolCompleted: finished,
+    });
   }
 
   return (
@@ -1251,14 +1268,14 @@ function FocusedTabata({ block, onFinish, styles, colors }) {
           <Text style={styles.secondaryWideText}>{paused ? 'Reprendre' : 'Pause'}</Text>
         </Pressable>
       ) : (
-        <Pressable onPress={onFinish} style={[styles.primaryButtonLarge, { backgroundColor: TABATA_REST_COLOR }]}>
+        <Pressable onPress={finishTabata} style={[styles.primaryButtonLarge, { backgroundColor: TABATA_REST_COLOR }]}>
           <Ionicons name="checkmark" size={19} color={colors.textOnAccent} />
           <Text style={styles.primaryButtonTextLarge}>Terminer le Tabata</Text>
         </Pressable>
       )}
 
       {started && elapsed < totalSeconds ? (
-        <Pressable onPress={onFinish} style={styles.stopButton}>
+        <Pressable onPress={finishTabata} style={styles.stopButton}>
           <Text style={[styles.stopButtonText, { color: TABATA_WORK_COLOR }]}>Arrêter le bloc</Text>
         </Pressable>
       ) : null}
@@ -1442,7 +1459,7 @@ function FormatModal({ visible, options, loading, changing, error, onClose, onSe
   );
 }
 
-function createStyles(colors, isDark) {
+export function createStyles(colors, isDark) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     header: {
