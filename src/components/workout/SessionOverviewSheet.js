@@ -102,6 +102,98 @@ function readDuration(block) {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function readableDurationSeconds(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  const total = Math.round(numeric);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  if (minutes > 0 && seconds > 0) return `${minutes} min ${seconds} sec`;
+  if (minutes > 0) return `${minutes} min`;
+  return `${seconds} sec`;
+}
+
+function blockMechanic(block) {
+  return String(
+    block?.mechanic ??
+      block?.mechanic_json?.mechanic_key ??
+      block?.mechanicJson?.mechanic_key ??
+      ''
+  )
+    .trim()
+    .toUpperCase()
+    .replace(/[\s/-]+/g, '_');
+}
+
+function blockParameters(block) {
+  return (
+    block?.mechanic_json?.parameters ??
+    block?.mechanicJson?.parameters ??
+    block?.parameters ??
+    block?.running_protocol?.parameters ??
+    {}
+  );
+}
+
+function conditioningProtocolLabel(block, exercises = []) {
+  const mechanic = blockMechanic(block);
+  const params = blockParameters(block);
+  const repeats = Number(params?.repeats ?? params?.rounds);
+  const work = readableDurationSeconds(params?.work_seconds ?? params?.machine_seconds);
+  const recovery = readableDurationSeconds(params?.recovery_seconds);
+  const support = readableDurationSeconds(params?.support_seconds);
+  const duration = readDuration(block);
+  const total = duration ? `${duration} min` : readableDurationSeconds(params?.duration_seconds);
+
+  if (mechanic === 'RUN_INTERVALS') {
+    if (Number.isFinite(repeats) && repeats > 0 && work && recovery) {
+      return `Fractionné · ${Math.round(repeats)} × ${work} soutenu / ${recovery} récup facile`;
+    }
+    return 'Fractionné';
+  }
+
+  if (mechanic === 'RUN_FARTLEK') {
+    return total ? `Fartlek · ${total}` : 'Fartlek';
+  }
+
+  if (mechanic === 'RUN_CONTINUOUS') {
+    const cue = String(params?.intensity_cue ?? '').toUpperCase();
+    const intensity =
+      cue === 'EASY_CONVERSATIONAL'
+        ? 'allure facile'
+        : cue === 'SUSTAINED_CONTROLLED'
+          ? 'allure soutenue contrôlée'
+          : null;
+    return ['Course continue', total, intensity].filter(Boolean).join(' · ');
+  }
+
+  if (mechanic === 'RUN_CALIBRATION') {
+    return total ? `Calibration course · ${total}` : 'Calibration course';
+  }
+
+  if (mechanic === 'CARDIO_INTERVALS') {
+    if (Number.isFinite(repeats) && repeats > 0 && work && recovery) {
+      return `Fractionné · ${Math.round(repeats)} × ${work} soutenu / ${recovery} facile`;
+    }
+    return 'Fractionné';
+  }
+
+  if (mechanic === 'CARDIO_MIXED_INTERVALS') {
+    const machineName = exercises?.[0]?.name ?? 'machine';
+    const supportName = exercises?.[1]?.name ?? 'exercice';
+    if (work && support) {
+      return `Alterné · ${work} ${machineName} / ${support} ${supportName}`;
+    }
+    return 'Cardio alterné';
+  }
+
+  if (mechanic === 'CARDIO_CONTINUOUS') {
+    return total ? `Cardio continu · ${total}` : 'Cardio continu';
+  }
+
+  return null;
+}
+
 function environmentCode(workout) {
   return String(
     workout?.meta?.environment_code ??
@@ -157,6 +249,7 @@ function buildBlocks(workout) {
       source,
       title: source?.label_fr ?? source?.label ?? source?.title ?? LABELS[key] ?? key,
       duration: readDuration(source),
+      protocolLabel: conditioningProtocolLabel(source, rows),
       exercises: rows,
       done,
       firstPendingIndex,
@@ -364,6 +457,9 @@ export default function SessionOverviewSheet({
                         <Text style={[styles.blockState, active && styles.blockStateActive]}>
                           {block.done ? 'Terminé' : active ? 'En cours' : maskedWod ? 'À découvrir' : 'À venir'}
                         </Text>
+                        {block.protocolLabel ? (
+                          <Text style={styles.blockProtocol}>{block.protocolLabel}</Text>
+                        ) : null}
                       </View>
                     </View>
 
@@ -752,6 +848,7 @@ function createStyles(colors, isDark) {
     blockDuration: { fontFamily: 'Manrope_600SemiBold', fontSize: 11, color: colors.textMuted },
     blockState: { marginTop: 2, fontFamily: 'Manrope_500Medium', fontSize: 10, color: colors.textMuted },
     blockStateActive: { color: colors.secondaryAccent },
+    blockProtocol: { marginTop: 4, fontFamily: 'Manrope_700Bold', fontSize: 10, lineHeight: 15, color: colors.accent },
     exerciseList: { marginTop: 11, marginLeft: 44, gap: 2 },
     exerciseRow: {
       minHeight: 48,
