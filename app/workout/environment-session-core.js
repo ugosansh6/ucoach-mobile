@@ -16,6 +16,7 @@ import { colors, spacing } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import EnvironmentWodBlock from '../../src/components/workout/EnvironmentWodBlock';
+import { FocusedTabata, createStyles as createFocusedSessionStyles } from './session-focused-core';
 import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
 import { markWorkoutSessionStarted } from '../../src/services/workoutService';
 
@@ -798,191 +799,6 @@ function ManualGymBlock({ block, exercises, onComplete }) {
   );
 }
 
-function TabataBlock({ block, exercises, onComplete }) {
-  const firstProtocol = exercises?.[0]?.prescriptionJson?.protocol ?? {};
-  const settings = block?.settings ?? {};
-  const rounds = positiveInt(settings.rounds ?? firstProtocol.rounds, 0);
-  const workSeconds = positiveInt(settings.work_seconds ?? firstProtocol.work_seconds, 0);
-  const restSeconds = positiveInt(settings.rest_seconds ?? firstProtocol.rest_seconds, 0);
-  const cycleSeconds = workSeconds + restSeconds;
-  const totalSeconds = rounds > 0 && workSeconds > 0 ? rounds * cycleSeconds : 0;
-
-  const [started, setStarted] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-
-  useEffect(() => {
-    if (!started || paused || totalSeconds <= 0 || elapsed >= totalSeconds) return undefined;
-    const timer = setInterval(() => {
-      setElapsed((current) => Math.min(totalSeconds, current + 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [elapsed, paused, started, totalSeconds]);
-
-  const phase = useMemo(() => {
-    if (totalSeconds <= 0 || cycleSeconds <= 0) {
-      return { label: 'PROTOCOLE INCOMPLET', remaining: 0, round: 0, completedWorkIntervals: 0, exerciseIndex: 0 };
-    }
-    if (elapsed >= totalSeconds) {
-      return { label: 'TERMINÉ', remaining: 0, round: rounds, completedWorkIntervals: rounds, exerciseIndex: Math.max(0, rounds - 1) % Math.max(1, exercises.length) };
-    }
-
-    const zeroBasedRound = Math.floor(elapsed / cycleSeconds);
-    const within = elapsed % cycleSeconds;
-    const resting = within >= workSeconds;
-    const completedWorkIntervals = Math.min(rounds, zeroBasedRound + (resting ? 1 : 0));
-
-    return {
-      label: resting ? 'RÉCUPÉRATION' : 'EFFORT',
-      remaining: resting ? Math.max(0, cycleSeconds - within) : Math.max(0, workSeconds - within),
-      round: Math.min(rounds, zeroBasedRound + 1),
-      completedWorkIntervals,
-      exerciseIndex: zeroBasedRound % Math.max(1, exercises.length),
-    };
-  }, [cycleSeconds, elapsed, exercises.length, restSeconds, rounds, totalSeconds, workSeconds]);
-
-  function finish() {
-    if (totalSeconds <= 0) {
-      Alert.alert('Protocole incomplet', 'Le nombre de rounds et les temps 20/10 sont manquants.');
-      return;
-    }
-    if (!started && elapsed <= 0) {
-      Alert.alert('Chrono non démarré', 'Démarre le chrono avant de terminer le Tabata.');
-      return;
-    }
-
-    const protocolCompleted = elapsed >= totalSeconds;
-    const updates = {};
-
-    exercises.forEach((exercise, exerciseIndex) => {
-      let exerciseIntervals = 0;
-      for (let roundIndex = 0; roundIndex < phase.completedWorkIntervals; roundIndex += 1) {
-        if (roundIndex % Math.max(1, exercises.length) === exerciseIndex) exerciseIntervals += 1;
-      }
-
-      const executionStatus = protocolCompleted
-        ? 'completed'
-        : exerciseIntervals > 0
-          ? 'adapted'
-          : 'not_completed';
-
-      updates[exerciseKey(exercise)] = {
-        status: executionStatus,
-        userExecutionStatus: executionStatus,
-        performanceActualJson: {
-          ...(exercise.performanceActualJson ?? {}),
-          source: 'ugerod_environment_tabata',
-          controlled_timing: true,
-          protocol_completed: protocolCompleted,
-          elapsed_seconds: elapsed,
-          planned_rounds: rounds,
-          rounds_completed: phase.completedWorkIntervals,
-          work_intervals_completed: exerciseIntervals,
-          work_seconds,
-          rest_seconds: restSeconds,
-        },
-      };
-    });
-
-    onComplete(updates);
-  }
-
-  const activeExercise = exercises[phase.exerciseIndex] ?? exercises[0] ?? null;
-
-  return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{blockTitle(block, 'Tabata')}</Text>
-      <Text style={styles.cardMeta}>{rounds} rounds · {workSeconds}s / {restSeconds}s</Text>
-
-      <View style={styles.timerBox}>
-        <Text style={styles.timer}>{formatClock(elapsed)}</Text>
-        <Text style={styles.timerTarget}>/ {formatClock(totalSeconds)}</Text>
-      </View>
-
-      <View style={styles.phaseBox}>
-        <Text style={styles.phaseLabel}>{phase.label}</Text>
-        <Text style={styles.phaseTime}>{formatClock(phase.remaining)}</Text>
-        <Text style={styles.cardMeta}>Round {phase.round}/{rounds}</Text>
-        {phase.label === 'EFFORT' && activeExercise ? (
-          <Text style={styles.exerciseName}>{activeExercise.name}</Text>
-        ) : null}
-        {!started && activeExercise ? (
-          <View style={{ marginTop: 10, alignItems: 'center' }}>
-            <EnvironmentSwapOverlay variant="inline" targetExercise={activeExercise} />
-          </View>
-        ) : null}
-      </View>
-
-      {exercises.length > 1 ? (
-        <Text style={styles.helperText}>Alternance : {exercises.map((exercise) => exercise.name).join(' · ')}</Text>
-      ) : null}
-
-      <View style={styles.timerActions}>
-        {!started ? (
-          <Pressable onPress={() => setStarted(true)} style={({ pressed }) => [styles.primaryButton, styles.flexButton, pressed && styles.pressed]}>
-            <Text style={styles.primaryButtonText}>DÉMARRER</Text>
-          </Pressable>
-        ) : (
-          <Pressable onPress={() => setPaused((current) => !current)} style={({ pressed }) => [styles.secondaryButton, styles.flexButton, pressed && styles.pressed]}>
-            <Text style={styles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
-          </Pressable>
-        )}
-      </View>
-
-      <Pressable onPress={finish} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-        <Text style={styles.primaryButtonText}>{elapsed >= totalSeconds ? 'TERMINER LE TABATA' : 'ARRÊTER ET TERMINER'}</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-
-function gymCardioTarget(exercise, block) {
-  const prescription = exercise?.prescriptionJson ?? {};
-  const params = blockParameters(block);
-
-  const calories = optionalNumber(
-    prescription?.execution_target_calories ??
-      prescription?.target_calories ??
-      prescription?.calories ??
-      params?.target_calories ??
-      params?.calories
-  );
-  if (calories != null && calories > 0) {
-    return { kind: 'calories', value: calories, label: `${Math.round(calories)} cal` };
-  }
-
-  const distanceMeters = optionalNumber(
-    prescription?.execution_target_distance_meters ??
-      prescription?.target_distance_meters ??
-      prescription?.distance_meters ??
-      params?.target_distance_meters ??
-      params?.distance_meters
-  );
-  if (distanceMeters != null && distanceMeters > 0) {
-    return { kind: 'distance', value: distanceMeters, label: `${Math.round(distanceMeters)} m` };
-  }
-
-  const durationSeconds = positiveInt(
-    prescription?.execution_target_seconds ??
-      prescription?.duration_seconds ??
-      params?.duration_seconds ??
-      numberOr(
-        prescription?.block_duration_minutes ??
-          block?.duration_minutes ??
-          block?.durationMinutes,
-        1
-      ) * 60,
-    60
-  );
-
-  return {
-    kind: 'time',
-    value: durationSeconds,
-    label: formatClock(durationSeconds),
-  };
-}
-
 function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const cardioStyles = useMemo(
@@ -1655,6 +1471,10 @@ export default function EnvironmentSessionCore({
     () => createShellStyles(themeColors, isDark),
     [themeColors, isDark]
   );
+  const focusedTabataStyles = useMemo(
+    () => createFocusedSessionStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const sessionStartPromise = useRef(null);
 
@@ -1902,6 +1722,45 @@ export default function EnvironmentSessionCore({
     advanceWithUpdates(updates);
   }
 
+  function completeEnvironmentTabata(result = {}) {
+    const completedWorkIntervals = positiveInt(result.completedWorkIntervals, 0);
+    const exerciseCount = Math.max(1, currentExercises.length);
+    const protocolCompleted = Boolean(result.protocolCompleted);
+    const updates = {};
+
+    currentExercises.forEach((exercise, exerciseIndex) => {
+      let exerciseIntervals = 0;
+      for (let roundIndex = 0; roundIndex < completedWorkIntervals; roundIndex += 1) {
+        if (roundIndex % exerciseCount === exerciseIndex) exerciseIntervals += 1;
+      }
+
+      const executionStatus = protocolCompleted
+        ? 'completed'
+        : exerciseIntervals > 0
+          ? 'adapted'
+          : 'not_completed';
+
+      updates[exerciseKey(exercise)] = {
+        status: executionStatus,
+        userExecutionStatus: executionStatus,
+        performanceActualJson: {
+          ...(exercise.performanceActualJson ?? {}),
+          source: 'ugerod_environment_tabata',
+          controlled_timing: true,
+          protocol_completed: protocolCompleted,
+          elapsed_seconds: positiveInt(result.elapsedSeconds, 0),
+          planned_rounds: positiveInt(result.rounds, 8),
+          rounds_completed: completedWorkIntervals,
+          work_intervals_completed: exerciseIntervals,
+          work_seconds: positiveInt(result.workSeconds, 20),
+          rest_seconds: positiveInt(result.restSeconds, 10),
+        },
+      };
+    });
+
+    advanceWithUpdates(updates);
+  }
+
   function completeWodBlock() {
     const runtime = workout.wodRuntime;
     const executionStatus = wodExecutionStatus(runtime);
@@ -2044,11 +1903,22 @@ export default function EnvironmentSessionCore({
             onComplete={completeWodBlock}
           />
         ) : tabata ? (
-          <TabataBlock
+          <FocusedTabata
             key={`${currentKey}:${currentIndex}`}
-            block={currentBlock}
-            exercises={currentExercises}
-            onComplete={advanceWithUpdates}
+            block={{
+              source: {
+                ...currentBlock,
+                rounds: currentBlock?.settings?.rounds ?? currentBlock?.rounds,
+                work_seconds:
+                  currentBlock?.settings?.work_seconds ?? currentBlock?.work_seconds,
+                rest_seconds:
+                  currentBlock?.settings?.rest_seconds ?? currentBlock?.rest_seconds,
+              },
+              exercises: currentExercises,
+            }}
+            onFinish={completeEnvironmentTabata}
+            styles={focusedTabataStyles}
+            colors={themeColors}
           />
         ) : structuredStrength ? (
           <StrengthBlock
