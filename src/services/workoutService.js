@@ -1536,6 +1536,39 @@ export async function getWorkoutSwapAvailability(sessionId) {
   };
 }
 
+export async function getWorkoutSwapAvailabilityForExercise(sessionId, sessionExerciseId) {
+  if (!sessionId || !sessionExerciseId) {
+    return {
+      sessionId: sessionId ?? null,
+      sessionExerciseId: sessionExerciseId ?? null,
+      item: null,
+      version: null,
+      timingMs: 0,
+    };
+  }
+
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc(
+    'get_workout_swap_availability_for_exercise_v1',
+    { p_session_exercise_id: sessionExerciseId }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ?? 'Impossible de vérifier ce remplacement.'
+    );
+  }
+
+  return {
+    sessionId: data?.session_id ?? sessionId,
+    sessionExerciseId: data?.session_exercise_id ?? sessionExerciseId,
+    item: data?.item ?? data?.items?.[sessionExerciseId] ?? null,
+    version: data?.version ?? null,
+    timingMs: Date.now() - startedAt,
+  };
+}
+
+
 export async function swapWorkoutExercise({
   sessionId,
   sessionExerciseId,

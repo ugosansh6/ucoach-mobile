@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getWorkoutSwapAvailabilityForExercise } from './workoutService';
 
 const REASON_DIRECTIONS = {
   too_easy: 'harder',
@@ -47,14 +48,15 @@ async function resolveAdaptationDirection({
     return REASON_DIRECTIONS[adaptationReason] ?? 'equivalent';
   }
 
-  const { data, error } = await supabase.rpc(
-    'get_workout_swap_availability',
-    {
-      p_session_id: sessionId,
-    }
-  );
+  let availability = null;
 
-  if (error) {
+  try {
+    const result = await getWorkoutSwapAvailabilityForExercise(
+      sessionId,
+      sessionExerciseId
+    );
+    availability = result?.item ?? null;
+  } catch (error) {
     console.warn(
       'Contextual swap availability',
       error
@@ -62,8 +64,6 @@ async function resolveAdaptationDirection({
     return null;
   }
 
-  const availability =
-    data?.items?.[sessionExerciseId] ?? null;
   const directions =
     availability?.directions ?? {};
 

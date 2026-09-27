@@ -4,7 +4,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
-const VERSION = "format-handler-v4-admin-rpc-isolated-options";
+const VERSION = "format-handler-v5-fast-options-final-guard";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -101,18 +101,20 @@ serve(async (req: Request) => {
 });
 
 async function loadFormatOptions({ adminClient, userId, sessionId }: any) {
-  const [sessionResult, profileResult, overrideResult, mechanicResult, variantResult] = await Promise.all([
-    adminClient.from("workout_sessions").select("id,user_id,mechanic_json,format_change_count,wod_started_at,wod_revealed_at").eq("id", sessionId).eq("user_id", userId).single(),
+  const [sessionResult, profileResult, overrideResult, mechanicResult, variantResult, wodResult] = await Promise.all([
+    adminClient.from("workout_sessions").select("id,user_id,mechanic_json,format_change_count,wod_started_at,wod_revealed_at,planned_environment_code").eq("id", sessionId).eq("user_id", userId).single(),
     adminClient.from("profiles").select("subscription_tier").eq("id", userId).single(),
     adminClient.from("user_runtime_overrides").select("unlimited_format_changes").eq("user_id", userId).maybeSingle(),
     adminClient.from("workout_mechanics").select("mechanic_key,display_name,short_description,manual_free_eligible,manual_premium_eligible,active,mechanic_kind").eq("active", true).eq("mechanic_kind", "core"),
     adminClient.from("workout_mechanic_variants").select("variant_key,mechanic_key,display_name,short_description,manual_free_eligible,manual_premium_eligible,active").eq("active", true),
+    adminClient.from("workout_session_exercises").select("id", { count: "exact", head: true }).eq("session_id", sessionId).eq("block_key", "wod"),
   ]);
 
   if (sessionResult.error || !sessionResult.data) throw new Error("Session not found");
   if (profileResult.error) throw new Error(profileResult.error.message);
   if (mechanicResult.error) throw new Error(mechanicResult.error.message);
   if (variantResult.error) throw new Error(variantResult.error.message);
+  if (wodResult.error) throw new Error(wodResult.error.message);
 
   const session = sessionResult.data;
   const tier = String(profileResult.data?.subscription_tier ?? "FREE").toUpperCase();
@@ -139,46 +141,56 @@ async function loadFormatOptions({ adminClient, userId, sessionId }: any) {
   }
   seeds.sort((a, b) => `${a.mechanic}:${a.variant_key ?? ""}`.localeCompare(`${b.mechanic}:${b.variant_key ?? ""}`));
 
-  const evaluations = await mapWithConcurrency(seeds, 6, async (seed) => {
-    const current = seed.mechanic === currentMechanic && (seed.variant_key ?? null) === (currentVariant ?? null);
-    if (current) return { compatible: true, classification: "CURRENT", reason_codes: [], mechanic_json: session.mechanic_json ?? null };
-    try {
-      const { data, error } = await adminClient.rpc("c4_evaluate_session_format", {
-        p_user_id: userId,
-        p_session_id: sessionId,
-        p_new_mechanic: seed.mechanic,
-        p_variant_key: seed.variant_key,
-      });
-      if (error) throw new Error(error.message);
-      return data ?? {};
-    } catch (error) {
-      console.warn(VERSION, "format evaluation failed", seed.option_id, error);
-      return { compatible: false, classification: "EVALUATION_ERROR", reason_codes: ["FORMAT_EVALUATION_ERROR"], mechanic_json: null };
-    }
-  });
-
+  // PERF-003: selector = cheap catalog. The full C4 quality/safety gate
+  // remains authoritative and runs only for the mechanic actually selected.
   const effectiveCount = unlimited ? 0 : Number(session.format_change_count ?? 0);
   const locked = Boolean(session.wod_started_at) || (!unlimited && effectiveCount >= 3);
-  const options = seeds.map((seed, index) => {
-    const evaluation = evaluations[index] ?? {};
-    const compatible = Boolean(evaluation.compatible);
-    const classification = String(evaluation.classification ?? "NOT_RECOMMENDED");
-    const entitled = tier === "PREMIUM" ? seed.manual_premium_eligible : seed.manual_free_eligible;
-    const current = seed.mechanic === currentMechanic && (seed.variant_key ?? null) === (currentVariant ?? null);
+  const wodExerciseCount = Number(wodResult.count ?? 0);
+  const hasMutableWod = wodExerciseCount > 0;
+
+  const options = seeds.map((seed) => {
+    const current =
+      seed.mechanic === currentMechanic &&
+      (seed.variant_key ?? null) === (currentVariant ?? null);
+    const entitled =
+      tier === "PREMIUM"
+        ? seed.manual_premium_eligible
+        : seed.manual_free_eligible;
+
+    let classification = "FINAL_VALIDATION_ON_SELECTION";
+    let reasonCodes: string[] = [];
+
+    if (current) {
+      classification = "CURRENT";
+    } else if (!hasMutableWod) {
+      classification = "NOT_RECOMMENDED";
+      reasonCodes = ["NO_MUTABLE_WOD_BLOCK"];
+    } else if (session.wod_started_at) {
+      classification = "LOCKED_AFTER_WOD_START";
+      reasonCodes = ["WOD_ALREADY_STARTED"];
+    } else if (!unlimited && effectiveCount >= 3) {
+      classification = "LOCKED_AFTER_FORMAT_CHANGE_LIMIT";
+      reasonCodes = ["FORMAT_CHANGE_LIMIT_REACHED"];
+    } else if (!entitled) {
+      classification = "PREMIUM_REQUIRED";
+      reasonCodes = ["PREMIUM_REQUIRED"];
+    }
+
     return {
       option_id: seed.option_id,
       mechanic: seed.mechanic,
       variant_key: seed.variant_key,
       display_name: seed.display_name,
       description: seed.description,
-      compatible,
+      compatible: current || hasMutableWod,
       classification,
       entitled,
-      locked: compatible && !entitled,
-      selectable: !locked && compatible && entitled && !current && classification !== "CURRENT",
+      locked: !current && (!hasMutableWod || locked || !entitled),
+      selectable: !current && hasMutableWod && !locked && entitled,
       current,
-      reason_codes: Array.isArray(evaluation.reason_codes) ? evaluation.reason_codes : [],
-      mechanic_json: evaluation.mechanic_json ?? null,
+      reason_codes: reasonCodes,
+      mechanic_json: current ? session.mechanic_json ?? null : null,
+      validation_mode: current ? "CURRENT" : "FULL_C4_ON_SELECTION",
     };
   });
 
@@ -196,6 +208,9 @@ async function loadFormatOptions({ adminClient, userId, sessionId }: any) {
     format_locked: locked,
     format_lock_reason: session.wod_started_at ? "WOD_ALREADY_STARTED" : !unlimited && effectiveCount >= 3 ? "FORMAT_CHANGE_LIMIT_REACHED" : null,
     format_lock_contract: "LOCK_ON_WOD_START_NOT_REVEAL",
+    options_evaluation_mode: "FAST_CATALOG_FINAL_GUARD_ON_SELECTION",
+    planned_environment_code: session.planned_environment_code ?? null,
+    wod_exercise_count: wodExerciseCount,
     options,
   };
 }

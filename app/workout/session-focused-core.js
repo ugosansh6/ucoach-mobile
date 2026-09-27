@@ -21,7 +21,7 @@ import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   changeWorkoutFormat,
   getWorkoutFormatOptions,
-  getWorkoutSwapAvailability,
+  getWorkoutSwapAvailabilityForExercise,
   markWorkoutSessionStarted,
   markWorkoutWodRevealed,
   markWorkoutWodStarted,
@@ -338,27 +338,32 @@ export default function SessionFocusedCore({
     workout?.playerCursor?.exerciseId,
   ]);
 
-  const refreshSwapAvailability = useCallback(async () => {
-    if (!workout?.sessionId) {
-      setSwapAvailability({});
-      return;
-    }
+  const refreshSwapAvailability = useCallback(async (sessionExerciseId) => {
+    if (!workout?.sessionId || !sessionExerciseId) return null;
 
     try {
       setSwapLoading(true);
-      const result = await getWorkoutSwapAvailability(workout.sessionId);
-      setSwapAvailability(result?.items ?? {});
+      const result = await getWorkoutSwapAvailabilityForExercise(
+        workout.sessionId,
+        sessionExerciseId
+      );
+      const item = result?.item ?? null;
+      setSwapAvailability((current) => ({
+        ...current,
+        [sessionExerciseId]: item,
+      }));
+      return item;
     } catch (error) {
       console.warn('Focused player swap availability', error);
-      setSwapAvailability({});
+      setSwapAvailability((current) => ({
+        ...current,
+        [sessionExerciseId]: null,
+      }));
+      return null;
     } finally {
       setSwapLoading(false);
     }
   }, [workout?.sessionId]);
-
-  useEffect(() => {
-    refreshSwapAvailability();
-  }, [refreshSwapAvailability, workout?.exercises]);
 
   const ensureSessionStarted = useCallback(async () => {
     if (!workout?.sessionId) return { status: 'NO_SESSION' };
@@ -553,7 +558,7 @@ export default function SessionFocusedCore({
     if (!exercise?.sessionExerciseId || statusValue(exercise) === 'completed') return;
     setSwapError('');
     setSwapExercise(exercise);
-    await refreshSwapAvailability();
+    await refreshSwapAvailability(exercise.sessionExerciseId);
   }
 
   async function applySwap(reason, undo = false) {
@@ -607,8 +612,7 @@ export default function SessionFocusedCore({
         sessionId: workout.sessionId,
         preparationSnapshot: workout?.preparationSnapshot ?? null,
       });
-      const availabilityAfter = await getWorkoutSwapAvailability(workout.sessionId);
-      setSwapAvailability(availabilityAfter?.items ?? {});
+      await refreshSwapAvailability(instanceId);
 
       if (!undo) {
         setSeenByInstance((current) => ({
@@ -754,7 +758,9 @@ export default function SessionFocusedCore({
       });
       setFormatOpen(false);
       setFormatOptions([]);
-      await refreshSwapAvailability();
+      if (swapExercise?.sessionExerciseId) {
+        await refreshSwapAvailability(swapExercise.sessionExerciseId);
+      }
     } catch (error) {
       setFormatError(error?.message ?? 'Impossible de changer le format.');
     } finally {

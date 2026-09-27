@@ -17,9 +17,10 @@ import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 import { useWorkout } from '../../contexts/WorkoutContext';
 import { adaptSessionExercise } from '../../services/sessionAdaptationService';
 import {
-  getWorkoutSwapAvailability,
+  getWorkoutSwapAvailabilityForExercise,
   markWorkoutSessionStarted,
   reloadWorkoutSession,
+  swapWorkoutExercise,
 } from '../../services/workoutService';
 import {
   hydrateEnvironmentSessionExerciseIds,
@@ -90,6 +91,7 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
   const instanceId = swapExercise?.sessionExerciseId ?? null;
   const item = instanceId ? availability?.[instanceId] ?? null : null;
   const hasSwapChoice =
+    item?.can_undo === true ||
     directionAvailable(item, 'equivalent') ||
     directionAvailable(item, 'easier') ||
     directionAvailable(item, 'harder');
@@ -120,8 +122,14 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
 
     try {
       setLoading(true);
-      const result = await getWorkoutSwapAvailability(workout.sessionId);
-      setAvailability(result?.items ?? {});
+      const result = await getWorkoutSwapAvailabilityForExercise(
+        workout.sessionId,
+        instanceId
+      );
+      setAvailability((current) => ({
+        ...current,
+        [instanceId]: result?.item ?? null,
+      }));
     } catch (error) {
       console.warn('Environment swap availability', error);
       setAvailability({});
@@ -134,19 +142,28 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
     refreshAvailability();
   }, [refreshAvailability]);
 
-  async function applySwap(reason) {
+  async function applySwap(reason, undo = false) {
     if (!swapExercise?.sessionExerciseId || busy) return;
 
     const oldExerciseId = swapExercise.exerciseId ?? swapExercise.id;
 
     try {
       setBusy(true);
-      const result = await adaptSessionExercise({
-        sessionId: workout.sessionId,
-        sessionExerciseId: swapExercise.sessionExerciseId,
-        currentExerciseId: oldExerciseId,
-        reason,
-      });
+      const result = undo
+        ? await swapWorkoutExercise({
+            sessionId: workout.sessionId,
+            sessionExerciseId: swapExercise.sessionExerciseId,
+            currentExerciseId: oldExerciseId,
+            direction: 'equivalent',
+            undo: true,
+            excludedExerciseIds: [],
+          })
+        : await adaptSessionExercise({
+            sessionId: workout.sessionId,
+            sessionExerciseId: swapExercise.sessionExerciseId,
+            currentExerciseId: oldExerciseId,
+            reason,
+          });
 
       if (needsBuilderRuntimeSync) {
         await syncEnvironmentBuilderSwapRuntime({
@@ -293,6 +310,18 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
             </View>
 
             {busy || loading ? <ActivityIndicator color={themeColors.accent} style={styles.loader} /> : null}
+
+            {item?.can_undo === true ? (
+              <ActionOption
+                icon="arrow-undo-outline"
+                title="REVENIR AU PRÉCÉDENT"
+                subtitle={item?.undo_exercise_name ? `Restaurer ${item.undo_exercise_name}.` : 'Annuler le dernier remplacement.'}
+                onPress={() => applySwap('equivalent', true)}
+                disabled={busy}
+                styles={styles}
+                themeColors={themeColors}
+              />
+            ) : null}
 
             {hasSwapChoice && directionAvailable(item, 'equivalent') ? (
               <ActionOption
