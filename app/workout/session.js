@@ -11,7 +11,7 @@ import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   changeWholeWorkoutPlan,
   changeWorkoutSkillPlan,
-} from '../../src/services/skillPlanService';
+} from '../../src/services/sessionMutationService';
 
 function normalizeBlock(value) {
   const key = String(value ?? '').trim().toLowerCase();

@@ -19,16 +19,18 @@ import { spacing } from '../../src/constants';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
+  adaptSessionExercise,
   changeWorkoutFormat,
   getWorkoutFormatOptions,
   getWorkoutSwapAvailabilityForExercise,
   markWorkoutSessionStarted,
-  markWorkoutWodRevealed,
-  markWorkoutWodStarted,
   reloadWorkoutSession,
   swapWorkoutExercise,
+} from '../../src/services/sessionMutationService';
+import {
+  markWorkoutWodRevealed,
+  markWorkoutWodStarted,
 } from '../../src/services/workoutService';
-import { adaptSessionExercise } from '../../src/services/sessionAdaptationService';
 import { applyWodRuntimeStatuses } from '../../src/services/wodRuntimeStatus';
 import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayerV3';
 

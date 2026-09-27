@@ -15,13 +15,13 @@ import {
 import { spacing } from '../../constants';
 import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 import { useWorkout } from '../../contexts/WorkoutContext';
-import { adaptSessionExercise } from '../../services/sessionAdaptationService';
 import {
+  adaptSessionExercise,
   getWorkoutSwapAvailabilityForExercise,
   markWorkoutSessionStarted,
   reloadWorkoutSession,
   swapWorkoutExercise,
-} from '../../services/workoutService';
+} from '../../services/sessionMutationService';
 import {
   hydrateEnvironmentSessionExerciseIds,
   syncEnvironmentBuilderSwapRuntime,
