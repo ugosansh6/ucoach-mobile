@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "plan-b-handler-v2-dev-reload";
+const VERSION = "plan-b-handler-v5-unified-fast-path";
 const DEV_PROJECT_REF = "fjjhzzwupjhcasoyerym";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,10 +80,9 @@ serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // Defense in depth: the authenticated user must own the source session.
     const { data: ownedSession, error: ownershipError } = await admin
       .from("workout_sessions")
-      .select("id,status,started_at,started_local_date,wod_started_at,completed_at")
+      .select("id,status,started_at,started_local_date,wod_started_at,completed_at,planned_environment_code")
       .eq("id", sessionId)
       .eq("user_id", authData.user.id)
       .maybeSingle();
@@ -95,10 +94,6 @@ serve(async (req: Request) => {
       return json({ ok: false, error: "Session not found", code: "SESSION_NOT_FOUND", version: VERSION }, 404);
     }
 
-    // DEV-only test loop. UI testing needs to enter the player, which marks a session started,
-    // then request another generated session. We only unlock this on the DEV Supabase project,
-    // for the authenticated owner, and only while no persisted exercise log exists.
-    // Production semantics remain unchanged: a started workout cannot be rewritten.
     if (mode === "WHOLE_SESSION" && allowTestReset && isDevProject) {
       const started =
         ownedSession.status === "in_progress" ||
@@ -151,9 +146,16 @@ serve(async (req: Request) => {
       }
     }
 
+    const isGymWholeSession =
+      mode === "WHOLE_SESSION" &&
+      String(ownedSession.planned_environment_code ?? "").toUpperCase() === "GYM";
+
     const rpcName = mode === "WHOLE_SESSION"
-      ? "change_workout_session_plan_v1"
+      ? isGymWholeSession
+        ? "change_gym_session_plan_fast_v1"
+        : "change_workout_session_plan_fast_v2"
       : "change_workout_skill_plan_v1";
+
     const rpcArgs = mode === "WHOLE_SESSION"
       ? {
           p_user_id: authData.user.id,
@@ -191,6 +193,8 @@ serve(async (req: Request) => {
       session_id: sessionId,
       user_id: authData.user.id,
       elapsed_ms: elapsedMs,
+      engine_elapsed_ms: data?.elapsed_ms ?? null,
+      fast_path: data?.fast_path ?? data?.version?.includes?.("fast") ?? false,
       status: data?.status ?? null,
       new_session_id: data?.new_session_id ?? null,
       dev_test_reset: mode === "WHOLE_SESSION" && allowTestReset && isDevProject,
