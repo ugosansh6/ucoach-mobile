@@ -18,7 +18,11 @@ import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import EnvironmentWodBlock from '../../src/components/workout/EnvironmentWodBlock';
 import { FocusedTabata, createStyles as createFocusedSessionStyles } from './session-focused-core';
 import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
-import { markWorkoutSessionStarted } from '../../src/services/workoutService';
+import SessionFormatSheet from '../../src/components/workout/SessionFormatSheet';
+import {
+  markWorkoutSessionStarted,
+  markWorkoutWodStarted,
+} from '../../src/services/sessionMutationService';
 
 function normalize(value) {
   return String(value ?? '')
@@ -1476,7 +1480,16 @@ export default function EnvironmentSessionCore({
     [themeColors, isDark]
   );
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [formatOpen, setFormatOpen] = useState(false);
   const sessionStartPromise = useRef(null);
+  const wodStartPromise = useRef(null);
+  const wodStartedRef = useRef(
+    Boolean(
+      workout?.wodRuntime?.started ||
+      workout?.wodStarted ||
+      workout?.wodStartedAt
+    )
+  );
 
   const blocks = useMemo(() => {
     const raw = Array.isArray(workout.rawBlocks) ? workout.rawBlocks : [];
@@ -1539,7 +1552,64 @@ export default function EnvironmentSessionCore({
     return sessionStartPromise.current;
   }, [updateWorkout, workout.sessionId, workout.sessionStarted, workout.startedAt, workout.startedLocalDate]);
 
+  useEffect(() => {
+    wodStartedRef.current = Boolean(
+      workout?.wodRuntime?.started ||
+      workout?.wodStarted ||
+      workout?.wodStartedAt
+    );
+  }, [
+    workout?.sessionId,
+    workout?.wodRuntime?.started,
+    workout?.wodStarted,
+    workout?.wodStartedAt,
+  ]);
+
+  const ensureWodStarted = useCallback(async () => {
+    await ensureStarted();
+
+    if (wodStartedRef.current) {
+      return { status: 'WOD_ALREADY_STARTED' };
+    }
+    if (wodStartPromise.current) {
+      return wodStartPromise.current;
+    }
+
+    wodStartedRef.current = true;
+    const request = markWorkoutWodStarted({
+      sessionId: workout.sessionId,
+    })
+      .then((result) => {
+        updateWorkout({
+          wodStarted: true,
+          wodStartedAt:
+            result?.wod_started_at ??
+            workout?.wodStartedAt ??
+            new Date().toISOString(),
+        });
+        return result;
+      })
+      .catch((error) => {
+        wodStartedRef.current = false;
+        throw error;
+      })
+      .finally(() => {
+        wodStartPromise.current = null;
+      });
+
+    wodStartPromise.current = request;
+    return request;
+  }, [
+    ensureStarted,
+    updateWorkout,
+    workout?.sessionId,
+    workout?.wodStartedAt,
+  ]);
+
   const handleWodRuntimeChange = useCallback((runtime) => {
+    if (runtime?.started) {
+      wodStartedRef.current = true;
+    }
     updateWorkout({ wodRuntime: runtime });
   }, [updateWorkout]);
 
@@ -1898,9 +1968,15 @@ export default function EnvironmentSessionCore({
             block={currentBlock}
             exercises={currentExercises}
             runtime={workout.wodRuntime ?? null}
-            onBeforeStart={ensureStarted}
+            onBeforeStart={ensureWodStarted}
             onRuntimeChange={handleWodRuntimeChange}
             onComplete={completeWodBlock}
+            canChangeFormat={
+              !workout?.wodRuntime?.started &&
+              !workout?.wodStarted &&
+              !workout?.wodStartedAt
+            }
+            onChangeFormat={() => setFormatOpen(true)}
           />
         ) : tabata ? (
           <FocusedTabata
@@ -1939,6 +2015,11 @@ export default function EnvironmentSessionCore({
           <SimpleBlock block={currentBlock} exercises={currentExercises} onComplete={completeSimpleBlock} />
         )}
       </ScrollView>
+
+      <SessionFormatSheet
+        visible={formatOpen}
+        onClose={() => setFormatOpen(false)}
+      />
     </SafeAreaView>
   );
 }

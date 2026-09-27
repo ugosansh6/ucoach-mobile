@@ -20,19 +20,15 @@ import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   adaptSessionExercise,
-  changeWorkoutFormat,
-  getWorkoutFormatOptions,
   getWorkoutSwapAvailabilityForExercise,
   markWorkoutSessionStarted,
-  reloadWorkoutSession,
-  swapWorkoutExercise,
-} from '../../src/services/sessionMutationService';
-import {
   markWorkoutWodRevealed,
   markWorkoutWodStarted,
-} from '../../src/services/workoutService';
+  swapWorkoutExercise,
+} from '../../src/services/sessionMutationService';
 import { applyWodRuntimeStatuses } from '../../src/services/wodRuntimeStatus';
 import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayerV3';
+import SessionFormatSheet from '../../src/components/workout/SessionFormatSheet';
 
 const BLOCK_ORDER = ['unlock', 'tabata', 'warmup', 'skill', 'wod'];
 const BLOCK_LABELS = {
@@ -253,10 +249,6 @@ export default function SessionFocusedCore({
   const [skillScoreOpen, setSkillScoreOpen] = useState(false);
   const [skillScoreValue, setSkillScoreValue] = useState('');
   const [formatOpen, setFormatOpen] = useState(false);
-  const [formatOptions, setFormatOptions] = useState([]);
-  const [formatLoading, setFormatLoading] = useState(false);
-  const [formatChanging, setFormatChanging] = useState(null);
-  const [formatError, setFormatError] = useState('');
 
   const sessionStartPromiseRef = useRef(null);
   const sessionStartedRef = useRef(Boolean(workout?.sessionStarted));
@@ -712,62 +704,14 @@ export default function SessionFocusedCore({
     [updateWorkout]
   );
 
-  async function openFormatModal() {
-    const wodHasStarted = Boolean(workout?.wodRuntime?.started || workout?.wodStarted || workout?.wodStartedAt);
+  function openFormatModal() {
+    const wodHasStarted = Boolean(
+      workout?.wodRuntime?.started ||
+      workout?.wodStarted ||
+      workout?.wodStartedAt
+    );
     if (!workout?.sessionId || wodHasStarted) return;
-
-    try {
-      setFormatOpen(true);
-      setFormatLoading(true);
-      setFormatError('');
-      const result = await getWorkoutFormatOptions(workout.sessionId);
-      setFormatOptions(result?.options ?? []);
-      updateWorkout({
-        formatChangeCount: Number(result?.formatChangeCount ?? workout?.formatChangeCount ?? 0),
-        formatChangeLimit: Number(result?.formatChangeLimit ?? workout?.formatChangeLimit ?? 3),
-        formatLocked: Boolean(result?.formatLocked),
-      });
-    } catch (error) {
-      setFormatError(error?.message ?? 'Impossible de charger les formats.');
-    } finally {
-      setFormatLoading(false);
-    }
-  }
-
-  async function selectFormat(option) {
-    if (!option?.selectable || option?.current || formatChanging || !workout?.sessionId) return;
-
-    try {
-      setFormatChanging(option.option_id);
-      setFormatError('');
-      const result = await changeWorkoutFormat({
-        sessionId: workout.sessionId,
-        mechanic: option.mechanic,
-        variantKey: option.variant_key ?? null,
-      });
-      const refreshed = await reloadWorkoutSession({
-        sessionId: workout.sessionId,
-        preparationSnapshot: workout?.preparationSnapshot ?? null,
-      });
-      updateWorkout({
-        ...refreshed,
-        validatedBlocks,
-        wodRevealed,
-        wodRuntime: null,
-        formatChangeCount: Number(result?.format_change_count ?? refreshed?.formatChangeCount ?? 0),
-        formatChangeLimit: Number(result?.format_change_limit ?? refreshed?.formatChangeLimit ?? 3),
-        formatLocked: Boolean(result?.format_locked ?? refreshed?.formatLocked ?? false),
-      });
-      setFormatOpen(false);
-      setFormatOptions([]);
-      if (swapExercise?.sessionExerciseId) {
-        await refreshSwapAvailability(swapExercise.sessionExerciseId);
-      }
-    } catch (error) {
-      setFormatError(error?.message ?? 'Impossible de changer le format.');
-    } finally {
-      setFormatChanging(null);
-    }
+    setFormatOpen(true);
   }
 
   if (!activeBlock) {
@@ -1099,16 +1043,16 @@ export default function SessionFocusedCore({
         colors={colors}
       />
 
-      <FormatModal
+      <SessionFormatSheet
         visible={formatOpen}
-        options={formatOptions}
-        loading={formatLoading}
-        changing={formatChanging}
-        error={formatError}
-        onClose={() => !formatChanging && setFormatOpen(false)}
-        onSelect={selectFormat}
-        styles={styles}
-        colors={colors}
+        onClose={() => setFormatOpen(false)}
+        onApplied={async () => {
+          if (swapExercise?.sessionExerciseId) {
+            await refreshSwapAvailability(
+              swapExercise.sessionExerciseId
+            );
+          }
+        }}
       />
     </SafeAreaView>
   );
@@ -1410,57 +1354,6 @@ function SkillScoreModal({ visible, value, onChange, contract, onClose, onSave, 
           <Pressable onPress={onSave} disabled={!canSave} style={[styles.primaryButtonLarge, !canSave && styles.actionDisabled]}>
             <Text style={styles.primaryButtonTextLarge}>Enregistrer</Text>
           </Pressable>
-        </View>
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-function FormatModal({ visible, options, loading, changing, error, onClose, onSelect, styles, colors }) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalRoot}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={[styles.sheet, styles.tallSheet]}>
-          <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeader}>
-            <View style={styles.sheetHeaderCopy}>
-              <Text style={styles.sheetEyebrow}>Format du WOD</Text>
-              <Text style={styles.sheetTitle}>Choisis ta mécanique</Text>
-            </View>
-            <Pressable onPress={onClose} disabled={Boolean(changing)} style={styles.sheetClose}>
-              <Ionicons name="close" size={20} color={colors.text} />
-            </Pressable>
-          </View>
-
-          {error ? <Text style={styles.modalError}>{error}</Text> : null}
-          {loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} /> : null}
-
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
-            {options.map((option) => {
-              const disabled = !option?.selectable || option?.current || Boolean(changing);
-              return (
-                <Pressable
-                  key={option.option_id ?? option.mechanic}
-                  onPress={() => onSelect(option)}
-                  disabled={disabled}
-                  style={[styles.formatOption, disabled && !option?.current && styles.actionDisabled]}
-                >
-                  <View style={styles.formatOptionCopy}>
-                    <Text style={styles.formatOptionTitle}>{formatOptionTitle(option)}</Text>
-                    {option?.description ? <Text style={styles.formatOptionBody}>{option.description}</Text> : null}
-                  </View>
-                  {changing === option?.option_id ? (
-                    <ActivityIndicator size="small" color={colors.accent} />
-                  ) : option?.current ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
-                  ) : (
-                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                  )}
-                </Pressable>
-              );
-            })}
-          </ScrollView>
         </View>
       </SafeAreaView>
     </Modal>

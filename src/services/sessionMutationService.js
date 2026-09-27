@@ -8,6 +8,8 @@ export {
   getWorkoutFormatOptions,
   getWorkoutSwapAvailabilityForExercise,
   markWorkoutSessionStarted,
+  markWorkoutWodRevealed,
+  markWorkoutWodStarted,
   reloadWorkoutSession,
   swapWorkoutExercise,
 } from './workoutService';

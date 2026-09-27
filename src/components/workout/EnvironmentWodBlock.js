@@ -16,6 +16,8 @@ export default function EnvironmentWodBlock({
   onBeforeStart,
   onRuntimeChange,
   onComplete,
+  canChangeFormat = false,
+  onChangeFormat = null,
 }) {
   const { colors } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -41,6 +43,8 @@ export default function EnvironmentWodBlock({
         initialRuntime={runtime ?? null}
         onBeforeStart={onBeforeStart}
         onRuntimeChange={onRuntimeChange}
+        canChangeFormat={canChangeFormat}
+        onChangeFormat={onChangeFormat}
       />
 
       {runtime?.finished ? (
