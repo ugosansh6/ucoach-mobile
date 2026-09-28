@@ -203,7 +203,7 @@ begin
     'legacy_inventory_note',v_cfg#>'{legacy_inventory_defaults,note}'
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.c4_apply_session_architecture_v2_legacy_p15(p_user_id uuid, p_plan jsonb, p_focus text, p_duration_minutes integer, p_readiness text, p_target_region text DEFAULT NULL::text, p_progression_intent text DEFAULT NULL::text, p_zone_terms text[] DEFAULT '{}'::text[], p_inventory jsonb DEFAULT '[]'::jsonb, p_max_complexity integer DEFAULT 3, p_max_difficulty text DEFAULT 'Intermédiaire'::text, p_candidate_count integer DEFAULT 12, p_policy_key text DEFAULT 'c4-final-default'::text)
@@ -665,7 +665,7 @@ begin
   r:=jsonb_set(r,'{skill_wod_distinctness}',coalesce(v_skill_resolution,'{}'::jsonb),true);
   return r;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.solve_session_engine_c4_mechanic_policy_shadow_v1(p_user_id uuid, p_focus text, p_duration_minutes integer, p_readiness text, p_target_region text DEFAULT NULL::text, p_progression_intent text DEFAULT NULL::text, p_zone_terms text[] DEFAULT '{}'::text[], p_inventory jsonb DEFAULT '[]'::jsonb, p_max_complexity integer DEFAULT 3, p_max_difficulty text DEFAULT 'Intermédiaire'::text, p_candidate_count integer DEFAULT 10, p_exact_wod_minutes integer DEFAULT NULL::integer, p_policy_key text DEFAULT 'c4-final-default'::text)
@@ -1517,7 +1517,7 @@ begin
       end
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.c4_apply_session_architecture_v2(p_user_id uuid, p_plan jsonb, p_focus text, p_duration_minutes integer, p_readiness text, p_target_region text DEFAULT NULL::text, p_progression_intent text DEFAULT NULL::text, p_zone_terms text[] DEFAULT '{}'::text[], p_inventory jsonb DEFAULT '[]'::jsonb, p_max_complexity integer DEFAULT 3, p_max_difficulty text DEFAULT 'Intermédiaire'::text, p_candidate_count integer DEFAULT 12, p_policy_key text DEFAULT 'c4-final-default'::text)
@@ -1991,5 +1991,4 @@ begin
   r:=jsonb_set(r,'{skill_wod_distinctness}',coalesce(v_skill_resolution,'{}'::jsonb),true);
   return r-'_c4_prepared_wod_cache';
 end;
-$function$
-
+$function$;
