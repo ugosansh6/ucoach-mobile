@@ -892,7 +892,7 @@ begin
     'selection_weights_effective',v_effective_weights,
     'quality_gate_priority',v_stimulus->'hard_gate_priority',
     'legacy_inventory_note',v_cfg#>'{legacy_inventory_defaults,note}'
-  
+  )
   || case when v_env='BOX' then jsonb_build_object(
     '_c4_prepared_cache',jsonb_build_object(
       'version','box-prepared-candidate-cache-v1',
