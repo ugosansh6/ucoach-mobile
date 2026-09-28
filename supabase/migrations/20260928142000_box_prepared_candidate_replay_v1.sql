@@ -904,7 +904,7 @@ begin
     )
   ) else '{}'::jsonb end;
 end;
-$function$
+$function$;
 
 
 
