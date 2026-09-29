@@ -19,6 +19,7 @@ import EnvironmentWodBlock from '../../src/components/workout/EnvironmentWodBloc
 import { FocusedTabata, createStyles as createFocusedSessionStyles } from './session-focused-core';
 import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
 import SessionFormatSheet from '../../src/components/workout/SessionFormatSheet';
+import SessionPlayerHeader from '../../src/components/workout/SessionPlayerHeader';
 import {
   markWorkoutSessionStarted,
   markWorkoutWodStarted,
@@ -1472,7 +1473,7 @@ export default function EnvironmentSessionCore({
   const { workout, updateWorkout } = useWorkout();
   const { colors: themeColors, isDark } = useUgerodTheme();
   const shellStyles = useMemo(
-    () => createShellStyles(themeColors, isDark),
+    () => createFocusedSessionStyles(themeColors, isDark),
     [themeColors, isDark]
   );
   const focusedTabataStyles = useMemo(
@@ -1874,76 +1875,25 @@ export default function EnvironmentSessionCore({
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: themeColors.background }]}>
-      <View style={shellStyles.header}>
-        <View style={shellStyles.headerTop}>
-          <Pressable
-            onPress={() => router.replace('/workout/preparation')}
-            hitSlop={12}
-            style={shellStyles.iconButton}
-          >
-            <Ionicons name="arrow-back" size={21} color={themeColors.text} />
-          </Pressable>
-
-          <View style={shellStyles.headerCopy}>
-            <Text style={shellStyles.headerEyebrow}>
-              {(environmentCode === 'GYM' ? 'SALLE' : 'EXTÉRIEUR')} · Bloc {currentIndex + 1}/{blocks.length}
-            </Text>
-            <Text style={shellStyles.headerTitle}>
-              {blockTitle(currentBlock, currentKey.toUpperCase())}
-            </Text>
-            <Text numberOfLines={1} style={shellStyles.headerMeta}>
-              {[
-                currentBlock?.structure ?? currentBlock?.execution_style?.label_fr ?? null,
-                Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes) > 0
-                  ? `${Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes)} min`
-                  : null,
-              ].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-
-          {typeof onOpenOverview === 'function' ? (
-            <Pressable
-              onPress={onOpenOverview}
-              accessibilityRole="button"
-              accessibilityLabel="Voir ma séance"
-              style={shellStyles.overviewButton}
-            >
-              <Ionicons name="clipboard-outline" size={17} color={themeColors.text} />
-              <Text style={shellStyles.overviewButtonText}>Ma séance</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={shellStyles.coachTools}>
-          {typeof onOpenWhy === 'function' ? (
-            <Pressable onPress={onOpenWhy} style={shellStyles.coachTool}>
-              <Ionicons name="help-circle-outline" size={17} color={themeColors.textSecondary} />
-              <Text style={shellStyles.coachToolText}>Pourquoi ?</Text>
-            </Pressable>
-          ) : null}
-          {typeof onOpenAdjust === 'function' ? (
-            <Pressable onPress={onOpenAdjust} style={shellStyles.coachTool}>
-              <Ionicons name="options-outline" size={17} color={themeColors.accent} />
-              <Text style={shellStyles.coachToolText}>Ajuster</Text>
-            </Pressable>
-          ) : null}
-          {showPlanB && typeof onOpenPlanB === 'function' ? (
-            <Pressable onPress={onOpenPlanB} style={shellStyles.coachTool}>
-              <Ionicons name="shuffle-outline" size={17} color={themeColors.secondaryAccent} />
-              <Text style={shellStyles.coachToolText}>Plan B</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={shellStyles.progressTrack}>
-        <View
-          style={[
-            shellStyles.progressFill,
-            { width: `${blocks.length > 0 ? Math.round((currentIndex / blocks.length) * 100) : 0}%` },
-          ]}
-        />
-      </View>
+      <SessionPlayerHeader
+        eyebrowPrefix={environmentCode === 'GYM' ? 'SALLE' : 'EXTÉRIEUR'}
+        blockIndex={currentIndex}
+        blockCount={blocks.length}
+        title={blockTitle(currentBlock, currentKey.toUpperCase())}
+        meta={[
+          currentBlock?.structure ?? currentBlock?.execution_style?.label_fr ?? null,
+          Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes) > 0
+            ? `${Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes)} min`
+            : null,
+        ].filter(Boolean).join(' · ')}
+        progress={blocks.length > 0 ? currentIndex / blocks.length : 0}
+        onBack={() => router.replace('/workout/preparation')}
+        onOpenOverview={onOpenOverview}
+        onOpenWhy={onOpenWhy}
+        onOpenAdjust={onOpenAdjust}
+        onOpenPlanB={onOpenPlanB}
+        showPlanB={showPlanB}
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {gymCardio ? (

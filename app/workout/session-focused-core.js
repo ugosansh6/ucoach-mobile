@@ -761,62 +761,23 @@ export default function SessionFocusedCore({
 
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Pressable onPress={() => router.replace('/workout/preparation')} hitSlop={12} style={styles.iconButton}>
-            <Ionicons name="arrow-back" size={21} color={colors.text} />
-          </Pressable>
-
-          <View style={styles.headerCopy}>
-            <Text style={styles.headerEyebrow}>Bloc {activeBlockIndex + 1}/{blocks.length}</Text>
-            <Text style={styles.headerTitle}>{activeBlock.title}</Text>
-            <Text numberOfLines={1} style={styles.headerMeta}>
-              {(activeBlock.id === 'wod'
-                ? [workout?.format ?? activeBlock?.source?.mechanicLabel, activeBlock.durationLabel]
-                : [activeBlock.structure, activeBlock.durationLabel])
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
-          </View>
-
-          {typeof onOpenOverview === 'function' ? (
-            <Pressable
-              onPress={onOpenOverview}
-              accessibilityRole="button"
-              accessibilityLabel="Voir ma séance"
-              style={styles.overviewButton}
-            >
-              <Ionicons name="clipboard-outline" size={17} color={colors.text} />
-              <Text style={styles.overviewButtonText}>Ma séance</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={styles.coachTools}>
-          {typeof onOpenWhy === 'function' ? (
-            <Pressable onPress={onOpenWhy} style={[styles.coachTool, styles.coachToolWhy]}>
-              <Ionicons name="help-circle-outline" size={17} color={colors.textSecondary} />
-              <Text style={styles.coachToolText}>Pourquoi ?</Text>
-            </Pressable>
-          ) : null}
-          {typeof onOpenAdjust === 'function' ? (
-            <Pressable onPress={onOpenAdjust} style={[styles.coachTool, styles.coachToolAdjust]}>
-              <Ionicons name="options-outline" size={17} color={colors.accent} />
-              <Text style={styles.coachToolText}>Ajuster</Text>
-            </Pressable>
-          ) : null}
-          {showPlanB && typeof onOpenPlanB === 'function' ? (
-            <Pressable onPress={onOpenPlanB} style={[styles.coachTool, styles.coachToolPlanB]}>
-              <Ionicons name="shuffle-outline" size={17} color={colors.secondaryAccent} />
-              <Text style={styles.coachToolText}>Plan B</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
-      </View>
+      <SessionPlayerHeader
+        blockIndex={activeBlockIndex}
+        blockCount={blocks.length}
+        title={activeBlock.title}
+        meta={(activeBlock.id === 'wod'
+          ? [workout?.format ?? activeBlock?.source?.mechanicLabel, activeBlock.durationLabel]
+          : [activeBlock.structure, activeBlock.durationLabel])
+          .filter(Boolean)
+          .join(' · ')}
+        progress={progress}
+        onBack={() => router.replace('/workout/preparation')}
+        onOpenOverview={onOpenOverview}
+        onOpenWhy={onOpenWhy}
+        onOpenAdjust={onOpenAdjust}
+        onOpenPlanB={onOpenPlanB}
+        showPlanB={showPlanB}
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
