@@ -19,6 +19,8 @@ const REASON_TITLES = {
   SESSION_INTENT: 'Pourquoi cette intensité ?',
   EQUIPMENT_OPPORTUNITY: 'Pourquoi ce matériel ?',
   RECOVERY_ADJUSTMENT: 'Pourquoi cette adaptation ?',
+  PROGRESSION_INTENT: 'Pourquoi cette dose ?',
+  ENVIRONMENT_STRUCTURE: 'Pourquoi cette structure ?',
 };
 
 function reasonTitle(type) {
@@ -94,6 +96,7 @@ export default function SessionWhySheet({ visible = false, onClose }) {
             <View style={styles.headerMain}>
               <Text style={styles.eyebrow}>DÉCISION DU COACH</Text>
               <Text style={styles.title}>Pourquoi cette séance ?</Text>
+              <Text style={styles.subtitle}>Les choix qui ont réellement influencé ta séance aujourd’hui.</Text>
             </View>
             <Pressable
               onPress={() => !loading && onClose?.()}
@@ -185,6 +188,13 @@ function createStyles(colors) {
       fontSize: 26,
       lineHeight: 31,
       color: colors.text,
+    },
+    subtitle: {
+      marginTop: 6,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
     },
     closeButton: {
       width: 42,
