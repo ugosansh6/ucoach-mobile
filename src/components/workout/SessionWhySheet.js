@@ -14,19 +14,6 @@ import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 import { useWorkout } from '../../contexts/WorkoutContext';
 import { supabase } from '../../lib/supabase';
 
-const REASON_TITLES = {
-  SKILL_PATH: 'Pourquoi ce Skill ?',
-  SESSION_INTENT: 'Pourquoi cette intensité ?',
-  EQUIPMENT_OPPORTUNITY: 'Pourquoi ce matériel ?',
-  RECOVERY_ADJUSTMENT: 'Pourquoi cette adaptation ?',
-  PROGRESSION_INTENT: 'Pourquoi cette dose ?',
-  ENVIRONMENT_STRUCTURE: 'Pourquoi cette structure ?',
-};
-
-function reasonTitle(type) {
-  return REASON_TITLES[String(type ?? '').toUpperCase()] ?? 'Choix du Coach';
-}
-
 export default function SessionWhySheet({ visible = false, onClose }) {
   const { workout } = useWorkout();
   const { colors } = useUgerodTheme();
@@ -76,11 +63,12 @@ export default function SessionWhySheet({ visible = false, onClose }) {
 
   if (!workout?.sessionId) return null;
 
-  const reasons = Array.isArray(why?.reasons)
-    ? why.reasons.filter(
-        (reason) => typeof reason?.text === 'string' && reason.text.trim().length > 0
-      )
-    : [];
+  const briefingText =
+    typeof why?.briefing?.text === 'string' && why.briefing.text.trim().length > 0
+      ? why.briefing.text.trim()
+      : typeof why?.briefing_text === 'string' && why.briefing_text.trim().length > 0
+        ? why.briefing_text.trim()
+        : '';
 
   return (
     <Modal
@@ -94,9 +82,8 @@ export default function SessionWhySheet({ visible = false, onClose }) {
         <View style={styles.card}>
           <View style={styles.header}>
             <View style={styles.headerMain}>
-              <Text style={styles.eyebrow}>DÉCISION DU COACH</Text>
+              <Text style={styles.eyebrow}>COACH UGEROD</Text>
               <Text style={styles.title}>Pourquoi cette séance ?</Text>
-              <Text style={styles.subtitle}>Les choix qui ont réellement influencé ta séance aujourd’hui.</Text>
             </View>
             <Pressable
               onPress={() => !loading && onClose?.()}
@@ -127,23 +114,15 @@ export default function SessionWhySheet({ visible = false, onClose }) {
               contentContainerStyle={styles.reasons}
               showsVerticalScrollIndicator={false}
             >
-              {reasons.length > 0 ? (
-                reasons.map((reason, index) => (
-                  <View key={`${reason.type ?? 'reason'}-${index}`} style={styles.reasonRow}>
-                    <View style={styles.reasonIndex}>
-                      <Text style={styles.reasonIndexText}>{index + 1}</Text>
-                    </View>
-                    <View style={styles.reasonCopy}>
-                      <Text style={styles.reasonTitle}>{reasonTitle(reason.type)}</Text>
-                      <Text style={styles.reasonText}>{reason.text}</Text>
-                    </View>
-                  </View>
-                ))
+              {briefingText ? (
+                <View style={styles.briefingCard}>
+                  <Text style={styles.briefingText}>{briefingText}</Text>
+                </View>
               ) : (
                 <View style={styles.messageBox}>
                   <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
                   <Text style={styles.messageText}>
-                    Aucun choix particulier n’a besoin d’être expliqué sur cette séance.
+                    Je n’ai pas encore assez d’éléments fiables pour t’expliquer cette séance sans inventer.
                   </Text>
                 </View>
               )}
@@ -188,13 +167,6 @@ function createStyles(colors) {
       fontSize: 26,
       lineHeight: 31,
       color: colors.text,
-    },
-    subtitle: {
-      marginTop: 6,
-      fontFamily: 'Manrope_500Medium',
-      fontSize: 12,
-      lineHeight: 18,
-      color: colors.textSecondary,
     },
     closeButton: {
       width: 42,
@@ -241,43 +213,15 @@ function createStyles(colors) {
       color: colors.textSecondary,
     },
     reasonsScroll: { marginTop: 16 },
-    reasons: { paddingBottom: 4, gap: 10 },
-    reasonRow: {
-      minHeight: 70,
-      padding: 12,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 10,
+    reasons: { paddingBottom: 4 },
+    briefingCard: {
+      paddingVertical: 4,
     },
-    reasonIndex: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.accentSoft,
-    },
-    reasonIndexText: {
-      fontFamily: 'Manrope_800ExtraBold',
-      fontSize: 11,
-      color: colors.accent,
-    },
-    reasonCopy: { flex: 1 },
-    reasonTitle: {
-      fontFamily: 'Manrope_800ExtraBold',
-      fontSize: 12,
-      color: colors.text,
-    },
-    reasonText: {
-      marginTop: 3,
+    briefingText: {
       fontFamily: 'Manrope_500Medium',
-      fontSize: 12,
-      lineHeight: 18,
-      color: colors.textSecondary,
+      fontSize: 15,
+      lineHeight: 23,
+      color: colors.text,
     },
   });
 }
