@@ -286,6 +286,32 @@ function stripRpeFromPrescription(value) {
     .trim();
 }
 
+function prescriptionSetCount(prescription = {}) {
+  const directSets = formatNumber(
+    prescription.sets
+  );
+
+  if (directSets) {
+    return directSets;
+  }
+
+  const mechanic = normalizeMechanic(
+    prescription.block_mechanic ??
+      prescription.mechanic
+  );
+
+  if (
+    mechanic !== 'SETS_REPS' &&
+    mechanic !== 'STRENGTH'
+  ) {
+    return null;
+  }
+
+  return formatNumber(
+    prescription.block_parameters?.sets
+  );
+}
+
 function formatExecutionTargetPrescription(exercise) {
   const prescription =
     readPrescriptionObject(exercise);
@@ -306,24 +332,27 @@ function formatExecutionTargetPrescription(exercise) {
 
   const pieces = [];
 
-  const sets = formatNumber(
-    prescription.sets
+  const sets = prescriptionSetCount(
+    prescription
   );
 
-  if (sets) {
-    pieces.push(`${sets} séries`);
-  }
-
   if (reps) {
+    const repsLabel = `${reps} ${
+      prescription.reps_semantics ===
+      'per_side'
+        ? 'reps / côté'
+        : 'reps'
+    }`;
+
     pieces.push(
-      `${reps} ${
-        prescription.reps_semantics ===
-        'per_side'
-          ? 'reps / côté'
-          : 'reps'
-      }`
+      sets
+        ? `${sets} × ${repsLabel}`
+        : repsLabel
     );
   } else if (duration) {
+    if (sets) {
+      pieces.push(`${sets} séries`);
+    }
     pieces.push(duration);
   } else if (distance) {
     pieces.push(`${distance} m`);
@@ -521,12 +550,21 @@ function formatPrescription(exercise) {
     );
   }
 
-  const sets = formatNumber(
-    prescription.sets
+  const sets = prescriptionSetCount(
+    prescription
   );
 
   if (sets) {
-    pieces.unshift(`${sets} séries`);
+    const first = pieces[0] ?? null;
+    const isRepPrescription =
+      typeof first === 'string' &&
+      /\breps?\b/i.test(first);
+
+    if (isRepPrescription) {
+      pieces[0] = `${sets} × ${first}`;
+    } else {
+      pieces.unshift(`${sets} séries`);
+    }
   }
 
 
