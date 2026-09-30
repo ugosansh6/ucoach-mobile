@@ -271,6 +271,7 @@ export default function SessionOverviewSheet({
   visible,
   onClose,
   onPlanB,
+  onOpenWhy,
   showPlanB = false,
   planBOpen = false,
   canRegeneratePlanB = false,
@@ -412,6 +413,17 @@ export default function SessionOverviewSheet({
               <Text style={styles.subtitle}>
                 {plannedDuration ? `${plannedDuration} min · ` : ''}{environmentLabel(code)}
               </Text>
+              {typeof onOpenWhy === 'function' ? (
+                <Pressable
+                  onPress={onOpenWhy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pourquoi cette séance ?"
+                  style={({ pressed }) => [styles.whyButton, pressed && styles.pressed]}
+                >
+                  <Ionicons name="help-circle-outline" size={16} color={colors.accent} />
+                  <Text style={styles.whyButtonText}>Pourquoi cette séance ?</Text>
+                </Pressable>
+              ) : null}
             </View>
             <Pressable onPress={onClose} hitSlop={10} style={styles.closeButton}>
               <Ionicons name="close" size={22} color={colors.text} />
@@ -786,6 +798,24 @@ function createStyles(colors, isDark) {
       fontFamily: 'Manrope_500Medium',
       fontSize: 14,
       color: colors.textSecondary,
+    },
+    whyButton: {
+      alignSelf: 'flex-start',
+      marginTop: 10,
+      minHeight: 34,
+      paddingHorizontal: 11,
+      borderRadius: 17,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    whyButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
     },
     closeButton: {
       width: 44,

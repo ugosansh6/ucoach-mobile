@@ -242,6 +242,7 @@ export default function SessionScreen() {
         }}
         showPlanB={canRegeneratePlanB}
         onPlanB={openPlanBFromOverview}
+        onOpenWhy={() => setWhyOpen(true)}
         planBOpen={planBOpen}
         canRegeneratePlanB={canRegeneratePlanB}
         canChangeSkill={canChangeSkill}
