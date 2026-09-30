@@ -2181,9 +2181,30 @@ export async function completeWorkoutSession({
     );
   }
 
+  const lifecycle = await getWorkoutSessionLifecycle(sessionId);
+
+  if (!lifecycle?.sessionStarted) {
+    throw new Error(
+      "Impossible d'enregistrer la séance : la séance n'a pas été officiellement démarrée."
+    );
+  }
+
   const rawSessionExercises = Array.isArray(exercises)
     ? exercises.filter((exercise) => exercise?.id)
     : [];
+
+  const containsWodExecution = rawSessionExercises.some(
+    (exercise) =>
+      String(exercise?.blockKey ?? exercise?.block ?? '')
+        .trim()
+        .toLowerCase() === 'wod'
+  );
+
+  if (containsWodExecution && !lifecycle?.wodStarted) {
+    throw new Error(
+      "Impossible d'enregistrer la séance : le WOD n'a pas été officiellement démarré."
+    );
+  }
 
   if (rawSessionExercises.length === 0) {
     throw new Error(
