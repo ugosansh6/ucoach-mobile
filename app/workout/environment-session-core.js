@@ -909,21 +909,23 @@ function GymCardioBlock({
   );
 
   useEffect(() => {
-    if (!started || paused || reviewing || elapsed >= totalSeconds) return undefined;
+    if (!executionEnabled || !started || paused || reviewing || elapsed >= totalSeconds) {
+      return undefined;
+    }
 
     const timer = setInterval(() => {
       setElapsed((current) => Math.min(totalSeconds, current + 1));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [elapsed, paused, reviewing, started, totalSeconds]);
+  }, [elapsed, executionEnabled, paused, reviewing, started, totalSeconds]);
 
   useEffect(() => {
-    if (started && elapsed >= totalSeconds && !reviewing) {
+    if (executionEnabled && started && elapsed >= totalSeconds && !reviewing) {
       setPaused(true);
       setReviewing(true);
     }
-  }, [elapsed, reviewing, started, totalSeconds]);
+  }, [elapsed, executionEnabled, reviewing, started, totalSeconds]);
 
   const phase = useMemo(() => {
     if (elapsed >= totalSeconds) {
@@ -1153,9 +1155,11 @@ function GymCardioBlock({
         <View style={cardioStyles.liveActions}>
           <Pressable
             onPress={() => setPaused((current) => !current)}
+            disabled={!executionEnabled}
             style={({ pressed }) => [
               cardioStyles.secondaryButton,
-              pressed && cardioStyles.pressed,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && cardioStyles.pressed,
             ]}
           >
             <Ionicons
@@ -1169,9 +1173,11 @@ function GymCardioBlock({
           </Pressable>
           <Pressable
             onPress={openReview}
+            disabled={!executionEnabled}
             style={({ pressed }) => [
               cardioStyles.finishButton,
-              pressed && cardioStyles.pressed,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && cardioStyles.pressed,
             ]}
           >
             <Ionicons name="checkmark" size={17} color={themeColors.text} />
@@ -1196,6 +1202,7 @@ function GymCardioBlock({
                 <Text style={cardioStyles.fieldLabel}>DISTANCE (M)</Text>
                 <TextInput
                   value={distance}
+                  editable={executionEnabled && reviewing}
                   onChangeText={setDistance}
                   placeholder="—"
                   placeholderTextColor={themeColors.textMuted}
@@ -1210,6 +1217,7 @@ function GymCardioBlock({
                 <Text style={cardioStyles.fieldLabel}>CALORIES</Text>
                 <TextInput
                   value={calories}
+                  editable={executionEnabled && reviewing}
                   onChangeText={setCalories}
                   placeholder="—"
                   placeholderTextColor={themeColors.textMuted}
@@ -1274,12 +1282,14 @@ function TimedBlock({
   const [rpe, setRpe] = useState(exercise?.rpe != null ? String(exercise.rpe) : '');
 
   useEffect(() => {
-    if (!started || paused || elapsed >= prescribedSeconds) return undefined;
+    if (!executionEnabled || !started || paused || elapsed >= prescribedSeconds) {
+      return undefined;
+    }
     const timer = setInterval(() => {
       setElapsed((current) => Math.min(prescribedSeconds, current + 1));
     }, 1000);
     return () => clearInterval(timer);
-  }, [elapsed, paused, prescribedSeconds, started]);
+  }, [elapsed, executionEnabled, paused, prescribedSeconds, started]);
 
   const phase = useMemo(() => {
     if (!isIntervals) {
@@ -1390,7 +1400,16 @@ function TimedBlock({
               <Text style={styles.primaryButtonText}>DÉMARRER</Text>
             </Pressable>
           ) : (
-            <Pressable onPress={() => setPaused((current) => !current)} style={({ pressed }) => [styles.secondaryButton, styles.flexButton, pressed && styles.pressed]}>
+            <Pressable
+              onPress={() => setPaused((current) => !current)}
+              disabled={!executionEnabled}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                styles.flexButton,
+                !executionEnabled && { opacity: 0.45 },
+                pressed && executionEnabled && styles.pressed,
+              ]}
+            >
               <Text style={styles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
             </Pressable>
           )}
@@ -1516,10 +1535,12 @@ function TimedBlock({
         ) : elapsed < prescribedSeconds ? (
           <Pressable
             onPress={() => setPaused((current) => !current)}
+            disabled={!executionEnabled}
             style={({ pressed }) => [
               runStyles.secondaryButton,
               runStyles.flexButton,
-              pressed && runStyles.pressed,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && runStyles.pressed,
             ]}
           >
             <Ionicons
@@ -1574,7 +1595,12 @@ function TimedBlock({
       {elapsed >= prescribedSeconds ? (
         <Pressable
           onPress={finish}
-          style={({ pressed }) => [runStyles.primaryButton, pressed && runStyles.pressed]}
+          disabled={!executionEnabled || !started}
+          style={({ pressed }) => [
+            runStyles.primaryButton,
+            (!executionEnabled || !started) && { opacity: 0.45 },
+            pressed && executionEnabled && started && runStyles.pressed,
+          ]}
         >
           <Ionicons name="checkmark" size={18} color={themeColors.textOnAccent} />
           <Text style={runStyles.primaryButtonText}>TERMINER LE BLOC</Text>
@@ -1582,7 +1608,12 @@ function TimedBlock({
       ) : started ? (
         <Pressable
           onPress={finish}
-          style={({ pressed }) => [runStyles.stopButton, pressed && runStyles.pressed]}
+          disabled={!executionEnabled}
+          style={({ pressed }) => [
+            runStyles.stopButton,
+            !executionEnabled && { opacity: 0.45 },
+            pressed && executionEnabled && runStyles.pressed,
+          ]}
         >
           <Ionicons
             name="stop-circle-outline"
