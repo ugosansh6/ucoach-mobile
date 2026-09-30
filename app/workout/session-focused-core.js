@@ -889,7 +889,11 @@ export default function SessionFocusedCore({
                   <Text style={[styles.secondaryActionText, canSwap && { color: colors.accent }]}>Adapter</Text>
                 </Pressable>
 
-                <Pressable onPress={refuseCurrentExercise} style={styles.refuseAction}>
+                <Pressable
+                  onPress={refuseCurrentExercise}
+                  disabled={!sessionStarted}
+                  style={[styles.refuseAction, !sessionStarted && styles.actionDisabled]}
+                >
                   <Ionicons name="close-circle-outline" size={18} color={colors.secondaryAccent} />
                   <Text style={styles.refuseActionText}>Refuser</Text>
                 </Pressable>
@@ -928,7 +932,11 @@ export default function SessionFocusedCore({
               </View>
             ) : null}
 
-            <Pressable onPress={completeCurrentExercise} style={styles.primaryButtonLarge}>
+            <Pressable
+              onPress={completeCurrentExercise}
+              disabled={!sessionStarted}
+              style={[styles.primaryButtonLarge, !sessionStarted && styles.actionDisabled]}
+            >
               <Ionicons name="checkmark-circle-outline" size={20} color={colors.textOnAccent} />
               <Text style={styles.primaryButtonTextLarge}>
                 {activeExerciseIndex >= activeBlock.exercises.length - 1

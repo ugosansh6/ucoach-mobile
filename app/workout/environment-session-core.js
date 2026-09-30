@@ -296,7 +296,7 @@ function initialSetDrafts(exercises, block) {
   return next;
 }
 
-function SimpleBlock({ block, exercises, onComplete }) {
+function SimpleBlock({ block, exercises, onComplete, executionEnabled = true }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const focusedStyles = useMemo(
     () => createEnvironmentFocusedStyles(themeColors, isDark),
@@ -377,7 +377,14 @@ function SimpleBlock({ block, exercises, onComplete }) {
         </View>
       ) : null}
 
-      <Pressable onPress={validateCurrent} style={focusedStyles.primaryButtonLarge}>
+      <Pressable
+        onPress={validateCurrent}
+        disabled={!executionEnabled}
+        style={[
+          focusedStyles.primaryButtonLarge,
+          !executionEnabled && focusedStyles.actionDisabled,
+        ]}
+      >
         <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
         <Text style={focusedStyles.primaryButtonTextLarge}>
           {isLast ? 'Réalisé · terminer le bloc' : 'Réalisé · suivant'}
@@ -1946,7 +1953,12 @@ export default function EnvironmentSessionCore({
             onComplete={advanceWithUpdates}
           />
         ) : (
-          <SimpleBlock block={currentBlock} exercises={currentExercises} onComplete={completeSimpleBlock} />
+          <SimpleBlock
+            block={currentBlock}
+            exercises={currentExercises}
+            onComplete={completeSimpleBlock}
+            executionEnabled={sessionStarted}
+          />
         )}
       </ScrollView>
 

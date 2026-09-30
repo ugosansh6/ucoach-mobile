@@ -89,7 +89,7 @@ export default function SessionPlayerHeader({
             <View style={styles.startCopy}>
               <Text style={styles.startTitle}>Prêt à commencer ?</Text>
               <Text style={styles.startText}>
-                Jusqu’ici, tu peux encore modifier la séance. En la démarrant, les règles de séance en cours s’activent.
+                Tu peux encore modifier la séance avant de commencer.
               </Text>
             </View>
             <Pressable
