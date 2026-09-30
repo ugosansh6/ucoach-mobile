@@ -832,7 +832,13 @@ function ManualGymBlock({ block, exercises, onComplete, executionEnabled = true 
   );
 }
 
-function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
+function GymCardioBlock({
+  block,
+  exercises,
+  onBeforeStart,
+  onComplete,
+  executionEnabled = true,
+}) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const cardioStyles = useMemo(
     () => createGymCardioStyles(themeColors, isDark),
@@ -1004,12 +1010,14 @@ function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
   ]);
 
   function openReview() {
-    if (!started || elapsed <= 0) return;
+    if (!executionEnabled || !started || elapsed <= 0) return;
     setPaused(true);
     setReviewing(true);
   }
 
   function validateResult() {
+    if (!executionEnabled) return;
+
     const distanceMeters = distance.trim()
       ? numberOr(distance.replace(',', '.'), null)
       : null;
@@ -1047,6 +1055,14 @@ function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
   }
 
   async function startEffort() {
+    if (!executionEnabled) {
+      Alert.alert(
+        'Séance non démarrée',
+        'Démarre d’abord la séance avant de lancer ce bloc.'
+      );
+      return;
+    }
+
     try {
       if (typeof onBeforeStart === 'function') await onBeforeStart();
       setStarted(true);
@@ -1122,9 +1138,11 @@ function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
           </View>
           <Pressable
             onPress={startEffort}
+            disabled={!executionEnabled}
             style={({ pressed }) => [
               cardioStyles.primaryButton,
-              pressed && cardioStyles.pressed,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && cardioStyles.pressed,
             ]}
           >
             <Ionicons name="play" size={18} color={themeColors.textOnAccent} />
@@ -1204,9 +1222,11 @@ function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
 
           <Pressable
             onPress={validateResult}
+            disabled={!executionEnabled}
             style={({ pressed }) => [
               cardioStyles.primaryButton,
-              pressed && cardioStyles.pressed,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && cardioStyles.pressed,
             ]}
           >
             <Ionicons name="checkmark" size={18} color={themeColors.textOnAccent} />
@@ -1218,7 +1238,14 @@ function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
   );
 }
 
-function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplete }) {
+function TimedBlock({
+  block,
+  exercise,
+  environmentCode,
+  onBeforeStart,
+  onComplete,
+  executionEnabled = true,
+}) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const runStyles = useMemo(
     () => createOutdoorRunStyles(themeColors, isDark),
@@ -1298,6 +1325,14 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
   const totalLabel = formatRunDuration(prescribedSeconds);
 
   async function startTimedBlock() {
+    if (!executionEnabled) {
+      Alert.alert(
+        'Séance non démarrée',
+        'Démarre d’abord la séance avant de lancer ce bloc.'
+      );
+      return;
+    }
+
     try {
       if (typeof onBeforeStart === 'function') await onBeforeStart();
       setStarted(true);
@@ -1310,6 +1345,8 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
   }
 
   function finish() {
+    if (!executionEnabled) return;
+
     if (!started && elapsed <= 0) {
       Alert.alert('Chrono non démarré', 'Démarre le chrono avant de terminer ce bloc.');
       return;
@@ -1340,7 +1377,16 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
 
         <View style={styles.timerActions}>
           {!started ? (
-            <Pressable onPress={startTimedBlock} style={({ pressed }) => [styles.primaryButton, styles.flexButton, pressed && styles.pressed]}>
+            <Pressable
+              onPress={startTimedBlock}
+              disabled={!executionEnabled}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                styles.flexButton,
+                !executionEnabled && { opacity: 0.45 },
+                pressed && executionEnabled && styles.pressed,
+              ]}
+            >
               <Text style={styles.primaryButtonText}>DÉMARRER</Text>
             </Pressable>
           ) : (
@@ -1355,6 +1401,7 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
             <Text style={styles.inputLabel}>DISTANCE RÉELLE (M)</Text>
             <TextInput
               value={distance}
+              editable={executionEnabled && started}
               onChangeText={setDistance}
               placeholder="Optionnel"
               placeholderTextColor={colors.textMuted}
@@ -1366,6 +1413,7 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
             <Text style={styles.inputLabel}>RPE</Text>
             <TextInput
               value={rpe}
+              editable={executionEnabled && started}
               onChangeText={setRpe}
               placeholder="1–10"
               placeholderTextColor={colors.textMuted}
@@ -1381,7 +1429,15 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
             : 'Renseigne seulement ce que tu as réellement mesuré.'}
         </Text>
 
-        <Pressable onPress={finish} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+        <Pressable
+          onPress={finish}
+          disabled={!executionEnabled || !started}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            (!executionEnabled || !started) && { opacity: 0.45 },
+            pressed && executionEnabled && started && styles.pressed,
+          ]}
+        >
           <Text style={styles.primaryButtonText}>{elapsed >= prescribedSeconds ? 'TERMINER LE BLOC' : 'ARRÊTER ET TERMINER'}</Text>
         </Pressable>
       </View>
@@ -1446,10 +1502,12 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
         {!started ? (
           <Pressable
             onPress={startTimedBlock}
+            disabled={!executionEnabled}
             style={({ pressed }) => [
               runStyles.primaryButton,
               runStyles.flexButton,
-              pressed && runStyles.pressed,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && runStyles.pressed,
             ]}
           >
             <Ionicons name="play" size={18} color={themeColors.textOnAccent} />
@@ -1484,6 +1542,7 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
               <Text style={runStyles.inputLabel}>DISTANCE (M)</Text>
               <TextInput
                 value={distance}
+                editable={executionEnabled && started}
                 onChangeText={setDistance}
                 placeholder="Optionnel"
                 placeholderTextColor={themeColors.textMuted}
@@ -1495,6 +1554,7 @@ function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplet
               <Text style={runStyles.inputLabel}>RPE</Text>
               <TextInput
                 value={rpe}
+                editable={executionEnabled && started}
                 onChangeText={setRpe}
                 placeholder="1–10"
                 placeholderTextColor={themeColors.textMuted}
@@ -1543,6 +1603,7 @@ export default function EnvironmentSessionCore({
   onOpenWhy,
   onOpenAdjust,
   onStartSession,
+  lifecycleReady = true,
   sessionStarted = false,
   startBusy = false,
   showAdjust = false,
@@ -1603,12 +1664,21 @@ export default function EnvironmentSessionCore({
   }, [blocks, workout.exercises]);
 
   const ensureStarted = useCallback(async () => {
-    if (workout?.sessionStarted) return { status: 'IN_PROGRESS' };
+    if (!workout?.sessionId) {
+      throw new Error('Aucune séance active.');
+    }
+    if (!lifecycleReady) {
+      throw new Error('Vérification de la séance en cours. Réessaie dans un instant.');
+    }
+    if (sessionStarted) return { status: 'IN_PROGRESS' };
 
     throw new Error('Démarre d’abord la séance avec le bouton « Démarrer ma séance ».');
-  }, [workout?.sessionStarted]);
+  }, [lifecycleReady, sessionStarted, workout?.sessionId]);
 
-  const wodRevealed = Boolean(workout?.wodRevealed || workout?.wodRevealedAt);
+  const wodRevealed = Boolean(
+    lifecycleReady &&
+      (workout?.wodRevealed || workout?.wodRevealedAt)
+  );
 
   const revealWod = useCallback(async () => {
     await ensureStarted();
@@ -1665,6 +1735,10 @@ export default function EnvironmentSessionCore({
   const ensureWodStarted = useCallback(async () => {
     await ensureStarted();
 
+    if (!wodRevealed) {
+      throw new Error('Révèle d’abord le WOD avant de le démarrer.');
+    }
+
     if (wodStartedRef.current) {
       return { status: 'WOD_ALREADY_STARTED' };
     }
@@ -1706,6 +1780,7 @@ export default function EnvironmentSessionCore({
   }, [
     ensureStarted,
     updateWorkout,
+    wodRevealed,
     workout?.sessionId,
     workout?.wodRevealedAt,
     workout?.wodStartedAt,
@@ -2055,7 +2130,11 @@ export default function EnvironmentSessionCore({
                     );
                   });
                 }}
-                style={focusedTabataStyles.primaryButton}
+                disabled={!sessionStarted}
+                style={[
+                  focusedTabataStyles.primaryButton,
+                  !sessionStarted && focusedTabataStyles.actionDisabled,
+                ]}
               >
                 <Ionicons
                   name="eye-outline"
@@ -2074,6 +2153,7 @@ export default function EnvironmentSessionCore({
             exercises={currentExercises}
             onBeforeStart={ensureStarted}
             onComplete={completeTimedBlock}
+            executionEnabled={sessionStarted}
           />
         ) : timed ? (
           <TimedBlock
@@ -2083,6 +2163,7 @@ export default function EnvironmentSessionCore({
             environmentCode={environmentCode}
             onBeforeStart={wodBlock ? ensureWodStarted : ensureStarted}
             onComplete={completeTimedBlock}
+            executionEnabled={sessionStarted}
           />
         ) : canonicalWod ? (
           <EnvironmentWodBlock
@@ -2091,6 +2172,7 @@ export default function EnvironmentSessionCore({
             exercises={currentExercises}
             runtime={workout.wodRuntime ?? null}
             onBeforeStart={ensureWodStarted}
+            executionEnabled={sessionStarted}
             onRuntimeChange={handleWodRuntimeChange}
             onComplete={completeWodBlock}
             canChangeFormat={
@@ -2116,6 +2198,7 @@ export default function EnvironmentSessionCore({
             }}
             onBeforeStart={ensureStarted}
             onFinish={completeEnvironmentTabata}
+            executionEnabled={sessionStarted}
             styles={focusedTabataStyles}
             colors={themeColors}
           />
