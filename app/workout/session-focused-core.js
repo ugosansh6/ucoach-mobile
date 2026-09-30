@@ -804,7 +804,13 @@ export default function SessionFocusedCore({
             )}
           </>
         ) : activeBlock.id === 'tabata' ? (
-          <FocusedTabata block={activeBlock} onFinish={() => completeBlock(activeBlock)} styles={styles} colors={colors} />
+          <FocusedTabata
+            block={activeBlock}
+            onBeforeStart={ensureSessionStarted}
+            onFinish={() => completeBlock(activeBlock)}
+            styles={styles}
+            colors={colors}
+          />
         ) : (
           <>
             <View style={styles.mediaCard}>
