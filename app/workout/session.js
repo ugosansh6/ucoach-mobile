@@ -103,6 +103,7 @@ export default function SessionScreen() {
   const usesSpecializedEnvironmentRuntime = ['GYM', 'OUTDOOR'].includes(environmentCode);
   const progressRecorded = hasRecordedProgress(workout);
   const hasResumeCursor = Boolean(
+    workout?.sessionStarted &&
     workout?.playerCursor?.blockId &&
       (!workout?.playerCursor?.sessionId || workout.playerCursor.sessionId === workout?.sessionId)
   );
