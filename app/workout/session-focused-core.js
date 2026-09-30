@@ -223,6 +223,7 @@ export default function SessionFocusedCore({
   onOpenWhy,
   onOpenAdjust,
   onStartSession,
+  lifecycleReady = true,
   sessionStarted = false,
   startBusy = false,
   showAdjust = false,
@@ -361,11 +362,16 @@ export default function SessionFocusedCore({
   }, [workout?.sessionId]);
 
   const ensureSessionStarted = useCallback(async () => {
-    if (!workout?.sessionId) return { status: 'NO_SESSION' };
-    if (workout?.sessionStarted) return { status: 'IN_PROGRESS' };
+    if (!workout?.sessionId) {
+      throw new Error('Aucune séance active.');
+    }
+    if (!lifecycleReady) {
+      throw new Error('Vérification de la séance en cours. Réessaie dans un instant.');
+    }
+    if (sessionStarted) return { status: 'IN_PROGRESS' };
 
     throw new Error('Démarre d’abord la séance avec le bouton « Démarrer ma séance ».');
-  }, [workout?.sessionId, workout?.sessionStarted]);
+  }, [lifecycleReady, sessionStarted, workout?.sessionId]);
 
   function patchExercise(target, values) {
     const targetInstance = target?.sessionExerciseId;
@@ -401,6 +407,14 @@ export default function SessionFocusedCore({
   }
 
   function finalizeBlock(block, extraExercisePatch = null) {
+    if (!lifecycleReady || !sessionStarted) {
+      Alert.alert(
+        'Séance non démarrée',
+        'Démarre d’abord la séance avant d’enregistrer une exécution.'
+      );
+      return false;
+    }
+
     const nextValidated = Array.from(new Set([...validatedBlocks, block.id]));
     const completionBaseExercises = block.id === 'wod'
       ? applyWodRuntimeStatuses(workout?.exercises ?? [], block, workout?.wodRuntime ?? null)
@@ -436,12 +450,13 @@ export default function SessionFocusedCore({
         status: 'awaiting_completion',
       });
       router.push('/workout/completion');
-      return;
+      return true;
     }
 
     updateWorkout({ exercises: nextExercises, validatedBlocks: nextValidated });
     setExerciseIndexes((current) => ({ ...current, [block.id]: 0 }));
     setDetailsOpen(false);
+    return true;
   }
 
   async function completeBlock(block) {
@@ -485,6 +500,13 @@ export default function SessionFocusedCore({
 
   function saveSkillScore() {
     if (!activeBlock || !activeExercise) return;
+    if (!lifecycleReady || !sessionStarted) {
+      Alert.alert(
+        'Séance non démarrée',
+        'Démarre d’abord la séance avant d’enregistrer ce résultat.'
+      );
+      return;
+    }
 
     const numeric = Number(String(skillScoreValue).trim().replace(',', '.'));
     if (!Number.isFinite(numeric) || numeric <= 0) return;
@@ -595,9 +617,19 @@ export default function SessionFocusedCore({
     }
   }
 
-  function selectExerciseStatus(value) {
+  async function selectExerciseStatus(value) {
     if (!statusExercise) return;
-    ensureSessionStarted().catch(() => {});
+
+    try {
+      await ensureSessionStarted();
+    } catch (error) {
+      Alert.alert(
+        'Séance non démarrée',
+        error?.message ?? 'Démarre d’abord la séance.'
+      );
+      return;
+    }
+
     patchExercise(statusExercise, { status: value });
     setStatusExercise(null);
   }
@@ -629,7 +661,10 @@ export default function SessionFocusedCore({
     return previous.every((blockId) => validatedBlocks.includes(blockId));
   }, [blocks, validatedBlocks]);
 
-  const wodRevealed = Boolean(workout?.wodRevealed || workout?.wodRevealedAt);
+  const wodRevealed = Boolean(
+    lifecycleReady &&
+      (workout?.wodRevealed || workout?.wodRevealedAt)
+  );
 
   async function revealWod() {
     if (!workout?.sessionId || !wodUnlocked || wodRevealed) return;
@@ -777,7 +812,14 @@ export default function SessionFocusedCore({
                     </Pressable>
                   ) : null}
                 </View>
-                <Pressable onPress={revealWod} style={styles.primaryButton}>
+                <Pressable
+                  onPress={revealWod}
+                  disabled={!sessionStarted}
+                  style={[
+                    styles.primaryButton,
+                    !sessionStarted && styles.actionDisabled,
+                  ]}
+                >
                   <Ionicons name="eye-outline" size={18} color={colors.textOnAccent} />
                   <Text style={styles.primaryButtonText}>Découvrir le WOD</Text>
                 </Pressable>
@@ -791,11 +833,19 @@ export default function SessionFocusedCore({
                   canChangeFormat={remainingFormatChanges > 0 && !workout?.wodStarted && !workout?.wodStartedAt && !workout?.wodRuntime?.started}
                   onChangeFormat={openFormatModal}
                   onBeforeStart={handleWodStart}
+                  executionEnabled={sessionStarted}
                   onRuntimeChange={handleWodRuntime}
                 />
 
                 {workout?.wodRuntime?.finished ? (
-                  <Pressable onPress={() => completeBlock(activeBlock)} style={styles.primaryButton}>
+                  <Pressable
+                    onPress={() => completeBlock(activeBlock)}
+                    disabled={!sessionStarted}
+                    style={[
+                      styles.primaryButton,
+                      !sessionStarted && styles.actionDisabled,
+                    ]}
+                  >
                     <Ionicons name="checkmark" size={18} color={colors.textOnAccent} />
                     <Text style={styles.primaryButtonText}>Terminer la séance</Text>
                   </Pressable>
@@ -808,6 +858,7 @@ export default function SessionFocusedCore({
             block={activeBlock}
             onBeforeStart={ensureSessionStarted}
             onFinish={() => completeBlock(activeBlock)}
+            executionEnabled={sessionStarted}
             styles={styles}
             colors={colors}
           />
@@ -1006,7 +1057,14 @@ export default function SessionFocusedCore({
   );
 }
 
-export function FocusedTabata({ block, onBeforeStart, onFinish, styles, colors }) {
+export function FocusedTabata({
+  block,
+  onBeforeStart,
+  onFinish,
+  executionEnabled = true,
+  styles,
+  colors,
+}) {
   const protocol = prescriptionObject(block?.exercises?.[0])?.protocol ?? {};
   const rounds = Math.max(1, Number(block?.source?.rounds ?? protocol?.rounds ?? 8) || 8);
   const workSeconds = Math.max(1, Number(block?.source?.workSeconds ?? block?.source?.work_seconds ?? protocol?.work_seconds ?? 20) || 20);
@@ -1062,6 +1120,14 @@ export function FocusedTabata({ block, onBeforeStart, onFinish, styles, colors }
   }
 
   async function startTabata() {
+    if (!executionEnabled) {
+      Alert.alert(
+        'Séance non démarrée',
+        'Démarre d’abord la séance avant de lancer ce bloc.'
+      );
+      return;
+    }
+
     try {
       if (typeof onBeforeStart === 'function') await onBeforeStart();
       setStarted(true);
@@ -1170,24 +1236,54 @@ export function FocusedTabata({ block, onBeforeStart, onFinish, styles, colors }
       </View>
 
       {!started ? (
-        <Pressable onPress={startTabata} style={[styles.primaryButtonLarge, { backgroundColor: TABATA_REST_COLOR }]}>
+        <Pressable
+          onPress={startTabata}
+          disabled={!executionEnabled}
+          style={[
+            styles.primaryButtonLarge,
+            { backgroundColor: TABATA_REST_COLOR },
+            !executionEnabled && styles.actionDisabled,
+          ]}
+        >
           <Ionicons name="play" size={19} color={colors.textOnAccent} />
           <Text style={styles.primaryButtonTextLarge}>Démarrer le Tabata</Text>
         </Pressable>
       ) : elapsed < totalSeconds ? (
-        <Pressable onPress={() => setPaused((value) => !value)} style={styles.secondaryWideButton}>
+        <Pressable
+          onPress={() => setPaused((value) => !value)}
+          disabled={!executionEnabled}
+          style={[
+            styles.secondaryWideButton,
+            !executionEnabled && styles.actionDisabled,
+          ]}
+        >
           <Ionicons name={paused ? 'play' : 'pause'} size={19} color={colors.text} />
           <Text style={styles.secondaryWideText}>{paused ? 'Reprendre' : 'Pause'}</Text>
         </Pressable>
       ) : (
-        <Pressable onPress={finishTabata} style={[styles.primaryButtonLarge, { backgroundColor: TABATA_REST_COLOR }]}>
+        <Pressable
+          onPress={finishTabata}
+          disabled={!executionEnabled}
+          style={[
+            styles.primaryButtonLarge,
+            { backgroundColor: TABATA_REST_COLOR },
+            !executionEnabled && styles.actionDisabled,
+          ]}
+        >
           <Ionicons name="checkmark" size={19} color={colors.textOnAccent} />
           <Text style={styles.primaryButtonTextLarge}>Terminer le Tabata</Text>
         </Pressable>
       )}
 
       {started && elapsed < totalSeconds ? (
-        <Pressable onPress={finishTabata} style={styles.stopButton}>
+        <Pressable
+          onPress={finishTabata}
+          disabled={!executionEnabled}
+          style={[
+            styles.stopButton,
+            !executionEnabled && styles.actionDisabled,
+          ]}
+        >
           <Text style={[styles.stopButtonText, { color: TABATA_WORK_COLOR }]}>Arrêter le bloc</Text>
         </Pressable>
       ) : null}
