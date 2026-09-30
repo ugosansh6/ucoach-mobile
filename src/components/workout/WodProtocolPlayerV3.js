@@ -391,7 +391,7 @@ export default function WodProtocolPlayerV3({
   }, [finish, mechanic]);
 
   const [elapsed] = useSecondClock({
-    started,
+    started: started && executionEnabled,
     paused,
     finished,
     maxSeconds: totalSeconds,
@@ -400,7 +400,7 @@ export default function WodProtocolPlayerV3({
   });
 
   useEffect(() => {
-    if (restRemaining <= 0 || paused || finished) return undefined;
+    if (!executionEnabled || restRemaining <= 0 || paused || finished) return undefined;
     const timer = setInterval(() => {
       setRestRemaining((current) => {
         if (current <= 1) {
@@ -412,7 +412,7 @@ export default function WodProtocolPlayerV3({
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [finished, paused, playBeep, restRemaining > 0]);
+  }, [executionEnabled, finished, paused, playBeep, restRemaining > 0]);
 
   const derived = useMemo(() => {
     if (mechanic === 'EMOM') {
@@ -487,24 +487,24 @@ export default function WodProtocolPlayerV3({
   const lastPhaseKey = useRef(null);
 
   useEffect(() => {
-    if (!started || paused || finished || !derived.phaseKey) return;
+    if (!executionEnabled || !started || paused || finished || !derived.phaseKey) return;
     if (lastPhaseKey.current === derived.phaseKey) return;
     if (lastPhaseKey.current != null) {
       playBeep();
       Vibration.vibrate(70);
     }
     lastPhaseKey.current = derived.phaseKey;
-  }, [derived.phaseKey, finished, paused, playBeep, started]);
+  }, [derived.phaseKey, executionEnabled, finished, paused, playBeep, started]);
 
   useEffect(() => {
-    if (!started || paused || finished) return;
+    if (!executionEnabled || !started || paused || finished) return;
     const remaining = derived.phaseRemaining ??
       (totalSeconds != null ? Math.max(0, totalSeconds - elapsed) : null);
     if (remaining != null && remaining > 0 && remaining <= 3) {
       playBeep();
       Vibration.vibrate(30);
     }
-  }, [derived.phaseRemaining, elapsed, finished, paused, playBeep, started, totalSeconds]);
+  }, [derived.phaseRemaining, elapsed, executionEnabled, finished, paused, playBeep, started, totalSeconds]);
 
   const runtime = useMemo(() => ({
     version: 'play-013-wod-player-v3',
