@@ -14,6 +14,7 @@ export default function EnvironmentWodBlock({
   exercises,
   runtime,
   onBeforeStart,
+  executionEnabled = true,
   onRuntimeChange,
   onComplete,
   canChangeFormat = false,
@@ -42,6 +43,7 @@ export default function EnvironmentWodBlock({
         block={playerBlock}
         initialRuntime={runtime ?? null}
         onBeforeStart={onBeforeStart}
+        executionEnabled={executionEnabled}
         onRuntimeChange={onRuntimeChange}
         canChangeFormat={canChangeFormat}
         onChangeFormat={onChangeFormat}
@@ -50,9 +52,11 @@ export default function EnvironmentWodBlock({
       {runtime?.finished ? (
         <Pressable
           onPress={onComplete}
+          disabled={!executionEnabled}
           style={({ pressed }) => [
             styles.completeButton,
-            pressed && styles.pressed,
+            !executionEnabled && styles.disabled,
+            pressed && executionEnabled && styles.pressed,
           ]}
         >
           <Text style={styles.completeButtonText}>Terminer le bloc</Text>
@@ -79,5 +83,6 @@ function createStyles(colors) {
       color: colors.textOnAccent,
     },
     pressed: { opacity: 0.72 },
+    disabled: { opacity: 0.45 },
   });
 }
