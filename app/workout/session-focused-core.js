@@ -635,6 +635,7 @@ export default function SessionFocusedCore({
     if (!workout?.sessionId || !wodUnlocked || wodRevealed) return;
 
     try {
+      await ensureSessionStarted();
       const result = await markWorkoutWodRevealed({ sessionId: workout.sessionId });
       updateWorkout({
         wodRevealed: true,
@@ -999,7 +1000,7 @@ export default function SessionFocusedCore({
   );
 }
 
-export function FocusedTabata({ block, onFinish, styles, colors }) {
+export function FocusedTabata({ block, onBeforeStart, onFinish, styles, colors }) {
   const protocol = prescriptionObject(block?.exercises?.[0])?.protocol ?? {};
   const rounds = Math.max(1, Number(block?.source?.rounds ?? protocol?.rounds ?? 8) || 8);
   const workSeconds = Math.max(1, Number(block?.source?.workSeconds ?? block?.source?.work_seconds ?? protocol?.work_seconds ?? 20) || 20);
@@ -1052,6 +1053,18 @@ export function FocusedTabata({ block, onFinish, styles, colors }) {
   function moveDisplayedExercise(direction) {
     if (exerciseCount <= 1) return;
     setDisplayExerciseIndex((current) => (current + direction + exerciseCount) % exerciseCount);
+  }
+
+  async function startTabata() {
+    try {
+      if (typeof onBeforeStart === 'function') await onBeforeStart();
+      setStarted(true);
+    } catch (error) {
+      Alert.alert(
+        'Impossible de démarrer ce bloc',
+        error?.message ?? 'Démarre d’abord la séance.'
+      );
+    }
   }
 
   function finishTabata() {
@@ -1151,7 +1164,7 @@ export function FocusedTabata({ block, onFinish, styles, colors }) {
       </View>
 
       {!started ? (
-        <Pressable onPress={() => setStarted(true)} style={[styles.primaryButtonLarge, { backgroundColor: TABATA_REST_COLOR }]}>
+        <Pressable onPress={startTabata} style={[styles.primaryButtonLarge, { backgroundColor: TABATA_REST_COLOR }]}>
           <Ionicons name="play" size={19} color={colors.textOnAccent} />
           <Text style={styles.primaryButtonTextLarge}>Démarrer le Tabata</Text>
         </Pressable>

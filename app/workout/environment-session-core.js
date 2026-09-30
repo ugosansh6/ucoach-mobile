@@ -21,6 +21,7 @@ import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwap
 import SessionFormatSheet from '../../src/components/workout/SessionFormatSheet';
 import SessionPlayerHeader from '../../src/components/workout/SessionPlayerHeader';
 import {
+  markWorkoutWodRevealed,
   markWorkoutWodStarted,
 } from '../../src/services/sessionMutationService';
 
@@ -1196,7 +1197,7 @@ function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
   );
 }
 
-function TimedBlock({ block, exercise, environmentCode, onComplete }) {
+function TimedBlock({ block, exercise, environmentCode, onBeforeStart, onComplete }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const runStyles = useMemo(
     () => createOutdoorRunStyles(themeColors, isDark),
@@ -1275,6 +1276,18 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
   const recoveryLabel = formatRunDuration(recoverySeconds);
   const totalLabel = formatRunDuration(prescribedSeconds);
 
+  async function startTimedBlock() {
+    try {
+      if (typeof onBeforeStart === 'function') await onBeforeStart();
+      setStarted(true);
+    } catch (error) {
+      Alert.alert(
+        'Impossible de démarrer ce bloc',
+        error?.message ?? 'Démarre d’abord la séance.'
+      );
+    }
+  }
+
   function finish() {
     if (!started && elapsed <= 0) {
       Alert.alert('Chrono non démarré', 'Démarre le chrono avant de terminer ce bloc.');
@@ -1306,7 +1319,7 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
 
         <View style={styles.timerActions}>
           {!started ? (
-            <Pressable onPress={() => setStarted(true)} style={({ pressed }) => [styles.primaryButton, styles.flexButton, pressed && styles.pressed]}>
+            <Pressable onPress={startTimedBlock} style={({ pressed }) => [styles.primaryButton, styles.flexButton, pressed && styles.pressed]}>
               <Text style={styles.primaryButtonText}>DÉMARRER</Text>
             </Pressable>
           ) : (
@@ -1411,7 +1424,7 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
       <View style={runStyles.actionRow}>
         {!started ? (
           <Pressable
-            onPress={() => setStarted(true)}
+            onPress={startTimedBlock}
             style={({ pressed }) => [
               runStyles.primaryButton,
               runStyles.flexButton,
@@ -1574,6 +1587,39 @@ export default function EnvironmentSessionCore({
     throw new Error('Démarre d’abord la séance avec le bouton « Démarrer ma séance ».');
   }, [workout?.sessionStarted]);
 
+  const wodRevealed = Boolean(workout?.wodRevealed || workout?.wodRevealedAt);
+
+  const revealWod = useCallback(async () => {
+    await ensureStarted();
+
+    if (!workout?.sessionId || wodRevealed) {
+      return { status: wodRevealed ? 'WOD_ALREADY_REVEALED' : 'NO_SESSION' };
+    }
+
+    const result = await markWorkoutWodRevealed({ sessionId: workout.sessionId });
+
+    updateWorkout({
+      wodRevealed: true,
+      wodRevealedAt: result?.wod_revealed_at ?? new Date().toISOString(),
+      formatChangeCount: Number(
+        result?.format_change_count ?? workout?.formatChangeCount ?? 0
+      ),
+      formatChangeLimit: Number(
+        result?.format_change_limit ?? workout?.formatChangeLimit ?? 3
+      ),
+      formatLocked: Boolean(result?.format_locked ?? false),
+    });
+
+    return result;
+  }, [
+    ensureStarted,
+    updateWorkout,
+    wodRevealed,
+    workout?.formatChangeCount,
+    workout?.formatChangeLimit,
+    workout?.sessionId,
+  ]);
+
   useEffect(() => {
     wodStartedRef.current = Boolean(
       workout?.wodRuntime?.started ||
@@ -1608,6 +1654,13 @@ export default function EnvironmentSessionCore({
             result?.wod_started_at ??
             workout?.wodStartedAt ??
             new Date().toISOString(),
+          wodRevealed: true,
+          wodRevealedAt:
+            result?.wod_revealed_at ??
+            workout?.wodRevealedAt ??
+            new Date().toISOString(),
+          formatLocked: true,
+          remainingFormatChanges: 0,
         });
         return result;
       })
@@ -1625,6 +1678,7 @@ export default function EnvironmentSessionCore({
     ensureStarted,
     updateWorkout,
     workout?.sessionId,
+    workout?.wodRevealedAt,
     workout?.wodStartedAt,
   ]);
 
@@ -1935,24 +1989,89 @@ export default function EnvironmentSessionCore({
             block={currentBlock}
             exercise={currentExercises[0]}
             environmentCode={environmentCode}
+            onBeforeStart={ensureStarted}
             onComplete={completeTimedBlock}
           />
         ) : canonicalWod ? (
-          <EnvironmentWodBlock
-            key={`${currentKey}:${mechanic}`}
-            block={currentBlock}
-            exercises={currentExercises}
-            runtime={workout.wodRuntime ?? null}
-            onBeforeStart={ensureWodStarted}
-            onRuntimeChange={handleWodRuntimeChange}
-            onComplete={completeWodBlock}
-            canChangeFormat={
-              !workout?.wodRuntime?.started &&
-              !workout?.wodStarted &&
-              !workout?.wodStartedAt
-            }
-            onChangeFormat={() => setFormatOpen(true)}
-          />
+          !wodRevealed ? (
+            <View style={focusedTabataStyles.secretCard}>
+              <View style={focusedTabataStyles.secretIcon}>
+                <Ionicons
+                  name="eye-off-outline"
+                  size={24}
+                  color={themeColors.textOnAccent}
+                />
+              </View>
+              <Text style={focusedTabataStyles.secretTitle}>Ton WOD est prêt</Text>
+              <Text style={focusedTabataStyles.secretText}>
+                Le contenu reste masqué jusqu’à ce que tu choisisses de le découvrir.
+              </Text>
+
+              <View style={focusedTabataStyles.formatRow}>
+                <View style={focusedTabataStyles.formatCopy}>
+                  <Text style={focusedTabataStyles.formatLabel}>Format</Text>
+                  <Text style={focusedTabataStyles.formatValue}>
+                    {String(
+                      workout?.format ??
+                      currentBlock?.mechanicLabel ??
+                      currentBlock?.mechanic ??
+                      'UGEROD'
+                    )}
+                  </Text>
+                </View>
+                {!workout?.wodStarted && !workout?.wodStartedAt ? (
+                  <Pressable
+                    onPress={() => setFormatOpen(true)}
+                    style={focusedTabataStyles.smallActionButton}
+                  >
+                    <Ionicons
+                      name="options-outline"
+                      size={16}
+                      color={themeColors.accent}
+                    />
+                    <Text style={focusedTabataStyles.smallActionText}>Changer</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  revealWod().catch((error) => {
+                    Alert.alert(
+                      'Impossible de révéler le WOD',
+                      error?.message ?? 'Réessaie.'
+                    );
+                  });
+                }}
+                style={focusedTabataStyles.primaryButton}
+              >
+                <Ionicons
+                  name="eye-outline"
+                  size={18}
+                  color={themeColors.textOnAccent}
+                />
+                <Text style={focusedTabataStyles.primaryButtonText}>
+                  Découvrir le WOD
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <EnvironmentWodBlock
+              key={`${currentKey}:${mechanic}`}
+              block={currentBlock}
+              exercises={currentExercises}
+              runtime={workout.wodRuntime ?? null}
+              onBeforeStart={ensureWodStarted}
+              onRuntimeChange={handleWodRuntimeChange}
+              onComplete={completeWodBlock}
+              canChangeFormat={
+                !workout?.wodRuntime?.started &&
+                !workout?.wodStarted &&
+                !workout?.wodStartedAt
+              }
+              onChangeFormat={() => setFormatOpen(true)}
+            />
+          )
         ) : tabata ? (
           <FocusedTabata
             key={`${currentKey}:${currentIndex}`}
@@ -1967,6 +2086,7 @@ export default function EnvironmentSessionCore({
               },
               exercises: currentExercises,
             }}
+            onBeforeStart={ensureStarted}
             onFinish={completeEnvironmentTabata}
             styles={focusedTabataStyles}
             colors={themeColors}
