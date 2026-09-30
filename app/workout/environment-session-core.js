@@ -1946,7 +1946,8 @@ export default function EnvironmentSessionCore({
   const gymCardio = environmentCode === 'GYM' && timed && !isRunMechanic(mechanic);
   const tabata = currentKey === 'tabata' || ['TABATA', 'TABATA_ABS'].includes(normalize(currentBlock?.module_code));
   const manualGym = currentKey === 'gym' && !structuredStrength;
-  const canonicalWod = currentKey === 'wod' && !isRunMechanic(mechanic);
+  const wodBlock = currentKey === 'wod';
+  const canonicalWod = wodBlock && !isRunMechanic(mechanic);
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: themeColors.background }]}>
@@ -1975,26 +1976,8 @@ export default function EnvironmentSessionCore({
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {gymCardio ? (
-          <GymCardioBlock
-            key={`${currentKey}:${mechanic}:gym`}
-            block={currentBlock}
-            exercises={currentExercises}
-            onBeforeStart={ensureStarted}
-            onComplete={completeTimedBlock}
-          />
-        ) : timed ? (
-          <TimedBlock
-            key={`${currentKey}:${mechanic}`}
-            block={currentBlock}
-            exercise={currentExercises[0]}
-            environmentCode={environmentCode}
-            onBeforeStart={ensureStarted}
-            onComplete={completeTimedBlock}
-          />
-        ) : canonicalWod ? (
-          !wodRevealed ? (
-            <View style={focusedTabataStyles.secretCard}>
+        {wodBlock && !wodRevealed ? (
+          <View style={focusedTabataStyles.secretCard}>
               <View style={focusedTabataStyles.secretIcon}>
                 <Ionicons
                   name="eye-off-outline"
@@ -2055,23 +2038,39 @@ export default function EnvironmentSessionCore({
                 </Text>
               </Pressable>
             </View>
-          ) : (
-            <EnvironmentWodBlock
-              key={`${currentKey}:${mechanic}`}
-              block={currentBlock}
-              exercises={currentExercises}
-              runtime={workout.wodRuntime ?? null}
-              onBeforeStart={ensureWodStarted}
-              onRuntimeChange={handleWodRuntimeChange}
-              onComplete={completeWodBlock}
-              canChangeFormat={
-                !workout?.wodRuntime?.started &&
-                !workout?.wodStarted &&
-                !workout?.wodStartedAt
-              }
-              onChangeFormat={() => setFormatOpen(true)}
-            />
-          )
+        ) : gymCardio ? (
+          <GymCardioBlock
+            key={`${currentKey}:${mechanic}:gym`}
+            block={currentBlock}
+            exercises={currentExercises}
+            onBeforeStart={ensureStarted}
+            onComplete={completeTimedBlock}
+          />
+        ) : timed ? (
+          <TimedBlock
+            key={`${currentKey}:${mechanic}`}
+            block={currentBlock}
+            exercise={currentExercises[0]}
+            environmentCode={environmentCode}
+            onBeforeStart={wodBlock ? ensureWodStarted : ensureStarted}
+            onComplete={completeTimedBlock}
+          />
+        ) : canonicalWod ? (
+          <EnvironmentWodBlock
+            key={`${currentKey}:${mechanic}`}
+            block={currentBlock}
+            exercises={currentExercises}
+            runtime={workout.wodRuntime ?? null}
+            onBeforeStart={ensureWodStarted}
+            onRuntimeChange={handleWodRuntimeChange}
+            onComplete={completeWodBlock}
+            canChangeFormat={
+              !workout?.wodRuntime?.started &&
+              !workout?.wodStarted &&
+              !workout?.wodStartedAt
+            }
+            onChangeFormat={() => setFormatOpen(true)}
+          />
         ) : tabata ? (
           <FocusedTabata
             key={`${currentKey}:${currentIndex}`}
