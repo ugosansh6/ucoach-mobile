@@ -570,7 +570,7 @@ export default function SessionOverviewSheet({
           <View style={styles.footer}>
             <Pressable onPress={onClose} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
               <Text style={styles.primaryButtonText}>
-                {workout?.sessionStarted ? 'RETOURNER À MA SÉANCE' : 'COMMENCER MA SÉANCE'}
+                {workout?.sessionStarted ? 'RETOURNER À MA SÉANCE' : 'VOIR LE PREMIER BLOC'}
               </Text>
               <Ionicons name="arrow-forward" size={19} color={colors.textOnAccent} />
             </Pressable>

@@ -21,7 +21,6 @@ import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   adaptSessionExercise,
   getWorkoutSwapAvailabilityForExercise,
-  markWorkoutSessionStarted,
   markWorkoutWodRevealed,
   markWorkoutWodStarted,
   swapWorkoutExercise,
@@ -223,6 +222,10 @@ export default function SessionFocusedCore({
   onOpenPlanB,
   onOpenWhy,
   onOpenAdjust,
+  onStartSession,
+  sessionStarted = false,
+  startBusy = false,
+  showAdjust = false,
   showPlanB = false,
 } = {}) {
   const { workout, updateWorkout, setExerciseLoad } = useWorkout();
@@ -251,14 +254,11 @@ export default function SessionFocusedCore({
   const [skillScoreValue, setSkillScoreValue] = useState('');
   const [formatOpen, setFormatOpen] = useState(false);
 
-  const sessionStartPromiseRef = useRef(null);
-  const sessionStartedRef = useRef(Boolean(workout?.sessionStarted));
   const wodStartedRef = useRef(Boolean(workout?.wodRuntime?.started || workout?.wodStarted));
 
   useEffect(() => {
-    sessionStartedRef.current = Boolean(workout?.sessionStarted);
     wodStartedRef.current = Boolean(workout?.wodRuntime?.started || workout?.wodStarted);
-  }, [workout?.sessionId, workout?.sessionStarted, workout?.wodRuntime?.started, workout?.wodStarted]);
+  }, [workout?.sessionId, workout?.wodRuntime?.started, workout?.wodStarted]);
 
   useEffect(() => {
     setDetailsOpen(false);
@@ -362,43 +362,10 @@ export default function SessionFocusedCore({
 
   const ensureSessionStarted = useCallback(async () => {
     if (!workout?.sessionId) return { status: 'NO_SESSION' };
-    if (sessionStartedRef.current) return { status: 'IN_PROGRESS' };
-    if (sessionStartPromiseRef.current) return sessionStartPromiseRef.current;
+    if (workout?.sessionStarted) return { status: 'IN_PROGRESS' };
 
-    sessionStartedRef.current = true;
-    updateWorkout({
-      sessionStarted: true,
-      status: 'in_progress',
-      startedAt: workout?.startedAt ?? new Date().toISOString(),
-    });
-
-    const request = markWorkoutSessionStarted({ sessionId: workout.sessionId })
-      .then((result) => {
-        if (result?.status === 'STALE_SESSION_REQUIRES_RECHECKIN') {
-          sessionStartedRef.current = false;
-          router.replace('/workout/preparation');
-          return result;
-        }
-
-        updateWorkout({
-          sessionStarted: true,
-          status: 'in_progress',
-          startedLocalDate: result?.started_local_date ?? workout?.startedLocalDate ?? null,
-        });
-        return result;
-      })
-      .catch((error) => {
-        sessionStartedRef.current = false;
-        updateWorkout({ sessionStarted: false, status: 'generated' });
-        throw error;
-      })
-      .finally(() => {
-        sessionStartPromiseRef.current = null;
-      });
-
-    sessionStartPromiseRef.current = request;
-    return request;
-  }, [updateWorkout, workout?.sessionId, workout?.startedAt, workout?.startedLocalDate]);
+    throw new Error('Démarre d’abord la séance avec le bouton « Démarrer ma séance ».');
+  }, [workout?.sessionId, workout?.sessionStarted]);
 
   function patchExercise(target, values) {
     const targetInstance = target?.sessionExerciseId;
@@ -777,6 +744,10 @@ export default function SessionFocusedCore({
         onOpenWhy={onOpenWhy}
         onOpenAdjust={onOpenAdjust}
         onOpenPlanB={onOpenPlanB}
+        onStartSession={onStartSession}
+        sessionStarted={sessionStarted}
+        startBusy={startBusy}
+        showAdjust={showAdjust}
         showPlanB={showPlanB}
       />
 

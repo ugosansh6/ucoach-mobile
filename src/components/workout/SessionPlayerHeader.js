@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { spacing } from '../../constants';
@@ -17,6 +17,10 @@ export default function SessionPlayerHeader({
   onOpenWhy,
   onOpenAdjust,
   onOpenPlanB,
+  onStartSession,
+  sessionStarted = false,
+  startBusy = false,
+  showAdjust = false,
   showPlanB = false,
 }) {
   const { colors } = useUgerodTheme();
@@ -65,10 +69,10 @@ export default function SessionPlayerHeader({
             </Pressable>
           ) : null}
 
-          {typeof onOpenAdjust === 'function' ? (
+          {showAdjust && typeof onOpenAdjust === 'function' ? (
             <Pressable onPress={onOpenAdjust} style={[styles.coachTool, styles.coachToolAdjust]}>
               <Ionicons name="options-outline" size={17} color={colors.accent} />
-              <Text style={styles.coachToolText}>Ajuster</Text>
+              <Text style={styles.coachToolText}>Adapter</Text>
             </Pressable>
           ) : null}
 
@@ -79,6 +83,37 @@ export default function SessionPlayerHeader({
             </Pressable>
           ) : null}
         </View>
+
+        {!sessionStarted && typeof onStartSession === 'function' ? (
+          <View style={styles.startCard}>
+            <View style={styles.startCopy}>
+              <Text style={styles.startTitle}>Prêt à commencer ?</Text>
+              <Text style={styles.startText}>
+                Jusqu’ici, tu peux encore modifier la séance. En la démarrant, les règles de séance en cours s’activent.
+              </Text>
+            </View>
+            <Pressable
+              onPress={onStartSession}
+              disabled={startBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Démarrer ma séance"
+              style={({ pressed }) => [
+                styles.startButton,
+                startBusy && styles.startButtonDisabled,
+                pressed && !startBusy && styles.startButtonPressed,
+              ]}
+            >
+              {startBusy ? (
+                <ActivityIndicator size="small" color={colors.textOnAccent} />
+              ) : (
+                <Ionicons name="play" size={16} color={colors.textOnAccent} />
+              )}
+              <Text style={styles.startButtonText}>
+                {startBusy ? 'DÉMARRAGE…' : 'DÉMARRER MA SÉANCE'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.progressTrack}>
@@ -188,6 +223,45 @@ function createStyles(colors) {
       fontSize: 11,
       color: colors.text,
     },
+    startCard: {
+      marginTop: 10,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      gap: 10,
+    },
+    startCopy: { flex: 1 },
+    startTitle: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    startText: {
+      marginTop: 2,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.textSecondary,
+    },
+    startButton: {
+      minHeight: 44,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      backgroundColor: colors.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    startButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      color: colors.textOnAccent,
+    },
+    startButtonDisabled: { opacity: 0.55 },
+    startButtonPressed: { opacity: 0.82 },
     progressTrack: { height: 4, backgroundColor: colors.border },
     progressFill: { height: 4, backgroundColor: colors.accent },
   });

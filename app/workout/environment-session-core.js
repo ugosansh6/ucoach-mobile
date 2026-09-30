@@ -21,7 +21,6 @@ import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwap
 import SessionFormatSheet from '../../src/components/workout/SessionFormatSheet';
 import SessionPlayerHeader from '../../src/components/workout/SessionPlayerHeader';
 import {
-  markWorkoutSessionStarted,
   markWorkoutWodStarted,
 } from '../../src/services/sessionMutationService';
 
@@ -1468,6 +1467,10 @@ export default function EnvironmentSessionCore({
   onOpenPlanB,
   onOpenWhy,
   onOpenAdjust,
+  onStartSession,
+  sessionStarted = false,
+  startBusy = false,
+  showAdjust = false,
   showPlanB = false,
 }) {
   const { workout, updateWorkout } = useWorkout();
@@ -1482,7 +1485,6 @@ export default function EnvironmentSessionCore({
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [formatOpen, setFormatOpen] = useState(false);
-  const sessionStartPromise = useRef(null);
   const wodStartPromise = useRef(null);
   const wodStartedRef = useRef(
     Boolean(
@@ -1526,32 +1528,10 @@ export default function EnvironmentSessionCore({
   }, [blocks, workout.exercises]);
 
   const ensureStarted = useCallback(async () => {
-    if (workout.sessionStarted) return { status: 'IN_PROGRESS' };
-    if (sessionStartPromise.current) return sessionStartPromise.current;
+    if (workout?.sessionStarted) return { status: 'IN_PROGRESS' };
 
-    updateWorkout({
-      sessionStarted: true,
-      status: 'in_progress',
-      startedAt: workout.startedAt ?? new Date().toISOString(),
-    });
-
-    sessionStartPromise.current = markWorkoutSessionStarted({ sessionId: workout.sessionId })
-      .then((result) => {
-        updateWorkout({
-          sessionStarted: true,
-          status: 'in_progress',
-          startedLocalDate: result?.started_local_date ?? workout.startedLocalDate ?? null,
-        });
-        return result;
-      })
-      .catch((error) => {
-        updateWorkout({ sessionStarted: false, status: 'generated' });
-        sessionStartPromise.current = null;
-        throw error;
-      });
-
-    return sessionStartPromise.current;
-  }, [updateWorkout, workout.sessionId, workout.sessionStarted, workout.startedAt, workout.startedLocalDate]);
+    throw new Error('Démarre d’abord la séance avec le bouton « Démarrer ma séance ».');
+  }, [workout?.sessionStarted]);
 
   useEffect(() => {
     wodStartedRef.current = Boolean(
@@ -1892,6 +1872,10 @@ export default function EnvironmentSessionCore({
         onOpenWhy={onOpenWhy}
         onOpenAdjust={onOpenAdjust}
         onOpenPlanB={onOpenPlanB}
+        onStartSession={onStartSession}
+        sessionStarted={sessionStarted}
+        startBusy={startBusy}
+        showAdjust={showAdjust}
         showPlanB={showPlanB}
       />
 

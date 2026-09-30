@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
 
 import SessionCore from './session-core';
 import EnvironmentSessionCore from './environment-session-core';
@@ -11,6 +12,7 @@ import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   changeWholeWorkoutPlan,
   changeWorkoutSkillPlan,
+  markWorkoutSessionStarted,
 } from '../../src/services/sessionMutationService';
 
 function normalizeBlock(value) {
@@ -66,7 +68,7 @@ function verifyPlanBReplacement({ sourceWorkout, result, nextWorkout }) {
 }
 
 export default function SessionScreen() {
-  const { workout, setGeneratedWorkout } = useWorkout();
+  const { workout, updateWorkout, setGeneratedWorkout } = useWorkout();
   const { colors } = useUgerodTheme();
   const styles = useMemo(() => createStyles(), []);
 
@@ -76,6 +78,7 @@ export default function SessionScreen() {
   const [whyOpen, setWhyOpen] = useState(false);
   const [whyReturnToOverview, setWhyReturnToOverview] = useState(false);
   const [adaptationOpen, setAdaptationOpen] = useState(false);
+  const [startBusy, setStartBusy] = useState(false);
   const overviewShownForSessionRef = useRef(null);
 
   const environmentCode = useMemo(
@@ -117,7 +120,10 @@ export default function SessionScreen() {
 
   // UI rule shared by every environment. Backend remains authoritative on whether
   // an actual alternative can be produced.
-  const canRegeneratePlanB = Boolean(workout?.sessionId) && !progressRecorded;
+  const canRegeneratePlanB =
+    Boolean(workout?.sessionId) &&
+    !workout?.sessionStarted &&
+    !progressRecorded;
   const showPlanBEntry = canRegeneratePlanB;
   const canChangeSkill = canRegeneratePlanB && hasSkill;
 
@@ -128,8 +134,8 @@ export default function SessionScreen() {
   }, [hasResumeCursor, progressRecorded, workout?.sessionId]);
 
   useEffect(() => {
-    if (progressRecorded && planBOpen) setPlanBOpen(false);
-  }, [planBOpen, progressRecorded]);
+    if ((progressRecorded || workout?.sessionStarted) && planBOpen) setPlanBOpen(false);
+  }, [planBOpen, progressRecorded, workout?.sessionStarted]);
 
   function openPlanBFromOverview() {
     if (busyAction || !canRegeneratePlanB) return;
@@ -156,6 +162,39 @@ export default function SessionScreen() {
     if (whyReturnToOverview) {
       setWhyReturnToOverview(false);
       requestAnimationFrame(() => setOverviewOpen(true));
+    }
+  }
+
+  async function startSessionExplicitly() {
+    if (!workout?.sessionId || workout?.sessionStarted || startBusy) return;
+
+    try {
+      setStartBusy(true);
+      const result = await markWorkoutSessionStarted({ sessionId: workout.sessionId });
+
+      if (result?.status === 'STALE_SESSION_REQUIRES_RECHECKIN') {
+        Alert.alert(
+          'Check-in à refaire',
+          'Ton contexte a trop changé depuis la génération. Reviens au check-in avant de démarrer.'
+        );
+        router.replace('/workout/preparation');
+        return;
+      }
+
+      updateWorkout({
+        sessionStarted: true,
+        status: 'in_progress',
+        startedAt: result?.started_at ?? workout?.startedAt ?? new Date().toISOString(),
+        startedLocalDate: result?.started_local_date ?? workout?.startedLocalDate ?? null,
+      });
+      setPlanBOpen(false);
+    } catch (error) {
+      Alert.alert(
+        'Impossible de démarrer la séance',
+        error?.message ?? 'Réessaie dans quelques secondes.'
+      );
+    } finally {
+      setStartBusy(false);
     }
   }
 
@@ -242,7 +281,14 @@ export default function SessionScreen() {
       setPlanBOpen(true);
     },
     onOpenWhy: openWhyFromPlayer,
-    onOpenAdjust: () => setAdaptationOpen(true),
+    onOpenAdjust: () => {
+      if (!workout?.sessionStarted) return;
+      setAdaptationOpen(true);
+    },
+    onStartSession: startSessionExplicitly,
+    startBusy,
+    sessionStarted: Boolean(workout?.sessionStarted),
+    showAdjust: Boolean(workout?.sessionStarted),
     showPlanB: showPlanBEntry,
   };
 

@@ -119,7 +119,7 @@ export default function SessionAdaptationSheet({ visible = false, onClose }) {
         <View style={styles.card}>
           <View style={styles.header}>
             <View style={styles.headerMain}>
-              <Text style={styles.eyebrow}>AJUSTER LA SÉANCE</Text>
+              <Text style={styles.eyebrow}>ADAPTER LA SÉANCE</Text>
               <Text style={styles.title}>Quelque chose a changé ?</Text>
             </View>
             <Pressable
@@ -132,7 +132,7 @@ export default function SessionAdaptationSheet({ visible = false, onClose }) {
           </View>
 
           <Text style={styles.helper}>
-            UGEROD garde ce qui est déjà fait et ajuste uniquement ce qu’il reste à faire.
+            Dis-moi ce qui a changé depuis le début de la séance. UGEROD garde ce qui est déjà fait et adapte uniquement la suite.
           </Text>
 
           {error ? (
@@ -161,17 +161,6 @@ export default function SessionAdaptationSheet({ visible = false, onClose }) {
             )}
           </Pressable>
 
-          <View style={styles.guidanceRow}>
-            <View style={styles.actionIcon}>
-              <Ionicons name="swap-horizontal-outline" size={20} color={colors.secondaryAccent} />
-            </View>
-            <View style={styles.actionMain}>
-              <Text style={styles.actionTitle}>Un exercice me gêne</Text>
-              <Text style={styles.actionDescription}>
-                Utilise directement Adapter sur l’exercice concerné.
-              </Text>
-            </View>
-          </View>
         </View>
       </View>
     </Modal>
@@ -257,19 +246,6 @@ function createStyles(colors) {
       borderWidth: 1,
       borderColor: colors.accent,
       backgroundColor: colors.accentSoft,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 11,
-    },
-    guidanceRow: {
-      minHeight: 72,
-      marginTop: 10,
-      paddingHorizontal: 13,
-      paddingVertical: 11,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 11,
