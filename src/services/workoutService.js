@@ -35,9 +35,23 @@ export async function markWorkoutSessionStarted({
     throw new Error(error.message);
   }
 
-  return data ?? {
+  const result = data ?? {
     status: 'UNKNOWN',
   };
+
+  if (result?.status === 'STALE_SESSION_REQUIRES_RECHECKIN') {
+    return result;
+  }
+
+  if (result?.status !== 'IN_PROGRESS') {
+    throw new Error(
+      result?.status === 'CLOSED'
+        ? 'Cette séance est déjà fermée.'
+        : 'Impossible de démarrer cette séance.'
+    );
+  }
+
+  return result;
 }
 
 export async function markWorkoutWodRevealed({
@@ -59,7 +73,19 @@ export async function markWorkoutWodRevealed({
     );
   }
 
-  return data ?? { status: 'UNKNOWN' };
+  const result = data ?? { status: 'UNKNOWN' };
+
+  if (result?.status !== 'WOD_REVEALED') {
+    throw new Error(
+      result?.status === 'SESSION_NOT_STARTED'
+        ? 'Démarre d’abord la séance avant de révéler le WOD.'
+        : result?.reason === 'SESSION_CLOSED'
+          ? 'Cette séance est déjà fermée.'
+          : 'Le backend n’a pas confirmé la révélation du WOD.'
+    );
+  }
+
+  return result;
 }
 
 export async function markWorkoutWodStarted({
@@ -81,7 +107,80 @@ export async function markWorkoutWodStarted({
     );
   }
 
-  return data ?? { status: 'UNKNOWN' };
+  const result = data ?? { status: 'UNKNOWN' };
+
+  if (result?.status !== 'WOD_STARTED') {
+    throw new Error(
+      result?.status === 'SESSION_NOT_STARTED'
+        ? 'Démarre d’abord la séance avant de démarrer le WOD.'
+        : result?.status === 'WOD_NOT_REVEALED'
+          ? 'Révèle d’abord le WOD avant de le démarrer.'
+          : result?.reason === 'SESSION_CLOSED'
+            ? 'Cette séance est déjà fermée.'
+            : 'Le backend n’a pas confirmé le démarrage du WOD.'
+    );
+  }
+
+  return result;
+}
+
+export async function getWorkoutSessionLifecycle(sessionId) {
+  if (!sessionId) {
+    return {
+      sessionId: null,
+      status: 'NO_SESSION',
+      sessionStarted: false,
+      sessionClosed: false,
+      wodRevealed: false,
+      wodStarted: false,
+      startedAt: null,
+      wodRevealedAt: null,
+      wodStartedAt: null,
+      lifecycleStage: 'NO_SESSION',
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('id, status, started_at, started_local_date, wod_revealed_at, wod_started_at, completed_at')
+    .eq('id', sessionId)
+    .single();
+
+  if (error) {
+    throw new Error(
+      error?.message ?? 'Impossible de vérifier l’état de la séance.'
+    );
+  }
+
+  const status = String(data?.status ?? 'generated').toLowerCase();
+  const sessionClosed = ['completed', 'abandoned'].includes(status);
+  const sessionStarted =
+    sessionClosed ||
+    status === 'in_progress' ||
+    Boolean(data?.started_at);
+  const wodRevealed = Boolean(data?.wod_revealed_at);
+  const wodStarted = Boolean(data?.wod_started_at);
+
+  let lifecycleStage = 'GENERATED';
+  if (sessionClosed) lifecycleStage = 'COMPLETED';
+  else if (wodStarted) lifecycleStage = 'WOD_STARTED';
+  else if (wodRevealed) lifecycleStage = 'WOD_REVEALED';
+  else if (sessionStarted) lifecycleStage = 'SESSION_STARTED';
+
+  return {
+    sessionId: data?.id ?? sessionId,
+    status,
+    sessionStarted,
+    sessionClosed,
+    wodRevealed,
+    wodStarted,
+    startedAt: data?.started_at ?? null,
+    startedLocalDate: data?.started_local_date ?? null,
+    wodRevealedAt: data?.wod_revealed_at ?? null,
+    wodStartedAt: data?.wod_started_at ?? null,
+    completedAt: data?.completed_at ?? null,
+    lifecycleStage,
+  };
 }
 
 function normalizeEquipmentForBackend(equipment) {
