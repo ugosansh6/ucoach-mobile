@@ -12,6 +12,7 @@ import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   changeWholeWorkoutPlan,
   changeWorkoutSkillPlan,
+  getWorkoutSessionLifecycle,
   markWorkoutSessionStarted,
 } from '../../src/services/sessionMutationService';
 
@@ -79,6 +80,7 @@ export default function SessionScreen() {
   const [whyReturnToOverview, setWhyReturnToOverview] = useState(false);
   const [adaptationOpen, setAdaptationOpen] = useState(false);
   const [startBusy, setStartBusy] = useState(false);
+  const [lifecycleReady, setLifecycleReady] = useState(false);
   const overviewShownForSessionRef = useRef(null);
 
   const environmentCode = useMemo(
@@ -98,12 +100,64 @@ export default function SessionScreen() {
     ]
   );
 
+  // Le backend est l'autorité du cycle de vie. On hydrate explicitement l'état
+  // avant d'autoriser un player local à enregistrer une exécution ou à révéler le WOD.
+  useEffect(() => {
+    let cancelled = false;
+    const sessionId = workout?.sessionId ?? null;
+
+    setLifecycleReady(false);
+
+    if (!sessionId) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    getWorkoutSessionLifecycle(sessionId)
+      .then((lifecycle) => {
+        if (cancelled || lifecycle?.sessionId !== sessionId) return;
+
+        updateWorkout({
+          sessionStarted: Boolean(lifecycle?.sessionStarted),
+          status: lifecycle?.status ?? workout?.status ?? 'generated',
+          startedAt: lifecycle?.startedAt ?? null,
+          startedLocalDate: lifecycle?.startedLocalDate ?? null,
+          wodRevealed: Boolean(lifecycle?.wodRevealed),
+          wodRevealedAt: lifecycle?.wodRevealedAt ?? null,
+          wodStarted: Boolean(lifecycle?.wodStarted),
+          wodStartedAt: lifecycle?.wodStartedAt ?? null,
+          ...(lifecycle?.wodStarted
+            ? {}
+            : {
+                wodRuntime: workout?.wodRuntime?.started ? null : workout?.wodRuntime ?? null,
+              }),
+        });
+        setLifecycleReady(true);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn('Session lifecycle hydration', error);
+        // Fail closed: tant que le backend n'a pas confirmé l'état, aucun player
+        // ne peut enregistrer d'exécution et le WOD reste masqué.
+        setLifecycleReady(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workout?.sessionId]);
+
+  const authoritativeSessionStarted = Boolean(
+    lifecycleReady && workout?.sessionStarted
+  );
+
   // GYM et OUTDOOR conservent leurs runtimes spécialisés (séries, cardio, course),
   // mais leur shell et leurs actions sont alignés sur le Player commun.
   const usesSpecializedEnvironmentRuntime = ['GYM', 'OUTDOOR'].includes(environmentCode);
   const progressRecorded = hasRecordedProgress(workout);
   const hasResumeCursor = Boolean(
-    workout?.sessionStarted &&
+    authoritativeSessionStarted &&
     workout?.playerCursor?.blockId &&
       (!workout?.playerCursor?.sessionId || workout.playerCursor.sessionId === workout?.sessionId)
   );
@@ -123,7 +177,8 @@ export default function SessionScreen() {
   // an actual alternative can be produced.
   const canRegeneratePlanB =
     Boolean(workout?.sessionId) &&
-    !workout?.sessionStarted &&
+    lifecycleReady &&
+    !authoritativeSessionStarted &&
     !progressRecorded;
   const showPlanBEntry = canRegeneratePlanB;
   const canChangeSkill = canRegeneratePlanB && hasSkill;
@@ -135,8 +190,8 @@ export default function SessionScreen() {
   }, [hasResumeCursor, progressRecorded, workout?.sessionId]);
 
   useEffect(() => {
-    if ((progressRecorded || workout?.sessionStarted) && planBOpen) setPlanBOpen(false);
-  }, [planBOpen, progressRecorded, workout?.sessionStarted]);
+    if ((progressRecorded || authoritativeSessionStarted) && planBOpen) setPlanBOpen(false);
+  }, [authoritativeSessionStarted, planBOpen, progressRecorded]);
 
   function openPlanBFromOverview() {
     if (busyAction || !canRegeneratePlanB) return;
@@ -167,7 +222,7 @@ export default function SessionScreen() {
   }
 
   async function startSessionExplicitly() {
-    if (!workout?.sessionId || workout?.sessionStarted || startBusy) return;
+    if (!workout?.sessionId || authoritativeSessionStarted || startBusy) return;
 
     try {
       setStartBusy(true);
@@ -188,6 +243,7 @@ export default function SessionScreen() {
         startedAt: result?.started_at ?? workout?.startedAt ?? new Date().toISOString(),
         startedLocalDate: result?.started_local_date ?? workout?.startedLocalDate ?? null,
       });
+      setLifecycleReady(true);
       setPlanBOpen(false);
     } catch (error) {
       Alert.alert(
@@ -283,13 +339,14 @@ export default function SessionScreen() {
     },
     onOpenWhy: openWhyFromPlayer,
     onOpenAdjust: () => {
-      if (!workout?.sessionStarted) return;
+      if (!authoritativeSessionStarted) return;
       setAdaptationOpen(true);
     },
     onStartSession: startSessionExplicitly,
     startBusy,
-    sessionStarted: Boolean(workout?.sessionStarted),
-    showAdjust: Boolean(workout?.sessionStarted),
+    lifecycleReady,
+    sessionStarted: authoritativeSessionStarted,
+    showAdjust: authoritativeSessionStarted,
     showPlanB: showPlanBEntry,
   };
 
@@ -319,6 +376,7 @@ export default function SessionScreen() {
         canChangeSkill={canChangeSkill}
         hasSkill={hasSkill}
         progressRecorded={progressRecorded}
+        lifecycleReady={lifecycleReady}
         busyAction={busyAction}
         onClosePlanB={() => setPlanBOpen(false)}
         onAlternateSkill={() => applySkillPlanB('ALTERNATE_SKILL')}
