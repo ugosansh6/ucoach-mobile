@@ -29,6 +29,7 @@ import {
 import { applyWodRuntimeStatuses } from '../../src/services/wodRuntimeStatus';
 import WodProtocolPlayer from '../../src/components/workout/WodProtocolPlayerV3';
 import SessionFormatSheet from '../../src/components/workout/SessionFormatSheet';
+import SessionPlayerHeader from '../../src/components/workout/SessionPlayerHeader';
 
 const BLOCK_ORDER = ['unlock', 'tabata', 'warmup', 'skill', 'wod'];
 const BLOCK_LABELS = {
