@@ -1150,6 +1150,7 @@ export function FocusedTabata({
   }
 
   function finishTabata() {
+    if (!executionEnabled || !started) return;
     if (typeof onFinish !== 'function') return;
     const completedWorkIntervals = finished
       ? rounds
