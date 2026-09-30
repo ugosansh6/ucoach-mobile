@@ -395,6 +395,58 @@ function formatExecutionTargetPrescription(exercise) {
   return pieces.join(' · ');
 }
 
+function formatPyramidPrescription(prescription = {}) {
+  const overlay =
+    prescription?.mechanic_overlay &&
+    typeof prescription.mechanic_overlay === 'object'
+      ? prescription.mechanic_overlay
+      : {};
+
+  const mechanic = normalizeMechanic(
+    prescription?.mechanic ??
+      prescription?.block_mechanic
+  );
+
+  if (
+    mechanic !== 'PYRAMID' &&
+    String(overlay?.type ?? '').toLowerCase() !== 'pyramid'
+  ) {
+    return null;
+  }
+
+  const base = Number(
+    overlay?.base_reps ??
+      prescription?.reps_min
+  );
+
+  if (!Number.isFinite(base) || base <= 0) {
+    return null;
+  }
+
+  const multipliers =
+    Array.isArray(overlay?.multipliers) &&
+    overlay.multipliers.length > 0
+      ? overlay.multipliers
+      : [1, 2, 3, 2, 1];
+
+  const sequence = multipliers
+    .map((value) => {
+      const multiplier = Number(value);
+      if (!Number.isFinite(multiplier) || multiplier <= 0) {
+        return null;
+      }
+
+      return Math.round(base * multiplier);
+    })
+    .filter((value) => Number.isFinite(value));
+
+  if (sequence.length === 0) {
+    return null;
+  }
+
+  return `${sequence.join(' → ')} reps${prescription?.reps_semantics === 'per_side' ? ' / côté' : ''}`;
+}
+
 function formatPrescription(exercise) {
   const prescription =
     readPrescriptionObject(exercise);
@@ -435,6 +487,15 @@ function formatPrescription(exercise) {
     }
 
     return `${attempts} tentatives · meilleure performance propre`;
+  }
+
+  const pyramidPrescription =
+    formatPyramidPrescription(
+      prescription
+    );
+
+  if (pyramidPrescription) {
+    return pyramidPrescription;
   }
 
   const executionTarget =
