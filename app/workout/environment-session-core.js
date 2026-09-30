@@ -2134,6 +2134,7 @@ export default function EnvironmentSessionCore({
             block={currentBlock}
             exercises={currentExercises}
             onComplete={advanceWithUpdates}
+            executionEnabled={sessionStarted}
           />
         ) : (
           <SimpleBlock
