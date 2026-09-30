@@ -74,6 +74,7 @@ export default function SessionScreen() {
   const [busyAction, setBusyAction] = useState(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
+  const [whyReturnToOverview, setWhyReturnToOverview] = useState(false);
   const [adaptationOpen, setAdaptationOpen] = useState(false);
   const overviewShownForSessionRef = useRef(null);
 
@@ -133,6 +134,29 @@ export default function SessionScreen() {
   function openPlanBFromOverview() {
     if (busyAction || !canRegeneratePlanB) return;
     setPlanBOpen(true);
+  }
+
+  function openWhyFromOverview() {
+    // Avoid stacking two full-screen Modals on React Native Web / iOS Safari.
+    // Close the overview first, then open the Coach sheet on the next frame.
+    setPlanBOpen(false);
+    setWhyReturnToOverview(true);
+    setOverviewOpen(false);
+    requestAnimationFrame(() => setWhyOpen(true));
+  }
+
+  function openWhyFromPlayer() {
+    setWhyReturnToOverview(false);
+    setWhyOpen(true);
+  }
+
+  function closeWhy() {
+    setWhyOpen(false);
+
+    if (whyReturnToOverview) {
+      setWhyReturnToOverview(false);
+      requestAnimationFrame(() => setOverviewOpen(true));
+    }
   }
 
   async function applySkillPlanB(action) {
@@ -217,7 +241,7 @@ export default function SessionScreen() {
       setOverviewOpen(true);
       setPlanBOpen(true);
     },
-    onOpenWhy: () => setWhyOpen(true),
+    onOpenWhy: openWhyFromPlayer,
     onOpenAdjust: () => setAdaptationOpen(true),
     showPlanB: showPlanBEntry,
   };
@@ -242,7 +266,7 @@ export default function SessionScreen() {
         }}
         showPlanB={canRegeneratePlanB}
         onPlanB={openPlanBFromOverview}
-        onOpenWhy={() => setWhyOpen(true)}
+        onOpenWhy={openWhyFromOverview}
         planBOpen={planBOpen}
         canRegeneratePlanB={canRegeneratePlanB}
         canChangeSkill={canChangeSkill}
@@ -255,7 +279,7 @@ export default function SessionScreen() {
         onAlternateSession={applyWholePlanB}
       />
 
-      <SessionWhySheet visible={whyOpen} onClose={() => setWhyOpen(false)} />
+      <SessionWhySheet visible={whyOpen} onClose={closeWhy} />
       <SessionAdaptationSheet
         visible={adaptationOpen}
         onClose={() => setAdaptationOpen(false)}
