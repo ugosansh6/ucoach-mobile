@@ -322,6 +322,7 @@ export default function WodProtocolPlayerV3({
   block,
   initialRuntime = null,
   onBeforeStart,
+  executionEnabled = true,
   onRuntimeChange,
   canChangeFormat = false,
   onChangeFormat = null,
@@ -537,6 +538,10 @@ export default function WodProtocolPlayerV3({
   }, [onRuntimeChange, runtime]);
 
   async function start() {
+    if (!executionEnabled) {
+      setStartError('Démarre d’abord la séance avant de lancer le WOD.');
+      return;
+    }
     if (starting || started || finished) return;
     setStarting(true);
     setStartError('');
@@ -634,6 +639,7 @@ export default function WodProtocolPlayerV3({
           params={params}
           loading={starting}
           error={startError}
+          executionEnabled={executionEnabled}
           onStart={start}
           canChangeFormat={canChangeFormat}
           onChangeFormat={onChangeFormat}
@@ -705,7 +711,21 @@ export default function WodProtocolPlayerV3({
   );
 }
 
-function StartPanel({ title, summary, exercises, mechanic, params, loading, error, onStart, canChangeFormat, onChangeFormat, styles, colors }) {
+function StartPanel({
+  title,
+  summary,
+  exercises,
+  mechanic,
+  params,
+  loading,
+  error,
+  executionEnabled = true,
+  onStart,
+  canChangeFormat,
+  onChangeFormat,
+  styles,
+  colors,
+}) {
   return (
     <>
       <View style={styles.startTopRow}>
@@ -736,9 +756,22 @@ function StartPanel({ title, summary, exercises, mechanic, params, loading, erro
         ))}
       </View>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      <Pressable onPress={onStart} disabled={loading} style={[styles.primaryButton, loading && styles.disabled]}>
+      <Pressable
+        onPress={onStart}
+        disabled={loading || !executionEnabled}
+        style={[
+          styles.primaryButton,
+          (loading || !executionEnabled) && styles.disabled,
+        ]}
+      >
         {loading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="play" size={19} color="#FFFFFF" />}
-        <Text style={styles.primaryButtonText}>{loading ? 'Démarrage…' : 'Démarrer le WOD'}</Text>
+        <Text style={styles.primaryButtonText}>
+          {loading
+            ? 'Démarrage…'
+            : executionEnabled
+              ? 'Démarrer le WOD'
+              : 'Démarre d’abord la séance'}
+        </Text>
       </Pressable>
     </>
   );
