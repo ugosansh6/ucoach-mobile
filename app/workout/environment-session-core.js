@@ -1628,6 +1628,14 @@ export default function EnvironmentSessionCore({
       formatChangeLimit: Number(
         result?.format_change_limit ?? workout?.formatChangeLimit ?? 3
       ),
+      remainingFormatChanges: Number(
+        result?.remaining_format_changes ??
+          Math.max(
+            0,
+            Number(workout?.formatChangeLimit ?? 3) -
+              Number(result?.format_change_count ?? workout?.formatChangeCount ?? 0)
+          )
+      ),
       formatLocked: Boolean(result?.format_locked ?? false),
     });
 
