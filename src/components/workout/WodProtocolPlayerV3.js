@@ -91,19 +91,113 @@ function exercisePrescription(exercise) {
   return 'Prescription UGEROD';
 }
 
-function repsForStage(exercise, stage, direction = 'ascending') {
+function repsSemanticsSuffix(exercise) {
+  return String(prescriptionObject(exercise)?.reps_semantics ?? '').toLowerCase() === 'per_side'
+    ? ' / côté'
+    : '';
+}
+
+function repsForStage(exercise, stage, direction = 'ascending', stageCount = null) {
   const overlay = overlayForExercise(exercise);
   const p = prescriptionObject(exercise);
-  const start = numberOr(
-    overlay.start_reps ?? overlay.base_reps ?? p.execution_target_reps ?? p.reps_min,
-    1
+  const start = Math.max(
+    1,
+    numberOr(
+      overlay.start_reps ?? overlay.base_reps ?? p.execution_target_reps ?? p.reps_min,
+      1
+    )
   );
   const increment = Math.max(1, numberOr(overlay.increment_reps, 1));
+
   if (direction === 'descending') {
-    const first = numberOr(overlay.first_stage_reps, start);
+    const safeStageCount = Math.max(1, numberOr(stageCount, 1));
+    const first = Math.max(
+      start,
+      numberOr(
+        overlay.first_stage_reps,
+        start + Math.max(0, safeStageCount - 1) * increment
+      )
+    );
     return Math.max(start, first - Math.max(0, stage - 1) * increment);
   }
+
   return Math.max(1, start + Math.max(0, stage - 1) * increment);
+}
+
+function stageSequenceLabel(exercise, stageCount, direction = 'ascending') {
+  const count = Math.max(1, numberOr(stageCount, 1));
+  const values = Array.from({ length: count }, (_, index) =>
+    repsForStage(exercise, index + 1, direction, count)
+  );
+  return `${values.join(' → ')} reps${repsSemanticsSuffix(exercise)}`;
+}
+
+function progressiveSequenceLabel(exercise) {
+  const first = repsForStage(exercise, 1, 'ascending');
+  const second = repsForStage(exercise, 2, 'ascending');
+  const third = repsForStage(exercise, 3, 'ascending');
+  return `${first} → ${second} → ${third} → … reps${repsSemanticsSuffix(exercise)}`;
+}
+
+function singleDosePrescription(exercise) {
+  const p = prescriptionObject(exercise);
+  if (p.execution_target_reps != null) {
+    return `${p.execution_target_reps} reps${repsSemanticsSuffix(exercise)}`;
+  }
+  if (p.execution_target_duration_seconds != null) {
+    return `${p.execution_target_duration_seconds} sec`;
+  }
+  if (p.execution_target_distance_meters != null) {
+    return `${p.execution_target_distance_meters} m`;
+  }
+  return exercisePrescription(exercise);
+}
+
+function previewPrescriptionForMechanic(mechanic, params, exercise) {
+  if (mechanic === 'PYRAMID') {
+    const multipliers = Array.isArray(params?.multipliers) && params.multipliers.length
+      ? params.multipliers
+      : [1, 2, 3, 2, 1];
+    return pyramidSequenceLabel(exercise, multipliers);
+  }
+
+  if (mechanic === 'LADDER' || mechanic === 'COUPLET') {
+    const rungs = Math.max(1, numberOr(params?.rungs, 1));
+    const descending =
+      mechanic === 'COUPLET' &&
+      (
+        String(params?.variant_key ?? '').toUpperCase() === 'DESCENDING_COUPLET' ||
+        String(params?.sequence_direction ?? '').toLowerCase() === 'descending'
+      );
+    return stageSequenceLabel(exercise, rungs, descending ? 'descending' : 'ascending');
+  }
+
+  if (mechanic === 'PROGRESSIVE_INTERVAL') {
+    return progressiveSequenceLabel(exercise);
+  }
+
+  if (mechanic === 'HIIT') {
+    const workSeconds = Math.max(
+      1,
+      numberOr(
+        overlayForExercise(exercise)?.work_seconds ??
+          params?.work_seconds ??
+          prescriptionObject(exercise)?.duration_seconds_min,
+        40
+      )
+    );
+    return `${workSeconds} sec de travail`;
+  }
+
+  if (mechanic === 'DECK') {
+    return 'Répétitions selon la carte';
+  }
+
+  if (mechanic === 'SETS_REPS' || mechanic === 'STRENGTH') {
+    return singleDosePrescription(exercise);
+  }
+
+  return exercisePrescription(exercise);
 }
 
 function pyramidReps(exercise, multiplier) {
@@ -634,7 +728,9 @@ function StartPanel({ title, summary, exercises, mechanic, params, loading, erro
             <View style={styles.previewIndex}><Text style={styles.previewIndexText}>{index + 1}</Text></View>
             <View style={styles.previewCopy}>
               <Text style={styles.previewName}>{String(exercise?.name ?? 'Exercice')}</Text>
-              <Text style={styles.previewPrescription}>{exercisePrescription(exercise)}</Text>
+              <Text style={styles.previewPrescription}>
+                {previewPrescriptionForMechanic(mechanic, params, exercise)}
+              </Text>
             </View>
           </View>
         ))}
@@ -696,7 +792,16 @@ function RuntimeBody(props) {
         colors={colors}
       />
       <Text style={styles.phaseMeta}>Tour {derived.round ?? 1} / {Math.max(1, numberOr(params.rounds, 1))}</Text>
-      <CurrentExercise exercise={derived.currentExercise} nextExercise={derived.nextExercise} styles={styles} />
+      <CurrentExercise
+        exercise={derived.currentExercise}
+        nextExercise={derived.nextExercise}
+        prescriptionOverride={
+          recovery
+            ? 'Récupération'
+            : `${Math.max(1, numberOr(params.work_seconds, 40))} sec de travail`
+        }
+        styles={styles}
+      />
     </>;
   }
 
@@ -732,7 +837,13 @@ function RuntimeBody(props) {
     const descending = variant === 'DESCENDING_COUPLET' || params.sequence_direction === 'descending';
     return <>
       <Metric value={`${manualStep} / ${rungs}`} label="Étape" styles={styles} large />
-      <StageList exercises={exercises} stage={manualStep} direction={descending ? 'descending' : 'ascending'} styles={styles} />
+      <StageList
+        exercises={exercises}
+        stage={manualStep}
+        stageCount={rungs}
+        direction={descending ? 'descending' : 'ascending'}
+        styles={styles}
+      />
       <Action label={manualStep >= rungs ? 'Terminer le protocole' : 'Étape terminée'} icon="arrow-forward" onPress={() => onStep(rungs)} styles={styles} />
     </>;
   }
@@ -746,7 +857,9 @@ function RuntimeBody(props) {
     return <>
       <Metric value={`×${multiplier}`} label={`Étape ${manualStep} / ${totalSteps}`} styles={styles} large />
       <View style={styles.sequenceStrip}>{multipliers.map((value, idx) => <View key={`${idx}-${value}`} style={[styles.sequenceItem, idx === index && styles.sequenceItemActive]}><Text style={[styles.sequenceText, idx === index && styles.sequenceTextActive]}>×{value}</Text></View>)}</View>
-      <View style={styles.workList}>{exercises.map((exercise, idx) => <View key={exercise?._uiKey ?? exercise?.id ?? idx} style={styles.workRow}><Text style={styles.workName}>{exercise.name}</Text><Text style={styles.workPrescription}>{pyramidReps(exercise, multiplier)} reps</Text></View>)}</View>
+      <View style={styles.workList}>{exercises.map((exercise, idx) => <View key={exercise?._uiKey ?? exercise?.id ?? idx} style={styles.workRow}><Text style={styles.workName}>{exercise.name}</Text><Text style={styles.workPrescription}>
+          {pyramidReps(exercise, multiplier)} reps{repsSemanticsSuffix(exercise)}
+        </Text></View>)}</View>
       <Action label={manualStep >= totalSteps ? 'Terminer le protocole' : 'Étape terminée'} icon="arrow-forward" onPress={() => onStep(totalSteps)} styles={styles} />
     </>;
   }
@@ -786,7 +899,7 @@ function RuntimeBody(props) {
     const current = exercises[exerciseIndex] ?? exercises[0] ?? null;
     return <>
       <Metric value={`${Math.min(setNumber, sets)} / ${sets}`} label="Série" styles={styles} large />
-      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_exercises_seconds, restRemaining))} label="Récupération" phaseColor={WOD_ACCENT} styles={styles} colors={colors} /> : <CurrentExercise exercise={current} nextExercise={exercises[(exerciseIndex + 1) % exerciseCount]} styles={styles} />}
+      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_exercises_seconds, restRemaining))} label="Récupération" phaseColor={WOD_ACCENT} styles={styles} colors={colors} /> : <CurrentExercise exercise={current} nextExercise={exercises[(exerciseIndex + 1) % exerciseCount]} prescriptionOverride={singleDosePrescription(current)} styles={styles} />}
       <Action label="Série terminée" icon="checkmark" onPress={onSet} disabled={restRemaining > 0} styles={styles} />
     </>;
   }
@@ -827,12 +940,14 @@ function Metric({ value, label, styles, large = false }) {
   return <View style={[styles.metricCard, large && styles.metricCardLarge]}><Text style={styles.metricLabel}>{label}</Text><Text style={[styles.metricValue, large && styles.metricValueLarge]}>{value}</Text></View>;
 }
 
-function CurrentExercise({ exercise, nextExercise, styles }) {
+function CurrentExercise({ exercise, nextExercise, prescriptionOverride = null, styles }) {
   if (!exercise) return null;
   return <View style={styles.currentCard}>
     <Text style={styles.currentLabel}>À faire maintenant</Text>
     <Text style={styles.currentName}>{exercise.name}</Text>
-    <Text style={styles.currentPrescription}>{exercisePrescription(exercise)}</Text>
+    <Text style={styles.currentPrescription}>
+      {prescriptionOverride ?? exercisePrescription(exercise)}
+    </Text>
     {nextExercise ? <Text style={styles.nextText}>Ensuite · {nextExercise.name}</Text> : null}
   </View>;
 }
@@ -841,8 +956,8 @@ function WorkList({ exercises, styles }) {
   return <View style={styles.workList}>{exercises.map((exercise, index) => <View key={exercise?._uiKey ?? exercise?.sessionExerciseId ?? exercise?.id ?? index} style={styles.workRow}><Text style={styles.workName}>{exercise?.name ?? 'Exercice'}</Text><Text style={styles.workPrescription}>{exercisePrescription(exercise)}</Text></View>)}</View>;
 }
 
-function StageList({ exercises, stage, direction, styles }) {
-  return <View style={styles.workList}>{exercises.map((exercise, index) => <View key={exercise?._uiKey ?? exercise?.id ?? index} style={styles.workRow}><Text style={styles.workName}>{exercise?.name ?? 'Exercice'}</Text><Text style={styles.workPrescription}>{repsForStage(exercise, stage, direction)} reps</Text></View>)}</View>;
+function StageList({ exercises, stage, direction, stageCount = null, styles }) {
+  return <View style={styles.workList}>{exercises.map((exercise, index) => <View key={exercise?._uiKey ?? exercise?.id ?? index} style={styles.workRow}><Text style={styles.workName}>{exercise?.name ?? 'Exercice'}</Text><Text style={styles.workPrescription}>{repsForStage(exercise, stage, direction, stageCount)} reps{repsSemanticsSuffix(exercise)}</Text></View>)}</View>;
 }
 
 function Action({ label, icon, onPress, disabled = false, styles }) {
