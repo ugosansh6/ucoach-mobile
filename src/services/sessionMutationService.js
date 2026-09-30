@@ -6,6 +6,7 @@
 export {
   changeWorkoutFormat,
   getWorkoutFormatOptions,
+  getWorkoutSessionLifecycle,
   getWorkoutSwapAvailabilityForExercise,
   markWorkoutSessionStarted,
   markWorkoutWodRevealed,
