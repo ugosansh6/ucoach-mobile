@@ -395,7 +395,7 @@ function formatExecutionTargetPrescription(exercise) {
   return pieces.join(' · ');
 }
 
-function formatPyramidPrescription(prescription = {}) {
+function formatMechanicAwarePrescription(prescription = {}) {
   const overlay =
     prescription?.mechanic_overlay &&
     typeof prescription.mechanic_overlay === 'object'
@@ -406,45 +406,99 @@ function formatPyramidPrescription(prescription = {}) {
     prescription?.mechanic ??
       prescription?.block_mechanic
   );
+  const semanticsSuffix =
+    prescription?.reps_semantics === 'per_side'
+      ? ' / côté'
+      : '';
 
   if (
-    mechanic !== 'PYRAMID' &&
-    String(overlay?.type ?? '').toLowerCase() !== 'pyramid'
+    mechanic === 'PYRAMID' ||
+    String(overlay?.type ?? '').toLowerCase() === 'pyramid'
   ) {
-    return null;
+    const base = Number(
+      overlay?.base_reps ??
+        prescription?.reps_min
+    );
+
+    if (!Number.isFinite(base) || base <= 0) {
+      return null;
+    }
+
+    const multipliers =
+      Array.isArray(overlay?.multipliers) &&
+      overlay.multipliers.length > 0
+        ? overlay.multipliers
+        : [1, 2, 3, 2, 1];
+
+    const sequence = multipliers
+      .map((value) => {
+        const multiplier = Number(value);
+        if (!Number.isFinite(multiplier) || multiplier <= 0) {
+          return null;
+        }
+        return Math.round(base * multiplier);
+      })
+      .filter((value) => Number.isFinite(value));
+
+    if (sequence.length === 0) return null;
+    return `${sequence.join(' → ')} reps${semanticsSuffix}`;
   }
 
-  const base = Number(
-    overlay?.base_reps ??
-      prescription?.reps_min
-  );
-
-  if (!Number.isFinite(base) || base <= 0) {
-    return null;
+  if (mechanic === 'HIIT' || String(overlay?.type ?? '').toLowerCase() === 'hiit_station') {
+    const workSeconds = Number(
+      overlay?.work_seconds ??
+        prescription?.block_parameters?.work_seconds ??
+        prescription?.duration_seconds_min
+    );
+    if (Number.isFinite(workSeconds) && workSeconds > 0) {
+      return `${Math.round(workSeconds)} sec de travail`;
+    }
   }
 
-  const multipliers =
-    Array.isArray(overlay?.multipliers) &&
-    overlay.multipliers.length > 0
-      ? overlay.multipliers
-      : [1, 2, 3, 2, 1];
+  if (mechanic === 'DECK' || String(overlay?.type ?? '').toLowerCase() === 'deck_suit') {
+    return 'Répétitions selon la carte';
+  }
 
-  const sequence = multipliers
-    .map((value) => {
-      const multiplier = Number(value);
-      if (!Number.isFinite(multiplier) || multiplier <= 0) {
-        return null;
+  if (
+    mechanic === 'PROGRESSIVE_INTERVAL' ||
+    ['death_by', 'death_by_couplet', 'progressive_generic'].includes(
+      String(overlay?.type ?? '').toLowerCase()
+    )
+  ) {
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+    if (Number.isFinite(startReps) && startReps > 0 && Number.isFinite(increment) && increment > 0) {
+      return `${Math.round(startReps)} → ${Math.round(startReps + increment)} → ${Math.round(startReps + 2 * increment)} → … reps${semanticsSuffix}`;
+    }
+  }
+
+  if (
+    mechanic === 'LADDER' ||
+    String(overlay?.type ?? '').toLowerCase() === 'ascending_ladder'
+  ) {
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+    if (Number.isFinite(startReps) && startReps > 0 && Number.isFinite(increment) && increment > 0) {
+      return `Départ ${Math.round(startReps)} reps${semanticsSuffix} · +${Math.round(increment)} / étape`;
+    }
+  }
+
+  if (mechanic === 'COUPLET') {
+    const overlayType = String(overlay?.type ?? '').toLowerCase();
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+
+    if (Number.isFinite(increment) && increment > 0) {
+      if (overlayType === 'descending_couplet') {
+        return `Progression décroissante · -${Math.round(increment)} reps / étape${semanticsSuffix}`;
       }
-
-      return Math.round(base * multiplier);
-    })
-    .filter((value) => Number.isFinite(value));
-
-  if (sequence.length === 0) {
-    return null;
+      if (Number.isFinite(startReps) && startReps > 0) {
+        return `Départ ${Math.round(startReps)} reps${semanticsSuffix} · +${Math.round(increment)} / étape`;
+      }
+    }
   }
 
-  return `${sequence.join(' → ')} reps${prescription?.reps_semantics === 'per_side' ? ' / côté' : ''}`;
+  return null;
 }
 
 function formatPrescription(exercise) {
@@ -489,13 +543,13 @@ function formatPrescription(exercise) {
     return `${attempts} tentatives · meilleure performance propre`;
   }
 
-  const pyramidPrescription =
-    formatPyramidPrescription(
+  const mechanicAwarePrescription =
+    formatMechanicAwarePrescription(
       prescription
     );
 
-  if (pyramidPrescription) {
-    return pyramidPrescription;
+  if (mechanicAwarePrescription) {
+    return mechanicAwarePrescription;
   }
 
   const executionTarget =
