@@ -120,6 +120,8 @@ export default function SessionScreen() {
 
         updateWorkout({
           sessionStarted: Boolean(lifecycle?.sessionStarted),
+          sessionClosed: Boolean(lifecycle?.sessionClosed),
+          lifecycleStage: lifecycle?.lifecycleStage ?? null,
           status: lifecycle?.status ?? workout?.status ?? 'generated',
           startedAt: lifecycle?.startedAt ?? null,
           startedLocalDate: lifecycle?.startedLocalDate ?? null,
@@ -149,7 +151,9 @@ export default function SessionScreen() {
   }, [workout?.sessionId]);
 
   const authoritativeSessionStarted = Boolean(
-    lifecycleReady && workout?.sessionStarted
+    lifecycleReady &&
+      workout?.sessionStarted &&
+      !workout?.sessionClosed
   );
 
   // GYM et OUTDOOR conservent leurs runtimes spécialisés (séries, cardio, course),
@@ -178,6 +182,7 @@ export default function SessionScreen() {
   const canRegeneratePlanB =
     Boolean(workout?.sessionId) &&
     lifecycleReady &&
+    !workout?.sessionClosed &&
     !authoritativeSessionStarted &&
     !progressRecorded;
   const showPlanBEntry = canRegeneratePlanB;
