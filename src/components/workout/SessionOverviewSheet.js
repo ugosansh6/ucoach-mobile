@@ -278,6 +278,7 @@ export default function SessionOverviewSheet({
   canChangeSkill = false,
   hasSkill = false,
   progressRecorded = false,
+  lifecycleReady = false,
   devTestReload = false,
   busyAction = null,
   onClosePlanB,
@@ -305,13 +306,11 @@ export default function SessionOverviewSheet({
   const plannedDuration =
     Number(workout?.plannedDuration ?? workout?.preparationSnapshot?.durationMinutes ?? workout?.preparationSnapshot?.duration) || null;
   const progress = blocks.length > 0 ? completedBlocks / blocks.length : 0;
+  // Ne jamais déduire la révélation du WOD de la navigation, du curseur ou d'un
+  // runtime local. Seul l'état backend hydraté par SessionScreen fait foi.
   const wodRevealed = Boolean(
-    workout?.wodRevealed ||
-      workout?.wodRevealedAt ||
-      workout?.wodStarted ||
-      workout?.wodStartedAt ||
-      workout?.wodRuntime?.started ||
-      blocks[activeBlockIndex]?.key === 'wod'
+    lifecycleReady &&
+      (workout?.wodRevealed || workout?.wodRevealedAt)
   );
 
   const [availability, setAvailability] = useState({});
