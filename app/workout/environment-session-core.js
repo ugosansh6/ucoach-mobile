@@ -395,7 +395,7 @@ function SimpleBlock({ block, exercises, onComplete, executionEnabled = true }) 
   );
 }
 
-function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
+function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete, executionEnabled = true }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const gymStyles = useMemo(
     () => createGymStyles(themeColors, isDark),
@@ -412,6 +412,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
   }, [activeKey, exercises]);
 
   function updateExerciseReps(exercise, value) {
+    if (!executionEnabled) return;
     const key = exerciseKey(exercise);
     setDrafts((current) => ({
       ...current,
@@ -423,6 +424,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
   }
 
   function updateSetLoad(exercise, setIndex, value) {
+    if (!executionEnabled) return;
     const key = exerciseKey(exercise);
     setDrafts((current) => ({
       ...current,
@@ -436,6 +438,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
   }
 
   function toggleSet(exercise, setIndex) {
+    if (!executionEnabled) return;
     const key = exerciseKey(exercise);
     setDrafts((current) => ({
       ...current,
@@ -449,6 +452,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
   }
 
   function markWholeBlockDone() {
+    if (!executionEnabled) return;
     setDrafts((current) => {
       const next = { ...current };
 
@@ -528,6 +532,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
                     <View style={gymStyles.repsInputWrap}>
                       <TextInput
                         value={draft.reps}
+                        editable={executionEnabled}
                         onChangeText={(value) => updateExerciseReps(exercise, value)}
                         placeholder="—"
                         placeholderTextColor={themeColors.textMuted}
@@ -619,6 +624,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
                           <View style={gymStyles.loadInputWrap}>
                             <TextInput
                               value={row.load}
+                              editable={executionEnabled}
                               onChangeText={(value) => updateSetLoad(exercise, index, value)}
                               placeholder="—"
                               placeholderTextColor={themeColors.textMuted}
@@ -642,11 +648,12 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
       {blockHasSets ? (
         <Pressable
           onPress={markWholeBlockDone}
-          disabled={wholeBlockDone}
+          disabled={wholeBlockDone || !executionEnabled}
           style={({ pressed }) => [
             gymStyles.validateAllButton,
             wholeBlockDone && gymStyles.validateAllButtonDone,
-            pressed && !wholeBlockDone && gymStyles.pressed,
+            !executionEnabled && gymStyles.actionDisabled,
+            pressed && !wholeBlockDone && executionEnabled && gymStyles.pressed,
           ]}
         >
           <Ionicons
@@ -667,7 +674,12 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
 
       <Pressable
         onPress={onComplete}
-        style={({ pressed }) => [gymStyles.primaryButton, pressed && gymStyles.pressed]}
+        disabled={!executionEnabled}
+        style={({ pressed }) => [
+          gymStyles.primaryButton,
+          !executionEnabled && gymStyles.actionDisabled,
+          pressed && executionEnabled && gymStyles.pressed,
+        ]}
       >
         <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
         <Text style={gymStyles.primaryButtonText}>VALIDER LE BLOC</Text>
@@ -676,7 +688,7 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete }) {
   );
 }
 
-function ManualGymBlock({ block, exercises, onComplete }) {
+function ManualGymBlock({ block, exercises, onComplete, executionEnabled = true }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const gymStyles = useMemo(
     () => createGymStyles(themeColors, isDark),
@@ -695,6 +707,7 @@ function ManualGymBlock({ block, exercises, onComplete }) {
   );
 
   function patch(exercise, field, value) {
+    if (!executionEnabled) return;
     const key = exerciseKey(exercise);
     setDrafts((current) => ({
       ...current,
@@ -703,6 +716,7 @@ function ManualGymBlock({ block, exercises, onComplete }) {
   }
 
   function finish() {
+    if (!executionEnabled) return;
     const updates = {};
 
     for (const exercise of exercises) {
@@ -773,6 +787,7 @@ function ManualGymBlock({ block, exercises, onComplete }) {
                     <Text style={gymStyles.fieldLabel}>RÉPÉTITIONS</Text>
                     <TextInput
                       value={draft.reps ?? ''}
+                      editable={executionEnabled}
                       onChangeText={(value) => patch(exercise, 'reps', value)}
                       placeholder="—"
                       placeholderTextColor={themeColors.textMuted}
@@ -786,6 +801,7 @@ function ManualGymBlock({ block, exercises, onComplete }) {
                     <Text style={gymStyles.fieldLabel}>SECONDES</Text>
                     <TextInput
                       value={draft.seconds ?? ''}
+                      editable={executionEnabled}
                       onChangeText={(value) => patch(exercise, 'seconds', value)}
                       placeholder="—"
                       placeholderTextColor={themeColors.textMuted}
@@ -802,7 +818,12 @@ function ManualGymBlock({ block, exercises, onComplete }) {
 
       <Pressable
         onPress={finish}
-        style={({ pressed }) => [gymStyles.primaryButton, pressed && gymStyles.pressed]}
+        disabled={!executionEnabled}
+        style={({ pressed }) => [
+          gymStyles.primaryButton,
+          !executionEnabled && gymStyles.actionDisabled,
+          pressed && executionEnabled && gymStyles.pressed,
+        ]}
       >
         <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
         <Text style={gymStyles.primaryButtonText}>VALIDER LE BLOC</Text>
@@ -2097,6 +2118,7 @@ export default function EnvironmentSessionCore({
             drafts={setDrafts}
             setDrafts={setSetDrafts}
             onComplete={completeStrengthBlock}
+            executionEnabled={sessionStarted}
           />
         ) : manualGym ? (
           <ManualGymBlock
