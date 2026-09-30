@@ -894,13 +894,25 @@ function RuntimeBody(props) {
   if (mechanic === 'SETS_REPS' || mechanic === 'STRENGTH') {
     const sets = Math.max(1, numberOr(params.sets, 1));
     const exerciseCount = Math.max(1, exercises.length);
+    const totalStations = sets * exerciseCount;
     const exerciseIndex = (manualStep - 1) % exerciseCount;
     const setNumber = Math.floor((manualStep - 1) / exerciseCount) + 1;
     const current = exercises[exerciseIndex] ?? exercises[0] ?? null;
+    const lastStation = manualStep >= totalStations;
+    const lastExerciseOfSet = exerciseIndex >= exerciseCount - 1;
+    const nextExercise = lastStation
+      ? null
+      : exercises[(exerciseIndex + 1) % exerciseCount] ?? null;
+    const actionLabel = lastStation
+      ? 'Terminer le WOD'
+      : lastExerciseOfSet
+        ? 'Série terminée'
+        : 'Exercice terminé';
+
     return <>
       <Metric value={`${Math.min(setNumber, sets)} / ${sets}`} label="Série" styles={styles} large />
-      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_exercises_seconds, restRemaining))} label="Récupération" phaseColor={WOD_ACCENT} styles={styles} colors={colors} /> : <CurrentExercise exercise={current} nextExercise={exercises[(exerciseIndex + 1) % exerciseCount]} prescriptionOverride={singleDosePrescription(current)} styles={styles} />}
-      <Action label="Série terminée" icon="checkmark" onPress={onSet} disabled={restRemaining > 0} styles={styles} />
+      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_exercises_seconds, restRemaining))} label="Récupération" phaseColor={WOD_ACCENT} styles={styles} colors={colors} /> : <CurrentExercise exercise={current} nextExercise={nextExercise} prescriptionOverride={singleDosePrescription(current)} styles={styles} />}
+      <Action label={actionLabel} icon="checkmark" onPress={onSet} disabled={restRemaining > 0} styles={styles} />
     </>;
   }
 
