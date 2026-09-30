@@ -687,6 +687,10 @@ export default function SessionFocusedCore({
   const handleWodStart = useCallback(async () => {
     await ensureSessionStarted();
 
+    if (!wodRevealed) {
+      throw new Error('Révèle d’abord le WOD avant de le démarrer.');
+    }
+
     if (!workout?.sessionId || wodStartedRef.current) return;
     const result = await markWorkoutWodStarted({ sessionId: workout.sessionId });
     wodStartedRef.current = true;
@@ -698,7 +702,13 @@ export default function SessionFocusedCore({
       formatLocked: true,
       remainingFormatChanges: 0,
     });
-  }, [ensureSessionStarted, updateWorkout, workout?.sessionId, workout?.wodRevealedAt]);
+  }, [
+    ensureSessionStarted,
+    updateWorkout,
+    wodRevealed,
+    workout?.sessionId,
+    workout?.wodRevealedAt,
+  ]);
 
   const handleWodRuntime = useCallback(
     (runtime) => {
