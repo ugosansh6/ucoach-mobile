@@ -321,7 +321,7 @@ export default function SessionOverviewSheet({
   const [detailExercise, setDetailExercise] = useState(null);
 
   const refreshAvailability = useCallback(async () => {
-    if (!visible || !workout?.sessionId) {
+    if (!visible || !workout?.sessionId || !lifecycleReady) {
       setAvailability({});
       return;
     }
@@ -335,7 +335,7 @@ export default function SessionOverviewSheet({
     } finally {
       setLoadingAvailability(false);
     }
-  }, [visible, workout?.sessionId]);
+  }, [lifecycleReady, visible, workout?.sessionId]);
 
   useEffect(() => {
     refreshAvailability();
@@ -468,7 +468,7 @@ export default function SessionOverviewSheet({
                         <Text style={[styles.blockState, active && styles.blockStateActive]}>
                           {block.done ? 'Terminé' : active ? 'En cours' : maskedWod ? 'À découvrir' : 'À venir'}
                         </Text>
-                        {block.protocolLabel ? (
+                        {block.protocolLabel && !maskedWod ? (
                           <Text style={styles.blockProtocol}>{block.protocolLabel}</Text>
                         ) : null}
                       </View>
@@ -569,7 +569,9 @@ export default function SessionOverviewSheet({
           <View style={styles.footer}>
             <Pressable onPress={onClose} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
               <Text style={styles.primaryButtonText}>
-                {workout?.sessionStarted ? 'RETOURNER À MA SÉANCE' : 'VOIR LE PREMIER BLOC'}
+                {lifecycleReady && workout?.sessionStarted
+                  ? 'RETOURNER À MA SÉANCE'
+                  : 'VOIR LE PREMIER BLOC'}
               </Text>
               <Ionicons name="arrow-forward" size={19} color={colors.textOnAccent} />
             </Pressable>
