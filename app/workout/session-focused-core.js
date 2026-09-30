@@ -1089,10 +1089,15 @@ export function FocusedTabata({
   const [displayExerciseIndex, setDisplayExerciseIndex] = useState(0);
 
   useEffect(() => {
-    if (!started || paused || elapsed >= totalSeconds) return undefined;
-    const timer = setInterval(() => setElapsed((current) => Math.min(totalSeconds, current + 1)), 1000);
+    if (!executionEnabled || !started || paused || elapsed >= totalSeconds) {
+      return undefined;
+    }
+    const timer = setInterval(
+      () => setElapsed((current) => Math.min(totalSeconds, current + 1)),
+      1000
+    );
     return () => clearInterval(timer);
-  }, [elapsed, paused, started, totalSeconds]);
+  }, [elapsed, executionEnabled, paused, started, totalSeconds]);
 
   const roundIndex = Math.min(rounds - 1, Math.floor(elapsed / cycleSeconds));
   const within = elapsed % cycleSeconds;
