@@ -113,6 +113,17 @@ function pyramidReps(exercise, multiplier) {
   return Math.round(base * multiplier);
 }
 
+function pyramidSequenceLabel(exercise, multipliers = [1, 2, 3, 2, 1]) {
+  const safeMultipliers =
+    Array.isArray(multipliers) && multipliers.length > 0
+      ? multipliers.map((value) => Math.max(1, numberOr(value, 1)))
+      : [1, 2, 3, 2, 1];
+
+  const reps = safeMultipliers.map((multiplier) => pyramidReps(exercise, multiplier));
+  const semantics = String(prescriptionObject(exercise)?.reps_semantics ?? '').toLowerCase();
+  return `${reps.join(' → ')} reps${semantics === 'per_side' ? ' / côté' : ''}`;
+}
+
 function playerTitle(mechanic, variant) {
   if (mechanic === 'PROGRESSIVE_INTERVAL' && variant === 'DEATH_BY') return 'Death By';
   if (mechanic === 'PROGRESSIVE_INTERVAL' && variant === 'DEATH_BY_COUPLET') return 'Death By Couplet';
@@ -164,7 +175,12 @@ function protocolSummary(mechanic, params, exercises, durationMinutes) {
   if (mechanic === 'CIRCUIT') return `${numberOr(params.rounds, 1)} tours · ${numberOr(params.rest_between_rounds_seconds, 0)}s repos`;
   if (mechanic === 'HIIT') return `${numberOr(params.rounds, 1)} tours · ${numberOr(params.work_seconds, 40)}s / ${numberOr(params.rest_seconds, 20)}s`;
   if (mechanic === 'LADDER' || mechanic === 'COUPLET') return `${numberOr(params.rungs, 1)} étapes`;
-  if (mechanic === 'PYRAMID') return `${(Array.isArray(params.multipliers) ? params.multipliers : [1, 2, 3, 2, 1]).join(' · ')}`;
+  if (mechanic === 'PYRAMID') {
+    const multipliers = Array.isArray(params.multipliers) && params.multipliers.length
+      ? params.multipliers
+      : [1, 2, 3, 2, 1];
+    return `${multipliers.length} passages · les reps montent puis redescendent`;
+  }
   if (mechanic === 'ODD_EVEN') return `${numberOr(params.cycles, 1)} cycles · alternance impaire / paire`;
   if (mechanic === 'EVERY_X_MINUTES') return `${numberOr(params.cycles, 1)} cycles · départ toutes les ${formatClock(numberOr(params.interval_seconds, 120))}`;
   if (mechanic === 'PROGRESSIVE_INTERVAL') return `${formatClock(numberOr(params.interval_seconds, 60))} par étape · progression jusqu’à l’échec ou au cap`;
@@ -520,6 +536,8 @@ export default function WodProtocolPlayerV3({
           title={title}
           summary={summary}
           exercises={exercises}
+          mechanic={mechanic}
+          params={params}
           loading={starting}
           error={startError}
           onStart={start}
@@ -593,7 +611,7 @@ export default function WodProtocolPlayerV3({
   );
 }
 
-function StartPanel({ title, summary, exercises, loading, error, onStart, canChangeFormat, onChangeFormat, styles, colors }) {
+function StartPanel({ title, summary, exercises, mechanic, params, loading, error, onStart, canChangeFormat, onChangeFormat, styles, colors }) {
   return (
     <>
       <View style={styles.startTopRow}>

@@ -1197,6 +1197,11 @@ function GymCardioBlock({ block, exercises, onBeforeStart, onComplete }) {
 }
 
 function TimedBlock({ block, exercise, environmentCode, onComplete }) {
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const runStyles = useMemo(
+    () => createOutdoorRunStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
   const mechanic = blockMechanic(block);
   const params = blockParameters(block);
   const isRun = isRunMechanic(mechanic);
@@ -1350,118 +1355,147 @@ function TimedBlock({ block, exercise, environmentCode, onComplete }) {
   }
 
   return (
-    <View style={[styles.card, styles.runCard]}>
-      <Text style={styles.runEyebrow}>CONDITIONING COURSE</Text>
-      <Text style={styles.cardTitle}>{title}</Text>
+    <View style={runStyles.card}>
+      <Text style={runStyles.eyebrow}>CONDITIONING COURSE</Text>
+      <Text style={runStyles.title}>{title}</Text>
+
       {!started && exercise ? (
-        <View style={{ marginTop: 10, alignItems: 'flex-start' }}>
+        <View style={runStyles.optionsRow}>
           <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
         </View>
       ) : null}
 
-      <View style={styles.runBriefPanel}>
-        <Text style={styles.runBriefEyebrow}>TA SÉANCE</Text>
-        <Text style={styles.runBriefMain}>
+      <View style={runStyles.briefPanel}>
+        <Text style={runStyles.briefLabel}>TA SÉANCE</Text>
+        <Text style={runStyles.briefMain}>
           {isIntervals
             ? `${repeats} × ${workLabel} de course`
             : `${totalLabel} de course`}
         </Text>
         {isIntervals && recoverySeconds > 0 ? (
-          <Text style={styles.runBriefRecovery}>+ {recoveryLabel} de récupération</Text>
+          <Text style={runStyles.briefRecovery}>+ {recoveryLabel} de récupération</Text>
         ) : null}
 
         {intensityCue ? (
-          <View style={styles.runCueRow}>
-            <Ionicons name="speedometer-outline" size={16} color={colors.primaryLight} />
-            <Text style={styles.runCueText}>{intensityCue}</Text>
+          <View style={runStyles.cueRow}>
+            <Ionicons name="speedometer-outline" size={16} color={themeColors.accent} />
+            <Text style={runStyles.cueText}>{intensityCue}</Text>
           </View>
         ) : null}
 
-        <View style={styles.runTotalRow}>
-          <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-          <Text style={styles.runTotalText}>{totalLabel} au total</Text>
+        <View style={runStyles.totalRow}>
+          <Ionicons name="time-outline" size={15} color={themeColors.textSecondary} />
+          <Text style={runStyles.totalText}>{totalLabel} au total</Text>
         </View>
       </View>
 
-      <View style={styles.runPhaseCard}>
-        <Text style={styles.runPhaseLabel}>
+      <View style={runStyles.phaseCard}>
+        <Text style={runStyles.phaseLabel}>
           {isIntervals
             ? `${phase.label} · ${phase.intervalNumber}/${repeats}`
             : phase.label === 'TERMINÉ' ? 'TERMINÉ' : 'COURSE'}
         </Text>
-        <Text style={styles.runPhaseTime}>{formatClock(phase.remaining)}</Text>
+        <Text style={runStyles.phaseTime}>{formatClock(phase.remaining)}</Text>
         {phaseCue && phase.label !== 'TERMINÉ' ? (
-          <Text style={styles.runPhaseCue}>{phaseCue}</Text>
+          <Text style={runStyles.phaseCue}>{phaseCue}</Text>
         ) : null}
       </View>
 
-      <View style={styles.runOverallRow}>
-        <Text style={styles.runOverallLabel}>TEMPS TOTAL</Text>
-        <Text style={styles.runOverallValue}>{formatClock(elapsed)} / {formatClock(prescribedSeconds)}</Text>
+      <View style={runStyles.overallRow}>
+        <Text style={runStyles.overallLabel}>TEMPS TOTAL</Text>
+        <Text style={runStyles.overallValue}>
+          {formatClock(elapsed)} / {formatClock(prescribedSeconds)}
+        </Text>
       </View>
 
-      <View style={styles.timerActions}>
+      <View style={runStyles.actionRow}>
         {!started ? (
           <Pressable
             onPress={() => setStarted(true)}
-            style={({ pressed }) => [styles.runStartButton, styles.flexButton, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              runStyles.primaryButton,
+              runStyles.flexButton,
+              pressed && runStyles.pressed,
+            ]}
           >
-            <Ionicons name="play" size={18} color={colors.brandWhite} />
-            <Text style={styles.primaryButtonText}>DÉMARRER</Text>
+            <Ionicons name="play" size={18} color={themeColors.textOnAccent} />
+            <Text style={runStyles.primaryButtonText}>DÉMARRER</Text>
           </Pressable>
         ) : elapsed < prescribedSeconds ? (
           <Pressable
             onPress={() => setPaused((current) => !current)}
-            style={({ pressed }) => [styles.secondaryButton, styles.flexButton, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              runStyles.secondaryButton,
+              runStyles.flexButton,
+              pressed && runStyles.pressed,
+            ]}
           >
-            <Ionicons name={paused ? 'play' : 'pause'} size={17} color={colors.textPrimary} />
-            <Text style={styles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
+            <Ionicons
+              name={paused ? 'play' : 'pause'}
+              size={17}
+              color={themeColors.text}
+            />
+            <Text style={runStyles.secondaryButtonText}>
+              {paused ? 'REPRENDRE' : 'PAUSE'}
+            </Text>
           </Pressable>
         ) : null}
       </View>
 
       {(started || elapsed > 0) ? (
-        <View style={styles.runMetricsPanel}>
-          <Text style={styles.runMetricsEyebrow}>APRÈS L’EFFORT · OPTIONNEL</Text>
-          <View style={styles.metricsRowCompact}>
-            <View style={styles.metricField}>
-              <Text style={styles.inputLabel}>DISTANCE (M)</Text>
+        <View style={runStyles.metricsPanel}>
+          <Text style={runStyles.metricsEyebrow}>APRÈS L’EFFORT · OPTIONNEL</Text>
+          <View style={runStyles.metricsRow}>
+            <View style={runStyles.metricField}>
+              <Text style={runStyles.inputLabel}>DISTANCE (M)</Text>
               <TextInput
                 value={distance}
                 onChangeText={setDistance}
                 placeholder="Optionnel"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="decimal-pad"
-                style={styles.metricInput}
+                style={runStyles.metricInput}
               />
             </View>
-            <View style={styles.metricFieldSmall}>
-              <Text style={styles.inputLabel}>RPE</Text>
+            <View style={runStyles.metricFieldSmall}>
+              <Text style={runStyles.inputLabel}>RPE</Text>
               <TextInput
                 value={rpe}
                 onChangeText={setRpe}
                 placeholder="1–10"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="numeric"
-                style={styles.metricInput}
+                style={runStyles.metricInput}
               />
             </View>
           </View>
           {environmentCode === 'OUTDOOR' ? (
-            <Text style={styles.helperText}>Aucun GPS n’est requis. Renseigne seulement ce que tu as réellement mesuré.</Text>
+            <Text style={runStyles.helperText}>
+              Aucun GPS n’est requis. Renseigne seulement ce que tu as réellement mesuré.
+            </Text>
           ) : null}
         </View>
       ) : null}
 
       {elapsed >= prescribedSeconds ? (
-        <Pressable onPress={finish} style={({ pressed }) => [styles.runStartButton, pressed && styles.pressed]}>
-          <Ionicons name="checkmark" size={18} color={colors.brandWhite} />
-          <Text style={styles.primaryButtonText}>TERMINER LE BLOC</Text>
+        <Pressable
+          onPress={finish}
+          style={({ pressed }) => [runStyles.primaryButton, pressed && runStyles.pressed]}
+        >
+          <Ionicons name="checkmark" size={18} color={themeColors.textOnAccent} />
+          <Text style={runStyles.primaryButtonText}>TERMINER LE BLOC</Text>
         </Pressable>
       ) : started ? (
-        <Pressable onPress={finish} style={({ pressed }) => [styles.stopButton, pressed && styles.pressed]}>
-          <Ionicons name="stop-circle-outline" size={17} color={colors.brandRed} />
-          <Text style={styles.stopButtonText}>ARRÊTER LE BLOC</Text>
+        <Pressable
+          onPress={finish}
+          style={({ pressed }) => [runStyles.stopButton, pressed && runStyles.pressed]}
+        >
+          <Ionicons
+            name="stop-circle-outline"
+            size={17}
+            color={themeColors.secondaryAccent}
+          />
+          <Text style={runStyles.stopButtonText}>ARRÊTER LE BLOC</Text>
         </Pressable>
       ) : null}
     </View>
@@ -2469,6 +2503,234 @@ function createEnvironmentFocusedStyles(colors, isDark) {
   });
 }
 
+
+function createOutdoorRunStyles(colors, isDark) {
+  return StyleSheet.create({
+    card: {
+      padding: 18,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    eyebrow: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.9,
+      color: colors.accent,
+    },
+    title: {
+      marginTop: 5,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 28,
+      lineHeight: 34,
+      color: colors.text,
+    },
+    optionsRow: {
+      marginTop: 12,
+      alignItems: 'flex-start',
+    },
+    briefPanel: {
+      marginTop: 16,
+      padding: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.accentSoft,
+    },
+    briefLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.8,
+      color: colors.accent,
+    },
+    briefMain: {
+      marginTop: 5,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 22,
+      lineHeight: 28,
+      color: colors.text,
+    },
+    briefRecovery: {
+      marginTop: 3,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.textSecondary,
+    },
+    cueRow: {
+      marginTop: 12,
+      paddingTop: 11,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    cueText: {
+      flex: 1,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
+    },
+    totalRow: {
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+    },
+    totalText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    phaseCard: {
+      marginTop: 14,
+      paddingVertical: 20,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      backgroundColor: isDark ? colors.surfaceElevated : colors.background,
+    },
+    phaseLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 10,
+      letterSpacing: 0.8,
+      color: colors.accent,
+    },
+    phaseTime: {
+      marginTop: 4,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 48,
+      lineHeight: 56,
+      color: colors.text,
+    },
+    phaseCue: {
+      marginTop: 4,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      textAlign: 'center',
+      color: colors.textSecondary,
+    },
+    overallRow: {
+      marginTop: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    overallLabel: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textMuted,
+    },
+    overallValue: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+    flexButton: { flex: 1 },
+    primaryButton: {
+      minHeight: 52,
+      marginTop: 14,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      backgroundColor: colors.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    primaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      color: colors.textOnAccent,
+    },
+    secondaryButton: {
+      minHeight: 52,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    secondaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    metricsPanel: {
+      marginTop: 14,
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    metricsEyebrow: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textMuted,
+    },
+    metricsRow: { marginTop: 10, flexDirection: 'row', gap: 10 },
+    metricField: { flex: 1 },
+    metricFieldSmall: { width: 92 },
+    inputLabel: {
+      marginBottom: 5,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textSecondary,
+    },
+    metricInput: {
+      minHeight: 44,
+      paddingHorizontal: 11,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    helperText: {
+      marginTop: 8,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.textMuted,
+    },
+    stopButton: {
+      minHeight: 48,
+      marginTop: 12,
+      paddingHorizontal: 15,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    stopButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      color: colors.secondaryAccent,
+    },
+    pressed: { opacity: 0.72 },
+  });
+}
 
 function createGymCardioStyles(colors, isDark) {
   return StyleSheet.create({
