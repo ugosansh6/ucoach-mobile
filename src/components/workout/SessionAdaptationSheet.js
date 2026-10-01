@@ -39,7 +39,7 @@ function getProtectedExerciseIds(workout) {
       .filter(Boolean)
   );
 
-  return (workout?.exercises ?? [])
+  const protectedIds = (workout?.exercises ?? [])
     .filter((exercise) => {
       const block = normalizeBlock(exercise?.blockKey ?? exercise?.block);
       return (
@@ -49,6 +49,18 @@ function getProtectedExerciseIds(workout) {
     })
     .map((exercise) => exercise?.sessionExerciseId ?? exercise?.session_exercise_id)
     .filter(Boolean);
+
+  const partialEnvironmentIds =
+    workout?.environmentPartialProgress?.sessionExerciseIds ?? [];
+
+  return [
+    ...new Set([
+      ...protectedIds,
+      ...(Array.isArray(partialEnvironmentIds)
+        ? partialEnvironmentIds.filter(Boolean)
+        : []),
+    ]),
+  ];
 }
 
 function buildProtectedProgress(workout) {
@@ -58,7 +70,9 @@ function buildProtectedProgress(workout) {
       ? workout.validatedBlocks
       : [],
     active_session_exercise_id:
-      workout?.playerCursor?.sessionExerciseId ?? null,
+      workout?.playerCursor?.sessionExerciseId ??
+      workout?.playerCursor?.session_exercise_id ??
+      null,
   };
 }
 
