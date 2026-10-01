@@ -163,6 +163,89 @@ begin
     raise exception 'PRG lifecycle regression: consolidation is changing cycle priority semantics';
   end if;
 
+  -- ADAPT-STARTED-V2: fatigue adaptation changes dose, never invents load,
+  -- and keeps Outdoor running mechanics explicit.
+  if to_regprocedure('public.adapt_started_session_v2(uuid,text,jsonb)') is null then
+    raise exception 'ADAPT V2 regression: common started-session RPC missing';
+  end if;
+  if not exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname='adapt_started_session_v2'
+      and p.prosecdef
+  ) then
+    raise exception 'ADAPT V2 regression: common RPC is not SECURITY DEFINER';
+  end if;
+
+  v_contract:=public.ugerod_adapt_fatigue_prescription_v2(
+    'GYM',
+    'wod',
+    jsonb_build_object(
+      'mechanic','SETS_REPS',
+      'execution_target_reps',10,
+      'reps_min',8,
+      'reps_max',12,
+      'target_rpe_min',7,
+      'target_rpe_max',9,
+      'execution_target_load_kg',42.5,
+      'block_parameters',jsonb_build_object('sets',4)
+    )
+  );
+  if v_contract->>'execution_target_reps'<>'8'
+     or v_contract#>>'{block_parameters,sets}'<>'3'
+     or v_contract->>'target_rpe_max'<>'8'
+     or v_contract->>'execution_target_load_kg'<>'42.5' then
+    raise exception 'ADAPT V2 regression: GYM dose/load contract broken: %',v_contract;
+  end if;
+
+  v_contract:=public.ugerod_adapt_fatigue_prescription_v2(
+    'OUTDOOR',
+    'wod',
+    jsonb_build_object(
+      'mechanic','RUN_INTERVALS',
+      'execution_target_duration_seconds',1200,
+      'block_parameters',jsonb_build_object(
+        'repeats',20,
+        'work_seconds',40,
+        'recovery_seconds',20,
+        'reliable_distance',false,
+        'distance_target_meters',null
+      )
+    )
+  );
+  if v_contract->>'mechanic'<>'RUN_INTERVALS'
+     or v_contract#>>'{block_parameters,repeats}'<>'16'
+     or v_contract->>'execution_target_duration_seconds'<>'960'
+     or v_contract#>>'{block_parameters,distance_target_meters}' is not null
+     or v_contract ? 'execution_target_load_kg' then
+    raise exception 'ADAPT V2 regression: OUTDOOR dose/mechanic contract broken: %',v_contract;
+  end if;
+
+  -- A fatigue-driven easier variant is a system action. It must not go through
+  -- the explicit user-swap wrapper or write preference/manual-swap semantics.
+  if exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname='d_adapt_started_session_fatigue_v1'
+      and position('c4_swap_session_exercise_v3(' in pg_get_functiondef(p.oid))>0
+  ) then
+    raise exception 'ADAPT V2 regression: fatigue adaptation is routed through manual user swap history';
+  end if;
+  if not exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname='d_adapt_started_session_fatigue_v1'
+      and position('STARTED_SESSION_FATIGUE_ADAPT' in pg_get_functiondef(p.oid))>0
+  ) then
+    raise exception 'ADAPT V2 regression: system fatigue-variant source marker missing';
+  end if;
+
   raise notice 'UGEROD backend_core_regression: PASS';
 end $$;
 
