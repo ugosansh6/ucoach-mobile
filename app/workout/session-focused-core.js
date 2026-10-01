@@ -918,9 +918,22 @@ export default function SessionFocusedCore({
 
               {detailsOpen ? (
                 <View style={styles.detailsBox}>
+                  {activeExercise?.description ? (
+                    <>
+                      <Text style={styles.detailsLabel}>Description</Text>
+                      <Text style={styles.detailsText}>{normalizeDetailText(activeExercise.description)}</Text>
+                    </>
+                  ) : null}
                   {activeExercise?.instructions ? (
                     <>
-                      <Text style={styles.detailsLabel}>Exécution</Text>
+                      <Text
+                        style={[
+                          styles.detailsLabel,
+                          activeExercise?.description && { marginTop: 12 },
+                        ]}
+                      >
+                        Exécution
+                      </Text>
                       <Text style={styles.detailsText}>{normalizeDetailText(activeExercise.instructions)}</Text>
                     </>
                   ) : null}
@@ -930,7 +943,7 @@ export default function SessionFocusedCore({
                       <Text style={styles.detailsText}>{normalizeDetailText(activeExercise.tips)}</Text>
                     </>
                   ) : null}
-                  {!activeExercise?.instructions && !activeExercise?.tips ? (
+                  {!activeExercise?.description && !activeExercise?.instructions && !activeExercise?.tips ? (
                     <Text style={styles.detailsText}>Aucune consigne détaillée supplémentaire.</Text>
                   ) : null}
                 </View>
