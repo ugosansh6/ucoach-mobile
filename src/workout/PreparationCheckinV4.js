@@ -46,15 +46,60 @@ const ENVIRONMENTS = [
 ];
 
 const OUTDOOR_PLACES = [
-  { code: 'CITY_URBAN', label: 'Ville', surface: null },
-  { code: 'PARK', label: 'Parc', surface: null },
-  { code: 'ATHLETICS_TRACK', label: 'Piste d’athlétisme', surface: 'TRACK' },
-  { code: 'GRASS_FIELD', label: 'Pelouse / herbe', surface: 'GRASS' },
-  { code: 'FOREST_PATH', label: 'Forêt / sentier', surface: null },
-  { code: 'MOUNTAIN', label: 'Montagne', surface: null },
-  { code: 'BEACH', label: 'Plage', surface: 'SAND' },
-  { code: 'STREET_WORKOUT', label: 'Street workout', surface: null },
-  { code: 'OTHER', label: 'Autre', surface: null },
+  {
+    code: 'CITY_URBAN',
+    label: 'Ville',
+    surface: null,
+    terrainCodes: ['ROAD', 'GRASS', 'MIXED'],
+  },
+  {
+    code: 'PARK',
+    label: 'Parc',
+    surface: null,
+    terrainCodes: ['GRASS', 'ROAD', 'TRAIL', 'MIXED'],
+  },
+  {
+    code: 'ATHLETICS_TRACK',
+    label: 'Piste d’athlétisme',
+    surface: 'TRACK',
+  },
+  {
+    // Conservé pour les anciennes préparations, mais ce n’est plus présenté
+    // comme un "lieu" : l’herbe appartient désormais à l’étape Terrain.
+    code: 'GRASS_FIELD',
+    label: 'Pelouse / terrain en herbe',
+    surface: 'GRASS',
+    selectable: false,
+  },
+  {
+    code: 'FOREST_PATH',
+    label: 'Forêt',
+    surface: null,
+    terrainCodes: ['TRAIL', 'GRASS', 'MIXED'],
+  },
+  {
+    code: 'MOUNTAIN',
+    label: 'Montagne',
+    surface: null,
+    terrainCodes: ['TRAIL', 'GRASS', 'MIXED'],
+  },
+  {
+    code: 'BEACH',
+    label: 'Plage',
+    surface: 'SAND',
+  },
+  {
+    code: 'STREET_WORKOUT',
+    label: 'Street workout',
+    surface: null,
+    terrainCodes: ['ROAD', 'GRASS', 'MIXED'],
+  },
+  {
+    code: 'OTHER',
+    label: 'Autre',
+    surface: null,
+    terrainCodes: ['GRASS', 'ROAD', 'TRAIL', 'SAND', 'MIXED'],
+  },
 ];
 
 function localDateKey(date = new Date()) {
@@ -71,6 +116,22 @@ const TERRAIN_OPTIONS = [
   { code: 'SAND', label: 'Sable' },
   { code: 'MIXED', label: 'Mixte' },
 ];
+
+function selectableOutdoorPlaces() {
+  return OUTDOOR_PLACES.filter((item) => item.selectable !== false);
+}
+
+function terrainOptionsForPlace(place) {
+  if (!place || place.surface) return [];
+
+  const allowed = Array.isArray(place.terrainCodes)
+    ? new Set(place.terrainCodes)
+    : null;
+
+  return allowed
+    ? TERRAIN_OPTIONS.filter((item) => allowed.has(item.code))
+    : TERRAIN_OPTIONS;
+}
 
 const READINESS_OPTIONS = [
   {
@@ -506,7 +567,13 @@ export default function PreparationCheckinV4() {
     (item) => item.code === preparation?.outdoorPlaceCode
   );
   const placeNeedsTerrain =
-    environmentCode === 'OUTDOOR' && selectedPlace && !selectedPlace.surface;
+    environmentCode === 'OUTDOOR' && Boolean(selectedPlace && !selectedPlace.surface);
+  const availableTerrainOptions = terrainOptionsForPlace(selectedPlace);
+  const effectiveOutdoorSurface =
+    preparation?.surfaceCode ?? selectedPlace?.surface ?? null;
+  const outdoorContextComplete =
+    environmentCode !== 'OUTDOOR' ||
+    Boolean(selectedPlace && effectiveOutdoorSurface);
 
   const normalizedStatus = String(workout?.status ?? '').toLowerCase();
   const hasExistingSession =
@@ -642,6 +709,7 @@ export default function PreparationCheckinV4() {
       executionStyle: null,
       outdoorPlaceCode: null,
       surfaceCode: null,
+      surfaceSelectionSource: null,
     });
     if (code !== 'OUTDOOR') setSheet(null);
   }
@@ -650,13 +718,21 @@ export default function PreparationCheckinV4() {
     updatePreparation({
       outdoorPlaceCode: item.code,
       surfaceCode: item.surface ?? null,
+      surfaceSelectionSource: item.surface ? 'place_inferred' : null,
       formatCode: null,
     });
+
+    // Piste et plage sont suffisamment explicites : le backend sait déjà
+    // en déduire le sol. On ne demande une deuxième information que lorsque
+    // le lieu est réellement ambigu.
     if (item.surface) setSheet(null);
   }
 
   function selectTerrain(code) {
-    updatePreparation({ surfaceCode: code });
+    updatePreparation({
+      surfaceCode: code,
+      surfaceSelectionSource: 'user_selected',
+    });
     setSheet(null);
   }
 
@@ -723,10 +799,7 @@ export default function PreparationCheckinV4() {
       return;
     }
 
-    if (
-      environmentCode === 'OUTDOOR' &&
-      (!preparation?.outdoorPlaceCode || !preparation?.surfaceCode)
-    ) {
+    if (!outdoorContextComplete) {
       setSheet('location');
       return;
     }
@@ -737,6 +810,9 @@ export default function PreparationCheckinV4() {
       equipment,
       region: focus,
       environmentCode,
+      ...(environmentCode === 'OUTDOOR'
+        ? { surfaceCode: effectiveOutdoorSurface }
+        : {}),
     });
 
     const navigate = () => {
@@ -777,8 +853,7 @@ export default function PreparationCheckinV4() {
   const canGenerate =
     !equipmentLoading &&
     painConfirmedToday &&
-    (environmentCode !== 'OUTDOOR' ||
-      Boolean(preparation?.outdoorPlaceCode && preparation?.surfaceCode));
+    outdoorContextComplete;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -944,9 +1019,12 @@ export default function PreparationCheckinV4() {
 
         {environmentCode === 'OUTDOOR' ? (
           <>
-            <Text style={styles.subsectionTitle}>Lieu extérieur</Text>
+            <Text style={styles.subsectionTitle}>1. Choisis le lieu</Text>
+            <Text style={styles.sheetHelp}>
+              Le lieu donne le contexte général de la séance.
+            </Text>
             <View style={styles.choiceGrid}>
-              {OUTDOOR_PLACES.map((item) => (
+              {selectableOutdoorPlaces().map((item) => (
                 <ChoiceChip
                   key={item.code}
                   label={item.label}
@@ -960,9 +1038,15 @@ export default function PreparationCheckinV4() {
 
             {placeNeedsTerrain ? (
               <>
-                <Text style={styles.subsectionTitle}>Précise le terrain</Text>
+                <Text style={styles.subsectionTitle}>
+                  2. Quel est principalement le terrain ?
+                </Text>
+                <Text style={styles.sheetHelp}>
+                  On te le demande seulement quand le lieu ne suffit pas. UGEROD s’en sert
+                  pour les impacts, les déplacements et les exercices au sol.
+                </Text>
                 <View style={styles.choiceGrid}>
-                  {TERRAIN_OPTIONS.map((item) => (
+                  {availableTerrainOptions.map((item) => (
                     <ChoiceChip
                       key={item.code}
                       label={item.label}
