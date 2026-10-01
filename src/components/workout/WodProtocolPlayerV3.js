@@ -19,8 +19,6 @@ import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 
 const wodBeep = require('../../../assets/sounds/tabata-beep.wav');
-const WOD_ACCENT = '#5E6633';
-const WOD_ACTION = '#FF6B19';
 const RING_SEGMENTS = 48;
 
 function normalizeMechanic(value) {
@@ -735,7 +733,7 @@ function StartPanel({
         </View>
         {canChangeFormat && typeof onChangeFormat === 'function' ? (
           <Pressable onPress={onChangeFormat} style={styles.changeFormatButton}>
-            <Ionicons name="options-outline" size={16} color={WOD_ACCENT} />
+            <Ionicons name="options-outline" size={16} color={colors.accent} />
             <Text style={styles.changeFormatText}>Changer</Text>
           </Pressable>
         ) : null}
@@ -764,7 +762,7 @@ function StartPanel({
           (loading || !executionEnabled) && styles.disabled,
         ]}
       >
-        {loading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="play" size={19} color="#FFFFFF" />}
+        {loading ? <ActivityIndicator size="small" color={colors.textOnAccent} /> : <Ionicons name="play" size={19} color={colors.textOnAccent} />}
         <Text style={styles.primaryButtonText}>
           {loading
             ? 'Démarrage…'
@@ -820,7 +818,7 @@ function RuntimeBody(props) {
         value={derived.phaseRemaining ?? 0}
         total={derived.phaseDuration ?? 1}
         label={derived.phase ?? 'Effort'}
-        phaseColor={recovery ? WOD_ACCENT : WOD_ACTION}
+        phaseColor={recovery ? colors.accent : colors.secondaryAccent}
         styles={styles}
         colors={colors}
       />
@@ -860,7 +858,7 @@ function RuntimeBody(props) {
     const rounds = Math.max(1, numberOr(params.rounds, 1));
     return <>
       <Metric value={`${Math.min(rounds, completedRounds + 1)} / ${rounds}`} label="Tour en cours" styles={styles} large />
-      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_rounds_seconds, restRemaining))} label="Récupération" phaseColor={WOD_ACCENT} styles={styles} colors={colors} /> : <WorkList exercises={exercises} styles={styles} />}
+      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_rounds_seconds, restRemaining))} label="Récupération" phaseColor={colors.accent} styles={styles} colors={colors} /> : <WorkList exercises={exercises} styles={styles} />}
       <Action label="Tour terminé" icon="checkmark" onPress={onRound} disabled={restRemaining > 0} styles={styles} />
     </>;
   }
@@ -944,7 +942,7 @@ function RuntimeBody(props) {
 
     return <>
       <Metric value={`${Math.min(setNumber, sets)} / ${sets}`} label="Série" styles={styles} large />
-      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_exercises_seconds, restRemaining))} label="Récupération" phaseColor={WOD_ACCENT} styles={styles} colors={colors} /> : <CurrentExercise exercise={current} nextExercise={nextExercise} prescriptionOverride={singleDosePrescription(current)} styles={styles} />}
+      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_exercises_seconds, restRemaining))} label="Récupération" phaseColor={colors.accent} styles={styles} colors={colors} /> : <CurrentExercise exercise={current} nextExercise={nextExercise} prescriptionOverride={singleDosePrescription(current)} styles={styles} />}
       <Action label={actionLabel} icon="checkmark" onPress={onSet} disabled={restRemaining > 0} styles={styles} />
     </>;
   }
@@ -952,8 +950,9 @@ function RuntimeBody(props) {
   return <WorkList exercises={exercises} styles={styles} />;
 }
 
-function ProtocolRing({ value, total, label, countUp = false, phaseColor = WOD_ACCENT, styles, colors }) {
+function ProtocolRing({ value, total, label, countUp = false, phaseColor = null, styles, colors }) {
   const safeTotal = Math.max(1, numberOr(total, 1));
+  const resolvedPhaseColor = phaseColor ?? colors.accent;
   const safeValue = Math.max(0, numberOr(value, 0));
   const ratio = Math.max(0, Math.min(1, safeValue / safeTotal));
   const activeCount = Math.ceil(ratio * RING_SEGMENTS);
@@ -967,7 +966,7 @@ function ProtocolRing({ value, total, label, countUp = false, phaseColor = WOD_A
           return <View key={index} style={[styles.ringTick, {
             left: 100 + Math.cos(angle) * radius - 2.5,
             top: 100 + Math.sin(angle) * radius - 6,
-            backgroundColor: active ? phaseColor : colors.border,
+            backgroundColor: active ? resolvedPhaseColor : colors.border,
             transform: [{ rotate: `${(index / RING_SEGMENTS) * 360}deg` }],
           }]} />;
         })}
@@ -1021,30 +1020,30 @@ function createStyles(colors, isDark) {
     startTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
     startHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     changeFormatButton: { minHeight: 38, paddingHorizontal: 10, borderRadius: 11, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
-    changeFormatText: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: WOD_ACCENT },
-    readyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: WOD_ACCENT },
-    readyLabel: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: WOD_ACCENT },
+    changeFormatText: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: colors.accent },
+    readyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+    readyLabel: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: colors.accent },
     startTitle: { marginTop: 8, fontFamily: 'Manrope_800ExtraBold', fontSize: 27, lineHeight: 33, color: colors.text },
     startSummary: { marginTop: 4, fontFamily: 'Manrope_500Medium', fontSize: 13, lineHeight: 19, color: colors.textSecondary },
     previewList: { marginTop: 16, gap: 8 },
     previewRow: { minHeight: 58, padding: 12, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
-    previewIndex: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(94,102,51,0.24)' : 'rgba(94,102,51,0.12)' },
-    previewIndexText: { fontFamily: 'Manrope_800ExtraBold', fontSize: 11, color: WOD_ACCENT },
+    previewIndex: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
+    previewIndexText: { fontFamily: 'Manrope_800ExtraBold', fontSize: 11, color: colors.accent },
     previewCopy: { flex: 1, minWidth: 0 },
     previewName: { fontFamily: 'Manrope_700Bold', fontSize: 14, color: colors.text },
-    previewPrescription: { marginTop: 2, fontFamily: 'Manrope_700Bold', fontSize: 13, color: WOD_ACCENT },
-    primaryButton: { minHeight: 52, marginTop: 15, paddingHorizontal: 16, borderRadius: 14, backgroundColor: WOD_ACCENT, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-    primaryButtonText: { fontFamily: 'Manrope_800ExtraBold', fontSize: 13, color: '#FFFFFF' },
+    previewPrescription: { marginTop: 2, fontFamily: 'Manrope_700Bold', fontSize: 13, color: colors.accent },
+    primaryButton: { minHeight: 52, marginTop: 15, paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    primaryButtonText: { fontFamily: 'Manrope_800ExtraBold', fontSize: 13, color: colors.textOnAccent },
     disabled: { opacity: 0.38 },
-    errorText: { marginTop: 12, fontFamily: 'Manrope_600SemiBold', fontSize: 12, color: WOD_ACTION },
+    errorText: { marginTop: 12, fontFamily: 'Manrope_600SemiBold', fontSize: 12, color: colors.secondaryAccent },
     errorTitle: { fontFamily: 'Manrope_800ExtraBold', fontSize: 18, color: colors.text },
     muted: { marginTop: 5, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     runtimeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-    runtimeEyebrow: { fontFamily: 'Manrope_800ExtraBold', fontSize: 9, letterSpacing: 0.7, color: WOD_ACCENT },
+    runtimeEyebrow: { fontFamily: 'Manrope_800ExtraBold', fontSize: 9, letterSpacing: 0.7, color: colors.accent },
     runtimeTitle: { marginTop: 2, fontFamily: 'Manrope_800ExtraBold', fontSize: 22, color: colors.text },
     pauseButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
     pauseNotice: { marginTop: 12, paddingVertical: 8, borderRadius: 999, alignItems: 'center', backgroundColor: colors.accentSoft },
-    pauseNoticeText: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: WOD_ACCENT },
+    pauseNoticeText: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: colors.accent },
     ringWrap: { marginTop: 16, alignItems: 'center' },
     ring: { width: 200, height: 200, position: 'relative', alignItems: 'center', justifyContent: 'center' },
     ringTick: { position: 'absolute', width: 5, height: 12, borderRadius: 3 },
@@ -1062,30 +1061,30 @@ function createStyles(colors, isDark) {
     currentCard: { marginTop: 14, padding: 16, borderRadius: 16, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
     currentLabel: { fontFamily: 'Manrope_700Bold', fontSize: 10, color: colors.textMuted },
     currentName: { marginTop: 4, fontFamily: 'Manrope_800ExtraBold', fontSize: 23, lineHeight: 29, color: colors.text },
-    currentPrescription: { marginTop: 4, fontFamily: 'Manrope_800ExtraBold', fontSize: 16, color: WOD_ACCENT },
+    currentPrescription: { marginTop: 4, fontFamily: 'Manrope_800ExtraBold', fontSize: 16, color: colors.accent },
     nextText: { marginTop: 9, fontFamily: 'Manrope_600SemiBold', fontSize: 11, color: colors.textSecondary },
     workList: { marginTop: 13, gap: 7 },
     workRow: { minHeight: 48, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
     workName: { flex: 1, fontFamily: 'Manrope_700Bold', fontSize: 13, color: colors.text },
-    workPrescription: { fontFamily: 'Manrope_800ExtraBold', fontSize: 13, color: WOD_ACCENT, textAlign: 'right' },
+    workPrescription: { fontFamily: 'Manrope_800ExtraBold', fontSize: 13, color: colors.accent, textAlign: 'right' },
     hint: { marginTop: 12, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 18, textAlign: 'center', color: colors.textSecondary },
     sequenceStrip: { marginTop: 12, flexDirection: 'row', justifyContent: 'center', gap: 6, flexWrap: 'wrap' },
     sequenceItem: { minWidth: 37, height: 34, paddingHorizontal: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
-    sequenceItemActive: { borderColor: WOD_ACCENT, backgroundColor: isDark ? 'rgba(94,102,51,0.25)' : 'rgba(94,102,51,0.12)' },
+    sequenceItemActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
     sequenceText: { fontFamily: 'Manrope_700Bold', fontSize: 10, color: colors.textMuted },
-    sequenceTextActive: { color: WOD_ACCENT },
+    sequenceTextActive: { color: colors.accent },
     stopButton: { marginTop: 14, minHeight: 42, alignItems: 'center', justifyContent: 'center' },
-    stopText: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: WOD_ACTION },
-    failureButton: { minHeight: 46, marginTop: 14, borderRadius: 13, borderWidth: 1, borderColor: WOD_ACTION, backgroundColor: isDark ? 'rgba(255,107,25,0.12)' : 'rgba(255,107,25,0.08)', alignItems: 'center', justifyContent: 'center' },
-    failureText: { fontFamily: 'Manrope_800ExtraBold', fontSize: 11, color: WOD_ACTION },
+    stopText: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: colors.secondaryAccent },
+    failureButton: { minHeight: 46, marginTop: 14, borderRadius: 13, borderWidth: 1, borderColor: colors.secondaryAccent, backgroundColor: colors.secondaryAccentSoft, alignItems: 'center', justifyContent: 'center' },
+    failureText: { fontFamily: 'Manrope_800ExtraBold', fontSize: 11, color: colors.secondaryAccent },
     deckCard: { width: 176, minHeight: 215, alignSelf: 'center', marginTop: 12, padding: 17, borderRadius: 18, justifyContent: 'space-between', backgroundColor: isDark ? '#F7F8F3' : '#FFFFFF', borderWidth: 1, borderColor: isDark ? '#D9DED3' : colors.border },
     deckRank: { fontFamily: 'BebasNeue_400Regular', fontSize: 42, color: '#171A15' },
     deckName: { fontFamily: 'Manrope_800ExtraBold', fontSize: 14, lineHeight: 19, color: '#171A15', textAlign: 'center' },
-    deckReps: { fontFamily: 'BebasNeue_400Regular', fontSize: 30, color: WOD_ACTION, textAlign: 'right' },
-    warningBox: { marginTop: 14, padding: 14, borderRadius: 14, backgroundColor: colors.background, borderWidth: 1, borderColor: WOD_ACTION },
-    warningTitle: { fontFamily: 'Manrope_800ExtraBold', fontSize: 14, color: WOD_ACTION },
+    deckReps: { fontFamily: 'BebasNeue_400Regular', fontSize: 30, color: colors.secondaryAccent, textAlign: 'right' },
+    warningBox: { marginTop: 14, padding: 14, borderRadius: 14, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.secondaryAccent },
+    warningTitle: { fontFamily: 'Manrope_800ExtraBold', fontSize: 14, color: colors.secondaryAccent },
     finishedPanel: { alignItems: 'center', paddingVertical: 14 },
-    finishedIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: WOD_ACCENT },
+    finishedIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
     finishedTitle: { marginTop: 10, fontFamily: 'Manrope_800ExtraBold', fontSize: 24, color: colors.text },
     finishedMeta: { marginTop: 3, fontFamily: 'Manrope_600SemiBold', fontSize: 12, color: colors.textSecondary },
     finishedNote: { marginTop: 9, maxWidth: 330, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 18, color: colors.textSecondary, textAlign: 'center' },
