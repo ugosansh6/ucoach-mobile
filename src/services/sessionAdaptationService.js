@@ -82,6 +82,95 @@ async function resolveAdaptationDirection({
   return null;
 }
 
+export async function adaptStartedSession({
+  sessionId,
+  reason = 'MORE_FATIGUED',
+  protectedProgress = {},
+}) {
+  if (!sessionId) {
+    throw new Error(
+      "Impossible d’adapter la séance : session_id manquant."
+    );
+  }
+
+  const protectedSessionExerciseIds =
+    protectedProgress?.session_exercise_ids ??
+    protectedProgress?.sessionExerciseIds ??
+    [];
+
+  const validatedBlocks =
+    protectedProgress?.validated_blocks ??
+    protectedProgress?.validatedBlocks ??
+    [];
+
+  const activeSessionExerciseId =
+    protectedProgress?.active_session_exercise_id ??
+    protectedProgress?.activeSessionExerciseId ??
+    null;
+
+  const { data, error } = await supabase.rpc(
+    'adapt_started_session_v2',
+    {
+      p_session_id: sessionId,
+      p_reason: reason,
+      p_protected_progress: {
+        session_exercise_ids:
+          Array.isArray(protectedSessionExerciseIds)
+            ? protectedSessionExerciseIds.filter(Boolean)
+            : [],
+        validated_blocks:
+          Array.isArray(validatedBlocks)
+            ? validatedBlocks.filter(Boolean)
+            : [],
+        active_session_exercise_id:
+          activeSessionExerciseId ?? null,
+      },
+    }
+  );
+
+  if (error) {
+    console.warn(
+      'Started session adaptation failed',
+      {
+        sessionId,
+        reason,
+        technicalMessage: error?.message ?? null,
+      }
+    );
+
+    throw new Error(
+      error?.message ??
+        'Impossible d’ajuster les blocs restants.'
+    );
+  }
+
+  if (!data || typeof data !== 'object') {
+    throw new Error(
+      'UGEROD n’a pas reçu de résultat d’adaptation exploitable.'
+    );
+  }
+
+  if (data.status === 'SESSION_NOT_ADAPTABLE') {
+    throw new Error(
+      'Cette séance ne peut plus être adaptée dans son état actuel.'
+    );
+  }
+
+  if (data.status === 'SESSION_NOT_FOUND') {
+    throw new Error(
+      'La séance à adapter est introuvable.'
+    );
+  }
+
+  if (data.status === 'UNSUPPORTED_REASON') {
+    throw new Error(
+      'Ce motif d’adaptation n’est pas encore pris en charge.'
+    );
+  }
+
+  return data;
+}
+
 export async function adaptSessionExercise({
   sessionId,
   sessionExerciseId,
