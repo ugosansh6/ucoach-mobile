@@ -904,7 +904,13 @@ function StrengthBlock({
   );
 }
 
-function ManualGymBlock({ block, exercises, onComplete, executionEnabled = true }) {
+function ManualGymBlock({
+  block,
+  exercises,
+  onComplete,
+  onExerciseRefuse,
+  executionEnabled = true,
+}) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const gymStyles = useMemo(
     () => createGymStyles(themeColors, isDark),
@@ -921,6 +927,7 @@ function ManualGymBlock({ block, exercises, onComplete, executionEnabled = true 
       ])
     )
   );
+  const [detailsKey, setDetailsKey] = useState(null);
 
   function patch(exercise, field, value) {
     if (!executionEnabled) return;
@@ -937,6 +944,20 @@ function ManualGymBlock({ block, exercises, onComplete, executionEnabled = true 
 
     for (const exercise of exercises) {
       const key = exerciseKey(exercise);
+
+      if (statusValue(exercise) === 'not_completed') {
+        updates[key] = {
+          status: 'not_completed',
+          userExecutionStatus: 'not_completed',
+          repsCompleted: null,
+          durationSeconds: null,
+          distanceMeters: null,
+          rpe: null,
+          performanceActualJson: null,
+        };
+        continue;
+      }
+
       const draft = drafts[key] ?? {};
       const modes = exerciseTrackingModes(exercise);
       const wantsReps = modes.includes('reps') || modes.length === 0;
@@ -983,6 +1004,8 @@ function ManualGymBlock({ block, exercises, onComplete, executionEnabled = true 
         const modes = exerciseTrackingModes(exercise);
         const showReps = modes.includes('reps') || modes.length === 0;
         const showTime = modes.includes('time');
+        const isRefused = statusValue(exercise) === 'not_completed';
+        const cue = shortCue(exercise);
 
         return (
           <View key={key} style={gymStyles.exerciseCard}>
@@ -993,11 +1016,96 @@ function ManualGymBlock({ block, exercises, onComplete, executionEnabled = true 
                 <Text style={gymStyles.exerciseSummary}>{exercise.prescription}</Text>
               ) : null}
 
+              {cue ? (
+                <View style={gymStyles.cueBox}>
+                  <View style={gymStyles.cueIcon}>
+                    <Ionicons name="flash-outline" size={15} color={themeColors.secondaryAccent} />
+                  </View>
+                  <View style={gymStyles.cueCopy}>
+                    <Text style={gymStyles.cueLabel}>L’essentiel</Text>
+                    <Text style={gymStyles.cueText}>{cue}</Text>
+                  </View>
+                </View>
+              ) : null}
+
               <View style={gymStyles.exerciseActionsRow}>
+                <Pressable
+                  onPress={() => setDetailsKey((current) => current === key ? null : key)}
+                  style={({ pressed }) => [gymStyles.detailButton, pressed && gymStyles.pressed]}
+                >
+                  <Ionicons
+                    name={detailsKey === key ? 'chevron-up' : 'information-circle-outline'}
+                    size={17}
+                    color={themeColors.text}
+                  />
+                  <Text style={gymStyles.detailButtonText}>
+                    {detailsKey === key ? 'Réduire' : 'Consignes'}
+                  </Text>
+                </Pressable>
+
                 <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+
+                <Pressable
+                  onPress={() => {
+                    if (!executionEnabled || isRefused) return;
+                    onExerciseRefuse?.(exercise);
+                  }}
+                  disabled={!executionEnabled || isRefused}
+                  style={({ pressed }) => [
+                    gymStyles.refuseButton,
+                    (!executionEnabled || isRefused) && gymStyles.actionDisabled,
+                    pressed && executionEnabled && !isRefused && gymStyles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="close-circle-outline"
+                    size={17}
+                    color={themeColors.secondaryAccent}
+                  />
+                  <Text style={gymStyles.refuseButtonText}>Refuser</Text>
+                </Pressable>
               </View>
 
-              <View style={gymStyles.manualFieldsRow}>
+              {detailsKey === key ? (
+                <View style={gymStyles.detailsPanel}>
+                  {exercise?.description ? (
+                    <>
+                      <Text style={gymStyles.detailsLabel}>DESCRIPTION</Text>
+                      <Text style={gymStyles.detailsText}>
+                        {normalizeDetailText(exercise.description)}
+                      </Text>
+                    </>
+                  ) : null}
+                  {exercise?.instructions ? (
+                    <>
+                      <Text style={gymStyles.detailsLabel}>EXÉCUTION</Text>
+                      <Text style={gymStyles.detailsText}>
+                        {normalizeDetailText(exercise.instructions)}
+                      </Text>
+                    </>
+                  ) : null}
+                  {exercise?.tips ? (
+                    <>
+                      <Text style={gymStyles.detailsLabel}>CONSEIL UGEROD</Text>
+                      <Text style={gymStyles.detailsText}>
+                        {normalizeDetailText(exercise.tips)}
+                      </Text>
+                    </>
+                  ) : null}
+                  {!exercise?.description && !exercise?.instructions && !exercise?.tips ? (
+                    <Text style={gymStyles.detailsText}>
+                      Aucune consigne détaillée supplémentaire.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {isRefused ? (
+                <Text style={gymStyles.refusedText}>
+                  Exercice refusé · aucune performance ne sera inventée.
+                </Text>
+              ) : (
+                <View style={gymStyles.manualFieldsRow}>
                 {showReps ? (
                   <View style={gymStyles.manualField}>
                     <Text style={gymStyles.fieldLabel}>RÉPÉTITIONS</Text>
@@ -1026,7 +1134,8 @@ function ManualGymBlock({ block, exercises, onComplete, executionEnabled = true 
                     />
                   </View>
                 ) : null}
-              </View>
+                </View>
+              )}
             </View>
           </View>
         );
@@ -2643,6 +2752,7 @@ export default function EnvironmentSessionCore({
             block={currentBlock}
             exercises={currentExercises}
             onComplete={advanceWithUpdates}
+            onExerciseRefuse={markSimpleExerciseRefused}
             executionEnabled={sessionStarted}
           />
         ) : (
