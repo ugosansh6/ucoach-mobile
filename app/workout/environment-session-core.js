@@ -2243,6 +2243,21 @@ export default function EnvironmentSessionCore({
 
     for (const exercise of currentExercises) {
       const key = exerciseKey(exercise);
+      const currentStatus = statusValue(exercise);
+
+      if (currentStatus === 'not_completed') {
+        updates[key] = {
+          status: 'not_completed',
+          userExecutionStatus: 'not_completed',
+          repsCompleted: null,
+          durationSeconds: null,
+          distanceMeters: null,
+          rpe: null,
+          performanceActualJson: null,
+        };
+        continue;
+      }
+
       const draft = setDrafts[key] ?? { reps: '', sets: [] };
       const rows = draft.sets ?? [];
       const repsEnabled = usesReps(exercise);
