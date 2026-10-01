@@ -274,17 +274,33 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
     <>
       <Pressable
         onPress={() => setVisible(true)}
+        disabled={Boolean(targetExercise) && variant === 'inline' && (!hasSwapChoice || loading || busy)}
         style={({ pressed }) => [
           variant === 'inline' ? styles.inlineButton : styles.floatingButton,
+          Boolean(targetExercise) &&
+            variant === 'inline' &&
+            (!hasSwapChoice || loading || busy) &&
+            styles.disabled,
           pressed && styles.pressed,
         ]}
       >
         <Ionicons
-          name={hasSwapChoice ? 'swap-horizontal-outline' : 'ellipsis-horizontal'}
+          name={targetExercise ? 'swap-horizontal-outline' : hasSwapChoice ? 'swap-horizontal-outline' : 'ellipsis-horizontal'}
           size={17}
-          color={themeColors.text}
+          color={
+            Boolean(targetExercise) && variant === 'inline' && !hasSwapChoice
+              ? themeColors.textMuted
+              : themeColors.text
+          }
         />
-        <Text style={styles.floatingText}>{hasSwapChoice ? 'Adapter' : 'Options'}</Text>
+        <Text
+          style={[
+            styles.floatingText,
+            Boolean(targetExercise) && variant === 'inline' && !hasSwapChoice && styles.disabledText,
+          ]}
+        >
+          {targetExercise ? 'Adapter' : hasSwapChoice ? 'Adapter' : 'Options'}
+        </Text>
       </Pressable>
 
       <Modal visible={visible} transparent animationType="slide" onRequestClose={() => !busy && setVisible(false)}>
@@ -390,6 +406,8 @@ function createStyles(colors, isDark) {
   return StyleSheet.create({
     flex: { flex: 1 },
     pressed: { opacity: 0.7 },
+    disabled: { opacity: 0.42 },
+    disabledText: { color: colors.textMuted },
     floatingButton: {
       position: 'absolute',
       right: spacing.lg,
