@@ -1584,6 +1584,10 @@ function TimedBlock({
     () => createOutdoorRunStyles(themeColors, isDark),
     [themeColors, isDark]
   );
+  const timedStyles = useMemo(
+    () => createTimedBlockStyles(themeColors),
+    [themeColors]
+  );
   const mechanic = blockMechanic(block);
   const params = blockParameters(block);
   const isRun = isRunMechanic(mechanic);
@@ -1701,48 +1705,48 @@ function TimedBlock({
 
   if (!isRun) {
     return (
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        {exercise?.prescription ? <Text style={styles.prescription}>{exercise.prescription}</Text> : null}
+      <View style={timedStyles.card}>
+        <Text style={timedStyles.cardTitle}>{title}</Text>
+        {exercise?.prescription ? <Text style={timedStyles.prescription}>{exercise.prescription}</Text> : null}
 
-        <View style={styles.timerBox}>
-          <Text style={styles.timer}>{formatClock(elapsed)}</Text>
-          <Text style={styles.timerTarget}>/ {formatClock(prescribedSeconds)}</Text>
+        <View style={timedStyles.timerBox}>
+          <Text style={timedStyles.timer}>{formatClock(elapsed)}</Text>
+          <Text style={timedStyles.timerTarget}>/ {formatClock(prescribedSeconds)}</Text>
         </View>
 
-        <View style={styles.timerActions}>
+        <View style={timedStyles.timerActions}>
           {!started ? (
             <Pressable
               onPress={startTimedBlock}
               disabled={!executionEnabled}
               style={({ pressed }) => [
-                styles.primaryButton,
-                styles.flexButton,
+                timedStyles.primaryButton,
+                timedStyles.flexButton,
                 !executionEnabled && { opacity: 0.45 },
-                pressed && executionEnabled && styles.pressed,
+                pressed && executionEnabled && timedStyles.pressed,
               ]}
             >
-              <Text style={styles.primaryButtonText}>DÉMARRER</Text>
+              <Text style={timedStyles.primaryButtonText}>DÉMARRER</Text>
             </Pressable>
           ) : (
             <Pressable
               onPress={() => setPaused((current) => !current)}
               disabled={!executionEnabled}
               style={({ pressed }) => [
-                styles.secondaryButton,
-                styles.flexButton,
+                timedStyles.secondaryButton,
+                timedStyles.flexButton,
                 !executionEnabled && { opacity: 0.45 },
-                pressed && executionEnabled && styles.pressed,
+                pressed && executionEnabled && timedStyles.pressed,
               ]}
             >
-              <Text style={styles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
+              <Text style={timedStyles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
             </Pressable>
           )}
         </View>
 
-        <View style={styles.metricsRow}>
-          <View style={styles.metricField}>
-            <Text style={styles.inputLabel}>DISTANCE RÉELLE (M)</Text>
+        <View style={timedStyles.metricsRow}>
+          <View style={timedStyles.metricField}>
+            <Text style={timedStyles.inputLabel}>DISTANCE RÉELLE (M)</Text>
             <TextInput
               value={distance}
               editable={executionEnabled && started}
@@ -1750,11 +1754,11 @@ function TimedBlock({
               placeholder="Optionnel"
               placeholderTextColor={colors.textMuted}
               keyboardType="decimal-pad"
-              style={styles.metricInput}
+              style={timedStyles.metricInput}
             />
           </View>
-          <View style={styles.metricFieldSmall}>
-            <Text style={styles.inputLabel}>RPE</Text>
+          <View style={timedStyles.metricFieldSmall}>
+            <Text style={timedStyles.inputLabel}>RPE</Text>
             <TextInput
               value={rpe}
               editable={executionEnabled && started}
@@ -1762,12 +1766,12 @@ function TimedBlock({
               placeholder="1–10"
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
-              style={styles.metricInput}
+              style={timedStyles.metricInput}
             />
           </View>
         </View>
 
-        <Text style={styles.helperText}>
+        <Text style={timedStyles.helperText}>
           {environmentCode === 'OUTDOOR'
             ? 'La distance reste optionnelle : aucun GPS n’est requis.'
             : 'Renseigne seulement ce que tu as réellement mesuré.'}
@@ -1777,12 +1781,12 @@ function TimedBlock({
           onPress={finish}
           disabled={!executionEnabled || !started}
           style={({ pressed }) => [
-            styles.primaryButton,
+            timedStyles.primaryButton,
             (!executionEnabled || !started) && { opacity: 0.45 },
-            pressed && executionEnabled && started && styles.pressed,
+            pressed && executionEnabled && started && timedStyles.pressed,
           ]}
         >
-          <Text style={styles.primaryButtonText}>{elapsed >= prescribedSeconds ? 'TERMINER LE BLOC' : 'ARRÊTER ET TERMINER'}</Text>
+          <Text style={timedStyles.primaryButtonText}>{elapsed >= prescribedSeconds ? 'TERMINER LE BLOC' : 'ARRÊTER ET TERMINER'}</Text>
         </Pressable>
       </View>
     );
@@ -3435,6 +3439,123 @@ function createEnvironmentFocusedStyles(colors, isDark) {
 }
 
 
+function createTimedBlockStyles(colors) {
+  return StyleSheet.create({
+    card: {
+      padding: 18,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cardTitle: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 24,
+      lineHeight: 30,
+      color: colors.text,
+    },
+    prescription: {
+      marginTop: 5,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
+    },
+    timerBox: {
+      marginTop: 20,
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'center',
+    },
+    timer: {
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 62,
+      lineHeight: 66,
+      color: colors.text,
+      fontVariant: ['tabular-nums'],
+    },
+    timerTarget: {
+      marginLeft: 7,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 14,
+      color: colors.textMuted,
+      fontVariant: ['tabular-nums'],
+    },
+    timerActions: {
+      marginTop: 12,
+      flexDirection: 'row',
+      gap: 9,
+    },
+    primaryButton: {
+      minHeight: 48,
+      marginTop: 18,
+      paddingHorizontal: 15,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+    },
+    primaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      letterSpacing: 0.5,
+      color: colors.textOnAccent,
+    },
+    secondaryButton: {
+      minHeight: 48,
+      marginTop: 18,
+      paddingHorizontal: 15,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    secondaryButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    flexButton: { flex: 1 },
+    pressed: { opacity: 0.72 },
+    metricsRow: {
+      marginTop: 16,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    metricField: { flex: 1 },
+    metricFieldSmall: { width: 92 },
+    inputLabel: {
+      marginBottom: 5,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textSecondary,
+    },
+    metricInput: {
+      minHeight: 44,
+      paddingHorizontal: 11,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    helperText: {
+      marginTop: 8,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.textMuted,
+    },
+  });
+}
+
 function createOutdoorRunStyles(colors, isDark) {
   return StyleSheet.create({
     card: {
@@ -3908,19 +4029,19 @@ const styles = StyleSheet.create({
   },
   headerCopy: { flex: 1 },
   eyebrow: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 9,
     letterSpacing: 1.1,
     color: colors.primaryLight,
   },
   headerTitle: {
-    fontFamily: 'BebasNeue_400Regular',
+    fontFamily: 'Manrope_800ExtraBold',
     fontSize: 25,
     lineHeight: 28,
     color: colors.textPrimary,
   },
   stepText: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 11,
     color: colors.textSecondary,
   },
@@ -3935,7 +4056,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   cardTitle: {
-    fontFamily: 'BebasNeue_400Regular',
+    fontFamily: 'Manrope_800ExtraBold',
     fontSize: 28,
     lineHeight: 31,
     letterSpacing: 0.8,
@@ -3943,7 +4064,7 @@ const styles = StyleSheet.create({
   },
   cardMeta: {
     marginTop: 4,
-    fontFamily: 'Oswald_400Regular',
+    fontFamily: 'Manrope_400Regular',
     fontSize: 11,
     lineHeight: 16,
     color: colors.textSecondary,
@@ -3963,13 +4084,13 @@ const styles = StyleSheet.create({
   },
   exerciseCopy: { flex: 1 },
   exerciseName: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 14,
     color: colors.textPrimary,
   },
   prescription: {
     marginTop: 3,
-    fontFamily: 'Oswald_400Regular',
+    fontFamily: 'Manrope_400Regular',
     fontSize: 11,
     lineHeight: 16,
     color: colors.textSecondary,
@@ -3988,7 +4109,7 @@ const styles = StyleSheet.create({
   },
   setLabel: {
     width: 28,
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 11,
     color: colors.textSecondary,
   },
@@ -4000,13 +4121,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
-    fontFamily: 'Oswald_500Medium',
+    fontFamily: 'Manrope_500Medium',
     fontSize: 12,
     color: colors.textPrimary,
   },
   warningText: {
     marginTop: 8,
-    fontFamily: 'Oswald_400Regular',
+    fontFamily: 'Manrope_400Regular',
     fontSize: 11,
     lineHeight: 16,
     color: colors.brandRed,
@@ -4021,7 +4142,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   primaryButtonText: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 11,
     letterSpacing: 0.8,
     color: colors.brandWhite,
@@ -4040,7 +4161,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   secondaryButtonText: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 11,
     letterSpacing: 0.8,
     color: colors.textPrimary,
@@ -4061,7 +4182,7 @@ const styles = StyleSheet.create({
   },
   timerTarget: {
     marginLeft: 7,
-    fontFamily: 'Oswald_400Regular',
+    fontFamily: 'Manrope_400Regular',
     fontSize: 14,
     color: colors.textMuted,
   },
@@ -4073,7 +4194,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   phaseLabel: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 11,
     letterSpacing: 1,
     color: colors.primaryLight,
@@ -4091,7 +4212,7 @@ const styles = StyleSheet.create({
   metricFieldSmall: { width: 92 },
   inputLabel: {
     marginBottom: 5,
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 9,
     letterSpacing: 0.7,
     color: colors.textSecondary,
@@ -4103,13 +4224,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
-    fontFamily: 'Oswald_500Medium',
+    fontFamily: 'Manrope_500Medium',
     fontSize: 12,
     color: colors.textPrimary,
   },
   helperText: {
     marginTop: 8,
-    fontFamily: 'Oswald_400Regular',
+    fontFamily: 'Manrope_400Regular',
     fontSize: 10,
     lineHeight: 15,
     color: colors.textMuted,
@@ -4120,7 +4241,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(8,104,255,0.30)',
   },
   runEyebrow: {
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: 'Manrope_700Bold',
     fontSize: 9,
     letterSpacing: 0.9,
     color: colors.primaryLight,
@@ -4135,7 +4256,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(8,104,255,0.22)',
   },
   runBriefEyebrow: {
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: 'Manrope_700Bold',
     fontSize: 8,
     letterSpacing: 0.9,
     color: colors.primaryLight,
@@ -4150,7 +4271,7 @@ const styles = StyleSheet.create({
   },
   runBriefRecovery: {
     marginTop: 2,
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 12,
     lineHeight: 18,
     color: colors.textPrimary,
@@ -4166,7 +4287,7 @@ const styles = StyleSheet.create({
   },
   runCueText: {
     flex: 1,
-    fontFamily: 'Oswald_400Regular',
+    fontFamily: 'Manrope_400Regular',
     fontSize: 11,
     lineHeight: 17,
     color: colors.textSecondary,
@@ -4178,7 +4299,7 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   runTotalText: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 10,
     letterSpacing: 0.3,
     color: colors.textSecondary,
@@ -4194,7 +4315,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.07)',
   },
   runPhaseLabel: {
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: 'Manrope_700Bold',
     fontSize: 10,
     letterSpacing: 1,
     color: colors.primaryLight,
@@ -4209,7 +4330,7 @@ const styles = StyleSheet.create({
   runPhaseCue: {
     marginTop: 4,
     maxWidth: 300,
-    fontFamily: 'Oswald_400Regular',
+    fontFamily: 'Manrope_400Regular',
     fontSize: 11,
     lineHeight: 17,
     color: colors.textSecondary,
@@ -4223,13 +4344,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   runOverallLabel: {
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: 'Manrope_700Bold',
     fontSize: 8,
     letterSpacing: 0.7,
     color: colors.textMuted,
   },
   runOverallValue: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 11,
     color: colors.textSecondary,
   },
@@ -4253,7 +4374,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   runMetricsEyebrow: {
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: 'Manrope_700Bold',
     fontSize: 8,
     letterSpacing: 0.7,
     color: colors.textMuted,
@@ -4272,7 +4393,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,80,80,0.24)',
   },
   stopButtonText: {
-    fontFamily: 'Oswald_600SemiBold',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 10,
     letterSpacing: 0.7,
     color: colors.brandRed,
