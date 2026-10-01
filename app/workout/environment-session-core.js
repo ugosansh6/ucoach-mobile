@@ -43,6 +43,27 @@ function optionalNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeDetailText(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/\\r\\n|\\n|\\r/g, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/(^|\n)\s*(\d+)[.)-]?\s+/g, (_, prefix, number) => `${prefix}${number}. `)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function shortCue(exercise) {
+  const value = normalizeDetailText(
+    exercise?.tips ?? exercise?.instructions ?? exercise?.description ?? ''
+  );
+  if (!value) return null;
+
+  const line = value.split(/\n+/)[0].replace(/^\d+\.\s*/, '').trim();
+  const sentence = line.match(/^(.{1,150}?[.!?])(?:\s|$)/)?.[1] ?? line;
+  return sentence.length > 150 ? `${sentence.slice(0, 147).trim()}…` : sentence;
+}
+
 function positiveInt(value, fallback = 0) {
   return Math.max(0, Math.round(numberOr(value, fallback)));
 }
