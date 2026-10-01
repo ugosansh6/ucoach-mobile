@@ -1258,7 +1258,7 @@ function createStyles(colors) {
     },
     headerCopy: { flex: 1 },
     eyebrow: {
-      fontFamily: 'Oswald_500Medium',
+      fontFamily: MANROPE.medium,
       fontSize: 12,
       lineHeight: 16,
       letterSpacing: 0.35,
@@ -1301,14 +1301,14 @@ function createStyles(colors) {
       justifyContent: 'center',
     },
     durationValue: {
-      fontFamily: 'Oswald_600SemiBold',
+      fontFamily: MANROPE.semiBold,
       fontSize: 56,
       lineHeight: 60,
       letterSpacing: 0.4,
       textAlign: 'center',
     },
     durationUnit: {
-      fontFamily: 'Oswald_500Medium',
+      fontFamily: MANROPE.medium,
       fontSize: 11,
       lineHeight: 15,
       letterSpacing: 1.3,
