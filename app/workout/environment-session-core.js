@@ -318,18 +318,29 @@ function initialSetDrafts(exercises, block) {
   return next;
 }
 
-function SimpleBlock({ block, exercises, onComplete, onExerciseComplete, onActiveExerciseChange, executionEnabled = true }) {
+function SimpleBlock({
+  block,
+  exercises,
+  onComplete,
+  onExerciseComplete,
+  onExerciseRefuse,
+  onActiveExerciseChange,
+  executionEnabled = true,
+}) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const focusedStyles = useMemo(
     () => createEnvironmentFocusedStyles(themeColors, isDark),
     [themeColors, isDark]
   );
   const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const exercise = exercises[exerciseIndex] ?? exercises[0] ?? null;
+  const cue = shortCue(exercise);
 
   useEffect(() => {
     if (!exercise) return;
     onActiveExerciseChange?.(exercise, exerciseIndex);
+    setDetailsOpen(false);
   }, [exercise, exerciseIndex, onActiveExerciseChange]);
 
   if (!exercise) {
@@ -347,6 +358,18 @@ function SimpleBlock({ block, exercises, onComplete, onExerciseComplete, onActiv
     if (!executionEnabled) return;
 
     onExerciseComplete?.(exercise);
+
+    if (isLast) {
+      onComplete();
+      return;
+    }
+    setExerciseIndex((current) => Math.min(exercises.length - 1, current + 1));
+  }
+
+  function refuseCurrent() {
+    if (!executionEnabled) return;
+
+    onExerciseRefuse?.(exercise);
 
     if (isLast) {
       onComplete();
@@ -376,8 +399,94 @@ function SimpleBlock({ block, exercises, onComplete, onExerciseComplete, onActiv
         {exercise.prescription ? (
           <Text style={focusedStyles.exercisePrescription}>{exercise.prescription}</Text>
         ) : null}
-        <View style={{ marginTop: 12, alignItems: 'flex-start' }}>
+
+        {cue ? (
+          <View style={focusedStyles.cueBox}>
+            <View style={focusedStyles.cueIcon}>
+              <Ionicons name="flash-outline" size={15} color={themeColors.secondaryAccent} />
+            </View>
+            <View style={focusedStyles.cueCopy}>
+              <Text style={focusedStyles.cueLabel}>L’essentiel</Text>
+              <Text style={focusedStyles.cueText}>{cue}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {detailsOpen ? (
+          <View style={focusedStyles.detailsBox}>
+            {exercise?.description ? (
+              <>
+                <Text style={focusedStyles.detailsLabel}>Description</Text>
+                <Text style={focusedStyles.detailsText}>
+                  {normalizeDetailText(exercise.description)}
+                </Text>
+              </>
+            ) : null}
+            {exercise?.instructions ? (
+              <>
+                <Text
+                  style={[
+                    focusedStyles.detailsLabel,
+                    exercise?.description && { marginTop: 12 },
+                  ]}
+                >
+                  Exécution
+                </Text>
+                <Text style={focusedStyles.detailsText}>
+                  {normalizeDetailText(exercise.instructions)}
+                </Text>
+              </>
+            ) : null}
+            {exercise?.tips ? (
+              <>
+                <Text style={[focusedStyles.detailsLabel, { marginTop: 12 }]}>
+                  Conseil UGEROD
+                </Text>
+                <Text style={focusedStyles.detailsText}>
+                  {normalizeDetailText(exercise.tips)}
+                </Text>
+              </>
+            ) : null}
+            {!exercise?.description && !exercise?.instructions && !exercise?.tips ? (
+              <Text style={focusedStyles.detailsText}>
+                Aucune consigne détaillée supplémentaire.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        <View style={focusedStyles.inlineActions}>
+          <Pressable
+            onPress={() => setDetailsOpen((value) => !value)}
+            style={focusedStyles.secondaryAction}
+          >
+            <Ionicons
+              name={detailsOpen ? 'chevron-up' : 'information-circle-outline'}
+              size={18}
+              color={themeColors.text}
+            />
+            <Text style={focusedStyles.secondaryActionText}>
+              {detailsOpen ? 'Réduire' : 'Consignes'}
+            </Text>
+          </Pressable>
+
           <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+
+          <Pressable
+            onPress={refuseCurrent}
+            disabled={!executionEnabled}
+            style={[
+              focusedStyles.refuseAction,
+              !executionEnabled && focusedStyles.actionDisabled,
+            ]}
+          >
+            <Ionicons
+              name="close-circle-outline"
+              size={18}
+              color={themeColors.secondaryAccent}
+            />
+            <Text style={focusedStyles.refuseActionText}>Refuser</Text>
+          </Pressable>
         </View>
       </View>
 
