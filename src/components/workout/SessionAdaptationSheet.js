@@ -11,46 +11,54 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 import { useWorkout } from '../../contexts/WorkoutContext';
-import { generateWorkoutSession } from '../../services/workoutService';
+import {
+  adaptStartedSession,
+  reloadWorkoutSession,
+} from '../../services/sessionMutationService';
 
 function normalizeBlock(value) {
   return value === 'warm_up' ? 'warmup' : value ?? null;
 }
 
+function executionStatus(exercise) {
+  if (exercise?.userExecutionStatus) {
+    return exercise.userExecutionStatus;
+  }
+
+  if (exercise?.status === 'skipped') {
+    return 'not_completed';
+  }
+
+  return exercise?.status ?? 'pending';
+}
+
 function getProtectedExerciseIds(workout) {
-  const validated = new Set(Array.isArray(workout?.validatedBlocks) ? workout.validatedBlocks : []);
+  const validated = new Set(
+    (Array.isArray(workout?.validatedBlocks) ? workout.validatedBlocks : [])
+      .map(normalizeBlock)
+      .filter(Boolean)
+  );
 
   return (workout?.exercises ?? [])
     .filter((exercise) => {
       const block = normalizeBlock(exercise?.blockKey ?? exercise?.block);
       return (
         validated.has(block) ||
-        exercise?.status === 'completed' ||
-        exercise?.status === 'not_completed'
+        executionStatus(exercise) !== 'pending'
       );
     })
     .map((exercise) => exercise?.sessionExerciseId ?? exercise?.session_exercise_id)
     .filter(Boolean);
 }
 
-function buildPreparationSnapshot(preparation, workout) {
-  const snapshot = workout?.preparationSnapshot ?? {};
+function buildProtectedProgress(workout) {
   return {
-    duration: preparation?.duration ?? snapshot?.duration ?? workout?.plannedDuration ?? 45,
-    equipment:
-      preparation?.equipment?.length > 0
-        ? preparation.equipment
-        : snapshot?.equipment?.length > 0
-          ? snapshot.equipment
-          : ['Poids du corps'],
-    readiness: preparation?.readiness ?? snapshot?.readiness ?? 6,
-    painZones:
-      preparation?.painZones?.length > 0
-        ? preparation.painZones
-        : snapshot?.painZones?.length > 0
-          ? snapshot.painZones
-          : ['Aucune'],
-    region: null,
+    session_exercise_ids: getProtectedExerciseIds(workout),
+    validated_blocks: Array.isArray(workout?.validatedBlocks)
+      ? workout.validatedBlocks
+      : [],
+    active_session_exercise_id:
+      workout?.playerCursor?.sessionExerciseId ?? null,
   };
 }
 
@@ -60,35 +68,59 @@ export default function SessionAdaptationSheet({ visible = false, onClose }) {
   const {
     preparation,
     workout,
-    updatePreparation,
     setGeneratedWorkoutPreservingProgress,
   } = useWorkout();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState('');
 
   if (!workout?.sessionId) return null;
 
-  async function adaptRemaining(nextPreparation, preparationPatch = null) {
+  async function adaptForFatigue() {
+    if (loading) return;
+
     setLoading(true);
     setError('');
+    setFeedback('');
 
     try {
-      const generated = await generateWorkoutSession(nextPreparation, {
-        forceRecalculateStarted: true,
-        protectedSessionExerciseIds: getProtectedExerciseIds(workout),
+      const result = await adaptStartedSession({
+        sessionId: workout.sessionId,
+        reason: 'MORE_FATIGUED',
+        protectedProgress: buildProtectedProgress(workout),
       });
 
-      if (generated?.controlStatus) {
+      if (result?.session_id && result.session_id !== workout.sessionId) {
         throw new Error(
-          generated.controlStatus === 'RECALC_LIMIT_REACHED'
-            ? 'La limite d’ajustements globaux de cette séance est atteinte.'
-            : 'UGEROD a besoin d’une nouvelle confirmation avant d’ajuster la séance.'
+          'UGEROD a interrompu l’ajustement pour protéger la séance en cours.'
         );
       }
 
-      if (preparationPatch) updatePreparation(preparationPatch);
-      setGeneratedWorkoutPreservingProgress(generated);
+      if (result?.status === 'NO_SAFE_CHANGE') {
+        setFeedback(
+          result?.message ??
+            'Aucune modification sûre supplémentaire n’est disponible pour les blocs restants.'
+        );
+        return;
+      }
+
+      if (result?.status !== 'ADAPTED') {
+        throw new Error(
+          result?.message ??
+            'UGEROD n’a pas pu ajuster les blocs restants.'
+        );
+      }
+
+      const refreshed = await reloadWorkoutSession({
+        sessionId: workout.sessionId,
+        preparationSnapshot:
+          workout?.preparationSnapshot ??
+          preparation ??
+          null,
+      });
+
+      setGeneratedWorkoutPreservingProgress(refreshed);
       onClose?.();
     } catch (adaptationError) {
       setError(
@@ -99,12 +131,6 @@ export default function SessionAdaptationSheet({ visible = false, onClose }) {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function adaptForFatigue() {
-    const current = buildPreparationSnapshot(preparation, workout);
-    const readiness = Math.max(1, Number(current.readiness ?? 6) - 2);
-    await adaptRemaining({ ...current, readiness }, { readiness, region: null });
   }
 
   return (
@@ -139,6 +165,13 @@ export default function SessionAdaptationSheet({ visible = false, onClose }) {
             <View style={styles.errorBox}>
               <Ionicons name="alert-circle-outline" size={18} color={colors.secondaryAccent} />
               <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          {feedback ? (
+            <View style={styles.feedbackBox}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+              <Text style={styles.feedbackText}>{feedback}</Text>
             </View>
           ) : null}
 
@@ -231,6 +264,26 @@ function createStyles(colors) {
       gap: 9,
     },
     errorText: {
+      flex: 1,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.text,
+    },
+    feedbackBox: {
+      marginTop: 14,
+      minHeight: 50,
+      paddingHorizontal: 13,
+      paddingVertical: 11,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+    },
+    feedbackText: {
       flex: 1,
       fontFamily: 'Manrope_500Medium',
       fontSize: 12,
