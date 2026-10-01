@@ -325,8 +325,8 @@ export default function WodProtocolPlayerV3({
   canChangeFormat = false,
   onChangeFormat = null,
 }) {
-  const { colors, isDark } = useUgerodTheme();
-  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { colors } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const mechanic = mechanicFromBlock(block);
   const variant = variantFromBlock(block);
   const params = paramsFromBlock(block);
@@ -697,7 +697,7 @@ export default function WodProtocolPlayerV3({
 
       {finished ? (
         <View style={styles.finishedPanel}>
-          <View style={styles.finishedIcon}><Ionicons name="checkmark" size={22} color="#FFFFFF" /></View>
+          <View style={styles.finishedIcon}><Ionicons name="checkmark" size={22} color={colors.textOnAccent} /></View>
           <Text style={styles.finishedTitle}>WOD terminé</Text>
           <Text style={styles.finishedMeta}>{title} · {formatClock(elapsed)}</Text>
           {finishReason === 'manual_stop' ? <Text style={styles.finishedNote}>Arrêt anticipé enregistré : UGEROD conservera uniquement le travail réellement observé.</Text> : null}
@@ -788,7 +788,7 @@ function RuntimeBody(props) {
       <ProtocolRing value={remaining} total={totalSeconds} label="Temps restant" styles={styles} colors={colors} />
       <Metric value={completedRounds} label="Tours terminés" styles={styles} />
       <WorkList exercises={exercises} styles={styles} />
-      <Action label="Tour terminé" icon="checkmark" onPress={onRound} styles={styles} />
+      <Action label="Tour terminé" icon="checkmark" onPress={onRound} styles={styles} colors={colors} />
     </>;
   }
 
@@ -800,7 +800,7 @@ function RuntimeBody(props) {
         <Metric value={`${completedRounds} / ${Math.max(1, numberOr(params.rounds, 1))}`} label="Tours" styles={styles} />
       </View>
       <WorkList exercises={exercises} styles={styles} />
-      <Action label="Tour terminé" icon="checkmark" onPress={onRound} styles={styles} />
+      <Action label="Tour terminé" icon="checkmark" onPress={onRound} styles={styles} colors={colors} />
     </>;
   }
 
@@ -1004,11 +1004,11 @@ function StageList({ exercises, stage, direction, stageCount = null, styles }) {
   return <View style={styles.workList}>{exercises.map((exercise, index) => <View key={exercise?._uiKey ?? exercise?.id ?? index} style={styles.workRow}><Text style={styles.workName}>{exercise?.name ?? 'Exercice'}</Text><Text style={styles.workPrescription}>{repsForStage(exercise, stage, direction, stageCount)} reps{repsSemanticsSuffix(exercise)}</Text></View>)}</View>;
 }
 
-function Action({ label, icon, onPress, disabled = false, styles }) {
-  return <Pressable onPress={onPress} disabled={disabled} style={[styles.primaryButton, disabled && styles.disabled]}><Ionicons name={icon} size={19} color="#FFFFFF" /><Text style={styles.primaryButtonText}>{label}</Text></Pressable>;
+function Action({ label, icon, onPress, disabled = false, styles, colors }) {
+  return <Pressable onPress={onPress} disabled={disabled} style={[styles.primaryButton, disabled && styles.disabled]}><Ionicons name={icon} size={19} color={colors.textOnAccent} /><Text style={styles.primaryButtonText}>{label}</Text></Pressable>;
 }
 
-function createStyles(colors, isDark) {
+function createStyles(colors) {
   return StyleSheet.create({
     shell: {
       padding: 18,
@@ -1077,9 +1077,9 @@ function createStyles(colors, isDark) {
     stopText: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: colors.secondaryAccent },
     failureButton: { minHeight: 46, marginTop: 14, borderRadius: 13, borderWidth: 1, borderColor: colors.secondaryAccent, backgroundColor: colors.secondaryAccentSoft, alignItems: 'center', justifyContent: 'center' },
     failureText: { fontFamily: 'Manrope_800ExtraBold', fontSize: 11, color: colors.secondaryAccent },
-    deckCard: { width: 176, minHeight: 215, alignSelf: 'center', marginTop: 12, padding: 17, borderRadius: 18, justifyContent: 'space-between', backgroundColor: isDark ? '#F7F8F3' : '#FFFFFF', borderWidth: 1, borderColor: isDark ? '#D9DED3' : colors.border },
-    deckRank: { fontFamily: 'BebasNeue_400Regular', fontSize: 42, color: '#171A15' },
-    deckName: { fontFamily: 'Manrope_800ExtraBold', fontSize: 14, lineHeight: 19, color: '#171A15', textAlign: 'center' },
+    deckCard: { width: 176, minHeight: 215, alignSelf: 'center', marginTop: 12, padding: 17, borderRadius: 18, justifyContent: 'space-between', backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border },
+    deckRank: { fontFamily: 'BebasNeue_400Regular', fontSize: 42, color: colors.text },
+    deckName: { fontFamily: 'Manrope_800ExtraBold', fontSize: 14, lineHeight: 19, color: colors.text, textAlign: 'center' },
     deckReps: { fontFamily: 'BebasNeue_400Regular', fontSize: 30, color: colors.secondaryAccent, textAlign: 'right' },
     warningBox: { marginTop: 14, padding: 14, borderRadius: 14, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.secondaryAccent },
     warningTitle: { fontFamily: 'Manrope_800ExtraBold', fontSize: 14, color: colors.secondaryAccent },
