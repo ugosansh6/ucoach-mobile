@@ -360,7 +360,7 @@ function SimpleBlock({
     onExerciseComplete?.(exercise);
 
     if (isLast) {
-      onComplete();
+      onComplete(exercise, 'completed');
       return;
     }
     setExerciseIndex((current) => Math.min(exercises.length - 1, current + 1));
@@ -372,7 +372,7 @@ function SimpleBlock({
     onExerciseRefuse?.(exercise);
 
     if (isLast) {
-      onComplete();
+      onComplete(exercise, 'not_completed');
       return;
     }
     setExerciseIndex((current) => Math.min(exercises.length - 1, current + 1));
@@ -2146,11 +2146,36 @@ export default function EnvironmentSessionCore({
     });
   }
 
-  function completeSimpleBlock() {
+  function completeSimpleBlock(terminalExercise = null, terminalStatus = 'completed') {
     const updates = {};
+    const terminalKey = exerciseKey(terminalExercise);
+
     for (const exercise of currentExercises) {
-      updates[exerciseKey(exercise)] = { status: 'completed', userExecutionStatus: 'completed' };
+      const key = exerciseKey(exercise);
+      const existing = statusValue(exercise);
+
+      if (terminalKey && key === terminalKey) {
+        updates[key] = {
+          status: terminalStatus,
+          userExecutionStatus: terminalStatus,
+        };
+        continue;
+      }
+
+      if (existing !== 'pending') {
+        updates[key] = {
+          status: existing,
+          userExecutionStatus: existing,
+        };
+        continue;
+      }
+
+      updates[key] = {
+        status: 'completed',
+        userExecutionStatus: 'completed',
+      };
     }
+
     advanceWithUpdates(updates);
   }
 
