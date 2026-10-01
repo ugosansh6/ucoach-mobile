@@ -534,7 +534,16 @@ function SimpleBlock({
   );
 }
 
-function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete, onActiveExerciseChange, executionEnabled = true }) {
+function StrengthBlock({
+  block,
+  exercises,
+  drafts,
+  setDrafts,
+  onComplete,
+  onExerciseRefuse,
+  onActiveExerciseChange,
+  executionEnabled = true,
+}) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const gymStyles = useMemo(
     () => createGymStyles(themeColors, isDark),
@@ -647,6 +656,8 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete, onActi
         const loadEnabled = usesLoad(exercise);
         const repsEnabled = usesReps(exercise);
         const isActive = activeKey === key;
+        const isRefused = statusValue(exercise) === 'not_completed';
+        const cue = shortCue(exercise);
         const completedCount = rows.filter((row) => row.done).length;
         const seriesLabel = isCircuit ? 'tours' : 'séries';
 
@@ -681,7 +692,19 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete, onActi
 
             {isActive ? (
               <View style={gymStyles.exerciseBody}>
-                {repsEnabled ? (
+                {cue ? (
+                  <View style={gymStyles.cueBox}>
+                    <View style={gymStyles.cueIcon}>
+                      <Ionicons name="flash-outline" size={15} color={themeColors.secondaryAccent} />
+                    </View>
+                    <View style={gymStyles.cueCopy}>
+                      <Text style={gymStyles.cueLabel}>L’essentiel</Text>
+                      <Text style={gymStyles.cueText}>{cue}</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {repsEnabled && !isRefused ? (
                   <View style={gymStyles.globalFieldRow}>
                     <View style={gymStyles.globalFieldCopy}>
                       <Text style={gymStyles.fieldLabel}>REPS / SÉRIE</Text>
@@ -703,45 +726,81 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete, onActi
                 ) : null}
 
                 <View style={gymStyles.exerciseActionsRow}>
-                  {(exercise?.description || exercise?.instructions || exercise?.tips) ? (
-                    <Pressable
-                      onPress={() => setDetailsKey((current) => current === key ? null : key)}
-                      style={({ pressed }) => [gymStyles.detailButton, pressed && gymStyles.pressed]}
-                    >
-                      <Ionicons
-                        name={detailsKey === key ? 'chevron-up' : 'information-circle-outline'}
-                        size={17}
-                        color={themeColors.text}
-                      />
-                      <Text style={gymStyles.detailButtonText}>
-                        {detailsKey === key ? 'Réduire' : 'Consignes'}
-                      </Text>
-                    </Pressable>
-                  ) : null}
+                  <Pressable
+                    onPress={() => setDetailsKey((current) => current === key ? null : key)}
+                    style={({ pressed }) => [gymStyles.detailButton, pressed && gymStyles.pressed]}
+                  >
+                    <Ionicons
+                      name={detailsKey === key ? 'chevron-up' : 'information-circle-outline'}
+                      size={17}
+                      color={themeColors.text}
+                    />
+                    <Text style={gymStyles.detailButtonText}>
+                      {detailsKey === key ? 'Réduire' : 'Consignes'}
+                    </Text>
+                  </Pressable>
+
                   <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+
+                  <Pressable
+                    onPress={() => {
+                      if (!executionEnabled || isRefused) return;
+                      onExerciseRefuse?.(exercise);
+                      setActiveKey(null);
+                    }}
+                    disabled={!executionEnabled || isRefused}
+                    style={({ pressed }) => [
+                      gymStyles.refuseButton,
+                      (!executionEnabled || isRefused) && gymStyles.actionDisabled,
+                      pressed && executionEnabled && !isRefused && gymStyles.pressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="close-circle-outline"
+                      size={17}
+                      color={themeColors.secondaryAccent}
+                    />
+                    <Text style={gymStyles.refuseButtonText}>Refuser</Text>
+                  </Pressable>
                 </View>
 
                 {detailsKey === key ? (
                   <View style={gymStyles.detailsPanel}>
                     {exercise?.description ? (
-                      <Text style={gymStyles.detailsText}>{String(exercise.description).replace(/\\n/g, '\n')}</Text>
+                      <>
+                        <Text style={gymStyles.detailsLabel}>DESCRIPTION</Text>
+                        <Text style={gymStyles.detailsText}>
+                          {normalizeDetailText(exercise.description)}
+                        </Text>
+                      </>
                     ) : null}
                     {exercise?.instructions ? (
                       <>
                         <Text style={gymStyles.detailsLabel}>EXÉCUTION</Text>
-                        <Text style={gymStyles.detailsText}>{String(exercise.instructions).replace(/\\n/g, '\n')}</Text>
+                        <Text style={gymStyles.detailsText}>
+                          {normalizeDetailText(exercise.instructions)}
+                        </Text>
                       </>
                     ) : null}
                     {exercise?.tips ? (
                       <>
-                        <Text style={gymStyles.detailsLabel}>CONSEIL</Text>
-                        <Text style={gymStyles.detailsText}>{String(exercise.tips).replace(/\\n/g, '\n')}</Text>
+                        <Text style={gymStyles.detailsLabel}>CONSEIL UGEROD</Text>
+                        <Text style={gymStyles.detailsText}>
+                          {normalizeDetailText(exercise.tips)}
+                        </Text>
                       </>
+                    ) : null}
+                    {!exercise?.description && !exercise?.instructions && !exercise?.tips ? (
+                      <Text style={gymStyles.detailsText}>
+                        Aucune consigne détaillée supplémentaire.
+                      </Text>
                     ) : null}
                   </View>
                 ) : null}
 
-                {rows.length === 0 ? (
+                {isRefused ? (
+                  <Text style={gymStyles.refusedText}>Exercice refusé · aucune performance ne sera inventée.</Text>
+                ) : rows.length === 0 ? (
                   <Text style={gymStyles.warningText}>
                     Aucun nombre de séries/tours reçu du moteur. Ce bloc ne peut pas être validé automatiquement.
                   </Text>
@@ -2559,6 +2618,7 @@ export default function EnvironmentSessionCore({
             drafts={setDrafts}
             setDrafts={setSetDrafts}
             onComplete={completeStrengthBlock}
+            onExerciseRefuse={markSimpleExerciseRefused}
             onActiveExerciseChange={setActiveEnvironmentExercise}
             executionEnabled={sessionStarted}
           />
