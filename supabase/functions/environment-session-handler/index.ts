@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "environment-session-handler-v2-outdoor-bounded-search";
+const VERSION = "environment-session-handler-v3-environment-coaching";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -117,7 +117,7 @@ serve(async (req: Request) => {
     });
 
     const startedAt = Date.now();
-    const { data, error } = await admin.rpc("generate_environment_session_v3", params);
+    const { data, error } = await admin.rpc("generate_environment_session_v4", params);
     const elapsedMs = Date.now() - startedAt;
 
     if (error) {
