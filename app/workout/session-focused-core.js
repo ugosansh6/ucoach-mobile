@@ -39,9 +39,7 @@ const BLOCK_LABELS = {
   wod: 'WOD',
 };
 
-// PLAY-005: le Tabata garde la même identité kaki/orange en clair comme en sombre.
-const TABATA_WORK_COLOR = '#FF6B19';
-const TABATA_REST_COLOR = '#5E6633';
+// Tabata suit les tokens du thème : effort = accent secondaire, récupération = accent principal.
 const TABATA_RING_SEGMENTS = 48;
 
 function normalizeBlockId(value) {
@@ -1118,7 +1116,7 @@ export function FocusedTabata({
     TABATA_RING_SEGMENTS,
     Math.ceil((segmentProgressPercent / 100) * TABATA_RING_SEGMENTS)
   ));
-  const phaseColor = resting ? TABATA_REST_COLOR : TABATA_WORK_COLOR;
+  const phaseColor = resting ? colors.accent : colors.secondaryAccent;
   const phaseLabel = finished ? 'Terminé' : started ? (resting ? 'Récupération' : 'Effort') : 'Prêt';
   const scheduledExerciseIndex = resting && hasNextRound
     ? (roundIndex + 1) % exerciseCount
@@ -1213,7 +1211,7 @@ export function FocusedTabata({
         <View
           style={[
             styles.tabataGlobalFill,
-            { width: `${progressPercent}%`, backgroundColor: TABATA_REST_COLOR },
+            { width: `${progressPercent}%`, backgroundColor: colors.accent },
           ]}
         />
       </View>
@@ -1224,7 +1222,7 @@ export function FocusedTabata({
         </Text>
         <Text style={styles.timerExerciseName}>{displayExerciseName(activeExercise)}</Text>
         {activeExercise?.prescription ? (
-          <Text style={[styles.timerExercisePrescription, { color: TABATA_REST_COLOR }]}>{String(activeExercise.prescription)}</Text>
+          <Text style={[styles.timerExercisePrescription, { color: colors.accent }]}>{String(activeExercise.prescription)}</Text>
         ) : null}
 
         {exerciseCount > 1 ? (
@@ -1239,7 +1237,7 @@ export function FocusedTabata({
                   style={[
                     styles.navDot,
                     index === displayExerciseIndex && styles.navDotActive,
-                    index === displayExerciseIndex && { backgroundColor: TABATA_REST_COLOR },
+                    index === displayExerciseIndex && { backgroundColor: colors.accent },
                   ]}
                 />
               ))}
@@ -1257,7 +1255,7 @@ export function FocusedTabata({
           disabled={!executionEnabled}
           style={[
             styles.primaryButtonLarge,
-            { backgroundColor: TABATA_REST_COLOR },
+            { backgroundColor: colors.accent },
             !executionEnabled && styles.actionDisabled,
           ]}
         >
@@ -1282,7 +1280,7 @@ export function FocusedTabata({
           disabled={!executionEnabled}
           style={[
             styles.primaryButtonLarge,
-            { backgroundColor: TABATA_REST_COLOR },
+            { backgroundColor: colors.accent },
             !executionEnabled && styles.actionDisabled,
           ]}
         >
@@ -1300,7 +1298,7 @@ export function FocusedTabata({
             !executionEnabled && styles.actionDisabled,
           ]}
         >
-          <Text style={[styles.stopButtonText, { color: TABATA_WORK_COLOR }]}>Arrêter le bloc</Text>
+          <Text style={[styles.stopButtonText, { color: colors.secondaryAccent }]}>Arrêter le bloc</Text>
         </Pressable>
       ) : null}
     </View>
