@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "plan-b-handler-v5-unified-fast-path";
+const VERSION = "plan-b-handler-v6-environment-coaching-router";
 const DEV_PROJECT_REF = "fjjhzzwupjhcasoyerym";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -146,14 +146,8 @@ serve(async (req: Request) => {
       }
     }
 
-    const isGymWholeSession =
-      mode === "WHOLE_SESSION" &&
-      String(ownedSession.planned_environment_code ?? "").toUpperCase() === "GYM";
-
     const rpcName = mode === "WHOLE_SESSION"
-      ? isGymWholeSession
-        ? "change_gym_session_plan_fast_v1"
-        : "change_workout_session_plan_fast_v2"
+      ? "change_workout_session_plan_fast_v3"
       : "change_workout_skill_plan_v1";
 
     const rpcArgs = mode === "WHOLE_SESSION"
