@@ -2130,6 +2130,22 @@ export default function EnvironmentSessionCore({
     });
   }
 
+  function markSimpleExerciseRefused(exercise) {
+    if (!exercise || !sessionStarted) return;
+
+    writeExerciseUpdates({
+      [exerciseKey(exercise)]: {
+        status: 'not_completed',
+        userExecutionStatus: 'not_completed',
+        repsCompleted: null,
+        durationSeconds: null,
+        distanceMeters: null,
+        rpe: null,
+        performanceActualJson: null,
+      },
+    });
+  }
+
   function completeSimpleBlock() {
     const updates = {};
     for (const exercise of currentExercises) {
@@ -2535,6 +2551,7 @@ export default function EnvironmentSessionCore({
             exercises={currentExercises}
             onComplete={completeSimpleBlock}
             onExerciseComplete={markSimpleExerciseCompleted}
+            onExerciseRefuse={markSimpleExerciseRefused}
             onActiveExerciseChange={setActiveEnvironmentExercise}
             executionEnabled={sessionStarted}
           />
@@ -3006,6 +3023,101 @@ function createEnvironmentFocusedStyles(colors, isDark) {
       fontSize: 13,
       lineHeight: 19,
       color: colors.textSecondary,
+    },
+    cueBox: {
+      marginTop: 13,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    cueIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+    },
+    cueCopy: { flex: 1 },
+    cueLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      color: colors.secondaryAccent,
+    },
+    cueText: {
+      marginTop: 3,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.text,
+    },
+    detailsBox: {
+      marginTop: 14,
+      paddingTop: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    detailsLabel: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    detailsText: {
+      marginTop: 4,
+      fontFamily: 'Manrope_400Regular',
+      fontSize: 13,
+      lineHeight: 20,
+      color: colors.textSecondary,
+    },
+    inlineActions: {
+      marginTop: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    secondaryAction: {
+      minHeight: 42,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      flexGrow: 1,
+    },
+    secondaryActionText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    refuseAction: {
+      minHeight: 42,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      flexGrow: 1,
+    },
+    refuseActionText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.secondaryAccent,
     },
     exerciseNav: {
       marginTop: 12,
