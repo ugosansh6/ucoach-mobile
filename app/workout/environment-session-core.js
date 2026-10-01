@@ -297,7 +297,7 @@ function initialSetDrafts(exercises, block) {
   return next;
 }
 
-function SimpleBlock({ block, exercises, onComplete, executionEnabled = true }) {
+function SimpleBlock({ block, exercises, onComplete, onExerciseComplete, onActiveExerciseChange, executionEnabled = true }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const focusedStyles = useMemo(
     () => createEnvironmentFocusedStyles(themeColors, isDark),
@@ -305,6 +305,11 @@ function SimpleBlock({ block, exercises, onComplete, executionEnabled = true }) 
   );
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const exercise = exercises[exerciseIndex] ?? exercises[0] ?? null;
+
+  useEffect(() => {
+    if (!exercise) return;
+    onActiveExerciseChange?.(exercise, exerciseIndex);
+  }, [exercise, exerciseIndex, onActiveExerciseChange]);
 
   if (!exercise) {
     return (
@@ -318,6 +323,10 @@ function SimpleBlock({ block, exercises, onComplete, executionEnabled = true }) 
   const isLast = exerciseIndex >= exercises.length - 1;
 
   function validateCurrent() {
+    if (!executionEnabled) return;
+
+    onExerciseComplete?.(exercise);
+
     if (isLast) {
       onComplete();
       return;
@@ -395,7 +404,7 @@ function SimpleBlock({ block, exercises, onComplete, executionEnabled = true }) 
   );
 }
 
-function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete, executionEnabled = true }) {
+function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete, onActiveExerciseChange, executionEnabled = true }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
   const gymStyles = useMemo(
     () => createGymStyles(themeColors, isDark),
@@ -410,6 +419,24 @@ function StrengthBlock({ block, exercises, drafts, setDrafts, onComplete, execut
     if (exercises.some((exercise) => exerciseKey(exercise) === activeKey)) return;
     setActiveKey(exerciseKey(exercises?.[0]) ?? null);
   }, [activeKey, exercises]);
+
+  useEffect(() => {
+    const activeExercise =
+      exercises.find((exercise) => exerciseKey(exercise) === activeKey) ??
+      exercises?.[0] ??
+      null;
+
+    if (!activeExercise) return;
+    onActiveExerciseChange?.(
+      activeExercise,
+      Math.max(
+        0,
+        exercises.findIndex(
+          (exercise) => exerciseKey(exercise) === exerciseKey(activeExercise)
+        )
+      )
+    );
+  }, [activeKey, exercises, onActiveExerciseChange]);
 
   function updateExerciseReps(exercise, value) {
     if (!executionEnabled) return;
@@ -1678,6 +1705,55 @@ export default function EnvironmentSessionCore({
 
   const [setDrafts, setSetDrafts] = useState({});
 
+  const setActiveEnvironmentExercise = useCallback(
+    (exercise, exerciseIndex = 0) => {
+      if (!exercise || !currentKey) return;
+
+      const nextCursor = {
+        sessionId: workout?.sessionId ?? null,
+        blockId: currentKey,
+        exerciseIndex,
+        sessionExerciseId:
+          exercise?.sessionExerciseId ??
+          exercise?.session_exercise_id ??
+          null,
+        exerciseId:
+          exercise?.exerciseId ??
+          exercise?.id ??
+          null,
+      };
+      const currentCursor = workout?.playerCursor ?? null;
+
+      if (
+        (currentCursor?.sessionId ?? null) === nextCursor.sessionId &&
+        currentCursor?.blockId === nextCursor.blockId &&
+        Number(currentCursor?.exerciseIndex ?? -1) === nextCursor.exerciseIndex &&
+        (currentCursor?.sessionExerciseId ?? null) === nextCursor.sessionExerciseId &&
+        (currentCursor?.exerciseId ?? null) === nextCursor.exerciseId
+      ) {
+        return;
+      }
+
+      updateWorkout({ playerCursor: nextCursor });
+    },
+    [
+      currentKey,
+      updateWorkout,
+      workout?.sessionId,
+      workout?.playerCursor?.sessionId,
+      workout?.playerCursor?.blockId,
+      workout?.playerCursor?.exerciseIndex,
+      workout?.playerCursor?.sessionExerciseId,
+      workout?.playerCursor?.exerciseId,
+    ]
+  );
+
+  useEffect(() => {
+    const firstExercise = currentExercises?.[0] ?? null;
+    if (!firstExercise) return;
+    setActiveEnvironmentExercise(firstExercise, 0);
+  }, [currentKey, currentExercises, setActiveEnvironmentExercise]);
+
   const structuredStrength = useMemo(() => {
     if (!currentBlock || !['strength', 'gym', 'street_gym'].includes(currentKey)) return false;
     if (currentKey !== 'gym') return true;
@@ -1686,8 +1762,69 @@ export default function EnvironmentSessionCore({
 
   useEffect(() => {
     if (!currentBlock || !structuredStrength) return;
-    setSetDrafts(initialSetDrafts(currentExercises, currentBlock));
-  }, [currentBlock, currentExercises, structuredStrength]);
+
+    const baseline = initialSetDrafts(currentExercises, currentBlock);
+    const activeSessionExerciseId =
+      workout?.playerCursor?.sessionExerciseId ?? null;
+
+    setSetDrafts((current) => {
+      const next = { ...baseline };
+
+      for (const exercise of currentExercises) {
+        const key = exerciseKey(exercise);
+        const existing = current?.[key];
+        const hasRealizedSet =
+          (existing?.sets ?? []).some((row) => Boolean(row?.done));
+        const isActive =
+          Boolean(activeSessionExerciseId) &&
+          activeSessionExerciseId ===
+            (exercise?.sessionExerciseId ??
+              exercise?.session_exercise_id ??
+              null);
+
+        if (existing && (hasRealizedSet || isActive)) {
+          next[key] = existing;
+        }
+      }
+
+      return next;
+    });
+  }, [
+    currentBlock,
+    currentExercises,
+    structuredStrength,
+    workout?.playerCursor?.sessionExerciseId,
+  ]);
+
+  useEffect(() => {
+    if (!structuredStrength || !currentBlock) return;
+
+    const partialSessionExerciseIds = currentExercises
+      .filter((exercise) => {
+        const draft = setDrafts?.[exerciseKey(exercise)];
+        return (draft?.sets ?? []).some((row) => Boolean(row?.done));
+      })
+      .map(
+        (exercise) =>
+          exercise?.sessionExerciseId ??
+          exercise?.session_exercise_id
+      )
+      .filter(Boolean);
+
+    updateWorkout({
+      environmentPartialProgress: {
+        blockId: currentKey,
+        sessionExerciseIds: partialSessionExerciseIds,
+      },
+    });
+  }, [
+    currentBlock,
+    currentExercises,
+    currentKey,
+    setDrafts,
+    structuredStrength,
+    updateWorkout,
+  ]);
 
   useEffect(() => {
     const firstPending = blocks.findIndex((block) => !blockIsDone(block, workout.exercises ?? []));
@@ -1850,6 +1987,17 @@ export default function EnvironmentSessionCore({
     }
 
     router.push('/workout/completion');
+  }
+
+  function markSimpleExerciseCompleted(exercise) {
+    if (!exercise) return;
+
+    writeExerciseUpdates({
+      [exerciseKey(exercise)]: {
+        status: 'completed',
+        userExecutionStatus: 'completed',
+      },
+    });
   }
 
   function completeSimpleBlock() {
@@ -2240,6 +2388,7 @@ export default function EnvironmentSessionCore({
             drafts={setDrafts}
             setDrafts={setSetDrafts}
             onComplete={completeStrengthBlock}
+            onActiveExerciseChange={setActiveEnvironmentExercise}
             executionEnabled={sessionStarted}
           />
         ) : manualGym ? (
@@ -2255,6 +2404,8 @@ export default function EnvironmentSessionCore({
             block={currentBlock}
             exercises={currentExercises}
             onComplete={completeSimpleBlock}
+            onExerciseComplete={markSimpleExerciseCompleted}
+            onActiveExerciseChange={setActiveEnvironmentExercise}
             executionEnabled={sessionStarted}
           />
         )}
