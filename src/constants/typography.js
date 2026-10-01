@@ -1,100 +1,124 @@
 export const fontFamilies = {
-  display: 'BebasNeue_400Regular',
+  // Interface UGEROD
+  regular: 'Manrope_400Regular',
+  medium: 'Manrope_500Medium',
+  semiBold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+  extraBold: 'Manrope_800ExtraBold',
 
-  oswaldRegular: 'Oswald_400Regular',
-  oswaldMedium: 'Oswald_500Medium',
-  oswaldSemiBold: 'Oswald_600SemiBold',
-  oswaldBold: 'Oswald_700Bold',
+  // Alias sémantiques.
+  interface: 'Manrope_400Regular',
+  interfaceStrong: 'Manrope_700Bold',
+  display: 'Manrope_800ExtraBold',
+
+  // Réservé aux grosses données sportives : chrono, compteur, métrique.
+  sportMetric: 'BebasNeue_400Regular',
+
+  // Compatibilité temporaire avec d’anciens consommateurs de tokens.
+  // Ces alias rendent désormais du Manrope : Oswald ne fait plus partie du
+  // contrat visuel du nouveau player.
+  oswaldRegular: 'Manrope_400Regular',
+  oswaldMedium: 'Manrope_500Medium',
+  oswaldSemiBold: 'Manrope_600SemiBold',
+  oswaldBold: 'Manrope_700Bold',
+};
+
+export const fontWeights = {
+  regular: '400',
+  medium: '500',
+  semiBold: '600',
+  bold: '700',
+  extraBold: '800',
 };
 
 export const typography = {
-  // Gros slogans :
-  // TON OBJECTIF
-  // BON RETOUR
-  // REJOINS UGEROD
+  // Les titres font partie de l’interface : Manrope.
   hero: {
-    fontFamily: fontFamilies.display,
+    fontFamily: fontFamilies.extraBold,
     fontSize: 42,
-    lineHeight: 44,
-    letterSpacing: 1.6,
+    lineHeight: 46,
+    letterSpacing: -0.8,
   },
 
-  // Gros titres d'écran
   display: {
-    fontFamily: fontFamilies.display,
+    fontFamily: fontFamilies.extraBold,
     fontSize: 36,
-    lineHeight: 39,
-    letterSpacing: 1.3,
+    lineHeight: 41,
+    letterSpacing: -0.7,
   },
 
   screenTitle: {
-    fontFamily: fontFamilies.display,
+    fontFamily: fontFamilies.extraBold,
     fontSize: 30,
-    lineHeight: 33,
-    letterSpacing: 1.1,
+    lineHeight: 35,
+    letterSpacing: -0.5,
   },
 
-  // Titres de sections
   sectionTitle: {
-    fontFamily: fontFamilies.oswaldBold,
+    fontFamily: fontFamilies.bold,
     fontSize: 20,
     lineHeight: 26,
-    letterSpacing: 0.4,
+    letterSpacing: -0.2,
   },
 
   cardTitle: {
-    fontFamily: fontFamilies.oswaldSemiBold,
+    fontFamily: fontFamilies.bold,
     fontSize: 18,
     lineHeight: 24,
-    letterSpacing: 0.3,
+    letterSpacing: -0.1,
   },
 
-  // Texte courant
   bodyLarge: {
-    fontFamily: fontFamilies.oswaldRegular,
+    fontFamily: fontFamilies.regular,
     fontSize: 17,
     lineHeight: 24,
   },
 
   body: {
-    fontFamily: fontFamilies.oswaldRegular,
+    fontFamily: fontFamilies.regular,
     fontSize: 15,
     lineHeight: 22,
   },
 
   bodySmall: {
-    fontFamily: fontFamilies.oswaldRegular,
+    fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 19,
   },
 
-  // E-MAIL, MOT DE PASSE, DURÉE, etc.
   label: {
-    fontFamily: fontFamilies.oswaldSemiBold,
+    fontFamily: fontFamilies.semiBold,
     fontSize: 13,
     lineHeight: 17,
-    letterSpacing: 0.7,
+    letterSpacing: 0.35,
   },
 
-  // Boutons principaux
   button: {
-    fontFamily: fontFamilies.display,
-    fontSize: 19,
-    lineHeight: 22,
-    letterSpacing: 1.1,
-  },
-
-  caption: {
-    fontFamily: fontFamilies.oswaldMedium,
-    fontSize: 12,
-    lineHeight: 17,
+    fontFamily: fontFamilies.extraBold,
+    fontSize: 14,
+    lineHeight: 19,
     letterSpacing: 0.25,
   },
 
+  caption: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 12,
+    lineHeight: 17,
+    letterSpacing: 0.1,
+  },
+
+  // Bebas Neue est réservé à la lecture sportive instantanée.
   metric: {
-    fontFamily: fontFamilies.display,
+    fontFamily: fontFamilies.sportMetric,
     fontSize: 34,
     lineHeight: 37,
+    letterSpacing: 0.8,
+  },
+
+  metricHero: {
+    fontFamily: fontFamilies.sportMetric,
+    fontSize: 58,
+    lineHeight: 64,
     letterSpacing: 0.8,
   },
 };
