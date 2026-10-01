@@ -786,8 +786,8 @@ function RuntimeBody(props) {
     const remaining = Math.max(0, numberOr(totalSeconds, 0) - elapsed);
     return <>
       <ProtocolRing value={remaining} total={totalSeconds} label="Temps restant" styles={styles} colors={colors} />
-      <Metric value={completedRounds} label="Tours terminés" styles={styles} />
-      <WorkList exercises={exercises} styles={styles} />
+      <Metric value={completedRounds} label="Tours terminés" styles={styles} colors={colors} />
+      <WorkList exercises={exercises} styles={styles} colors={colors} />
       <Action label="Tour terminé" icon="checkmark" onPress={onRound} styles={styles} colors={colors} />
     </>;
   }
@@ -796,10 +796,10 @@ function RuntimeBody(props) {
     return <>
       <ProtocolRing value={elapsed} total={totalSeconds} label="Chrono" countUp styles={styles} colors={colors} />
       <View style={styles.metricPair}>
-        <Metric value={formatClock(totalSeconds)} label="Cap" styles={styles} />
-        <Metric value={`${completedRounds} / ${Math.max(1, numberOr(params.rounds, 1))}`} label="Tours" styles={styles} />
+        <Metric value={formatClock(totalSeconds)} label="Cap" styles={styles} colors={colors} />
+        <Metric value={`${completedRounds} / ${Math.max(1, numberOr(params.rounds, 1))}`} label="Tours" styles={styles} colors={colors} />
       </View>
-      <WorkList exercises={exercises} styles={styles} />
+      <WorkList exercises={exercises} styles={styles} colors={colors} />
       <Action label="Tour terminé" icon="checkmark" onPress={onRound} styles={styles} colors={colors} />
     </>;
   }
@@ -807,7 +807,7 @@ function RuntimeBody(props) {
   if (mechanic === 'EMOM' || mechanic === 'ODD_EVEN') {
     return <>
       <ProtocolRing value={derived.phaseRemaining ?? 0} total={derived.phaseDuration ?? 60} label={derived.label ?? 'Intervalle'} styles={styles} colors={colors} />
-      <CurrentExercise exercise={derived.currentExercise} nextExercise={derived.nextExercise} styles={styles} />
+      <CurrentExercise exercise={derived.currentExercise} nextExercise={derived.nextExercise} styles={styles} colors={colors} />
     </>;
   }
 
@@ -840,7 +840,7 @@ function RuntimeBody(props) {
     return <>
       <ProtocolRing value={derived.phaseRemaining ?? 0} total={derived.phaseDuration ?? 120} label={derived.label ?? 'Cycle'} styles={styles} colors={colors} />
       <Text style={styles.hint}>Réalise tout le travail ci-dessous puis récupère jusqu’au prochain départ.</Text>
-      <WorkList exercises={exercises} styles={styles} />
+      <WorkList exercises={exercises} styles={styles} colors={colors} />
     </>;
   }
 
@@ -848,7 +848,7 @@ function RuntimeBody(props) {
     const stage = derived.stage ?? 1;
     return <>
       <ProtocolRing value={derived.phaseRemaining ?? 0} total={derived.phaseDuration ?? 60} label={derived.label ?? `Étape ${stage}`} styles={styles} colors={colors} />
-      <StageList exercises={exercises} stage={stage} direction="ascending" styles={styles} />
+      <StageList exercises={exercises} stage={stage} direction="ascending" styles={styles} colors={colors} />
       <Text style={styles.hint}>{variant === 'DEATH_BY' || variant === 'DEATH_BY_COUPLET' ? 'Chaque intervalle augmente la dose. Arrête dès que la prescription ne tient plus dans le temps.' : 'La dose progresse à chaque intervalle.'}</Text>
       <Pressable onPress={onFailure} style={styles.failureButton}><Text style={styles.failureText}>Échec / arrêter ici</Text></Pressable>
     </>;
@@ -858,8 +858,8 @@ function RuntimeBody(props) {
     const rounds = Math.max(1, numberOr(params.rounds, 1));
     return <>
       <Metric value={`${Math.min(rounds, completedRounds + 1)} / ${rounds}`} label="Tour en cours" styles={styles} large />
-      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_rounds_seconds, restRemaining))} label="Récupération" phaseColor={colors.accent} styles={styles} colors={colors} /> : <WorkList exercises={exercises} styles={styles} />}
-      <Action label="Tour terminé" icon="checkmark" onPress={onRound} disabled={restRemaining > 0} styles={styles} />
+      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_rounds_seconds, restRemaining))} label="Récupération" phaseColor={colors.accent} styles={styles} colors={colors} /> : <WorkList exercises={exercises} styles={styles} colors={colors} />}
+      <Action label="Tour terminé" icon="checkmark" onPress={onRound} disabled={restRemaining > 0} styles={styles} colors={colors} />
     </>;
   }
 
@@ -875,7 +875,7 @@ function RuntimeBody(props) {
         direction={descending ? 'descending' : 'ascending'}
         styles={styles}
       />
-      <Action label={manualStep >= rungs ? 'Terminer le protocole' : 'Étape terminée'} icon="arrow-forward" onPress={() => onStep(rungs)} styles={styles} />
+      <Action label={manualStep >= rungs ? 'Terminer le protocole' : 'Étape terminée'} icon="arrow-forward" onPress={() => onStep(rungs)} styles={styles} colors={colors} />
     </>;
   }
 
@@ -891,7 +891,7 @@ function RuntimeBody(props) {
       <View style={styles.workList}>{exercises.map((exercise, idx) => <View key={exercise?._uiKey ?? exercise?.id ?? idx} style={styles.workRow}><Text style={styles.workName}>{exercise.name}</Text><Text style={styles.workPrescription}>
           {pyramidReps(exercise, multiplier)} reps{repsSemanticsSuffix(exercise)}
         </Text></View>)}</View>
-      <Action label={manualStep >= totalSteps ? 'Terminer le protocole' : 'Étape terminée'} icon="arrow-forward" onPress={() => onStep(totalSteps)} styles={styles} />
+      <Action label={manualStep >= totalSteps ? 'Terminer le protocole' : 'Étape terminée'} icon="arrow-forward" onPress={() => onStep(totalSteps)} styles={styles} colors={colors} />
     </>;
   }
 
@@ -899,8 +899,8 @@ function RuntimeBody(props) {
     const current = exercises[currentItemIndex] ?? exercises[0] ?? null;
     return <>
       <Metric value={`${Math.min(currentItemIndex + 1, exercises.length)} / ${exercises.length}`} label={mechanic === 'REP_TARGET' ? `Objectif ${numberOr(params.total_rep_target, 0)} reps` : 'Progression'} styles={styles} large />
-      <CurrentExercise exercise={current} styles={styles} />
-      <Action label={currentItemIndex >= exercises.length - 1 ? 'Terminer le WOD' : 'Exercice terminé'} icon="checkmark" onPress={onItem} styles={styles} />
+      <CurrentExercise exercise={current} styles={styles} colors={colors} />
+      <Action label={currentItemIndex >= exercises.length - 1 ? 'Terminer le WOD' : 'Exercice terminé'} icon="checkmark" onPress={onItem} styles={styles} colors={colors} />
     </>;
   }
 
@@ -918,7 +918,7 @@ function RuntimeBody(props) {
         <Text style={styles.deckName}>{exercise?.name ?? 'Exercice'}</Text>
         <Text style={styles.deckReps}>{numberOr(card.reps, 1)} reps</Text>
       </View>
-      <Action label={currentItemIndex >= deck.length - 1 ? 'Terminer le deck' : 'Carte suivante'} icon="layers-outline" onPress={onDeckNext} styles={styles} />
+      <Action label={currentItemIndex >= deck.length - 1 ? 'Terminer le deck' : 'Carte suivante'} icon="layers-outline" onPress={onDeckNext} styles={styles} colors={colors} />
     </>;
   }
 
@@ -942,12 +942,12 @@ function RuntimeBody(props) {
 
     return <>
       <Metric value={`${Math.min(setNumber, sets)} / ${sets}`} label="Série" styles={styles} large />
-      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_exercises_seconds, restRemaining))} label="Récupération" phaseColor={colors.accent} styles={styles} colors={colors} /> : <CurrentExercise exercise={current} nextExercise={nextExercise} prescriptionOverride={singleDosePrescription(current)} styles={styles} />}
-      <Action label={actionLabel} icon="checkmark" onPress={onSet} disabled={restRemaining > 0} styles={styles} />
+      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_exercises_seconds, restRemaining))} label="Récupération" phaseColor={colors.accent} styles={styles} colors={colors} /> : <CurrentExercise exercise={current} nextExercise={nextExercise} prescriptionOverride={singleDosePrescription(current)} styles={styles} colors={colors} />}
+      <Action label={actionLabel} icon="checkmark" onPress={onSet} disabled={restRemaining > 0} styles={styles} colors={colors} />
     </>;
   }
 
-  return <WorkList exercises={exercises} styles={styles} />;
+  return <WorkList exercises={exercises} styles={styles} colors={colors} />;
 }
 
 function ProtocolRing({ value, total, label, countUp = false, phaseColor = null, styles, colors }) {
