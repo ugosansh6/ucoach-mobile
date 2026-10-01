@@ -286,8 +286,8 @@ export default function SessionOverviewSheet({
   onSkipSkill,
   onAlternateSession,
 }) {
-  const { colors, isDark } = useUgerodTheme();
-  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { colors } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { workout, setGeneratedWorkoutPreservingProgress } = useWorkout();
 
   const blocks = useMemo(() => buildBlocks(workout), [workout]);
@@ -768,7 +768,7 @@ function ExerciseDetailModal({ visible, exercise, blockTitle, canSwap, onClose, 
   );
 }
 
-function createStyles(colors, isDark) {
+function createStyles(colors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -852,7 +852,7 @@ function createStyles(colors, isDark) {
       borderRadius: 18,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: isDark ? colors.surface : '#FCFCF8',
+      backgroundColor: colors.surface,
       overflow: 'hidden',
     },
     block: { paddingHorizontal: 15, paddingVertical: 15 },
