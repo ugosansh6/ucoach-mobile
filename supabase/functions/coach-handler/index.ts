@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
-const VERSION = "coach-handler-v19-unified-program-context";
+const VERSION = "coach-handler-v20-environment-coaching-decisions";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -156,7 +156,7 @@ serve(async (req: Request) => {
           : body.environment_format_code ?? null;
 
       const { data: environmentGenerated, error: environmentError } = await supabase.rpc(
-        "generate_environment_session_v3",
+        "generate_environment_session_v4",
         {
           p_user_id: userId,
           p_environment_code: environmentCode,
@@ -180,6 +180,11 @@ serve(async (req: Request) => {
         },
       );
       if (environmentError) throw new Error(environmentError.message);
+
+      const effectiveResolvedTargetRegion =
+        environmentCode === "GYM"
+          ? environmentGenerated?.resolved_target_region ?? resolvedTargetRegion ?? null
+          : resolvedTargetRegion ?? null;
 
       const environmentStatus = String(environmentGenerated?.status ?? "");
 
@@ -248,16 +253,20 @@ serve(async (req: Request) => {
         context_recalculation_limit: 0,
         meta: {
           ...(workout?.meta ?? {}),
-          backend_authority: "environment_session_generator_v3",
+          backend_authority: "environment_session_generator_v4",
           legacy_scaffold_authority: false,
           environment_code: environmentCode,
           environment_format_code: environmentGenerated?.format_code ?? environmentFormatCode ?? null,
           gym_execution_style: body.gym_execution_style ?? workout?.meta?.execution_style?.style_code ?? null,
           resolved_focus: resolvedFocus ?? null,
-          resolved_target_region: resolvedTargetRegion ?? null,
+          resolved_target_region: effectiveResolvedTargetRegion,
           resolved_progression_intent: resolvedProgressionIntent ?? null,
           session_context_source: contextSource,
           session_context: resolvedSessionContext,
+          gym_target_region_resolution:
+            environmentCode === "GYM"
+              ? environmentGenerated?.gym_target_region_resolution ?? null
+              : null,
           resumed_existing_session: resumedExisting,
           generation_control_status: resumedExisting ? "resume_existing" : null,
           coach_note: coachNote,
