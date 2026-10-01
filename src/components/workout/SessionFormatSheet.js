@@ -331,7 +331,7 @@ function createStyles(colors) {
       fontFamily: 'Manrope_600SemiBold',
       fontSize: 12,
       lineHeight: 17,
-      color: colors.brandRed,
+      color: colors.error,
     },
     loader: {
       marginTop: 24,
