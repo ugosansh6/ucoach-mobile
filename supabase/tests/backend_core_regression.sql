@@ -246,6 +246,57 @@ begin
     raise exception 'ADAPT V2 regression: system fatigue-variant source marker missing';
   end if;
 
+  -- ENV-COACH-003: GYM must resolve a concrete muscle region when no
+  -- explicit target is supplied, while explicit targets remain authoritative.
+  v_contract:=public.gym_resolve_target_region_v1(
+    v_user,'Strength',current_date,null
+  );
+  if v_contract->>'status'<>'RESOLVED'
+     or v_contract->>'target_region' not in ('Upper','Lower','Full Body','Core')
+     or v_contract->>'source'<>'GYM_FOCUS_ROTATION' then
+    raise exception 'Environment coaching regression: automatic GYM target region is not explicit: %',v_contract;
+  end if;
+
+  v_contract:=public.gym_resolve_target_region_v1(
+    v_user,'Strength',current_date,'Lower'
+  );
+  if v_contract->>'target_region'<>'Lower'
+     or v_contract->>'source'<>'EXPLICIT_USER_OR_PROGRAM_CONTEXT' then
+    raise exception 'Environment coaching regression: explicit GYM target region lost authority: %',v_contract;
+  end if;
+
+  -- WHOLE_SESSION now uses one environment router. The former Skill-only and
+  -- WOD-only shortcuts must never satisfy "Une autre séance".
+  if to_regprocedure('public.change_workout_session_plan_fast_v3(uuid,uuid)') is null then
+    raise exception 'Plan B regression: environment-aware whole-session router missing';
+  end if;
+  if exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname='change_workout_session_plan_fast_v3'
+      and (
+        position('change_workout_skill_plan_fast_v1' in pg_get_functiondef(p.oid))>0
+        or position('change_workout_session_wod_fast_v1' in pg_get_functiondef(p.oid))>0
+      )
+  ) then
+    raise exception 'Plan B regression: WHOLE_SESSION still accepts Skill-only/WOD-only fast paths';
+  end if;
+  if not exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname='change_workout_session_plan_fast_v3'
+      and position('ugerod.session_environment' in pg_get_functiondef(p.oid))>0
+  ) then
+    raise exception 'Plan B regression: HOME/BOX environment context is not preserved during full alternative generation';
+  end if;
+  if to_regprocedure('public.ugerod_session_plan_difference_v1(uuid,uuid)') is null then
+    raise exception 'Plan B regression: meaningful-difference gate missing';
+  end if;
+
   raise notice 'UGEROD backend_core_regression: PASS';
 end $$;
 
