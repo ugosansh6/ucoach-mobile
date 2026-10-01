@@ -17,6 +17,7 @@ export {
 
 export {
   adaptSessionExercise,
+  adaptStartedSession,
 } from './sessionAdaptationService';
 
 export {
@@ -25,7 +26,7 @@ export {
 } from './skillPlanService';
 
 export const SESSION_MUTATION_CONTRACT_VERSION =
-  'session-mutation-contract-v1';
+  'session-mutation-contract-v2';
 
 export function normalizeSessionEnvironment(value) {
   const key = String(value ?? '')
