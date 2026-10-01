@@ -27,6 +27,21 @@ function environmentLabel(code) {
   return 'SÉANCE';
 }
 
+const OUTDOOR_PLACE_SURFACE = {
+  ATHLETICS_TRACK: 'TRACK',
+  BEACH: 'SAND',
+  // Compatibilité avec les anciennes préparations où Pelouse était un lieu.
+  GRASS_FIELD: 'GRASS',
+};
+
+function effectiveOutdoorSurface(preparation) {
+  return (
+    preparation?.surfaceCode ??
+    OUTDOOR_PLACE_SURFACE[String(preparation?.outdoorPlaceCode ?? '').toUpperCase()] ??
+    null
+  );
+}
+
 export default function EnvironmentGeneratingScreen() {
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -41,9 +56,10 @@ export default function EnvironmentGeneratingScreen() {
     .trim()
     .toUpperCase();
   const label = environmentLabel(environmentCode);
+  const resolvedOutdoorSurface = effectiveOutdoorSurface(preparation);
   const missingOutdoorContext =
     environmentCode === 'OUTDOOR' &&
-    (!preparation?.outdoorPlaceCode || !preparation?.surfaceCode);
+    (!preparation?.outdoorPlaceCode || !resolvedOutdoorSurface);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -114,7 +130,7 @@ export default function EnvironmentGeneratingScreen() {
 
       if (missingOutdoorContext) {
         setError(
-          'Le contexte extérieur est incomplet. Reviens au check-in pour préciser le lieu et le terrain.'
+          'Le contexte extérieur est incomplet. Reviens au check-in pour préciser le lieu et, si nécessaire, le terrain.'
         );
         return;
       }
@@ -125,7 +141,12 @@ export default function EnvironmentGeneratingScreen() {
       setControl(null);
 
       try {
-        const nextWorkout = await generateWorkoutSession(preparation, {
+        const preparationForGeneration =
+          environmentCode === 'OUTDOOR' && resolvedOutdoorSurface
+            ? { ...preparation, surfaceCode: resolvedOutdoorSurface }
+            : preparation;
+
+        const nextWorkout = await generateWorkoutSession(preparationForGeneration, {
           forceRecalculateStarted,
           protectedSessionExerciseIds,
         });
