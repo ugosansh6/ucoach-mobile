@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
 import SessionCore from './session-core';
 import EnvironmentSessionCore from './environment-session-core';
@@ -70,7 +71,7 @@ function verifyPlanBReplacement({ sourceWorkout, result, nextWorkout }) {
 
 export default function SessionScreen() {
   const { workout, updateWorkout, setGeneratedWorkout } = useWorkout();
-  const { colors } = useUgerodTheme();
+  const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(), []);
 
   const [planBOpen, setPlanBOpen] = useState(false);
@@ -368,6 +369,7 @@ export default function SessionScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       {usesSpecializedEnvironmentRuntime ? (
         <EnvironmentSessionCore
           environmentCode={environmentCode}
