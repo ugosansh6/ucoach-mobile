@@ -297,6 +297,57 @@ begin
     raise exception 'Plan B regression: meaningful-difference gate missing';
   end if;
 
+  -- POINT 5: mutation QA matrix must exist and remain operator-only.
+  if to_regprocedure('public.qa_session_mutation_lifecycle_v1(uuid,text,date)') is null
+     or to_regprocedure('public.qa_session_mutation_matrix_v1(uuid,date)') is null then
+    raise exception 'Mutation QA regression: lifecycle or matrix function missing';
+  end if;
+
+  if has_function_privilege(
+       'authenticated',
+       'public.qa_session_mutation_lifecycle_v1(uuid,text,date)',
+       'EXECUTE'
+     )
+     or has_function_privilege(
+       'authenticated',
+       'public.qa_session_mutation_matrix_v1(uuid,date)',
+       'EXECUTE'
+     ) then
+    raise exception 'Mutation QA regression: operator-only QA function exposed to authenticated users';
+  end if;
+
+  if not exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname='qa_session_mutation_lifecycle_v1'
+      and position('change_workout_session_plan_fast_v3' in pg_get_functiondef(p.oid))>0
+      and position('adapt_started_session_v2' in pg_get_functiondef(p.oid))>0
+      and position('mark_wod_revealed' in pg_get_functiondef(p.oid))>0
+      and position('mark_wod_started' in pg_get_functiondef(p.oid))>0
+      and position('complete_workout_session_v3' in pg_get_functiondef(p.oid))>0
+      and position('QA_FORCE_ROLLBACK' in pg_get_functiondef(p.oid))>0
+  ) then
+    raise exception 'Mutation QA regression: real lifecycle mutation chain or forced rollback missing';
+  end if;
+
+  -- The older Outdoor QA helper must use canonical place codes, never the
+  -- removed ROAD_ROUTE / TRAIL_ROUTE aliases.
+  if exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname='qa_session_001_case_v1'
+      and (
+        position('ROAD_ROUTE' in pg_get_functiondef(p.oid))>0
+        or position('TRAIL_ROUTE' in pg_get_functiondef(p.oid))>0
+      )
+  ) then
+    raise exception 'Outdoor QA regression: deprecated place aliases still present';
+  end if;
+
   raise notice 'UGEROD backend_core_regression: PASS';
 end $$;
 
