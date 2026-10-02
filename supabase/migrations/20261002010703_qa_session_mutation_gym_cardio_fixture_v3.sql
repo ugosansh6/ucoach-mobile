@@ -1,0 +1,3 @@
+-- DEV iterative patch: the GYM QA fixture includes cardio-capable equipment so the
+-- default GYM_BALANCED path can exercise the full mutation lifecycle.
+-- The consolidated 20261002010144 migration already contains this final state for fresh replays.
