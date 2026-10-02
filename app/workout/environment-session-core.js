@@ -3452,8 +3452,8 @@ function createTimedBlockStyles(colors) {
       borderColor: colors.border,
     },
     cardTitle: {
-      fontFamily: 'Manrope_800ExtraBold',
-      fontSize: 24,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 28,
       lineHeight: 30,
       color: colors.text,
     },
