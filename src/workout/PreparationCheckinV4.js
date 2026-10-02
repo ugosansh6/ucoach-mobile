@@ -1265,7 +1265,7 @@ function createStyles(colors) {
       color: colors.textSecondary,
     },
     title: {
-      fontFamily: 'BebasNeue_400Regular',
+      fontFamily: MANROPE.extraBold,
       fontSize: 32,
       lineHeight: 38,
       letterSpacing: -0.8,
