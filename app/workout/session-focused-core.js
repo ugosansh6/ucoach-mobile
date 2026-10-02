@@ -1570,8 +1570,8 @@ export function createStyles(colors, isDark) {
       color: colors.textSecondary,
     },
     blockCounter: {
-      fontFamily: 'Manrope_800ExtraBold',
-      fontSize: 24,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 28,
       color: colors.textMuted,
     },
     mediaCard: {
