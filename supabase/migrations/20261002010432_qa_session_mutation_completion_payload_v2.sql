@@ -1,0 +1,3 @@
+-- DEV iterative patch: mutation QA completion now uses actual_attempts_json instead of
+-- the non-existent workout_session_exercises.performance_actual_json column.
+-- The consolidated 20261002010144 migration already contains this final state for fresh replays.
