@@ -1,26 +1,25 @@
 export const fontFamilies = {
-  // Interface UGEROD
+  // Titres / display UGEROD : on conserve Bebas Neue.
+  display: 'BebasNeue_400Regular',
+
+  // Manrope remplace uniquement l'ancienne famille Oswald.
   regular: 'Manrope_400Regular',
   medium: 'Manrope_500Medium',
   semiBold: 'Manrope_600SemiBold',
   bold: 'Manrope_700Bold',
   extraBold: 'Manrope_800ExtraBold',
 
-  // Alias sémantiques.
   interface: 'Manrope_400Regular',
   interfaceStrong: 'Manrope_700Bold',
-  display: 'Manrope_800ExtraBold',
 
-  // Réservé aux grosses données sportives : chrono, compteur, métrique.
-  sportMetric: 'BebasNeue_400Regular',
-
-  // Compatibilité temporaire avec d’anciens consommateurs de tokens.
-  // Ces alias rendent désormais du Manrope : Oswald ne fait plus partie du
-  // contrat visuel du nouveau player.
+  // Alias de compatibilité : tout ancien usage Oswald bascule vers Manrope.
   oswaldRegular: 'Manrope_400Regular',
   oswaldMedium: 'Manrope_500Medium',
   oswaldSemiBold: 'Manrope_600SemiBold',
   oswaldBold: 'Manrope_700Bold',
+
+  // Alias sémantique pour les grosses métriques sportives.
+  sportMetric: 'BebasNeue_400Regular',
 };
 
 export const fontWeights = {
@@ -32,40 +31,41 @@ export const fontWeights = {
 };
 
 export const typography = {
-  // Les titres font partie de l’interface : Manrope.
+  // Bebas Neue reste la police de display / grands titres.
   hero: {
-    fontFamily: fontFamilies.extraBold,
+    fontFamily: fontFamilies.display,
     fontSize: 42,
-    lineHeight: 46,
-    letterSpacing: -0.8,
+    lineHeight: 44,
+    letterSpacing: 1.6,
   },
 
   display: {
-    fontFamily: fontFamilies.extraBold,
+    fontFamily: fontFamilies.display,
     fontSize: 36,
-    lineHeight: 41,
-    letterSpacing: -0.7,
+    lineHeight: 39,
+    letterSpacing: 1.3,
   },
 
   screenTitle: {
-    fontFamily: fontFamilies.extraBold,
+    fontFamily: fontFamilies.display,
     fontSize: 30,
-    lineHeight: 35,
-    letterSpacing: -0.5,
+    lineHeight: 33,
+    letterSpacing: 1.1,
   },
 
+  // Ces usages étaient historiquement Oswald : ils deviennent Manrope.
   sectionTitle: {
     fontFamily: fontFamilies.bold,
     fontSize: 20,
     lineHeight: 26,
-    letterSpacing: -0.2,
+    letterSpacing: 0.4,
   },
 
   cardTitle: {
-    fontFamily: fontFamilies.bold,
+    fontFamily: fontFamilies.semiBold,
     fontSize: 18,
     lineHeight: 24,
-    letterSpacing: -0.1,
+    letterSpacing: 0.3,
   },
 
   bodyLarge: {
@@ -90,33 +90,33 @@ export const typography = {
     fontFamily: fontFamilies.semiBold,
     fontSize: 13,
     lineHeight: 17,
-    letterSpacing: 0.35,
+    letterSpacing: 0.7,
   },
 
+  // Les boutons display qui étaient en Bebas le restent.
   button: {
-    fontFamily: fontFamilies.extraBold,
-    fontSize: 14,
-    lineHeight: 19,
-    letterSpacing: 0.25,
+    fontFamily: fontFamilies.display,
+    fontSize: 19,
+    lineHeight: 22,
+    letterSpacing: 1.1,
   },
 
   caption: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 17,
-    letterSpacing: 0.1,
+    letterSpacing: 0.25,
   },
 
-  // Bebas Neue est réservé à la lecture sportive instantanée.
   metric: {
-    fontFamily: fontFamilies.sportMetric,
+    fontFamily: fontFamilies.display,
     fontSize: 34,
     lineHeight: 37,
     letterSpacing: 0.8,
   },
 
   metricHero: {
-    fontFamily: fontFamilies.sportMetric,
+    fontFamily: fontFamilies.display,
     fontSize: 58,
     lineHeight: 64,
     letterSpacing: 0.8,
