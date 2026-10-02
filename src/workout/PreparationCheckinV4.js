@@ -1265,7 +1265,7 @@ function createStyles(colors) {
       color: colors.textSecondary,
     },
     title: {
-      fontFamily: MANROPE.extraBold,
+      fontFamily: 'BebasNeue_400Regular',
       fontSize: 32,
       lineHeight: 38,
       letterSpacing: -0.8,
@@ -1301,14 +1301,14 @@ function createStyles(colors) {
       justifyContent: 'center',
     },
     durationValue: {
-      fontFamily: MANROPE.semiBold,
+      fontFamily: 'BebasNeue_400Regular',
       fontSize: 56,
       lineHeight: 60,
       letterSpacing: 0.4,
       textAlign: 'center',
     },
     durationUnit: {
-      fontFamily: MANROPE.medium,
+      fontFamily: 'BebasNeue_400Regular',
       fontSize: 11,
       lineHeight: 15,
       letterSpacing: 1.3,
