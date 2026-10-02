@@ -25,35 +25,41 @@ Les couleurs de marque ne sont pas recodées localement dans les Players. Par ex
 
 ## Typographie
 
-### Manrope = interface UGEROD
+La règle est volontairement simple :
 
-Manrope est la police de l’interface :
+**Bebas Neue reste Bebas Neue.**  
+**Manrope remplace uniquement Oswald.**
 
-- titres d’écran et de cartes ;
-- noms d’exercices ;
+### Bebas Neue = display UGEROD
+
+Les éléments qui utilisaient déjà Bebas Neue conservent cette identité :
+
+- grands titres / titres display ;
+- compteurs et numéros mis en avant ;
+- chronos ;
+- scores et grosses métriques ;
+- boutons ou labels display lorsqu'ils étaient déjà conçus en Bebas.
+
+Une migration UI ne doit pas convertir un usage Bebas existant en Manrope.
+
+### Manrope = remplacement d'Oswald
+
+Tous les usages historiques d'Oswald dans le nouveau Player passent en Manrope :
+
+- textes courants ;
 - descriptions et consignes ;
+- noms d'exercices lorsqu'ils étaient en Oswald ;
 - labels ;
-- boutons ;
-- navigation ;
-- champs et textes courants.
+- sous-titres ;
+- titres de section / cartes qui étaient en Oswald.
 
-Les styles partagés doivent utiliser les familles Manrope définies dans `typography.js`.
-
-### Bebas Neue = données sportives fortes uniquement
-
-Bebas Neue est réservé aux données qui doivent être lues instantanément comme une métrique sportive :
-
-- gros chrono ;
-- gros compteur ;
-- score / métrique principale.
-
-Il ne doit pas servir de police générique pour les titres, boutons ou textes d’interface.
+Le poids Manrope choisi reprend au mieux la hiérarchie visuelle de l'ancien poids Oswald.
 
 ### Oswald
 
 Oswald ne fait plus partie du contrat du nouveau Player.
 
-La police reste temporairement chargée tant que des écrans historiques non migrés existent encore, mais aucun nouveau composant Player ne doit l’utiliser. Les anciens styles sont supprimés au fur et à mesure de leur nettoyage, sans casser les écrans historiques.
+La police peut rester temporairement chargée tant que des écrans historiques non migrés existent encore, mais aucun nouveau composant Player ne doit l'utiliser.
 
 ## Couleurs du Player
 
