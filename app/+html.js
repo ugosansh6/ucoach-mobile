@@ -1,8 +1,6 @@
 import React from 'react';
 import { ScrollViewStyleReset } from 'expo-router/html';
 
-const FIGMA_CAPTURE_ENABLED = process.env.EXPO_PUBLIC_FIGMA_CAPTURE === '1';
-
 export default function Root({ children }) {
   return (
     <html lang="fr">
@@ -26,12 +24,6 @@ export default function Root({ children }) {
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/ugerod-icon.png" />
         <ScrollViewStyleReset />
-        {FIGMA_CAPTURE_ENABLED ? (
-          <script
-            src="https://mcp.figma.com/mcp/html-to-design/capture.js"
-            async
-          />
-        ) : null}
       </head>
       <body>{children}</body>
     </html>
