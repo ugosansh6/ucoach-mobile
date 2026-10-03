@@ -2,10 +2,10 @@ import { Link } from 'expo-router';
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const ROUTES = [
-  ['Dashboard', '/(tabs)'],
-  ['Progression', '/(tabs)/progression'],
-  ['Programmes', '/(tabs)/programmes'],
-  ['Bibliothèque', '/(tabs)/library'],
+  ['Dashboard', '/figma-dashboard'],
+  ['Progression', '/progression'],
+  ['Programmes', '/programmes'],
+  ['Bibliothèque', '/library'],
   ['Préparation', '/workout/preparation'],
   ['Builder', '/workout/builder'],
   ['Séance externe', '/workout/external'],
