@@ -279,6 +279,12 @@ const SECTIONS = [
         route: '/workout/completion',
         icon: 'checkmark-done-outline',
       },
+      {
+        title: 'Bien joué · débrief',
+        subtitle: 'Accès rapide avec une séance DEV préremplie',
+        route: '/workout/debrief-preview',
+        icon: 'trophy-outline',
+      },
     ],
   },
 
