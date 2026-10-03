@@ -1,5 +1,5 @@
-import CompletionCore from './completion-core';
+import CompletionV3 from './completion-v3';
 
 export default function CompletionScreen() {
-  return <CompletionCore />;
+  return <CompletionV3 />;
 }
