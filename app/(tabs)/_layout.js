@@ -56,6 +56,13 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
+        name="figma-dashboard"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="progression"
         options={{
           title: 'Progression',
