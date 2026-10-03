@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import {
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -31,9 +32,10 @@ const MANROPE = {
   extraBold: 'Manrope_800ExtraBold',
 };
 
+// Valeurs internes conservées sur une échelle 1–10 ; seuls les libellés UX changent.
 const DIFFICULTY_OPTIONS = [
   { value: 2, label: 'Trop facile' },
-  { value: 4, label: 'Plutôt facile' },
+  { value: 4, label: 'Facile' },
   { value: 6, label: 'Bien dosée' },
   { value: 8, label: 'Difficile' },
   { value: 10, label: 'Trop difficile' },
@@ -44,29 +46,29 @@ const FEELING_OPTIONS = [
   { value: 4, label: 'Fatigué' },
   { value: 6, label: 'Bien' },
   { value: 8, label: 'En forme' },
-  { value: 10, label: 'Très en forme' },
+  { value: 10, label: 'Plein d’énergie' },
 ];
 
 const ADAPTED_REASONS = [
-  { code: 'TECHNIQUE_DIFFICULTY', label: 'Mouvement difficile' },
+  { code: 'TECHNIQUE_DIFFICULTY', label: 'Mouvement trop technique' },
   { code: 'LOAD_TOO_HEAVY', label: 'Trop difficile' },
   { code: 'FATIGUE', label: 'Fatigue' },
-  { code: 'PAIN_DISCOMFORT', label: 'Gêne' },
-  { code: 'EQUIPMENT', label: 'Matériel' },
+  { code: 'PAIN_DISCOMFORT', label: 'Gêne ou douleur' },
+  { code: 'EQUIPMENT', label: 'Matériel indisponible' },
   { code: 'TIME', label: 'Manque de temps' },
   { code: 'ENVIRONMENT_MISMATCH', label: 'Environnement inadapté' },
-  { code: 'OTHER', label: 'Autre' },
+  { code: 'OTHER', label: 'Autre raison' },
 ];
 
 const NOT_COMPLETED_REASONS = [
   { code: 'MOVEMENT_FAILURE', label: 'Trop difficile' },
   { code: 'FATIGUE', label: 'Fatigue' },
-  { code: 'PAIN_DISCOMFORT', label: 'Gêne' },
+  { code: 'PAIN_DISCOMFORT', label: 'Gêne ou douleur' },
   { code: 'TIME', label: 'Manque de temps' },
-  { code: 'MOTIVATION', label: 'Motivation' },
-  { code: 'EQUIPMENT', label: 'Matériel' },
+  { code: 'MOTIVATION', label: 'Pas envie aujourd’hui' },
+  { code: 'EQUIPMENT', label: 'Matériel indisponible' },
   { code: 'ENVIRONMENT_MISMATCH', label: 'Environnement inadapté' },
-  { code: 'OTHER', label: 'Autre' },
+  { code: 'OTHER', label: 'Autre raison' },
 ];
 
 const ENVIRONMENT_LABELS = {
@@ -233,11 +235,11 @@ function missingMetricFields(exercise, loads) {
   });
 }
 
-function ChoicePills({ title, options, value, onChange, styles }) {
+function FeedbackScale({ title, options, value, onChange, styles }) {
   return (
     <View style={styles.questionBlock}>
       <Text style={styles.questionTitle}>{title}</Text>
-      <View style={styles.choiceWrap}>
+      <View style={styles.scaleRow}>
         {options.map((option) => {
           const active = value === option.value;
           return (
@@ -245,12 +247,18 @@ function ChoicePills({ title, options, value, onChange, styles }) {
               key={option.value}
               onPress={() => onChange(option.value)}
               style={({ pressed }) => [
-                styles.choicePill,
-                active && styles.choicePillSelected,
+                styles.scaleChoice,
+                active && styles.scaleChoiceSelected,
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={[styles.choiceText, active && styles.choiceTextSelected]}>
+              <View style={[styles.scaleIndicator, active && styles.scaleIndicatorSelected]}>
+                {active ? <View style={styles.scaleIndicatorCore} /> : null}
+              </View>
+              <Text
+                numberOfLines={2}
+                style={[styles.scaleChoiceText, active && styles.scaleChoiceTextSelected]}
+              >
                 {option.label}
               </Text>
             </Pressable>
@@ -261,58 +269,107 @@ function ChoicePills({ title, options, value, onChange, styles }) {
   );
 }
 
-function AdjustmentRow({ exercise, selectedReason, onSelect, expanded, onToggle, styles }) {
-  const status = executionStatus(exercise);
-  const adapted = status === 'adapted';
+function AdjustmentRow({ exercise, selectedReason, onPress, styles }) {
+  const adapted = executionStatus(exercise) === 'adapted';
   const reasons = adapted ? ADAPTED_REASONS : NOT_COMPLETED_REASONS;
   const selectedLabel = reasons.find((reason) => reason.code === selectedReason)?.label ?? null;
 
   return (
-    <View style={styles.adjustmentItem}>
-      <Pressable
-        onPress={onToggle}
-        style={({ pressed }) => [styles.adjustmentHeader, pressed && styles.pressed]}
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.adjustmentRow, pressed && styles.adjustmentRowPressed]}
+    >
+      <View
+        style={[
+          styles.adjustmentStatus,
+          adapted ? styles.adjustmentStatusAdapted : styles.adjustmentStatusSkipped,
+        ]}
       >
-        <View style={styles.adjustmentMain}>
-          <Text style={styles.adjustmentName}>{exercise?.name ?? exercise?.id}</Text>
-          <Text style={styles.adjustmentMeta}>
-            {adapted ? 'Adapté' : 'Non réalisé'}
-            {selectedLabel ? ` · ${selectedLabel}` : ''}
-          </Text>
-        </View>
         <Ionicons
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={19}
-          style={styles.adjustmentChevron}
+          name={adapted ? 'options-outline' : 'close-outline'}
+          size={17}
+          style={adapted ? styles.adjustmentIconAdapted : styles.adjustmentIconSkipped}
         />
-      </Pressable>
+      </View>
 
-      {expanded ? (
-        <View style={styles.adjustmentBody}>
-          <Text style={styles.adjustmentQuestion}>Pourquoi ?</Text>
-          <View style={styles.reasonWrap}>
+      <View style={styles.adjustmentMain}>
+        <Text style={styles.adjustmentName}>{exercise?.name ?? exercise?.id}</Text>
+        <Text style={styles.adjustmentMeta}>
+          {selectedLabel ?? (adapted ? 'Adapté' : 'Non réalisé')}
+        </Text>
+      </View>
+
+      <View style={styles.adjustmentAction}>
+        <Text style={styles.adjustmentActionText}>{selectedLabel ? 'Modifier' : 'Préciser'}</Text>
+        <Ionicons name="chevron-forward" size={17} style={styles.adjustmentChevron} />
+      </View>
+    </Pressable>
+  );
+}
+
+function ReasonPicker({ exercise, selectedReason, onSelect, onClose, visible, styles, colors }) {
+  if (!exercise) return null;
+
+  const adapted = executionStatus(exercise) === 'adapted';
+  const reasons = adapted ? ADAPTED_REASONS : NOT_COMPLETED_REASONS;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalRoot}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose} />
+        <View style={styles.reasonSheet}>
+          <View style={styles.sheetHandle} />
+
+          <View style={styles.reasonSheetHeader}>
+            <View style={styles.reasonSheetHeaderMain}>
+              <Text style={styles.reasonSheetEyebrow}>
+                {adapted ? 'EXERCICE ADAPTÉ' : 'EXERCICE NON RÉALISÉ'}
+              </Text>
+              <Text style={styles.reasonSheetTitle}>{exercise?.name ?? exercise?.id}</Text>
+              <Text style={styles.reasonSheetSubtitle}>Qu’est-ce qui l’explique le mieux ?</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.closeButton} hitSlop={10}>
+              <Ionicons name="close" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <View style={styles.reasonList}>
             {reasons.map((reason) => {
               const active = selectedReason === reason.code;
               return (
                 <Pressable
                   key={reason.code}
-                  onPress={() => onSelect(active ? null : reason.code)}
+                  onPress={() => onSelect(reason.code)}
                   style={({ pressed }) => [
-                    styles.reasonPill,
-                    active && styles.reasonPillSelected,
+                    styles.reasonOption,
+                    active && styles.reasonOptionSelected,
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Text style={[styles.reasonText, active && styles.reasonTextSelected]}>
+                  <Text style={[styles.reasonOptionText, active && styles.reasonOptionTextSelected]}>
                     {reason.label}
                   </Text>
+                  <View style={[styles.reasonRadio, active && styles.reasonRadioSelected]}>
+                    {active ? <Ionicons name="checkmark" size={14} color={colors.textOnAccent} /> : null}
+                  </View>
                 </Pressable>
               );
             })}
           </View>
+
+          {selectedReason ? (
+            <Pressable onPress={() => onSelect(null)} style={styles.clearReasonButton}>
+              <Text style={styles.clearReasonText}>Ne pas préciser de motif</Text>
+            </Pressable>
+          ) : null}
         </View>
-      ) : null}
-    </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -331,7 +388,7 @@ export default function CompletionScreen() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [expandedAdjustment, setExpandedAdjustment] = useState(null);
+  const [reasonPickerExercise, setReasonPickerExercise] = useState(null);
   const [metricsOpen, setMetricsOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(Boolean(completion?.notes));
 
@@ -365,6 +422,9 @@ export default function CompletionScreen() {
   const adaptedCount = sourceExercises.filter(
     (exercise) => executionStatus(exercise) === 'adapted'
   ).length;
+  const skippedCount = sourceExercises.filter(
+    (exercise) => executionStatus(exercise) === 'not_completed'
+  ).length;
 
   const missingMetrics = performedExercises.flatMap((exercise) =>
     missingMetricFields(exercise, loads).map((field) => ({ exercise, field }))
@@ -389,6 +449,12 @@ export default function CompletionScreen() {
         [key]: { ...current, reasonCode },
       },
     });
+  }
+
+  function handleReasonSelect(reasonCode) {
+    if (!reasonPickerExercise) return;
+    setReason(reasonPickerExercise, reasonCode);
+    setReasonPickerExercise(null);
   }
 
   function updatePartialReps(exercise, value) {
@@ -556,15 +622,24 @@ export default function CompletionScreen() {
               <Text style={styles.recapDetail}>
                 {wodResult
                   ? `WOD · ${wodResult}`
-                  : `${completedCount} terminé${completedCount > 1 ? 's' : ''}${adaptedCount > 0 ? ` · ${adaptedCount} adapté${adaptedCount > 1 ? 's' : ''}` : ''}`}
+                  : [
+                      completedCount > 0
+                        ? `${completedCount} terminé${completedCount > 1 ? 's' : ''}`
+                        : null,
+                      adaptedCount > 0
+                        ? `${adaptedCount} adapté${adaptedCount > 1 ? 's' : ''}`
+                        : null,
+                      skippedCount > 0
+                        ? `${skippedCount} non réalisé${skippedCount > 1 ? 's' : ''}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
               </Text>
-            </View>
-            <View style={styles.recapCheck}>
-              <Ionicons name="checkmark" size={17} color={colors.textOnAccent} />
             </View>
           </View>
 
-          <ChoicePills
+          <FeedbackScale
             title="La séance était…"
             options={DIFFICULTY_OPTIONS}
             value={difficulty}
@@ -572,7 +647,7 @@ export default function CompletionScreen() {
             styles={styles}
           />
 
-          <ChoicePills
+          <FeedbackScale
             title="Tu te sens maintenant…"
             options={FEELING_OPTIONS}
             value={formAfterWorkout}
@@ -624,21 +699,18 @@ export default function CompletionScreen() {
             <View style={styles.adjustmentSection}>
               <View style={styles.sectionHeadingRow}>
                 <Text style={styles.sectionTitle}>Ce qui a été ajusté</Text>
-                <Text style={styles.optionalLabel}>FACULTATIF</Text>
+                <Text style={styles.optionalLabel}>OPTIONNEL</Text>
               </View>
 
               <View style={styles.adjustmentList}>
                 {exceptionExercises.map((exercise, index) => {
                   const key = exerciseKey(exercise);
-                  const expanded = expandedAdjustment === key;
                   return (
                     <View key={key}>
                       <AdjustmentRow
                         exercise={exercise}
                         selectedReason={exerciseFeedback[key]?.reasonCode ?? null}
-                        onSelect={(reason) => setReason(exercise, reason)}
-                        expanded={expanded}
-                        onToggle={() => setExpandedAdjustment(expanded ? null : key)}
+                        onPress={() => setReasonPickerExercise(exercise)}
                         styles={styles}
                       />
                       {index < exceptionExercises.length - 1 ? (
@@ -659,7 +731,9 @@ export default function CompletionScreen() {
               >
                 <View style={styles.compactMain}>
                   <Text style={styles.compactTitle}>Compléter mes données</Text>
-                  <Text style={styles.compactMeta}>{missingMetrics.length} donnée{missingMetrics.length > 1 ? 's' : ''} manquante{missingMetrics.length > 1 ? 's' : ''}</Text>
+                  <Text style={styles.compactMeta}>
+                    {missingMetrics.length} donnée{missingMetrics.length > 1 ? 's' : ''} manquante{missingMetrics.length > 1 ? 's' : ''}
+                  </Text>
                 </View>
                 <Ionicons
                   name={metricsOpen ? 'chevron-up' : 'chevron-down'}
@@ -765,6 +839,20 @@ export default function CompletionScreen() {
           <View style={styles.bottomSpace} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ReasonPicker
+        visible={Boolean(reasonPickerExercise)}
+        exercise={reasonPickerExercise}
+        selectedReason={
+          reasonPickerExercise
+            ? exerciseFeedback[exerciseKey(reasonPickerExercise)]?.reasonCode ?? null
+            : null
+        }
+        onSelect={handleReasonSelect}
+        onClose={() => setReasonPickerExercise(null)}
+        styles={styles}
+        colors={colors}
+      />
     </SafeAreaView>
   );
 }
@@ -814,9 +902,9 @@ function createStyles(colors) {
 
     recapCard: {
       marginTop: 6,
-      minHeight: 78,
+      minHeight: 66,
       paddingHorizontal: 14,
-      borderRadius: 18,
+      borderRadius: 16,
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.surface,
@@ -824,50 +912,42 @@ function createStyles(colors) {
       borderColor: colors.border,
     },
     recapDuration: {
-      minWidth: 64,
+      minWidth: 58,
       alignItems: 'flex-start',
       justifyContent: 'center',
     },
     recapDurationValue: {
       fontFamily: 'BebasNeue_400Regular',
-      fontSize: 36,
-      lineHeight: 36,
+      fontSize: 32,
+      lineHeight: 31,
       letterSpacing: 0.6,
       color: colors.text,
     },
     recapDurationUnit: {
-      marginTop: -1,
+      marginTop: 1,
       fontFamily: MANROPE.bold,
-      fontSize: 8,
+      fontSize: 7,
       letterSpacing: 0.9,
       color: colors.textMuted,
     },
     recapDivider: {
       width: 1,
-      height: 40,
-      marginHorizontal: 14,
+      height: 34,
+      marginHorizontal: 13,
       backgroundColor: colors.border,
     },
     recapMain: { flex: 1 },
     recapEnvironment: {
       fontFamily: MANROPE.bold,
-      fontSize: 14,
+      fontSize: 13,
       color: colors.text,
     },
     recapDetail: {
       marginTop: 3,
       fontFamily: MANROPE.medium,
-      fontSize: 11,
-      lineHeight: 16,
+      fontSize: 10,
+      lineHeight: 14,
       color: colors.textSecondary,
-    },
-    recapCheck: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.accent,
     },
 
     questionBlock: { marginTop: 26 },
@@ -878,32 +958,55 @@ function createStyles(colors) {
       letterSpacing: -0.25,
       color: colors.text,
     },
-    choiceWrap: {
-      marginTop: 11,
+    scaleRow: {
+      marginTop: 12,
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
+      gap: 6,
     },
-    choicePill: {
-      minHeight: 42,
-      paddingHorizontal: 14,
-      borderRadius: 21,
+    scaleChoice: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 82,
+      paddingHorizontal: 4,
+      paddingVertical: 10,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
+      gap: 9,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
-    choicePillSelected: {
+    scaleChoiceSelected: {
       borderColor: colors.accent,
       backgroundColor: colors.accentSoft,
     },
-    choiceText: {
+    scaleIndicator: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: colors.borderStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scaleIndicatorSelected: {
+      borderColor: colors.accent,
+    },
+    scaleIndicatorCore: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.accent,
+    },
+    scaleChoiceText: {
       fontFamily: MANROPE.semiBold,
-      fontSize: 12,
+      fontSize: 9,
+      lineHeight: 12,
+      textAlign: 'center',
       color: colors.textSecondary,
     },
-    choiceTextSelected: { color: colors.text },
+    scaleChoiceTextSelected: { color: colors.text },
 
     conditionalCard: {
       marginTop: 18,
@@ -1011,15 +1114,27 @@ function createStyles(colors) {
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
-    adjustmentItem: { backgroundColor: colors.surface },
-    adjustmentHeader: {
-      minHeight: 66,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+    adjustmentRow: {
+      minHeight: 68,
+      paddingHorizontal: 13,
+      paddingVertical: 11,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      gap: 11,
+      backgroundColor: colors.surface,
     },
+    adjustmentRowPressed: { backgroundColor: colors.surfacePressed },
+    adjustmentStatus: {
+      width: 36,
+      height: 36,
+      borderRadius: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    adjustmentStatusAdapted: { backgroundColor: colors.warningSoft },
+    adjustmentStatusSkipped: { backgroundColor: colors.secondaryAccentSoft },
+    adjustmentIconAdapted: { color: colors.warning },
+    adjustmentIconSkipped: { color: colors.secondaryAccent },
     adjustmentMain: { flex: 1 },
     adjustmentName: {
       fontFamily: MANROPE.bold,
@@ -1029,50 +1144,26 @@ function createStyles(colors) {
     adjustmentMeta: {
       marginTop: 3,
       fontFamily: MANROPE.medium,
-      fontSize: 11,
-      color: colors.secondaryAccent,
-    },
-    adjustmentChevron: { color: colors.textSecondary },
-    adjustmentSeparator: {
-      height: 1,
-      marginLeft: 14,
-      backgroundColor: colors.border,
-    },
-    adjustmentBody: {
-      paddingHorizontal: 14,
-      paddingBottom: 14,
-    },
-    adjustmentQuestion: {
-      fontFamily: MANROPE.bold,
-      fontSize: 11,
-      color: colors.text,
-    },
-    reasonWrap: {
-      marginTop: 8,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 7,
-    },
-    reasonPill: {
-      minHeight: 34,
-      paddingHorizontal: 11,
-      borderRadius: 17,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceElevated,
-    },
-    reasonPillSelected: {
-      borderColor: colors.accent,
-      backgroundColor: colors.accentSoft,
-    },
-    reasonText: {
-      fontFamily: MANROPE.semiBold,
       fontSize: 10,
+      lineHeight: 14,
       color: colors.textSecondary,
     },
-    reasonTextSelected: { color: colors.text },
+    adjustmentAction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+    },
+    adjustmentActionText: {
+      fontFamily: MANROPE.semiBold,
+      fontSize: 9,
+      color: colors.textMuted,
+    },
+    adjustmentChevron: { color: colors.textMuted },
+    adjustmentSeparator: {
+      height: 1,
+      marginLeft: 60,
+      backgroundColor: colors.border,
+    },
 
     compactAccordion: {
       marginTop: 12,
@@ -1198,6 +1289,127 @@ function createStyles(colors) {
       color: colors.textOnAccent,
     },
     bottomSpace: { height: 24 },
-    pressed: { opacity: 0.7 },
+    pressed: { opacity: 0.72 },
+
+    modalRoot: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    modalBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.56)',
+    },
+    reasonSheet: {
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 26,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    sheetHandle: {
+      width: 42,
+      height: 4,
+      borderRadius: 2,
+      alignSelf: 'center',
+      marginBottom: 16,
+      backgroundColor: colors.borderStrong,
+    },
+    reasonSheetHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    reasonSheetHeaderMain: { flex: 1 },
+    reasonSheetEyebrow: {
+      fontFamily: MANROPE.bold,
+      fontSize: 9,
+      letterSpacing: 0.8,
+      color: colors.secondaryAccent,
+    },
+    reasonSheetTitle: {
+      marginTop: 4,
+      fontFamily: MANROPE.extraBold,
+      fontSize: 22,
+      lineHeight: 27,
+      color: colors.text,
+    },
+    reasonSheetSubtitle: {
+      marginTop: 5,
+      fontFamily: MANROPE.regular,
+      fontSize: 12,
+      lineHeight: 17,
+      color: colors.textSecondary,
+    },
+    closeButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    reasonList: {
+      marginTop: 16,
+      borderRadius: 16,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    reasonOption: {
+      minHeight: 52,
+      paddingHorizontal: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    reasonOptionSelected: {
+      backgroundColor: colors.accentSoft,
+    },
+    reasonOptionText: {
+      flex: 1,
+      fontFamily: MANROPE.medium,
+      fontSize: 13,
+      color: colors.text,
+    },
+    reasonOptionTextSelected: {
+      fontFamily: MANROPE.bold,
+      color: colors.accent,
+    },
+    reasonRadio: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reasonRadioSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accent,
+    },
+    clearReasonButton: {
+      alignSelf: 'center',
+      marginTop: 14,
+      minHeight: 38,
+      paddingHorizontal: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    clearReasonText: {
+      fontFamily: MANROPE.semiBold,
+      fontSize: 11,
+      color: colors.textMuted,
+    },
   });
 }
