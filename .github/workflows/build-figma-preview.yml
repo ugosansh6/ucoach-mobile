@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       EXPO_PUBLIC_APP_ENV: development
-      EXPO_PUBLIC_FIGMA_CAPTURE: '1'
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
@@ -39,8 +38,18 @@ jobs:
       - name: Export Expo web preview
         run: npx expo export --platform web --output-dir dist
 
-      - name: Add SPA fallback
-        run: cp dist/index.html dist/404.html
+      - name: Inject Figma capture script into preview artifact only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          index = Path('dist/index.html')
+          html = index.read_text()
+          script = '<script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>'
+          if script not in html:
+              html = html.replace('</head>', f'{script}\n</head>')
+          index.write_text(html)
+          Path('dist/404.html').write_text(html)
+          PY
 
       - name: Upload preview artifact
         uses: actions/upload-artifact@v4
