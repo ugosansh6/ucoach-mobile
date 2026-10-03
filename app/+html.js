@@ -24,6 +24,10 @@ export default function Root({ children }) {
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/ugerod-icon.png" />
         <ScrollViewStyleReset />
+        <script
+          src="https://mcp.figma.com/mcp/html-to-design/capture.js"
+          async
+        />
       </head>
       <body>{children}</body>
     </html>
