@@ -77,17 +77,6 @@ function normalizeBlock(value) {
     .replace(/[\s/-]+/g, '_');
 }
 
-function plural(value, singular, pluralForm = `${singular}s`) {
-  return Number(value) > 1 ? pluralForm : singular;
-}
-
-function joinNames(names) {
-  const clean = names.filter(Boolean);
-  if (clean.length <= 1) return clean[0] ?? '';
-  if (clean.length === 2) return `${clean[0]} et ${clean[1]}`;
-  return `${clean.slice(0, -1).join(', ')} et ${clean[clean.length - 1]}`;
-}
-
 function sessionEnvironment(workout) {
   return (
     workout?.preparationSnapshot?.environmentCode ??
@@ -109,6 +98,21 @@ function actualDurationMinutes(workout) {
   return workout?.plannedDuration ?? 45;
 }
 
+function wodResultLine(runtime) {
+  if (!runtime?.started) return null;
+
+  const elapsed = Number(runtime?.elapsedSeconds ?? 0);
+  const rounds = Number(runtime?.completedRounds ?? 0);
+  const reps = Number(runtime?.reps ?? runtime?.repsCompleted ?? runtime?.totalReps ?? 0);
+
+  if (rounds > 0 && reps > 0) return `${rounds} rounds + ${reps} reps`;
+  if (rounds > 0) return `${rounds} round${rounds > 1 ? 's' : ''}`;
+  if (elapsed > 0) {
+    return `${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, '0')}`;
+  }
+  return null;
+}
+
 function storyBlocksFromWorkout(workout) {
   const exercises = Array.isArray(workout?.exercises) ? workout.exercises : [];
   const grouped = new Map();
@@ -117,7 +121,7 @@ function storyBlocksFromWorkout(workout) {
     const block = normalizeBlock(exercise?.blockKey ?? exercise?.block);
     if (!block || HIDDEN_SHARE_BLOCKS.has(block)) return;
 
-    const policy = SHAREABLE_BLOCKS[block] ?? null;
+    const policy = SHAREABLE_BLOCKS[block];
     if (!policy) return;
 
     if (!grouped.has(block)) {
@@ -137,114 +141,84 @@ function storyBlocksFromWorkout(workout) {
 
   return [...grouped.values()]
     .sort((a, b) => a.order - b.order)
-    .map((block) => ({ ...block, exercises: block.exercises.slice(0, 5) }));
+    .map((block) => ({ ...block, exercises: block.exercises.slice(0, 4) }));
 }
 
-function wodResultLine(runtime) {
-  if (!runtime?.started) return null;
-
-  const elapsed = Number(runtime?.elapsedSeconds ?? 0);
-  const rounds = Number(runtime?.completedRounds ?? 0);
-  const reps = Number(runtime?.reps ?? runtime?.repsCompleted ?? runtime?.totalReps ?? 0);
-
-  if (rounds > 0 && reps > 0) return `${rounds} rounds + ${reps} reps`;
-  if (rounds > 0) return `${rounds} round${rounds > 1 ? 's' : ''}`;
-  if (elapsed > 0) {
-    return `${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, '0')}`;
-  }
-  return null;
+function sessionReferenceNames(snapshot) {
+  return (Array.isArray(snapshot?.observations) ? snapshot.observations : [])
+    .filter((item) =>
+      ['MEASURABLE_REFERENCE', 'CONTEXTUAL_REFERENCE'].includes(item?.proof_class)
+    )
+    .map((item) => item?.exercise_name)
+    .filter(Boolean);
 }
 
-function buildShareText(workout, blocks) {
-  const environment = ENVIRONMENT_LABELS[sessionEnvironment(workout)] ?? sessionEnvironment(workout);
-  const duration = `${actualDurationMinutes(workout)} min`;
-  const lines = ['UGEROD', `${environment} · ${duration}`, ''];
-
-  blocks.forEach((block) => {
-    lines.push(block.label);
-    block.exercises.forEach((exercise) => {
-      lines.push(`• ${exercise.name}${exercise.prescription ? ` — ${exercise.prescription}` : ''}`);
-    });
-
-    if (block.key === 'wod') {
-      const result = wodResultLine(workout?.wodRuntime);
-      if (result) lines.push(`Résultat : ${result}`);
-    }
-    lines.push('');
-  });
-
-  return lines.join('\n').trim();
-}
-
-function buildPerformanceSignal(snapshot, progression) {
+function buildSessionMoment(snapshot, workout) {
   const summary = snapshot?.summary ?? {};
+  const observations = Array.isArray(snapshot?.observations) ? snapshot.observations : [];
   const references = Number(summary.reference_observations ?? 0);
-  const observations = Array.isArray(snapshot?.observations)
-    ? snapshot.observations
-    : [];
-  const movements = Array.isArray(progression?.movement_capabilities)
-    ? progression.movement_capabilities
-    : [];
+  const referenceNames = sessionReferenceNames(snapshot);
+  const wodResult = wodResultLine(workout?.wodRuntime);
 
-  const progressing = movements.find((item) => item?.signal === 'PROGRESSING');
-  const recalibrating = movements.find((item) => item?.signal === 'RECALIBRATING');
-  const currentWeek = progression?.activity?.current_week ?? {};
-
-  if (progressing?.name) {
-    return {
-      eyebrow: 'PROGRESSION DÉTECTÉE',
-      title: progressing.name,
-      text: 'Tes dernières références comparables montrent une évolution positive.',
-      icon: 'trending-up-outline',
-    };
-  }
+  const environmentIssue = observations.some(
+    (item) => item?.execution_reason_code === 'ENVIRONMENT_MISMATCH'
+  );
+  const adapted = observations.some(
+    (item) =>
+      item?.execution_status === 'adapted' ||
+      item?.execution_reason_code === 'PAIN_DISCOMFORT' ||
+      item?.execution_reason_code === 'FATIGUE'
+  );
 
   if (references > 0) {
-    const referenceNames = observations
-      .filter((item) =>
-        ['MEASURABLE_REFERENCE', 'CONTEXTUAL_REFERENCE'].includes(item?.proof_class)
-      )
-      .map((item) => item?.exercise_name)
-      .filter(Boolean)
-      .slice(0, 2);
-
     return {
+      tone: 'reference',
       eyebrow: 'NOUVELLE RÉFÉRENCE',
-      title:
-        referenceNames.length > 0
-          ? joinNames(referenceNames)
-          : `${references} ${plural(references, 'référence')} exploitable${references > 1 ? 's' : ''}`,
-      text: 'Cette séance ajoute une nouvelle base de comparaison à ton historique.',
+      title: referenceNames[0] ?? `${references} référence${references > 1 ? 's' : ''}`,
+      text:
+        referenceNames.length > 1
+          ? `${referenceNames.slice(0, 2).join(' · ')} deviennent comparables dans ton historique.`
+          : 'Cette séance ajoute une base de comparaison exploitable pour la suite.',
       icon: 'analytics-outline',
     };
   }
 
-  if (
-    Number(currentWeek?.target_sessions ?? 0) > 0 &&
-    Number(currentWeek?.realized_sessions ?? 0) >= Number(currentWeek?.target_sessions ?? 0)
-  ) {
+  if (environmentIssue) {
     return {
-      eyebrow: 'OBJECTIF DE LA SEMAINE',
-      title: 'Régularité confirmée',
-      text: `${currentWeek.realized_sessions} séance${Number(currentWeek.realized_sessions) > 1 ? 's' : ''} réalisée${Number(currentWeek.realized_sessions) > 1 ? 's' : ''} cette semaine.`,
-      icon: 'calendar-outline',
-    };
-  }
-
-  if (recalibrating?.name) {
-    return {
-      eyebrow: 'PROFIL AFFINÉ',
-      title: recalibrating.name,
-      text: 'Cette séance aide UGEROD à recalibrer ta référence proprement.',
+      tone: 'context',
+      eyebrow: 'CONTEXTE PRIS EN COMPTE',
+      title: 'Séance adaptée',
+      text: 'La contrainte d’environnement reste séparée de ton niveau physique.',
       icon: 'options-outline',
     };
   }
 
+  if (adapted) {
+    return {
+      tone: 'context',
+      eyebrow: 'SÉANCE AJUSTÉE',
+      title: 'Le contexte compte',
+      text: 'UGEROD conserve ce qui a été réalisé sans transformer une adaptation en baisse de niveau.',
+      icon: 'pulse-outline',
+    };
+  }
+
+  if (wodResult) {
+    return {
+      tone: 'result',
+      eyebrow: 'RÉSULTAT DU JOUR',
+      title: wodResult,
+      text: 'Séance enregistrée. Ce résultat reste rattaché au format réellement réalisé.',
+      icon: 'stopwatch-outline',
+    };
+  }
+
   return {
-    eyebrow: 'UNE MARCHE DE PLUS',
-    title: 'Séance consolidée',
-    text: 'Elle enrichit ton historique et construit une base plus solide pour la suite.',
-    icon: 'footsteps-outline',
+    tone: 'default',
+    eyebrow: 'SÉANCE VALIDÉE',
+    title: 'Travail enregistré',
+    text: 'Une séance de plus dans ton historique, sans inventer de progression là où il n’y en a pas encore.',
+    icon: 'checkmark-circle-outline',
   };
 }
 
@@ -252,16 +226,14 @@ function buildLearningText(snapshot) {
   const summary = snapshot?.summary ?? {};
   const references = Number(summary.reference_observations ?? 0);
   const stateSignals = Number(summary.state_signal_observations ?? 0);
-  const observations = Array.isArray(snapshot?.observations)
-    ? snapshot.observations
-    : [];
+  const observations = Array.isArray(snapshot?.observations) ? snapshot.observations : [];
 
   const environmentIssue = observations.some(
     (item) => item?.execution_reason_code === 'ENVIRONMENT_MISMATCH'
   );
 
   if (environmentIssue) {
-    return 'Une partie de la séance a été limitée par ton environnement. UGEROD garde ce contexte séparé de ton niveau physique.';
+    return 'Une partie de la séance a été limitée par ton environnement. Ce contexte reste séparé de ton niveau physique.';
   }
 
   const missingNames = observations
@@ -271,21 +243,105 @@ function buildLearningText(snapshot) {
     .slice(0, 2);
 
   if (references > 0 && missingNames.length > 0) {
-    return `${references} ${plural(references, 'mouvement')} ont produit une référence exploitable. ${joinNames(missingNames)} restent à consolider.`;
+    return `${references} mouvement${references > 1 ? 's' : ''} ont produit une référence exploitable. ${missingNames.join(' et ')} restent à consolider.`;
   }
 
   if (references > 0) {
-    return `${references} ${plural(references, 'mouvement')} ont produit une référence exploitable pour calibrer la suite.`;
+    return `${references} mouvement${references > 1 ? 's' : ''} ont produit une référence exploitable pour calibrer la suite.`;
   }
 
   if (stateSignals > 0) {
-    return 'UGEROD a surtout retenu ton état et le déroulement de la séance pour mieux adapter les prochaines décisions.';
+    return 'UGEROD a surtout retenu ton état et le déroulement de la séance pour mieux interpréter les prochaines expositions.';
   }
 
   return 'Cette séance enrichit ton historique sans créer artificiellement une nouvelle référence.';
 }
 
-function SkillQuestionCard({ question, value, saving, error, onSelect, colors, styles }) {
+function buildNextStepText(snapshot, progression) {
+  const summary = snapshot?.summary ?? {};
+  const observations = Array.isArray(snapshot?.observations) ? snapshot.observations : [];
+  const references = Number(summary.reference_observations ?? 0);
+  const hasMissingMetric = observations.some((item) => item?.proof_class === 'MISSING_METRIC');
+  const environmentIssue = observations.some(
+    (item) => item?.execution_reason_code === 'ENVIRONMENT_MISMATCH'
+  );
+
+  if (environmentIssue) {
+    return 'Je garderai cette contrainte séparée de ton niveau et je chercherai un contexte plus propre avant d’en tirer une conclusion sportive.';
+  }
+
+  if (hasMissingMetric) {
+    return 'Je conserverai les données incomplètes comme telles et je chercherai une occasion utile de les recalibrer.';
+  }
+
+  if (references > 0) {
+    return 'Je pourrai réutiliser cette référence lorsqu’un contexte comparable se présentera, sans augmenter artificiellement la difficulté.';
+  }
+
+  if (progression?.overall?.state === 'PROGRESSING') {
+    return 'Je chercherai une nouvelle exposition comparable avant de transformer un signal positif en référence plus haute.';
+  }
+
+  if (progression?.overall?.state === 'RECALIBRATING') {
+    return 'Je vais revérifier les références qui bougent avant de modifier ton niveau acquis.';
+  }
+
+  return 'Pas de changement forcé : la prochaine séance continuera à construire des preuves utiles avant d’ajuster le programme.';
+}
+
+function buildShareMoment(moment, workout) {
+  const duration = actualDurationMinutes(workout);
+  const environment =
+    ENVIRONMENT_LABELS[sessionEnvironment(workout)] ?? sessionEnvironment(workout);
+  const result = wodResultLine(workout?.wodRuntime);
+
+  if (moment?.tone === 'reference') {
+    return {
+      kicker: 'NEW REFERENCE',
+      headline: moment.title,
+      metric: result ?? `${duration} MIN`,
+      footer: `${environment} · UGEROD`,
+    };
+  }
+
+  if (result) {
+    return {
+      kicker: 'SESSION DONE',
+      headline: result,
+      metric: `${duration} MIN`,
+      footer: `${environment} · UGEROD`,
+    };
+  }
+
+  return {
+    kicker: 'SESSION DONE',
+    headline: `${duration} MIN`,
+    metric: environment.toUpperCase(),
+    footer: 'UGEROD',
+  };
+}
+
+function buildShareText(workout, blocks, shareMoment) {
+  const lines = [
+    'UGEROD',
+    shareMoment?.kicker,
+    shareMoment?.headline,
+    shareMoment?.metric,
+    '',
+  ].filter(Boolean);
+
+  blocks.slice(0, 3).forEach((block) => {
+    lines.push(block.label);
+    block.exercises.slice(0, 2).forEach((exercise) => {
+      lines.push(`• ${exercise.name}${exercise.prescription ? ` — ${exercise.prescription}` : ''}`);
+    });
+    lines.push('');
+  });
+
+  return lines.join('\n').trim();
+}
+
+function SkillQuestionInline({ question, value, saving, error, onSelect, colors, styles }) {
   if (!question?.should_ask) return null;
 
   const options = Array.isArray(question.options)
@@ -293,19 +349,14 @@ function SkillQuestionCard({ question, value, saving, error, onSelect, colors, s
     : ['PROPRE', 'LIMITE', 'PAS_ENCORE'];
 
   return (
-    <View style={styles.questionCard}>
-      <View style={styles.questionHeader}>
-        <View style={styles.questionIcon}>
-          <Ionicons name="eye-outline" size={19} color={colors.accent} />
-        </View>
-        <View style={styles.questionMain}>
-          <Text style={styles.questionEyebrow}>UNE INFO À CONFIRMER</Text>
-          <Text style={styles.questionTitle}>
-            {question.question_text ?? 'Sur le Skill, ta technique était…'}
-          </Text>
-        </View>
+    <View style={styles.skillPrompt}>
+      <View style={styles.sectionEyebrowRow}>
+        <View style={styles.sectionRule} />
+        <Text style={styles.sectionEyebrow}>UNE INFO À CONFIRMER</Text>
       </View>
-
+      <Text style={styles.skillQuestion}>
+        {question.question_text ?? 'Sur le Skill, ta technique était…'}
+      </Text>
       <View style={styles.optionRow}>
         {options.map((option) => {
           const selected = value === option;
@@ -327,68 +378,32 @@ function SkillQuestionCard({ question, value, saving, error, onSelect, colors, s
           );
         })}
       </View>
-
       {saving ? (
-        <View style={styles.questionStatus}>
+        <View style={styles.inlineStatus}>
           <ActivityIndicator size="small" color={colors.accent} />
-          <Text style={styles.questionStatusText}>J’enregistre…</Text>
+          <Text style={styles.inlineStatusText}>J’enregistre…</Text>
         </View>
       ) : null}
-
       {error ? <Text style={styles.questionError}>{error}</Text> : null}
     </View>
   );
 }
 
-function StoryPreview({ workout, blocks, styles }) {
-  const environment = ENVIRONMENT_LABELS[sessionEnvironment(workout)] ?? sessionEnvironment(workout);
-  const result = wodResultLine(workout?.wodRuntime);
-
+function StoryPreview({ shareMoment, styles }) {
   return (
     <View style={styles.storyCard}>
       <View>
         <Text style={styles.storyBrand}>UGEROD</Text>
         <View style={styles.storyRule} />
-        <Text style={styles.storyMeta}>
-          {environment} · {actualDurationMinutes(workout)} MIN
-        </Text>
       </View>
 
-      <View style={styles.storyBlocks}>
-        {blocks.length > 0 ? (
-          blocks.map((block) => (
-            <View key={block.key} style={styles.storyBlock}>
-              <Text style={styles.storyBlockLabel}>{block.label}</Text>
-              {block.exercises.map((exercise, index) => (
-                <View key={`${block.key}-${index}`} style={styles.storyExercise}>
-                  <Text numberOfLines={1} style={styles.storyExerciseName}>
-                    {exercise.name}
-                  </Text>
-                  {exercise.prescription ? (
-                    <Text numberOfLines={1} style={styles.storyExercisePrescription}>
-                      {exercise.prescription}
-                    </Text>
-                  ) : null}
-                </View>
-              ))}
-              {block.key === 'wod' && result ? (
-                <View style={styles.storyResult}>
-                  <Text style={styles.storyResultLabel}>RÉSULTAT</Text>
-                  <Text style={styles.storyResultValue}>{result}</Text>
-                </View>
-              ) : null}
-            </View>
-          ))
-        ) : (
-          <View style={styles.storyEmpty}>
-            <Text style={styles.storyEmptyText}>Séance enregistrée</Text>
-          </View>
-        )}
+      <View style={styles.storyCenter}>
+        <Text style={styles.storyKicker}>{shareMoment.kicker}</Text>
+        <Text style={styles.storyHeadline}>{shareMoment.headline}</Text>
+        <Text style={styles.storyMetric}>{shareMoment.metric}</Text>
       </View>
 
-      <View style={styles.storyFooter}>
-        <Text style={styles.storyFooterText}>UGEROD</Text>
-      </View>
+      <Text style={styles.storyFooter}>{shareMoment.footer}</Text>
     </View>
   );
 }
@@ -407,54 +422,86 @@ export default function WorkoutDebriefScreen() {
   const [skillFeedback, setSkillFeedback] = useState(null);
   const [skillFeedbackSaving, setSkillFeedbackSaving] = useState(false);
   const [skillFeedbackError, setSkillFeedbackError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [snapshotLoading, setSnapshotLoading] = useState(true);
+  const [snapshotError, setSnapshotError] = useState('');
   const [shareOpen, setShareOpen] = useState(false);
 
-  const shareBlocks = useMemo(() => storyBlocksFromWorkout(workout), [workout]);
-  const shareText = useMemo(() => buildShareText(workout, shareBlocks), [workout, shareBlocks]);
-  const environment = ENVIRONMENT_LABELS[sessionEnvironment(workout)] ?? sessionEnvironment(workout);
+  const environment =
+    ENVIRONMENT_LABELS[sessionEnvironment(workout)] ?? sessionEnvironment(workout);
   const duration = actualDurationMinutes(workout);
   const wodResult = wodResultLine(workout?.wodRuntime);
+  const shareBlocks = useMemo(() => storyBlocksFromWorkout(workout), [workout]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const loadSessionSnapshot = useCallback(async () => {
+    setSnapshotLoading(true);
+    setSnapshotError('');
 
     try {
       if (!sessionId) throw new Error('Session manquante pour le débrief Coach.');
-
-      const [sessionLearning, progressionData, questionNeed] = await Promise.all([
-        getSessionLearningSnapshot(sessionId),
-        getProgressionDataContract('4w'),
-        getObservationQuestionNeed(sessionId, 'SKILL_TECHNICAL_QUALITY').catch(() => ({
-          should_ask: false,
-          reason: 'QUESTION_UNAVAILABLE',
-        })),
-      ]);
-
+      const sessionLearning = await getSessionLearningSnapshot(sessionId);
       setSnapshot(sessionLearning);
-      setProgression(progressionData);
-      setSkillQuestion(questionNeed);
     } catch (loadError) {
-      setError(
+      setSnapshotError(
         loadError?.message ??
-          "La séance est enregistrée, mais l'analyse Coach n'est pas disponible pour l'instant."
+          "La séance est enregistrée, mais l’analyse Coach n’est pas disponible pour l’instant."
       );
     } finally {
-      setLoading(false);
+      setSnapshotLoading(false);
     }
   }, [sessionId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadSessionSnapshot();
+  }, [loadSessionSnapshot]);
 
-  const performanceSignal = useMemo(
-    () => buildPerformanceSignal(snapshot, progression),
-    [snapshot, progression]
+  useEffect(() => {
+    let active = true;
+    getProgressionDataContract('4w')
+      .then((data) => {
+        if (active) setProgression(data);
+      })
+      .catch(() => {
+        if (active) setProgression(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!sessionId) return undefined;
+
+    getObservationQuestionNeed(sessionId, 'SKILL_TECHNICAL_QUALITY')
+      .then((question) => {
+        if (active) setSkillQuestion(question);
+      })
+      .catch(() => {
+        if (active) setSkillQuestion({ should_ask: false, reason: 'QUESTION_UNAVAILABLE' });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
+
+  const sessionMoment = useMemo(
+    () => buildSessionMoment(snapshot, workout),
+    [snapshot, workout]
   );
   const learningText = useMemo(() => buildLearningText(snapshot), [snapshot]);
+  const nextStepText = useMemo(
+    () => buildNextStepText(snapshot, progression),
+    [snapshot, progression]
+  );
+  const shareMoment = useMemo(
+    () => buildShareMoment(sessionMoment, workout),
+    [sessionMoment, workout]
+  );
+  const shareText = useMemo(
+    () => buildShareText(workout, shareBlocks, shareMoment),
+    [workout, shareBlocks, shareMoment]
+  );
 
   const handleSkillFeedback = useCallback(
     async (feedback) => {
@@ -490,96 +537,131 @@ export default function WorkoutDebriefScreen() {
     <SafeAreaView style={styles.screen}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.eyebrow}>Séance validée</Text>
-            <Text style={styles.title}>
-              Bien joué<Text style={styles.dot}>.</Text>
-            </Text>
-          </View>
+        <View style={styles.topBar}>
+          <Text style={styles.topBarLabel}>SÉANCE VALIDÉE</Text>
           <Image source={brandIcon} style={styles.brandIcon} resizeMode="contain" />
         </View>
 
-        <View style={styles.summaryStrip}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{duration}</Text>
-            <Text style={styles.summaryLabel}>MIN</Text>
+        <View style={styles.hero}>
+          <Text style={styles.heroTitle}>
+            Bien joué<Text style={styles.dot}>.</Text>
+          </Text>
+          <Text style={styles.heroSubtitle}>
+            Ta séance est enregistrée. Voilà ce qui compte aujourd’hui.
+          </Text>
+
+          <View style={styles.heroSummary}>
+            <View>
+              <Text style={styles.heroMetric}>{duration}</Text>
+              <Text style={styles.heroMetricLabel}>MIN</Text>
+            </View>
+            <View style={styles.heroSummaryRule} />
+            <View style={styles.heroSummaryCopy}>
+              <Text style={styles.heroEnvironment}>{environment}</Text>
+              <Text style={styles.heroResult}>{wodResult ?? 'Session terminée'}</Text>
+            </View>
+            <Ionicons name="checkmark-circle" size={24} color={colors.accent} />
           </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryCopy}>
-            <Text style={styles.summaryEnvironment}>{environment}</Text>
-            {wodResult ? <Text style={styles.summaryResult}>{wodResult}</Text> : null}
-          </View>
-          <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
         </View>
 
-        {loading ? (
-          <View style={styles.loadingCard}>
-            <ActivityIndicator color={colors.accent} />
-            <Text style={styles.loadingText}>Analyse de ta séance…</Text>
+        <View style={styles.section}>
+          <View style={styles.sectionEyebrowRow}>
+            <View style={styles.sectionRule} />
+            <Text style={styles.sectionEyebrow}>CE QUI COMPTE AUJOURD’HUI</Text>
           </View>
-        ) : error ? (
-          <View style={styles.errorCard}>
-            <Ionicons name="information-circle-outline" size={21} color={colors.textSecondary} />
-            <View style={styles.errorMain}>
-              <Text style={styles.errorTitle}>Analyse temporairement indisponible</Text>
-              <Text style={styles.errorText}>{error}</Text>
-              <Pressable onPress={load} style={styles.retryButton}>
+
+          {snapshotLoading ? (
+            <View style={styles.inlineLoading}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={styles.inlineLoadingText}>Le Coach analyse la séance…</Text>
+            </View>
+          ) : snapshotError ? (
+            <View style={styles.inlineError}>
+              <Text style={styles.inlineErrorTitle}>Analyse temporairement indisponible</Text>
+              <Text style={styles.inlineErrorText}>{snapshotError}</Text>
+              <Pressable onPress={loadSessionSnapshot} style={styles.retryButton}>
                 <Text style={styles.retryText}>Réessayer</Text>
               </Pressable>
             </View>
+          ) : (
+            <View style={styles.moment}>
+              <View style={styles.momentIcon}>
+                <Ionicons name={sessionMoment.icon} size={21} color={colors.accent} />
+              </View>
+              <Text style={styles.momentEyebrow}>{sessionMoment.eyebrow}</Text>
+              <Text style={styles.momentTitle}>{sessionMoment.title}</Text>
+              <Text style={styles.momentText}>{sessionMoment.text}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.coachSection}>
+          <View style={styles.sectionEyebrowRow}>
+            <View style={styles.sectionRule} />
+            <Text style={styles.sectionEyebrow}>LE COACH</Text>
           </View>
-        ) : (
-          <>
-            <View style={styles.progressCard}>
-              <View style={styles.progressIcon}>
-                <Ionicons name={performanceSignal.icon} size={22} color={colors.accent} />
-              </View>
-              <Text style={styles.progressEyebrow}>{performanceSignal.eyebrow}</Text>
-              <Text style={styles.progressTitle}>{performanceSignal.title}</Text>
-              <Text style={styles.progressText}>{performanceSignal.text}</Text>
-              <View style={styles.progressFooter}>
-                <View style={styles.progressStep} />
-                <Text style={styles.progressFooterText}>Une marche de plus dans ta progression</Text>
-              </View>
-            </View>
 
-            <View style={styles.learningCard}>
-              <Text style={styles.learningTitle}>Ce qu’UGEROD retient</Text>
-              <Text style={styles.learningText}>{learningText}</Text>
-            </View>
-
-            <SkillQuestionCard
-              question={skillQuestion}
-              value={skillFeedback}
-              saving={skillFeedbackSaving}
-              error={skillFeedbackError}
-              onSelect={handleSkillFeedback}
-              colors={colors}
-              styles={styles}
-            />
-          </>
-        )}
-
-        <Text style={styles.sectionTitle}>Partager ma séance</Text>
-
-        <Pressable
-          onPress={() => setShareOpen(true)}
-          style={({ pressed }) => [styles.shareCard, pressed && styles.pressed]}
-        >
-          <View style={styles.shareMiniStory}>
-            <Text style={styles.shareMiniBrand}>UGEROD</Text>
-            <View style={styles.shareMiniRule} />
-            <Text style={styles.shareMiniBlocks} numberOfLines={3}>
-              {shareBlocks.map((block) => block.label).join('\n') || 'SÉANCE'}
+          <View style={styles.coachRow}>
+            <Text style={styles.coachLabel}>CE QUE JE RETIENS</Text>
+            <Text style={styles.coachText}>
+              {snapshotLoading ? 'Analyse en cours…' : learningText}
             </Text>
           </View>
-          <View style={styles.shareMain}>
-            <Text style={styles.shareTitle}>Story UGEROD</Text>
-            <Text style={styles.shareText}>Skill, Force, Tabata, WOD et résultat. Rien de plus.</Text>
+
+          <View style={styles.coachSeparator} />
+
+          <View style={styles.coachRow}>
+            <Text style={styles.coachLabel}>POUR LA SUITE</Text>
+            <Text style={styles.coachText}>
+              {snapshotLoading ? 'Je prépare la suite à partir de cette séance.' : nextStepText}
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-        </Pressable>
+        </View>
+
+        <SkillQuestionInline
+          question={skillQuestion}
+          value={skillFeedback}
+          saving={skillFeedbackSaving}
+          error={skillFeedbackError}
+          onSelect={handleSkillFeedback}
+          colors={colors}
+          styles={styles}
+        />
+
+        <View style={styles.divider} />
+
+        <View style={styles.shareSection}>
+          <View style={styles.sectionEyebrowRow}>
+            <View style={styles.sectionRuleSecondary} />
+            <Text style={styles.sectionEyebrow}>PARTAGER CE MOMENT</Text>
+          </View>
+          <Text style={styles.shareIntro}>
+            Une carte simple centrée sur ce qui mérite réellement d’être montré.
+          </Text>
+
+          <Pressable
+            onPress={() => setShareOpen(true)}
+            style={({ pressed }) => [styles.sharePreviewButton, pressed && styles.pressed]}
+          >
+            <View style={styles.sharePreviewFrame}>
+              <StoryPreview shareMoment={shareMoment} styles={styles} />
+            </View>
+            <View style={styles.sharePreviewCopy}>
+              <Text style={styles.sharePreviewTitle}>Story UGEROD</Text>
+              <Text style={styles.sharePreviewText}>
+                {sessionMoment.tone === 'reference'
+                  ? 'Ta nouvelle référence devient le centre de la story.'
+                  : 'Un résumé sobre de la séance, sans faux exploit.'}
+              </Text>
+              <View style={styles.sharePreviewAction}>
+                <Text style={styles.sharePreviewActionText}>Voir l’aperçu</Text>
+                <Ionicons name="arrow-forward" size={17} color={colors.accent} />
+              </View>
+            </View>
+          </Pressable>
+        </View>
 
         <Pressable
           onPress={() => router.replace('/(tabs)')}
@@ -593,7 +675,6 @@ export default function WorkoutDebriefScreen() {
           onPress={() => router.replace('/(tabs)/progression')}
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
         >
-          <Ionicons name="stats-chart-outline" size={19} color={colors.accent} />
           <Text style={styles.secondaryButtonText}>Voir ma progression</Text>
         </Pressable>
 
@@ -613,7 +694,7 @@ export default function WorkoutDebriefScreen() {
             <View style={styles.shareSheetHeader}>
               <View>
                 <Text style={styles.shareSheetEyebrow}>APERÇU STORY</Text>
-                <Text style={styles.shareSheetTitle}>Ta séance.</Text>
+                <Text style={styles.shareSheetTitle}>Ce qui compte, rien de plus.</Text>
               </View>
               <Pressable onPress={() => setShareOpen(false)} style={styles.closeButton}>
                 <Ionicons name="close" size={20} color={colors.text} />
@@ -621,7 +702,7 @@ export default function WorkoutDebriefScreen() {
             </View>
 
             <View style={styles.storyFrame}>
-              <StoryPreview workout={workout} blocks={shareBlocks} styles={styles} />
+              <StoryPreview shareMoment={shareMoment} styles={styles} />
             </View>
 
             <Pressable
@@ -631,6 +712,10 @@ export default function WorkoutDebriefScreen() {
               <Ionicons name="share-social-outline" size={20} color={colors.textOnAccent} />
               <Text style={styles.shareButtonText}>Partager</Text>
             </Pressable>
+            <Text style={styles.shareNote}>
+              V1 : le partage natif envoie encore un résumé texte. L’export image de la carte sera
+              traité séparément après validation du design.
+            </Text>
           </View>
         </View>
       </Modal>
@@ -642,208 +727,219 @@ function createStyles(colors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     content: {
-      paddingHorizontal: 20,
-      paddingTop: 8,
+      paddingHorizontal: 22,
+      paddingTop: 10,
       paddingBottom: 30,
     },
-    header: {
-      minHeight: 92,
+    topBar: {
+      minHeight: 56,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      justifyContent: 'space-between',
     },
-    headerText: { flex: 1 },
-    eyebrow: {
-      fontFamily: MANROPE.medium,
-      fontSize: 12,
-      lineHeight: 16,
-      color: colors.textSecondary,
-    },
-    title: {
-      marginTop: 1,
-      fontFamily: MANROPE.extraBold,
-      fontSize: 38,
-      lineHeight: 43,
-      letterSpacing: -1.1,
-      color: colors.text,
-    },
-    dot: { color: colors.accent },
-    brandIcon: { width: 46, height: 46 },
-
-    summaryStrip: {
-      minHeight: 68,
-      paddingHorizontal: 14,
-      borderRadius: 17,
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    summaryItem: { minWidth: 52 },
-    summaryValue: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 31,
-      lineHeight: 31,
-      color: colors.text,
-    },
-    summaryLabel: {
-      marginTop: -1,
+    topBarLabel: {
       fontFamily: MANROPE.bold,
-      fontSize: 7,
-      letterSpacing: 0.8,
+      fontSize: 10,
+      letterSpacing: 1.2,
       color: colors.textMuted,
     },
-    summaryDivider: {
-      width: 1,
-      height: 34,
-      marginHorizontal: 13,
-      backgroundColor: colors.border,
+    brandIcon: { width: 42, height: 42 },
+
+    hero: {
+      paddingTop: 26,
+      paddingBottom: 28,
     },
-    summaryCopy: { flex: 1 },
-    summaryEnvironment: {
-      fontFamily: MANROPE.bold,
-      fontSize: 13,
+    heroTitle: {
+      fontFamily: MANROPE.extraBold,
+      fontSize: 50,
+      lineHeight: 54,
+      letterSpacing: -1.8,
       color: colors.text,
     },
-    summaryResult: {
-      marginTop: 2,
-      fontFamily: MANROPE.medium,
-      fontSize: 10,
-      color: colors.textSecondary,
-    },
-
-    loadingCard: {
-      minHeight: 150,
-      marginTop: 18,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 10,
-    },
-    loadingText: {
-      fontFamily: MANROPE.semiBold,
-      fontSize: 11,
-      color: colors.textSecondary,
-    },
-
-    progressCard: {
-      marginTop: 18,
-      padding: 18,
-      borderRadius: 22,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.accent,
-    },
-    progressIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.accentSoft,
-    },
-    progressEyebrow: {
-      marginTop: 18,
-      fontFamily: MANROPE.bold,
-      fontSize: 9,
-      letterSpacing: 0.9,
-      color: colors.accent,
-    },
-    progressTitle: {
-      marginTop: 4,
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 34,
-      lineHeight: 37,
-      letterSpacing: 1,
-      color: colors.text,
-    },
-    progressText: {
-      marginTop: 5,
+    dot: { color: colors.secondaryAccent },
+    heroSubtitle: {
+      maxWidth: 310,
+      marginTop: 8,
       fontFamily: MANROPE.regular,
-      fontSize: 12,
-      lineHeight: 18,
+      fontSize: 15,
+      lineHeight: 22,
       color: colors.textSecondary,
     },
-    progressFooter: {
-      marginTop: 18,
-      paddingTop: 13,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
+    heroSummary: {
+      marginTop: 28,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
     },
-    progressStep: {
-      width: 24,
-      height: 4,
+    heroMetric: {
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 48,
+      lineHeight: 46,
+      color: colors.text,
+    },
+    heroMetricLabel: {
+      marginTop: -1,
+      fontFamily: MANROPE.bold,
+      fontSize: 8,
+      letterSpacing: 1,
+      color: colors.textMuted,
+    },
+    heroSummaryRule: {
+      width: 1,
+      height: 44,
+      marginHorizontal: 16,
+      backgroundColor: colors.border,
+    },
+    heroSummaryCopy: { flex: 1 },
+    heroEnvironment: {
+      fontFamily: MANROPE.bold,
+      fontSize: 14,
+      color: colors.text,
+    },
+    heroResult: {
+      marginTop: 3,
+      fontFamily: MANROPE.medium,
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+
+    section: { paddingTop: 8 },
+    sectionEyebrowRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+    },
+    sectionRule: {
+      width: 26,
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: colors.accent,
+    },
+    sectionRuleSecondary: {
+      width: 26,
+      height: 3,
       borderRadius: 2,
       backgroundColor: colors.secondaryAccent,
     },
-    progressFooterText: {
-      flex: 1,
-      fontFamily: MANROPE.semiBold,
-      fontSize: 10,
-      color: colors.textSecondary,
+    sectionEyebrow: {
+      fontFamily: MANROPE.bold,
+      fontSize: 9,
+      letterSpacing: 1,
+      color: colors.textMuted,
     },
 
-    learningCard: {
-      marginTop: 10,
-      padding: 15,
-      borderRadius: 17,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
+    inlineLoading: {
+      minHeight: 82,
+      marginTop: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
     },
-    learningTitle: {
-      fontFamily: MANROPE.bold,
+    inlineLoadingText: {
+      fontFamily: MANROPE.semiBold,
       fontSize: 12,
+      color: colors.textSecondary,
+    },
+    inlineError: { marginTop: 18 },
+    inlineErrorTitle: {
+      fontFamily: MANROPE.bold,
+      fontSize: 15,
       color: colors.text,
     },
-    learningText: {
+    inlineErrorText: {
       marginTop: 5,
       fontFamily: MANROPE.regular,
-      fontSize: 11,
-      lineHeight: 17,
+      fontSize: 12,
+      lineHeight: 18,
       color: colors.textSecondary,
     },
-
-    questionCard: {
-      marginTop: 10,
-      padding: 15,
-      borderRadius: 17,
-      backgroundColor: colors.surface,
+    retryButton: {
+      alignSelf: 'flex-start',
+      marginTop: 12,
+      minHeight: 36,
+      paddingHorizontal: 14,
+      borderRadius: 18,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    questionHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 11,
+    retryText: {
+      fontFamily: MANROPE.bold,
+      fontSize: 11,
+      color: colors.accent,
     },
-    questionIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
+
+    moment: { paddingTop: 18, paddingBottom: 6 },
+    momentIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 15,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.accentSoft,
     },
-    questionMain: { flex: 1 },
-    questionEyebrow: {
+    momentEyebrow: {
+      marginTop: 18,
       fontFamily: MANROPE.bold,
-      fontSize: 8,
-      letterSpacing: 0.8,
+      fontSize: 9,
+      letterSpacing: 1.05,
       color: colors.accent,
     },
-    questionTitle: {
+    momentTitle: {
       marginTop: 4,
-      fontFamily: MANROPE.bold,
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 40,
+      lineHeight: 42,
+      letterSpacing: 0.7,
+      color: colors.text,
+    },
+    momentText: {
+      maxWidth: 340,
+      marginTop: 6,
+      fontFamily: MANROPE.regular,
       fontSize: 13,
-      lineHeight: 18,
+      lineHeight: 20,
+      color: colors.textSecondary,
+    },
+
+    divider: {
+      height: 1,
+      marginVertical: 28,
+      backgroundColor: colors.border,
+    },
+
+    coachSection: {},
+    coachRow: { paddingTop: 20 },
+    coachLabel: {
+      fontFamily: MANROPE.bold,
+      fontSize: 10,
+      letterSpacing: 0.8,
+      color: colors.textMuted,
+    },
+    coachText: {
+      marginTop: 7,
+      fontFamily: MANROPE.medium,
+      fontSize: 15,
+      lineHeight: 23,
+      color: colors.text,
+    },
+    coachSeparator: {
+      height: 1,
+      marginTop: 20,
+      backgroundColor: colors.border,
+    },
+
+    skillPrompt: {
+      marginTop: 24,
+      paddingTop: 22,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    skillQuestion: {
+      marginTop: 12,
+      fontFamily: MANROPE.bold,
+      fontSize: 15,
+      lineHeight: 21,
       color: colors.text,
     },
     optionRow: {
@@ -853,14 +949,14 @@ function createStyles(colors) {
     },
     optionButton: {
       flex: 1,
-      minHeight: 40,
-      borderRadius: 12,
+      minHeight: 42,
+      borderRadius: 13,
       borderWidth: 1,
       borderColor: colors.border,
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 6,
-      backgroundColor: colors.surfaceElevated,
+      backgroundColor: colors.surface,
     },
     optionButtonSelected: {
       borderColor: colors.accent,
@@ -872,13 +968,13 @@ function createStyles(colors) {
       color: colors.textMuted,
     },
     optionTextSelected: { color: colors.text },
-    questionStatus: {
+    inlineStatus: {
       marginTop: 10,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 7,
     },
-    questionStatusText: {
+    inlineStatusText: {
       fontFamily: MANROPE.semiBold,
       fontSize: 9,
       color: colors.textMuted,
@@ -886,75 +982,62 @@ function createStyles(colors) {
     questionError: {
       marginTop: 9,
       fontFamily: MANROPE.regular,
-      fontSize: 9,
+      fontSize: 10,
       color: colors.error,
     },
 
-    sectionTitle: {
-      marginTop: 25,
-      fontFamily: MANROPE.bold,
-      fontSize: 18,
-      lineHeight: 24,
-      color: colors.text,
+    shareSection: {},
+    shareIntro: {
+      maxWidth: 330,
+      marginTop: 12,
+      fontFamily: MANROPE.regular,
+      fontSize: 13,
+      lineHeight: 20,
+      color: colors.textSecondary,
     },
-    shareCard: {
-      marginTop: 11,
-      minHeight: 92,
-      padding: 12,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
+    sharePreviewButton: {
+      marginTop: 18,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      gap: 18,
     },
-    shareMiniStory: {
-      width: 48,
-      height: 68,
-      borderRadius: 11,
-      padding: 7,
-      backgroundColor: colors.background,
+    sharePreviewFrame: {
+      width: 112,
+      aspectRatio: 9 / 16,
+      borderRadius: 20,
+      overflow: 'hidden',
       borderWidth: 1,
       borderColor: colors.border,
     },
-    shareMiniBrand: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 11,
-      letterSpacing: 0.6,
+    sharePreviewCopy: { flex: 1 },
+    sharePreviewTitle: {
+      fontFamily: MANROPE.extraBold,
+      fontSize: 20,
+      lineHeight: 25,
       color: colors.text,
     },
-    shareMiniRule: {
-      width: 14,
-      height: 2,
-      marginTop: 3,
-      borderRadius: 1,
-      backgroundColor: colors.accent,
-    },
-    shareMiniBlocks: {
-      marginTop: 7,
-      fontFamily: MANROPE.bold,
-      fontSize: 5.5,
-      lineHeight: 8,
-      color: colors.textSecondary,
-    },
-    shareMain: { flex: 1 },
-    shareTitle: {
-      fontFamily: MANROPE.bold,
-      fontSize: 13,
-      color: colors.text,
-    },
-    shareText: {
-      marginTop: 4,
+    sharePreviewText: {
+      marginTop: 6,
       fontFamily: MANROPE.regular,
-      fontSize: 11,
-      lineHeight: 16,
+      fontSize: 12,
+      lineHeight: 18,
       color: colors.textSecondary,
+    },
+    sharePreviewAction: {
+      marginTop: 13,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+    },
+    sharePreviewActionText: {
+      fontFamily: MANROPE.bold,
+      fontSize: 11,
+      color: colors.accent,
     },
 
     primaryButton: {
-      minHeight: 56,
-      marginTop: 22,
+      minHeight: 58,
+      marginTop: 34,
       borderRadius: 16,
       backgroundColor: colors.accent,
       flexDirection: 'row',
@@ -965,66 +1048,19 @@ function createStyles(colors) {
     primaryButtonPressed: { transform: [{ scale: 0.985 }] },
     primaryButtonText: {
       fontFamily: MANROPE.bold,
-      fontSize: 15,
+      fontSize: 16,
       color: colors.textOnAccent,
     },
     secondaryButton: {
-      minHeight: 50,
-      marginTop: 10,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      flexDirection: 'row',
+      minHeight: 46,
+      marginTop: 8,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
     },
     secondaryButtonText: {
       fontFamily: MANROPE.bold,
       fontSize: 12,
-      color: colors.accent,
-    },
-
-    errorCard: {
-      marginTop: 18,
-      padding: 15,
-      borderRadius: 17,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 11,
-    },
-    errorMain: { flex: 1 },
-    errorTitle: {
-      fontFamily: MANROPE.bold,
-      fontSize: 11,
-      color: colors.text,
-    },
-    errorText: {
-      marginTop: 4,
-      fontFamily: MANROPE.regular,
-      fontSize: 10,
-      lineHeight: 16,
       color: colors.textSecondary,
-    },
-    retryButton: {
-      alignSelf: 'flex-start',
-      marginTop: 10,
-      minHeight: 34,
-      paddingHorizontal: 12,
-      borderRadius: 17,
-      borderWidth: 1,
-      borderColor: colors.accent,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    retryText: {
-      fontFamily: MANROPE.bold,
-      fontSize: 10,
-      color: colors.accent,
     },
 
     modalRoot: { flex: 1, justifyContent: 'flex-end' },
@@ -1037,8 +1073,8 @@ function createStyles(colors) {
       paddingHorizontal: 20,
       paddingTop: 8,
       paddingBottom: 22,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
       backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
@@ -1049,31 +1085,32 @@ function createStyles(colors) {
       borderRadius: 2,
       alignSelf: 'center',
       backgroundColor: colors.borderStrong,
-      marginBottom: 14,
+      marginBottom: 16,
     },
     shareSheetHeader: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
       gap: 12,
     },
     shareSheetEyebrow: {
       fontFamily: MANROPE.bold,
       fontSize: 9,
-      letterSpacing: 0.8,
+      letterSpacing: 0.9,
       color: colors.accent,
     },
     shareSheetTitle: {
-      marginTop: 3,
+      maxWidth: 260,
+      marginTop: 4,
       fontFamily: MANROPE.extraBold,
-      fontSize: 20,
-      lineHeight: 25,
+      fontSize: 23,
+      lineHeight: 29,
       color: colors.text,
     },
     closeButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
@@ -1082,104 +1119,65 @@ function createStyles(colors) {
     },
     storyFrame: {
       alignSelf: 'center',
-      width: '68%',
-      maxWidth: 290,
+      width: '66%',
+      maxWidth: 285,
       aspectRatio: 9 / 16,
-      marginTop: 16,
-      borderRadius: 22,
+      marginTop: 18,
+      borderRadius: 24,
       overflow: 'hidden',
       borderWidth: 1,
       borderColor: colors.border,
     },
     storyCard: {
       flex: 1,
-      paddingHorizontal: 18,
-      paddingTop: 20,
-      paddingBottom: 16,
-      backgroundColor: colors.background,
+      paddingHorizontal: 16,
+      paddingTop: 18,
+      paddingBottom: 14,
+      backgroundColor: colors.surface,
     },
     storyBrand: {
       fontFamily: 'BebasNeue_400Regular',
-      fontSize: 28,
-      lineHeight: 31,
-      letterSpacing: 1.5,
+      fontSize: 24,
+      lineHeight: 27,
+      letterSpacing: 1.4,
       color: colors.text,
     },
     storyRule: {
-      width: 36,
+      width: 34,
       height: 4,
       borderRadius: 2,
-      marginTop: 7,
-      backgroundColor: colors.accent,
+      marginTop: 6,
+      backgroundColor: colors.secondaryAccent,
     },
-    storyMeta: {
-      marginTop: 8,
-      fontFamily: MANROPE.bold,
-      fontSize: 8,
-      letterSpacing: 0.5,
-      color: colors.textSecondary,
-    },
-    storyBlocks: {
+    storyCenter: {
       flex: 1,
-      marginTop: 18,
-      gap: 12,
+      justifyContent: 'center',
     },
-    storyBlock: {},
-    storyBlockLabel: {
+    storyKicker: {
       fontFamily: MANROPE.bold,
       fontSize: 8,
       letterSpacing: 1,
-      color: colors.secondaryAccent,
-    },
-    storyExercise: { marginTop: 5 },
-    storyExerciseName: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 17,
-      lineHeight: 19,
-      letterSpacing: 0.5,
-      color: colors.text,
-    },
-    storyExercisePrescription: {
-      marginTop: 1,
-      fontFamily: MANROPE.medium,
-      fontSize: 7,
-      lineHeight: 10,
-      color: colors.textSecondary,
-    },
-    storyResult: {
-      marginTop: 8,
-      paddingTop: 7,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    storyResultLabel: {
-      fontFamily: MANROPE.bold,
-      fontSize: 7,
-      letterSpacing: 0.8,
       color: colors.accent,
     },
-    storyResultValue: {
-      marginTop: 2,
+    storyHeadline: {
+      marginTop: 8,
       fontFamily: 'BebasNeue_400Regular',
-      fontSize: 22,
-      lineHeight: 24,
+      fontSize: 33,
+      lineHeight: 35,
+      letterSpacing: 0.6,
       color: colors.text,
     },
-    storyEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    storyEmptyText: {
+    storyMetric: {
+      marginTop: 6,
       fontFamily: MANROPE.bold,
-      fontSize: 12,
+      fontSize: 10,
+      letterSpacing: 0.6,
       color: colors.textSecondary,
     },
     storyFooter: {
-      paddingTop: 10,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    storyFooterText: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 12,
-      letterSpacing: 1,
+      fontFamily: MANROPE.bold,
+      fontSize: 7,
+      letterSpacing: 0.7,
       color: colors.textMuted,
     },
     shareButton: {
@@ -1197,8 +1195,16 @@ function createStyles(colors) {
       fontSize: 15,
       color: colors.textOnAccent,
     },
+    shareNote: {
+      marginTop: 10,
+      fontFamily: MANROPE.regular,
+      fontSize: 9,
+      lineHeight: 14,
+      textAlign: 'center',
+      color: colors.textMuted,
+    },
 
     bottomSpace: { height: 20 },
-    pressed: { opacity: 0.7 },
+    pressed: { opacity: 0.72 },
   });
 }
