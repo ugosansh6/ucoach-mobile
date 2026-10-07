@@ -1,17 +1,31 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-const KAKI = '#909C89';
-const TEXT_MUTED = '#778178';
-const BORDER = 'rgba(173,184,170,0.16)';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 
 export default function TabsLayout() {
+  const { isDark } = useUgerodTheme();
+
+  const palette = isDark
+    ? {
+        active: '#909C89',
+        inactive: '#778178',
+        background: '#0A0E0C',
+        border: 'rgba(173,184,170,0.16)',
+      }
+    : {
+        active: '#646F5E',
+        inactive: '#7C8379',
+        background: '#F4F2ED',
+        border: 'rgba(54,61,52,0.13)',
+      };
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: KAKI,
-        tabBarInactiveTintColor: TEXT_MUTED,
+        tabBarActiveTintColor: palette.active,
+        tabBarInactiveTintColor: palette.inactive,
         tabBarLabelStyle: {
           fontFamily: 'Manrope_600SemiBold',
           fontSize: 9,
@@ -24,9 +38,9 @@ export default function TabsLayout() {
           height: 72,
           paddingTop: 5,
           paddingBottom: 7,
-          backgroundColor: '#0A0E0C',
+          backgroundColor: palette.background,
           borderTopWidth: 1,
-          borderTopColor: BORDER,
+          borderTopColor: palette.border,
         },
       }}
     >
