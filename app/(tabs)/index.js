@@ -1,1 +1,1 @@
-export { default } from '../../src/components/dashboard/DarkDashboardScreen';
+export { default } from '../../src/components/dashboard/DashboardCoachScreen';
