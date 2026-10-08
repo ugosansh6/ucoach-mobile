@@ -1,1 +1,1 @@
-export { default } from '../src/components/dashboard/DashboardCoachV6Screen';
+export { default } from '../src/components/dashboard/DashboardCoachV7Screen';
