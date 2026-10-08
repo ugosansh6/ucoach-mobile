@@ -3,48 +3,57 @@ export const UGEROD_THEME_MODES = {
   LIGHT: 'light',
 };
 
+export const UGEROD_BRAND_COLORS = {
+  khaki: '#646F5E',
+  orange: '#FF6B19',
+};
+
+const KHAKI_SOFT = 'rgba(100, 111, 94, 0.14)';
+const KHAKI_SOFT_LIGHT = 'rgba(100, 111, 94, 0.12)';
+const ORANGE_SOFT = 'rgba(255, 107, 25, 0.14)';
+
 export const ugerodThemes = {
   dark: {
     mode: UGEROD_THEME_MODES.DARK,
     isDark: true,
-    accentName: 'bleu',
-    secondaryAccentName: 'rouge',
+    accentName: 'kaki',
+    secondaryAccentName: 'orange',
     colors: {
       background: '#07090C',
       surface: '#11151A',
       surfaceElevated: '#171C22',
       surfacePressed: '#1E252D',
 
-      // Palette historique UGEROD : bleu + rouge.
-      accent: '#0868FF',
-      accentStrong: '#1D8CFF',
-      accentSoft: 'rgba(8, 104, 255, 0.14)',
+      // Identité UGEROD commune aux deux thèmes : kaki + orange.
+      accent: UGEROD_BRAND_COLORS.khaki,
+      accentStrong: UGEROD_BRAND_COLORS.khaki,
+      accentSoft: KHAKI_SOFT,
 
-      secondaryAccent: '#FF3B3B',
-      secondaryAccentStrong: '#FF6B6B',
-      secondaryAccentSoft: 'rgba(255, 59, 59, 0.14)',
+      secondaryAccent: UGEROD_BRAND_COLORS.orange,
+      secondaryAccentStrong: UGEROD_BRAND_COLORS.orange,
+      secondaryAccentSoft: ORANGE_SOFT,
 
       text: '#F7F9FC',
-      textSecondary: '#98A2B3',
-      textMuted: '#667085',
-      textDisabled: '#475467',
+      textSecondary: '#AEB7AD',
+      textMuted: '#7E897D',
+      textDisabled: '#566056',
       textOnAccent: '#FFFFFF',
 
-      border: '#29313A',
-      borderStrong: '#3A4550',
-      inputDisabled: '#0B0E12',
+      border: '#29312B',
+      borderStrong: '#3D473E',
+      inputDisabled: '#0B0E0C',
 
-      success: '#24C875',
-      successSoft: 'rgba(36, 200, 117, 0.14)',
-      warning: '#F5A623',
-      warningSoft: 'rgba(245, 166, 35, 0.14)',
-      error: '#FF3B3B',
-      errorSoft: 'rgba(255, 59, 59, 0.14)',
+      success: UGEROD_BRAND_COLORS.khaki,
+      successSoft: KHAKI_SOFT_LIGHT,
+      warning: UGEROD_BRAND_COLORS.orange,
+      warningSoft: ORANGE_SOFT,
+      error: UGEROD_BRAND_COLORS.orange,
+      errorSoft: ORANGE_SOFT,
 
-      warningBorder: '#6B4A19',
-      warningIconBackground: '#2A2112',
-      logoutBorder: '#6D2A2A',
-      logoutPressed: '#351818',
+      warningBorder: 'rgba(255, 107, 25, 0.30)',
+      warningIconBackground: 'rgba(255, 107, 25, 0.08)',
+      logoutBorder: 'rgba(255, 107, 25, 0.34)',
+      logoutPressed: 'rgba(255, 107, 25, 0.20)',
       shadow: '#000000',
     },
   },
@@ -60,14 +69,14 @@ export const ugerodThemes = {
       surfaceElevated: '#FFFFFF',
       surfacePressed: '#EEF1ED',
 
-      // Palette claire UGEROD : kaki #5E6633 + orange vif #FF6B19.
-      accent: '#5E6633',
-      accentStrong: '#5E6633',
-      accentSoft: 'rgba(94, 102, 51, 0.14)',
+      // Même identité de marque que le thème sombre.
+      accent: UGEROD_BRAND_COLORS.khaki,
+      accentStrong: UGEROD_BRAND_COLORS.khaki,
+      accentSoft: KHAKI_SOFT,
 
-      secondaryAccent: '#FF6B19',
-      secondaryAccentStrong: '#FF6B19',
-      secondaryAccentSoft: 'rgba(255, 107, 25, 0.14)',
+      secondaryAccent: UGEROD_BRAND_COLORS.orange,
+      secondaryAccentStrong: UGEROD_BRAND_COLORS.orange,
+      secondaryAccentSoft: ORANGE_SOFT,
 
       text: '#171A15',
       textSecondary: '#50584B',
@@ -79,13 +88,12 @@ export const ugerodThemes = {
       borderStrong: '#C7CDBF',
       inputDisabled: '#F1F2EE',
 
-      // Le succès reste sémantique mais utilise le même kaki pour garder une palette cohérente.
-      success: '#5E6633',
-      successSoft: 'rgba(94, 102, 51, 0.12)',
-      warning: '#FF6B19',
-      warningSoft: 'rgba(255, 107, 25, 0.14)',
-      error: '#FF6B19',
-      errorSoft: 'rgba(255, 107, 25, 0.14)',
+      success: UGEROD_BRAND_COLORS.khaki,
+      successSoft: KHAKI_SOFT_LIGHT,
+      warning: UGEROD_BRAND_COLORS.orange,
+      warningSoft: ORANGE_SOFT,
+      error: UGEROD_BRAND_COLORS.orange,
+      errorSoft: ORANGE_SOFT,
 
       warningBorder: 'rgba(255, 107, 25, 0.30)',
       warningIconBackground: 'rgba(255, 107, 25, 0.08)',
