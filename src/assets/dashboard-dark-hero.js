@@ -1,1 +1,1 @@
-export { default } from './dashboard-dark-hero-v2';
+export default require('../../assets/branding/farkas-mario-RSUftfqgJKY-unsplash.jpg');
