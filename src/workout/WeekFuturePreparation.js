@@ -110,7 +110,8 @@ function humanize(value) {
 }
 
 function itemLabel(item) {
-  return humanize(priorityKey(item?.coachProjection?.priority));
+  return item?.coachProjection?.presentation?.title
+    ?? humanize(priorityKey(item?.coachProjection?.priority));
 }
 
 function normalizeEquipment(catalog, presetRows, environmentCode) {
