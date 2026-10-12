@@ -152,8 +152,13 @@ function getEnvironmentLabel(code) {
 }
 
 function getShortSummary(item) {
+  if (!item?.sessionId) {
+    const userFacingTitle = item?.coachProjection?.presentation?.title;
+    if (userFacingTitle) return userFacingTitle;
+  }
+
   const values = [];
-  const summary = item?.sessionSummary ?? {};
+  const summary = item?.sessionSummary ?? item?.plannedContext ?? {};
   const candidates = [
     humanize(summary.focus),
     humanize(getPriorityKey(item?.coachProjection?.priority)),
@@ -205,14 +210,13 @@ function getObjectKey(item, index = 0) {
 
 function getIntentProfile(item) {
   const presentation = item?.coachProjection?.presentation ?? {};
-  const description = presentation.description
-    ?? 'Ce créneau sera précisé au moment de préparer la séance.';
+  const description = presentation.description ?? null;
   const examples = Array.isArray(presentation.exerciseExamples)
     ? presentation.exerciseExamples.filter(Boolean)
     : [];
   const why = presentation?.why?.text
     ? {
-        title: presentation.why.title ?? 'Pourquoi ce choix ?',
+        title: presentation.why.title ?? 'Pourquoi maintenant ?',
         text: presentation.why.text,
       }
     : null;
@@ -307,7 +311,7 @@ function ActionButton({ label, icon, primary = false, palette, onPress }) {
   );
 }
 
-function CreationActions({ dateKey, palette, onImport }) {
+function CreationActions({ dateKey, planItemId = null, palette, onImport }) {
   return (
     <View style={styles.creationActions}>
       <ActionButton
@@ -315,7 +319,14 @@ function CreationActions({ dateKey, palette, onImport }) {
         icon="sparkles-outline"
         primary
         palette={palette}
-        onPress={() => router.push({ pathname: '/workout/preparation', params: { date: dateKey, entry: 'week_assisted' } })}
+        onPress={() => router.push({
+          pathname: '/workout/preparation',
+          params: {
+            date: dateKey,
+            entry: 'week_assisted',
+            ...(planItemId ? { planItemId } : {}),
+          },
+        })}
       />
       <ActionButton
         label="CRÉER LIBREMENT"
@@ -335,10 +346,8 @@ function CreationActions({ dateKey, palette, onImport }) {
 
 function IntentDetails({ item, dateKey, palette, onImport }) {
   const profile = getIntentProfile(item);
-  const meta = getMeta(item);
   return (
     <View style={[styles.detailPanel, { borderColor: palette.border }]}> 
-      <Text style={[styles.detailTitle, { color: palette.text }]}>{getShortSummary(item)}</Text>
       {profile.description ? (
         <Text style={[styles.detailBody, { color: palette.textMuted }]}>{profile.description}</Text>
       ) : null}
@@ -354,7 +363,6 @@ function IntentDetails({ item, dateKey, palette, onImport }) {
           <Text style={[styles.exercisePreviewLine, { color: palette.text }]}>{profile.examples.join('  ·  ')}</Text>
         </View>
       ) : null}
-      {meta.length > 0 ? <Text style={[styles.detailMeta, { color: palette.textMuted }]}>{meta.join('  ·  ')}</Text> : null}
       {profile.coachAdvice?.text ? (
         <View style={[styles.coachTip, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}> 
           <Ionicons name="bulb-outline" size={18} color={palette.accent} />
@@ -364,7 +372,12 @@ function IntentDetails({ item, dateKey, palette, onImport }) {
           </View>
         </View>
       ) : null}
-      <CreationActions dateKey={dateKey} palette={palette} onImport={onImport} />
+      <CreationActions
+        dateKey={dateKey}
+        planItemId={item?.planItemId ?? null}
+        palette={palette}
+        onImport={onImport}
+      />
     </View>
   );
 }
@@ -406,7 +419,6 @@ function WeekObject({
   const built = isBuiltSession(item);
   const tone = getTone(item, palette);
   const meta = getMeta(item);
-  const intentProfile = !built ? getIntentProfile(item) : null;
   return (
     <View style={[styles.objectWrap, moving && styles.objectMoving]}>
       <View
@@ -426,8 +438,6 @@ function WeekObject({
               <Text style={[styles.objectSubline, { color: palette.textMuted }]} numberOfLines={1}>
                 {exercises.slice(0, 3).map((exercise) => exercise.name).join(' · ')}
               </Text>
-            ) : !built ? (
-              <Text style={[styles.objectSubline, { color: palette.textMuted }]} numberOfLines={1}>{intentProfile.description}</Text>
             ) : null}
             {meta.length > 0 ? <Text style={[styles.objectMeta, { color: palette.textMuted }]}>{meta.join('  ·  ')}</Text> : null}
           </View>
@@ -935,7 +945,7 @@ const styles = StyleSheet.create({
   emptyDayText: { fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 19 },
   detailPanel: { marginTop: 9, borderTopWidth: 1, paddingTop: 14, paddingHorizontal: 2, paddingBottom: 4 },
   detailTitle: { fontFamily: fontFamilies.display, fontSize: 25, lineHeight: 28, letterSpacing: 0.6 },
-  detailBody: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, marginTop: 7 },
+  detailBody: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20 },
   detailSection: { marginTop: 15 },
   detailLabel: { fontFamily: fontFamilies.bold, fontSize: 9, lineHeight: 13, letterSpacing: 1.05, marginBottom: 5 },
   explanationText: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20 },
