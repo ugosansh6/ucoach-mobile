@@ -17,6 +17,18 @@ export function getMonthStartKey(date = new Date()) {
   return `${year}-${month}-01`;
 }
 
+function normalizeWeekDateInput(value, fieldName) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return getLocalDateKey(value);
+  }
+
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  throw new Error(`${fieldName} must be a Date or a YYYY-MM-DD string.`);
+}
+
 async function getAuthenticatedUserId() {
   const user = await getAuthenticatedUserWithRetry();
   return user.id;
@@ -78,6 +90,31 @@ export async function getWeekReadContract({
   );
 
   return normalizeWeekReadContract(data);
+}
+
+export async function moveWeekPlanItem({
+  planItemId,
+  targetDate,
+  anchorDate = new Date(),
+} = {}) {
+  if (!planItemId) {
+    throw new Error('planItemId is required to move a week item.');
+  }
+
+  const userId = await getAuthenticatedUserId();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'week_move_plan_item_v1',
+      {
+        p_user_id: userId,
+        p_plan_item_id: planItemId,
+        p_target_date: normalizeWeekDateInput(targetDate, 'targetDate'),
+        p_anchor_date: normalizeWeekDateInput(anchorDate, 'anchorDate'),
+      }
+    )
+  );
+
+  return normalizeWeekMoveResult(data);
 }
 
 function normalizeWeekReadItem(item) {
@@ -178,6 +215,30 @@ function normalizeWeekReadContract(data) {
       weeklyTargetIsNotCompletionScore:
         semantics.weekly_target_is_not_a_completion_score !== false,
     },
+  };
+}
+
+function normalizeWeekMoveResult(data) {
+  const source = data ?? {};
+
+  return {
+    contractVersion: source.contract_version ?? null,
+    planItemId: source.plan_item_id ?? null,
+    previousDate: source.previous_date ?? null,
+    recommendedDate: source.recommended_date ?? null,
+    weekStart: source.week_start ?? null,
+    weekEnd: source.week_end ?? null,
+    changed: Boolean(source.changed),
+    recommendedDateIsSoft: source.recommended_date_is_soft !== false,
+    hasCollision: Boolean(source.has_collision),
+    collisionCount: Number(source.collision_count ?? 0),
+    collisionPolicy: source.collision_policy ?? 'ALLOW_AND_ADVISE',
+    userDebtCreated: Boolean(source.user_debt_created),
+    contentMutated: Boolean(source.content_mutated),
+    sessionIdentityMutated: Boolean(source.session_identity_mutated),
+    sequenceMutated: Boolean(source.sequence_mutated),
+    refreshWith: source.refresh_with ?? 'week_read_contract_v1',
+    raw: source,
   };
 }
 
