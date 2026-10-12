@@ -117,6 +117,29 @@ export async function moveWeekPlanItem({
   return normalizeWeekMoveResult(data);
 }
 
+export async function removeWeekPlanItem({
+  planItemId,
+  anchorDate = new Date(),
+} = {}) {
+  if (!planItemId) {
+    throw new Error('planItemId is required to remove a week item.');
+  }
+
+  const userId = await getAuthenticatedUserId();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'week_remove_plan_item_v1',
+      {
+        p_user_id: userId,
+        p_plan_item_id: planItemId,
+        p_anchor_date: normalizeWeekDateInput(anchorDate, 'anchorDate'),
+      }
+    )
+  );
+
+  return normalizeWeekRemoveResult(data);
+}
+
 export async function updateWeekPlanItemContext({
   planItemId,
   context = {},
@@ -378,6 +401,22 @@ function normalizeWeekMoveResult(data) {
     sessionIdentityMutated: Boolean(source.session_identity_mutated),
     sequenceMutated: Boolean(source.sequence_mutated),
     refreshWith: source.refresh_with ?? 'week_read_contract_v1',
+    raw: source,
+  };
+}
+
+function normalizeWeekRemoveResult(data) {
+  const source = data ?? {};
+  return {
+    contractVersion: source.contract_version ?? null,
+    planItemId: source.plan_item_id ?? null,
+    recommendedDate: source.recommended_date ?? null,
+    removed: Boolean(source.removed),
+    sessionAbandoned: Boolean(source.session_abandoned),
+    userDebtCreated: Boolean(source.user_debt_created),
+    contentDeleted: Boolean(source.content_deleted),
+    historyDeleted: Boolean(source.history_deleted),
+    refreshWith: source.refresh_with ?? 'week_read_contract_v2',
     raw: source,
   };
 }

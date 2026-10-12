@@ -24,6 +24,7 @@ import {
 import {
   getWeekReadContract,
   moveWeekPlanItem,
+  removeWeekPlanItem,
 } from '../../src/services/weeklyPlanService';
 import { getWeekSessionExercisePreviews } from '../../src/services/weekSessionPreviewService';
 import { reloadWorkoutSession } from '../../src/services/workoutService';
@@ -197,6 +198,13 @@ function canMoveWeekItem(item) {
   );
 }
 
+function canRemoveWeekItem(item) {
+  return Boolean(
+    item?.planItemId &&
+    (item?.displayState === 'PREVUE' || item?.displayState === 'PRETE')
+  );
+}
+
 function getTone(item, palette) {
   if (item?.displayState === 'ACTIVE') return palette.orange;
   if (item?.displayState === 'REALISEE') return palette.done;
@@ -289,6 +297,22 @@ function DragHandle({ item, palette, disabled, onStart, onMove, onDrop, onCancel
     >
       <DragDots color={palette.textMuted} />
     </View>
+  );
+}
+
+function RemoveButton({ item, palette, disabled, onPress }) {
+  if (!canRemoveWeekItem(item)) return null;
+  return (
+    <TouchableOpacity
+      style={styles.removeButton}
+      onPress={() => !disabled && onPress?.(item)}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={`Supprimer ${getShortSummary(item)}`}
+      accessibilityHint="Retirer cette séance de la semaine sans créer de retard."
+    >
+      <Ionicons name="trash-outline" size={17} color={palette.textMuted} />
+    </TouchableOpacity>
   );
 }
 
@@ -415,6 +439,7 @@ function SessionDetails({ item, exercises, palette, onOpen, opening }) {
 function WeekObject({
   item, index, expanded, moving, exercises, palette, onToggle, onImport,
   onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
+  onRequestRemove, removingItemId,
 }) {
   const built = isBuiltSession(item);
   const tone = getTone(item, palette);
@@ -443,10 +468,16 @@ function WeekObject({
           </View>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={17} color={palette.textMuted} />
         </Pressable>
+        <RemoveButton
+          item={item}
+          palette={palette}
+          disabled={moving || removingItemId === item?.planItemId}
+          onPress={onRequestRemove}
+        />
         <DragHandle
           item={item}
           palette={palette}
-          disabled={moving}
+          disabled={moving || removingItemId === item?.planItemId}
           onStart={onDragStart}
           onMove={onDragMove}
           onDrop={onDragDrop}
@@ -488,6 +519,7 @@ function DaySection({
   day, palette, todayKey, expandedKey, movingItemId, exercisePreviews, dropTarget,
   registerDayRef, onToggleItem, onToggleEmpty, onImport,
   onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
+  onRequestRemove, removingItemId,
 }) {
   const isToday = day.key === todayKey;
   const isTarget = dropTarget === day.key;
@@ -539,11 +571,93 @@ function DaySection({
               onDragCancel={onDragCancel}
               onOpenSession={onOpenSession}
               openingSessionId={openingSessionId}
+              onRequestRemove={onRequestRemove}
+              removingItemId={removingItemId}
             />
           );
         })}
       </View>
     </View>
+  );
+}
+
+function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClose, onSelectDay }) {
+  const atLimit = currentCount >= 5;
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={[styles.importSheet, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          <Text style={[styles.sheetTitle, { color: palette.text }]}>AJOUTER UNE SÉANCE</Text>
+          <Text style={[styles.sheetIntro, { color: palette.textMuted }]}>
+            Ouvre un créneau supplémentaire cette semaine. UGEROD préparera une intention cohérente avec le reste de ta programmation.
+          </Text>
+          <View style={styles.addDayList}>
+            {days.map((day) => {
+              const pastOrToday = day.key <= todayKey;
+              const disabled = atLimit || pastOrToday;
+              const count = day.items?.length ?? 0;
+              return (
+                <TouchableOpacity
+                  key={day.key}
+                  style={[styles.addDayRow, { borderColor: palette.border }, disabled && styles.disabledRow]}
+                  disabled={disabled}
+                  onPress={() => onSelectDay?.(day.key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ajouter une séance ${day.label} ${day.date.getDate()}`}
+                >
+                  <View style={styles.addDayDate}>
+                    <Text style={[styles.addDayName, { color: disabled ? palette.textMuted : palette.text }]}>{day.label}</Text>
+                    <Text style={[styles.addDayNumber, { color: disabled ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
+                  </View>
+                  <View style={styles.addDayCopy}>
+                    <Text style={[styles.addDayTitle, { color: disabled ? palette.textMuted : palette.text }]}>
+                      {pastOrToday ? 'Déjà passé / aujourd’hui' : count > 0 ? `${count} séance${count > 1 ? 's' : ''} déjà prévue${count > 1 ? 's' : ''}` : 'Créneau disponible'}
+                    </Text>
+                    {!pastOrToday ? (
+                      <Text style={[styles.addDaySubtitle, { color: palette.textMuted }]}>Tu pourras préciser le contexte avant de la préparer.</Text>
+                    ) : null}
+                  </View>
+                  {!disabled ? <Ionicons name="chevron-forward" size={18} color={palette.textMuted} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {atLimit ? (
+            <Text style={[styles.limitNote, { color: palette.textMuted }]}>5 séances sont déjà prévues cette semaine.</Text>
+          ) : null}
+          <TouchableOpacity style={[styles.sheetCloseButton, { borderColor: palette.border }]} onPress={onClose}>
+            <Text style={[styles.sheetCloseText, { color: palette.text }]}>FERMER</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function RemoveSessionModal({ item, visible, palette, removing, onClose, onConfirm }) {
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={() => !removing && onClose?.()}>
+      <Pressable style={styles.modalBackdrop} onPress={() => !removing && onClose?.()}>
+        <Pressable style={[styles.removeSheet, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]} onPress={() => {}}>
+          <View style={[styles.removeIconWrap, { backgroundColor: palette.accentSoft }]}>
+            <Ionicons name="trash-outline" size={21} color={palette.orange} />
+          </View>
+          <Text style={[styles.removeTitle, { color: palette.text }]}>RETIRER CETTE SÉANCE ?</Text>
+          <Text style={[styles.removeText, { color: palette.textMuted }]}>
+            {item ? getShortSummary(item) : 'Cette séance'} disparaîtra de ta semaine. Aucun retard ni dette d’entraînement ne sera créé.
+          </Text>
+          <View style={styles.removeActions}>
+            <TouchableOpacity style={[styles.removeCancel, { borderColor: palette.border }]} disabled={removing} onPress={onClose}>
+              <Text style={[styles.removeCancelText, { color: palette.text }]}>ANNULER</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.removeConfirm, { backgroundColor: palette.orange }]} disabled={removing} onPress={onConfirm}>
+              <Text style={[styles.removeConfirmText, { color: '#FFFFFF' }]}>{removing ? 'RETRAIT…' : 'RETIRER'}</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -623,6 +737,9 @@ export default function PlanningScreen() {
   const [moveFeedback, setMoveFeedback] = useState(null);
   const [importDay, setImportDay] = useState(null);
   const [shareValue, setShareValue] = useState('');
+  const [addSessionOpen, setAddSessionOpen] = useState(false);
+  const [removeItem, setRemoveItem] = useState(null);
+  const [removingItemId, setRemovingItemId] = useState(null);
   const dayRefs = useRef({});
   const dayRects = useRef({});
   const feedbackTimerRef = useRef(null);
@@ -776,6 +893,35 @@ export default function PlanningScreen() {
     performMove(item, resolveDropTarget(pageY) ?? dropTargetDate);
   }, [dropTargetDate, performMove, resolveDropTarget]);
 
+  const handleRemoveWeekItem = useCallback(async () => {
+    if (!removeItem?.planItemId || removingItemId) return;
+    const anchorDate = parseDateKey(contract?.weekStart) ?? new Date();
+    try {
+      setRemovingItemId(removeItem.planItemId);
+      await removeWeekPlanItem({ planItemId: removeItem.planItemId, anchorDate });
+      const refreshed = await getWeekReadContract({ anchorDate });
+      setContract(refreshed);
+      const ids = (refreshed?.visibleItems ?? []).map((entry) => entry?.sessionId).filter(Boolean);
+      setExercisePreviews(await getWeekSessionExercisePreviews(ids));
+      setExpandedKey(null);
+      setRemoveItem(null);
+      showMoveFeedback('Séance retirée de ta semaine.');
+    } catch (removeError) {
+      console.warn('[MaSemaine] remove failed', removeError);
+      showMoveFeedback('Impossible de retirer cette séance pour le moment.');
+    } finally {
+      setRemovingItemId(null);
+    }
+  }, [contract?.weekStart, removeItem, removingItemId, showMoveFeedback]);
+
+  const handleAddSessionDay = useCallback((dateKey) => {
+    setAddSessionOpen(false);
+    router.push({
+      pathname: '/workout/preparation',
+      params: { date: dateKey, entry: 'week_assisted', origin: 'week_additional' },
+    });
+  }, []);
+
   const handleOpenSession = useCallback(async (item) => {
     const sessionId = item?.sessionId ?? null;
     if (!sessionId || openingSessionId) return;
@@ -879,10 +1025,34 @@ export default function PlanningScreen() {
                   onDragCancel={clearDrag}
                   onOpenSession={handleOpenSession}
                   openingSessionId={openingSessionId}
+                  onRequestRemove={setRemoveItem}
+                  removingItemId={removingItemId}
                 />
               ))}
             </View>
           )}
+
+          {!loading && contract ? (
+            <View style={styles.addSessionSection}>
+              <TouchableOpacity
+                style={[
+                  styles.addSessionButton,
+                  { borderColor: visibleItems.length >= 5 ? palette.border : palette.accent },
+                  visibleItems.length >= 5 && styles.disabledRow,
+                ]}
+                disabled={visibleItems.length >= 5}
+                onPress={() => setAddSessionOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Ajouter une séance à cette semaine"
+              >
+                <Ionicons name="add-circle-outline" size={20} color={visibleItems.length >= 5 ? palette.textMuted : palette.accent} />
+                <Text style={[styles.addSessionButtonText, { color: visibleItems.length >= 5 ? palette.textMuted : palette.text }]}>AJOUTER UNE SÉANCE</Text>
+              </TouchableOpacity>
+              <Text style={[styles.addSessionHint, { color: palette.textMuted }]}>
+                {visibleItems.length >= 5 ? '5 séances sont déjà prévues.' : 'Pré-programmer une 4e ou 5e séance potentielle cette semaine.'}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -902,6 +1072,25 @@ export default function PlanningScreen() {
           <DragDots color={palette.textMuted} />
         </View>
       ) : null}
+
+      <AddSessionModal
+        visible={addSessionOpen}
+        days={daysWithItems}
+        todayKey={todayKey}
+        palette={palette}
+        currentCount={visibleItems.length}
+        onClose={() => setAddSessionOpen(false)}
+        onSelectDay={handleAddSessionDay}
+      />
+
+      <RemoveSessionModal
+        visible={Boolean(removeItem)}
+        item={removeItem}
+        palette={palette}
+        removing={Boolean(removingItemId)}
+        onClose={() => !removingItemId && setRemoveItem(null)}
+        onConfirm={handleRemoveWeekItem}
+      />
 
       <ImportModal
         visible={Boolean(importDay)}
@@ -948,6 +1137,7 @@ const styles = StyleSheet.create({
   objectMeta: { fontFamily: fontFamilies.semiBold, fontSize: 10, lineHeight: 15, marginTop: 5 },
   dragHandle: { width: 40, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1 },
   dragHandleSpacer: { width: 10 },
+  removeButton: { width: 34, alignItems: 'center', justifyContent: 'center' },
   dragDots: { width: 14, height: 22, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'space-between' },
   dragDot: { width: 4, height: 4, borderRadius: 2, marginHorizontal: 1, marginVertical: 1.5 },
   emptyDayWrap: { minHeight: 52, justifyContent: 'center' },
@@ -996,4 +1186,27 @@ const styles = StyleSheet.create({
   shareFootnote: { fontFamily: fontFamilies.regular, fontSize: 10, lineHeight: 15, marginTop: 7 },
   sheetCloseButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   sheetCloseText: { fontFamily: fontFamilies.bold, fontSize: 11, lineHeight: 15, letterSpacing: 0.8 },
+  addSessionSection: { marginTop: 22, marginBottom: 6 },
+  addSessionButton: { minHeight: 50, borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 16 },
+  addSessionButtonText: { fontFamily: fontFamilies.bold, fontSize: 12, lineHeight: 16, letterSpacing: 0.8 },
+  addSessionHint: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 7 },
+  disabledRow: { opacity: 0.46 },
+  addDayList: { gap: 8, marginTop: 2 },
+  addDayRow: { minHeight: 62, borderWidth: 1, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  addDayDate: { width: 43, alignItems: 'center' },
+  addDayName: { fontFamily: fontFamilies.bold, fontSize: 9, lineHeight: 12, letterSpacing: 0.8 },
+  addDayNumber: { fontFamily: fontFamilies.bold, fontSize: 17, lineHeight: 21, marginTop: 1 },
+  addDayCopy: { flex: 1 },
+  addDayTitle: { fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 17 },
+  addDaySubtitle: { fontFamily: fontFamilies.regular, fontSize: 10, lineHeight: 15, marginTop: 2 },
+  limitNote: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 10 },
+  removeSheet: { width: '90%', maxWidth: 520, alignSelf: 'center', borderWidth: 1, borderRadius: 22, padding: 20 },
+  removeIconWrap: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  removeTitle: { fontFamily: fontFamilies.display, fontSize: 26, lineHeight: 29, letterSpacing: 0.6 },
+  removeText: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, marginTop: 7 },
+  removeActions: { flexDirection: 'row', gap: 9, marginTop: 18 },
+  removeCancel: { flex: 1, minHeight: 44, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  removeConfirm: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  removeCancelText: { fontFamily: fontFamilies.bold, fontSize: 11, lineHeight: 15, letterSpacing: 0.7 },
+  removeConfirmText: { fontFamily: fontFamilies.bold, fontSize: 11, lineHeight: 15, letterSpacing: 0.7 },
 });
