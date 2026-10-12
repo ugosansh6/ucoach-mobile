@@ -1,5 +1,31 @@
+import { useLocalSearchParams } from 'expo-router';
+
 import PreparationCheckinV4 from '../../src/workout/PreparationCheckinV4';
+import WeekFuturePreparation from '../../src/workout/WeekFuturePreparation';
+
+function firstParam(value) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export default function PreparationScreen() {
+  const params = useLocalSearchParams();
+  const entry = firstParam(params?.entry);
+  const date = firstParam(params?.date);
+  const isFutureWeekPreparation =
+    entry === 'week_assisted' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(String(date ?? '')) &&
+    date > localDateKey();
+
+  if (isFutureWeekPreparation) {
+    return <WeekFuturePreparation />;
+  }
+
   return <PreparationCheckinV4 />;
 }
