@@ -1,1580 +1,909 @@
-import { router, useFocusEffect } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import {
-  useCallback,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
-  ImageBackground,
-  Pressable,
-  SafeAreaView,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
+import { StatusBar } from 'expo-status-bar';
 import {
-  colors,
-  spacing,
-  typography,
-} from '../../src/constants';
-import { getDashboardSnapshot } from '../../src/services/weeklyPlanService';
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from 'expo-router';
 
-const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
-const brandIcon = require('../../assets/branding/ugerod-icon.png');
+import { getWeekReadContract } from '../../src/services/weeklyPlanService';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
+import { fontFamilies } from '../../src/constants/typography';
 
-const DAY_LABELS = [
-  'DIM',
-  'LUN',
-  'MAR',
-  'MER',
-  'JEU',
-  'VEN',
-  'SAM',
+const WEEKDAY_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
+const MONTH_LABELS = [
+  'JANVIER',
+  'FÉVRIER',
+  'MARS',
+  'AVRIL',
+  'MAI',
+  'JUIN',
+  'JUILLET',
+  'AOÛT',
+  'SEPTEMBRE',
+  'OCTOBRE',
+  'NOVEMBRE',
+  'DÉCEMBRE',
 ];
 
-const CALENDAR_DAY_LABELS = [
-  'L',
-  'M',
-  'M',
-  'J',
-  'V',
-  'S',
-  'D',
-];
+const HUMAN_LABELS = {
+  push_vertical: 'Poussée verticale',
+  'push vertical': 'Poussée verticale',
+  pull_vertical: 'Tirage vertical',
+  'pull vertical': 'Tirage vertical',
+  push_horizontal: 'Poussée horizontale',
+  'push horizontal': 'Poussée horizontale',
+  pull_horizontal: 'Tirage horizontal',
+  'pull horizontal': 'Tirage horizontal',
+  strength: 'Force',
+  force: 'Force',
+  conditioning: 'Conditioning',
+  cardio: 'Cardio',
+  skill: 'Technique',
+  technique: 'Technique',
+  mobility: 'Mobilité',
+  mobilite: 'Mobilité',
+  hypertrophy: 'Hypertrophie',
+  hypertrophie: 'Hypertrophie',
+  recovery: 'Récupération',
+  recuperation: 'Récupération',
+  week_balance: 'Équilibre de la semaine',
+  lower_body: 'Bas du corps',
+  upper_body: 'Haut du corps',
+  full_body: 'Full body',
+  legs: 'Jambes',
+  jambes: 'Jambes',
+  back: 'Dos',
+  dos: 'Dos',
+  shoulders: 'Épaules',
+  epaules: 'Épaules',
+  chest: 'Pectoraux',
+  pecs: 'Pectoraux',
+  core: 'Tronc',
+};
 
-function formatDateKey(date) {
+function parseDateKey(key) {
+  if (!key) return null;
+  const parts = String(key).split('-').map(Number);
+  if (parts.length !== 3 || parts.some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+
+  return new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+}
+
+function toLocalDateKey(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
-function parseDateKey(dateKey) {
-  const [year, month, day] = String(dateKey ?? '')
-    .split('-')
-    .map(Number);
-
-  if (!year || !month || !day) {
-    return null;
-  }
-
-  const date = new Date(year, month - 1, day);
-  date.setHours(0, 0, 0, 0);
-  return date;
+function startOfMonday(date = new Date()) {
+  const copy = new Date(date);
+  copy.setHours(12, 0, 0, 0);
+  const day = copy.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  copy.setDate(copy.getDate() + offset);
+  return copy;
 }
 
-function getMonday(date) {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-
-  const day = result.getDay();
-  const difference = day === 0 ? 6 : day - 1;
-  result.setDate(result.getDate() - difference);
-
-  return result;
-}
-
-function createFallbackWeek() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const monday = getMonday(today);
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + index);
-    date.setHours(0, 0, 0, 0);
-
+function buildWeekDays(weekStart) {
+  const start = parseDateKey(weekStart) ?? startOfMonday();
+  return WEEKDAY_LABELS.map((label, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
     return {
-      key: formatDateKey(date),
-      day: DAY_LABELS[date.getDay()],
-      number: String(date.getDate()).padStart(2, '0'),
-      completed: false,
-      sessionId: null,
-      today: formatDateKey(date) === formatDateKey(today),
+      label,
       date,
+      key: toLocalDateKey(date),
     };
   });
 }
 
-function createWeek(weekDays) {
-  if (!Array.isArray(weekDays) || weekDays.length !== 7) {
-    return createFallbackWeek();
+function formatWeekRange(weekStart, weekEnd) {
+  const start = parseDateKey(weekStart);
+  const end = parseDateKey(weekEnd);
+  if (!start || !end) return 'CETTE SEMAINE';
+
+  if (start.getMonth() === end.getMonth()) {
+    return `${start.getDate()}–${end.getDate()} ${MONTH_LABELS[end.getMonth()]}`;
   }
 
-  const todayKey = formatDateKey(new Date());
-
-  return weekDays.map((item) => {
-    const date = parseDateKey(item?.date);
-
-    return {
-      key: item?.date ?? String(Math.random()),
-      day: date ? DAY_LABELS[date.getDay()] : '',
-      number: date
-        ? String(date.getDate()).padStart(2, '0')
-        : '--',
-      completed: Boolean(item?.completed),
-      sessionId: item?.session_id ?? null,
-      today: item?.date === todayKey,
-      date,
-    };
-  });
+  return `${start.getDate()} ${MONTH_LABELS[start.getMonth()]} – ${end.getDate()} ${MONTH_LABELS[end.getMonth()]}`;
 }
 
-function getWeekMonthLabel(week) {
-  if (!week.length || !week[0]?.date || !week[6]?.date) {
-    return '';
-  }
-
-  const firstDay = week[0].date;
-  const lastDay = week[6].date;
-
-  const firstMonth = firstDay.toLocaleDateString('fr-FR', {
-    month: 'long',
-  });
-
-  const lastMonth = lastDay.toLocaleDateString('fr-FR', {
-    month: 'long',
-  });
-
-  const year = lastDay.getFullYear();
-
-  if (firstMonth === lastMonth) {
-    return `${firstMonth} ${year}`.toUpperCase();
-  }
-
-  return `${firstMonth} — ${lastMonth} ${year}`.toUpperCase();
-}
-
-function getMonthLabel(date) {
-  return date
-    .toLocaleDateString('fr-FR', {
-      month: 'long',
-      year: 'numeric',
-    })
-    .toUpperCase();
-}
-
-function createMonthCalendar(displayedMonth, monthSessions) {
-  const year = displayedMonth.getFullYear();
-  const month = displayedMonth.getMonth();
-
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-
-  const firstDayIndex =
-    firstDay.getDay() === 0
-      ? 6
-      : firstDay.getDay() - 1;
-
-  const sessionMap = new Map(
-    (Array.isArray(monthSessions) ? monthSessions : [])
-      .filter((item) => item?.date)
-      .map((item) => [item.date, item])
-  );
-
-  const cells = [];
-
-  for (let i = 0; i < firstDayIndex; i += 1) {
-    cells.push({
-      type: 'empty',
-      key: `empty-start-${i}`,
-    });
-  }
-
-  for (let day = 1; day <= lastDay.getDate(); day += 1) {
-    const date = new Date(year, month, day);
-    date.setHours(0, 0, 0, 0);
-
-    const dateKey = formatDateKey(date);
-    const session = sessionMap.get(dateKey);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    cells.push({
-      type: 'day',
-      key: dateKey,
-      day,
-      date,
-      dateKey,
-      today: date.getTime() === today.getTime(),
-      completed: Boolean(session),
-      sessionId: session?.session_id ?? null,
-    });
-  }
-
-  while (cells.length % 7 !== 0) {
-    cells.push({
-      type: 'empty',
-      key: `empty-end-${cells.length}`,
-    });
-  }
-
-  return cells;
-}
-
-function formatHistoryDate(dateKey) {
-  const date = parseDateKey(dateKey);
-  if (!date) return 'SÉANCE';
-
-  return date
-    .toLocaleDateString('fr-FR', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-    })
-    .replace(/\./g, '')
-    .toUpperCase();
-}
-
-function formatHistoryTitle(region) {
-  switch (region) {
-    case 'Upper':
-      return 'UPPER BODY';
-    case 'Lower':
-      return 'LOWER BODY';
-    case 'Core':
-      return 'CORE';
-    default:
-      return 'FULL BODY';
-  }
-}
-
-function formatMechanic(value) {
-  return String(value ?? 'CIRCUIT')
-    .replace(/_/g, ' ')
-    .toUpperCase();
-}
-
-function normalizeHistory(sessions) {
-  return (Array.isArray(sessions) ? sessions : [])
-    .slice(0, 3)
-    .map((session) => ({
-      id: session.session_id,
-      day: formatHistoryDate(session.date),
-      title: formatHistoryTitle(session.target_region),
-      format: formatMechanic(session.mechanic),
-      duration: `${session.duration_minutes ?? 45} MIN`,
-    }));
-}
-
-export default function PlanningScreen() {
-  const [snapshot, setSnapshot] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [displayedMonth, setDisplayedMonth] = useState(new Date());
-
-  const loadPlanning = useCallback(async () => {
-    try {
-      setLoadError(null);
-      const data = await getDashboardSnapshot({
-        monthDate: displayedMonth,
-      });
-      setSnapshot(data);
-    } catch (error) {
-      console.warn('Planning E snapshot', error);
-      setLoadError(
-        error instanceof Error
-          ? error.message
-          : 'Impossible de charger le planning.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [displayedMonth]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadPlanning();
-    }, [loadPlanning])
-  );
-
-  const week = createWeek(snapshot?.weekDays);
-  const weekMonthLabel = getWeekMonthLabel(week);
-
-  const monthCells = useMemo(
-    () =>
-      createMonthCalendar(
-        displayedMonth,
-        snapshot?.monthSessions
-      ),
-    [displayedMonth, snapshot?.monthSessions]
-  );
-
-  const history = useMemo(
-    () => normalizeHistory(snapshot?.recentSessions),
-    [snapshot?.recentSessions]
-  );
-
-  const completedSessions = snapshot?.completedThisWeek ?? 0;
-  const weeklyTarget = snapshot?.weeklyTarget ?? 0;
-  const goalReached =
-    weeklyTarget > 0 && completedSessions >= weeklyTarget;
-  const remainingSessions = Math.max(
-    0,
-    weeklyTarget - completedSessions
-  );
-
-  function handleProfile() {
-    router.push('/profile');
-  }
-
-  function handlePrepareWorkout() {
-    router.push('/workout/preparation');
-  }
-
-  function handleCompletedDay(item) {
-    if (!item.completed || !item.sessionId) {
-      return;
-    }
-
-    router.push(`/workout/${item.sessionId}`);
-  }
-
-  function handleHistoryPress(session) {
-    if (!session?.id) return;
-    router.push(`/workout/${session.id}`);
-  }
-
-  function handleCalendarDayPress(item) {
-    if (
-      item.type !== 'day' ||
-      !item.completed ||
-      !item.sessionId
-    ) {
-      return;
-    }
-
-    router.push(`/workout/${item.sessionId}`);
-  }
-
-  function goPreviousMonth() {
-    setDisplayedMonth((current) =>
-      new Date(
-        current.getFullYear(),
-        current.getMonth() - 1,
-        1
-      )
-    );
-  }
-
-  function goNextMonth() {
-    setDisplayedMonth((current) =>
-      new Date(
-        current.getFullYear(),
-        current.getMonth() + 1,
-        1
-      )
-    );
-  }
-
-  function goToday() {
-    setDisplayedMonth(new Date());
-  }
-
-  if (loading && !snapshot) {
-    return (
-      <View style={styles.screen}>
-        <ImageBackground
-          source={backgroundImage}
-          resizeMode="cover"
-          style={styles.background}
-        >
-          <View style={styles.darkOverlay} />
-          <LinearGradient
-            colors={[
-              'rgba(7,9,12,0.45)',
-              'rgba(7,9,12,0.96)',
-            ]}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.loadingState}>
-            <ActivityIndicator
-              size="small"
-              color={colors.primaryLight}
-            />
-          </View>
-        </ImageBackground>
-      </View>
-    );
-  }
-
-  if (loadError && !snapshot) {
-    return (
-      <View style={styles.screen}>
-        <ImageBackground
-          source={backgroundImage}
-          resizeMode="cover"
-          style={styles.background}
-        >
-          <View style={styles.darkOverlay} />
-          <LinearGradient
-            colors={[
-              'rgba(7,9,12,0.45)',
-              'rgba(7,9,12,0.96)',
-            ]}
-            style={StyleSheet.absoluteFill}
-          />
-          <SafeAreaView style={styles.safeArea}>
-            <View style={styles.errorState}>
-              <Ionicons
-                name="cloud-offline-outline"
-                size={28}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.errorTitle}>
-                SYNCHRONISATION IMPOSSIBLE
-              </Text>
-              <Pressable
-                onPress={loadPlanning}
-                style={styles.retryButton}
-              >
-                <Text style={styles.retryButtonText}>
-                  RÉESSAYER
-                </Text>
-              </Pressable>
-            </View>
-          </SafeAreaView>
-        </ImageBackground>
-      </View>
-    );
-  }
+function getPriorityKey(priority) {
+  if (!priority) return null;
+  if (typeof priority === 'string') return priority;
+  if (typeof priority !== 'object') return null;
 
   return (
-    <View style={styles.screen}>
-      <ImageBackground
-        source={backgroundImage}
-        resizeMode="cover"
-        style={styles.background}
-      >
-        <View style={styles.darkOverlay} />
+    priority.key ??
+    priority.priority_key ??
+    priority.name ??
+    priority.code ??
+    priority.focus ??
+    null
+  );
+}
 
-        <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.34)',
-            'rgba(7,9,12,0.52)',
-            'rgba(7,9,12,0.82)',
-            'rgba(7,9,12,0.98)',
-          ]}
-          locations={[0, 0.22, 0.58, 1]}
-          style={StyleSheet.absoluteFill}
-        />
+function humanize(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const normalized = raw
+    .toLowerCase()
+    .replace(/[àâä]/g, 'a')
+    .replace(/[éèêë]/g, 'e')
+    .replace(/[îï]/g, 'i')
+    .replace(/[ôö]/g, 'o')
+    .replace(/[ùûü]/g, 'u')
+    .replace(/[-]+/g, '_')
+    .replace(/\s+/g, ' ');
 
-        <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.48)',
-            'rgba(7,9,12,0.05)',
-            'rgba(7,9,12,0.28)',
-          ]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={StyleSheet.absoluteFill}
-        />
+  if (HUMAN_LABELS[normalized]) return HUMAN_LABELS[normalized];
+  if (HUMAN_LABELS[normalized.replace(/ /g, '_')]) {
+    return HUMAN_LABELS[normalized.replace(/ /g, '_')];
+  }
 
-        <SafeAreaView style={styles.safeArea}>
-          <ScrollView
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.header}>
-              <Pressable
-                onPress={handleProfile}
-                style={({ pressed }) => [
-                  styles.profileButton,
-                  pressed && styles.pressed,
+  const cleaned = raw.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+}
+
+function getItemTitle(item) {
+  const summary = item?.sessionSummary ?? null;
+  const focus = humanize(summary?.focus);
+  const region = humanize(summary?.targetRegion);
+
+  if (focus && region && focus.toLowerCase() !== region.toLowerCase()) {
+    return `${focus} · ${region}`;
+  }
+  if (focus) return focus;
+  if (region) return region;
+
+  const priority = humanize(getPriorityKey(item?.coachProjection?.priority));
+  if (priority) return priority;
+
+  return 'Séance à préciser';
+}
+
+function getSourceLabel(code) {
+  switch (code) {
+    case 'ASSISTED_USER_SESSION':
+      return 'COMPOSÉE AVEC UGEROD';
+    case 'FREE_USER_SESSION':
+      return 'TA SÉANCE';
+    case 'SAVED_TEMPLATE_REUSE':
+      return 'MES SÉANCES';
+    case 'STRUCTURED_PROGRAM':
+      return 'PROGRAMME';
+    case 'EXTERNAL_ACTIVITY':
+      return 'ACTIVITÉ';
+    case 'UGEROD_GENERATED_SESSION':
+      return 'UGEROD';
+    default:
+      return null;
+  }
+}
+
+function getEnvironmentLabel(code) {
+  if (!code) return null;
+  const normalized = String(code).trim().toLowerCase();
+  const labels = {
+    home: 'Maison',
+    maison: 'Maison',
+    box: 'Box',
+    gym: 'Salle',
+    salle: 'Salle',
+    outdoor: 'Extérieur',
+    exterieur: 'Extérieur',
+    extérieur: 'Extérieur',
+  };
+  return labels[normalized] ?? humanize(code);
+}
+
+function getStateLabel(state) {
+  switch (state) {
+    case 'PRETE':
+      return 'PRÊTE';
+    case 'ACTIVE':
+      return 'EN COURS';
+    case 'REALISEE':
+      return 'RÉALISÉE';
+    default:
+      return 'PRÉVUE';
+  }
+}
+
+function getStateDescription(state) {
+  switch (state) {
+    case 'PRETE':
+      return 'Le contenu est prêt. UGEROD vérifiera simplement le contexte le jour J.';
+    case 'ACTIVE':
+      return 'Séance en cours.';
+    case 'REALISEE':
+      return 'Séance réalisée et prise en compte pour la suite.';
+    default:
+      return 'Le contenu précis s’ajustera lorsque tu prépareras cette séance.';
+  }
+}
+
+function getStateTone(state, palette) {
+  switch (state) {
+    case 'ACTIVE':
+      return palette.orange;
+    case 'PRETE':
+    case 'REALISEE':
+      return palette.accent;
+    default:
+      return palette.textMuted;
+  }
+}
+
+function buildMeta(item) {
+  const duration =
+    item?.plannedContext?.durationMinutes ?? item?.sessionSummary?.durationMinutes;
+  const environment =
+    item?.plannedContext?.environmentCode ??
+    item?.sessionSummary?.plannedEnvironmentCode;
+
+  const parts = [];
+  if (Number.isFinite(duration) && duration > 0) parts.push(`${duration} min`);
+  const environmentLabel = getEnvironmentLabel(environment);
+  if (environmentLabel) parts.push(environmentLabel);
+  return parts;
+}
+
+function getItemDateLabel(dateKey) {
+  const date = parseDateKey(dateKey);
+  if (!date) return 'À VENIR';
+  const jsDay = date.getDay();
+  const weekdayIndex = jsDay === 0 ? 6 : jsDay - 1;
+  return `${WEEKDAY_LABELS[weekdayIndex]} ${date.getDate()}`;
+}
+
+function WeekIndex({ days, items, palette }) {
+  const todayKey = toLocalDateKey(new Date());
+  const statesByDate = useMemo(() => {
+    const map = new Map();
+    for (const item of items) {
+      if (!item?.recommendedDate) continue;
+      const previous = map.get(item.recommendedDate);
+      if (item.displayState === 'ACTIVE') {
+        map.set(item.recommendedDate, 'ACTIVE');
+      } else if (!previous || previous === 'PREVUE') {
+        map.set(item.recommendedDate, item.displayState ?? 'PREVUE');
+      }
+    }
+    return map;
+  }, [items]);
+
+  return (
+    <View style={styles.weekIndex}>
+      {days.map((day) => {
+        const state = statesByDate.get(day.key);
+        const isToday = day.key === todayKey;
+        const markerColor = state ? getStateTone(state, palette) : null;
+
+        return (
+          <View key={day.key} style={styles.weekDayCell}>
+            <Text style={[styles.weekDayName, { color: palette.textMuted }]}>
+              {day.label}
+            </Text>
+            <View
+              style={[
+                styles.weekDayNumberWrap,
+                isToday && {
+                  backgroundColor: palette.accent,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.weekDayNumber,
+                  { color: isToday ? palette.onAccent : palette.text },
                 ]}
               >
-                <Ionicons
-                  name="person-outline"
-                  size={21}
-                  color={colors.textPrimary}
-                />
-              </Pressable>
-
-              <View style={styles.headerText}>
-                <Text style={styles.headerEyebrow}>
-                  TON RYTHME
-                </Text>
-
-                <Text style={styles.headerTitle}>
-                  PLANNING
-                  <Text style={styles.blueDot}>.</Text>
-                </Text>
-              </View>
-
-              <Image
-                source={brandIcon}
-                style={styles.brandIcon}
-                resizeMode="contain"
-              />
-            </View>
-
-            <View style={styles.goalCard}>
-              <View style={styles.goalLeft}>
-                <Text style={styles.goalEyebrow}>
-                  OBJECTIF DE LA SEMAINE
-                </Text>
-
-                <View style={styles.goalScore}>
-                  <Text
-                    style={[
-                      styles.goalCurrent,
-                      {
-                        color: goalReached
-                          ? colors.primaryLight
-                          : colors.brandRed,
-                      },
-                    ]}
-                  >
-                    {completedSessions}
-                  </Text>
-
-                  <Text style={styles.goalDivider}>/</Text>
-
-                  <Text style={styles.goalTarget}>
-                    {weeklyTarget}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.goalRight}>
-                <View style={styles.goalIcon}>
-                  <Ionicons
-                    name={
-                      goalReached
-                        ? 'checkmark'
-                        : 'fitness-outline'
-                    }
-                    size={21}
-                    color={
-                      goalReached
-                        ? colors.primaryLight
-                        : colors.textPrimary
-                    }
-                  />
-                </View>
-
-                <Text style={styles.goalMessage}>
-                  {goalReached
-                    ? 'OBJECTIF ATTEINT'
-                    : `${remainingSessions} ${
-                        remainingSessions === 1
-                          ? 'SÉANCE'
-                          : 'SÉANCES'
-                      } À TON RYTHME`}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.calendarTitleRow}>
-                <View>
-                  <Text style={styles.sectionTitle}>
-                    CETTE SEMAINE
-                  </Text>
-
-                  <Text style={styles.monthLabel}>
-                    {weekMonthLabel}
-                  </Text>
-                </View>
-
-                <Pressable
-                  onPress={() =>
-                    setCalendarOpen((current) => !current)
-                  }
-                  style={({ pressed }) => [
-                    styles.calendarButton,
-                    calendarOpen && styles.calendarButtonActive,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Ionicons
-                    name={calendarOpen ? 'close' : 'calendar-outline'}
-                    size={21}
-                    color={
-                      calendarOpen
-                        ? colors.primaryLight
-                        : colors.textSecondary
-                    }
-                  />
-                </Pressable>
-              </View>
-
-              <View style={styles.weekCard}>
-                {week.map((item) => (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => handleCompletedDay(item)}
-                    style={[
-                      styles.dayItem,
-                      item.today && styles.dayItemToday,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.dayLabel,
-                        item.today && styles.dayLabelToday,
-                      ]}
-                    >
-                      {item.day}
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.dayCircle,
-                        item.completed && styles.dayCircleCompleted,
-                        item.today &&
-                          !item.completed &&
-                          styles.dayCircleToday,
-                      ]}
-                    >
-                      {item.completed ? (
-                        <Ionicons
-                          name="checkmark"
-                          size={18}
-                          color={colors.brandWhite}
-                        />
-                      ) : (
-                        <Text
-                          style={[
-                            styles.dayNumber,
-                            item.today && styles.dayNumberToday,
-                          ]}
-                        >
-                          {item.number}
-                        </Text>
-                      )}
-                    </View>
-
-                    {item.today && <View style={styles.todayDot} />}
-                  </Pressable>
-                ))}
-              </View>
-
-              {calendarOpen && (
-                <View style={styles.fullCalendar}>
-                  <View style={styles.fullCalendarHeader}>
-                    <Pressable
-                      onPress={goPreviousMonth}
-                      hitSlop={10}
-                      style={({ pressed }) => [
-                        styles.monthNavigationButton,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Ionicons
-                        name="chevron-back"
-                        size={21}
-                        color={colors.textPrimary}
-                      />
-                    </Pressable>
-
-                    <Pressable
-                      onPress={goToday}
-                      style={styles.calendarMonthCenter}
-                    >
-                      <Text style={styles.fullCalendarMonth}>
-                        {getMonthLabel(displayedMonth)}
-                      </Text>
-
-                      <Text style={styles.todayShortcut}>
-                        AUJOURD’HUI
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={goNextMonth}
-                      hitSlop={10}
-                      style={({ pressed }) => [
-                        styles.monthNavigationButton,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Ionicons
-                        name="chevron-forward"
-                        size={21}
-                        color={colors.textPrimary}
-                      />
-                    </Pressable>
-                  </View>
-
-                  <View style={styles.calendarWeekLabels}>
-                    {CALENDAR_DAY_LABELS.map((label, index) => (
-                      <Text
-                        key={`${label}-${index}`}
-                        style={styles.calendarWeekLabel}
-                      >
-                        {label}
-                      </Text>
-                    ))}
-                  </View>
-
-                  <View style={styles.calendarGrid}>
-                    {monthCells.map((item) => {
-                      if (item.type === 'empty') {
-                        return (
-                          <View
-                            key={item.key}
-                            style={styles.calendarCell}
-                          />
-                        );
-                      }
-
-                      return (
-                        <Pressable
-                          key={item.key}
-                          onPress={() => handleCalendarDayPress(item)}
-                          disabled={!item.completed}
-                          style={styles.calendarCell}
-                        >
-                          <View
-                            style={[
-                              styles.calendarDateCircle,
-                              item.today &&
-                                !item.completed &&
-                                styles.calendarDateToday,
-                              item.completed &&
-                                styles.calendarDateCompleted,
-                              item.today &&
-                                item.completed &&
-                                styles.calendarDateCompletedToday,
-                            ]}
-                          >
-                            {item.completed ? (
-                              <Ionicons
-                                name="checkmark"
-                                size={16}
-                                color={colors.brandWhite}
-                              />
-                            ) : (
-                              <Text
-                                style={[
-                                  styles.calendarDateText,
-                                  item.today &&
-                                    styles.calendarDateTextToday,
-                                ]}
-                              >
-                                {item.day}
-                              </Text>
-                            )}
-                          </View>
-
-                          {item.completed && (
-                            <Text style={styles.calendarCompletedNumber}>
-                              {item.day}
-                            </Text>
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  <View style={styles.calendarLegend}>
-                    <View style={styles.legendItem}>
-                      <View style={styles.legendCompleted}>
-                        <Ionicons
-                          name="checkmark"
-                          size={11}
-                          color={colors.brandWhite}
-                        />
-                      </View>
-
-                      <Text style={styles.legendText}>
-                        SÉANCE RÉALISÉE
-                      </Text>
-                    </View>
-
-                    <View style={styles.legendItem}>
-                      <View style={styles.legendToday} />
-
-                      <Text style={styles.legendText}>
-                        AUJOURD’HUI
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.calendarInstruction}>
-                    Appuie sur un jour coché pour revoir la séance réalisée.
-                  </Text>
-                </View>
-              )}
-
-              <Text style={styles.calendarHint}>
-                Les jours sans séance restent libres. UGEROD s’adapte à ton rythme réel.
+                {day.date.getDate()}
               </Text>
             </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                PROCHAINE SÉANCE
-              </Text>
-
-              <View style={styles.nextWorkoutCard}>
-                <View style={styles.nextWorkoutIcon}>
-                  <Ionicons
-                    name="flash-outline"
-                    size={23}
-                    color={colors.primaryLight}
-                  />
-                </View>
-
-                <View style={styles.nextWorkoutText}>
-                  <Text style={styles.nextWorkoutTitle}>
-                    PRÊTE QUAND TU L’ES
-                  </Text>
-
-                  <Text style={styles.nextWorkoutDescription}>
-                    Pas de jour imposé. Lance ta prochaine séance quand ton emploi du temps le permet.
-                  </Text>
-                </View>
-              </View>
-
-              <Pressable
-                onPress={handlePrepareWorkout}
-                style={({ pressed }) => [
-                  styles.prepareButton,
-                  pressed && styles.prepareButtonPressed,
-                ]}
-              >
-                <Text style={styles.prepareButtonText}>
-                  PRÉPARER MA SÉANCE
-                </Text>
-
-                <Ionicons
-                  name="arrow-forward"
-                  size={19}
-                  color={colors.brandWhite}
-                />
-              </Pressable>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.historyHeader}>
-                <Text style={styles.sectionTitle}>
-                  HISTORIQUE
-                </Text>
-
-                <Text style={styles.historyCount}>
-                  {history.length} DERNIÈRES
-                </Text>
-              </View>
-
-              {history.length > 0 ? (
-                <View style={styles.historyList}>
-                  {history.map((session) => (
-                    <Pressable
-                      key={session.id}
-                      onPress={() => handleHistoryPress(session)}
-                      style={({ pressed }) => [
-                        styles.historyCard,
-                        pressed && styles.historyCardPressed,
-                      ]}
-                    >
-                      <View style={styles.historyCheck}>
-                        <Ionicons
-                          name="checkmark"
-                          size={16}
-                          color={colors.brandWhite}
-                        />
-                      </View>
-
-                      <View style={styles.historyMain}>
-                        <Text style={styles.historyDate}>
-                          {session.day}
-                        </Text>
-
-                        <Text style={styles.historyTitle}>
-                          {session.title}
-                        </Text>
-
-                        <View style={styles.historyMeta}>
-                          <Text style={styles.historyMetaText}>
-                            {session.format}
-                          </Text>
-
-                          <View style={styles.metaDot} />
-
-                          <Text style={styles.historyMetaText}>
-                            {session.duration}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <Ionicons
-                        name="chevron-forward"
-                        size={20}
-                        color={colors.textMuted}
-                      />
-                    </Pressable>
-                  ))}
-                </View>
-              ) : (
-                <View style={styles.emptyHistoryCard}>
-                  <Text style={styles.emptyHistoryText}>
-                    Tes séances terminées apparaîtront ici.
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.bottomSpace} />
-          </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+            <View
+              style={[
+                styles.weekMarker,
+                markerColor
+                  ? { backgroundColor: markerColor }
+                  : { backgroundColor: 'transparent' },
+              ]}
+            />
+          </View>
+        );
+      })}
     </View>
   );
 }
 
+function WeekItem({ item, palette, isLast }) {
+  const sourceLabel = getSourceLabel(item?.provenance?.code);
+  const meta = buildMeta(item);
+  const stateTone = getStateTone(item?.displayState, palette);
+
+  return (
+    <View
+      style={[
+        styles.sessionRow,
+        !isLast && { borderBottomColor: palette.border, borderBottomWidth: 1 },
+      ]}
+      accessibilityRole="summary"
+      accessibilityLabel={`${getItemDateLabel(item?.recommendedDate)}, ${getItemTitle(
+        item
+      )}, ${getStateLabel(item?.displayState)}`}
+    >
+      <View style={styles.sessionDateColumn}>
+        <Text style={[styles.sessionDate, { color: palette.text }]}>
+          {getItemDateLabel(item?.recommendedDate)}
+        </Text>
+        {item?.recommendedDate && item?.recommendedDateIsSoft !== false ? (
+          <Text style={[styles.softDateLabel, { color: palette.textMuted }]}>REPÈRE</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.sessionContent}>
+        <View style={styles.sessionTopLine}>
+          <View style={[styles.stateDot, { backgroundColor: stateTone }]} />
+          <Text style={[styles.stateLabel, { color: stateTone }]}>
+            {getStateLabel(item?.displayState)}
+          </Text>
+          {sourceLabel ? (
+            <>
+              <View style={[styles.metaSeparator, { backgroundColor: palette.border }]} />
+              <Text
+                style={[styles.sourceLabel, { color: palette.textMuted }]}
+                numberOfLines={1}
+              >
+                {sourceLabel}
+              </Text>
+            </>
+          ) : null}
+        </View>
+
+        <Text style={[styles.sessionTitle, { color: palette.text }]}>
+          {getItemTitle(item)}
+        </Text>
+
+        {meta.length > 0 ? (
+          <Text style={[styles.sessionMeta, { color: palette.textMuted }]}>
+            {meta.join('  ·  ')}
+          </Text>
+        ) : null}
+
+        <Text style={[styles.sessionDescription, { color: palette.textMuted }]}>
+          {getStateDescription(item?.displayState)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+export default function PlanningScreen() {
+  const { isDark } = useUgerodTheme();
+  const params = useLocalSearchParams();
+  const action = Array.isArray(params?.action) ? params.action[0] : params?.action;
+
+  const [contract, setContract] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const palette = useMemo(
+    () =>
+      isDark
+        ? {
+            bg: '#0A0E0C',
+            surface: '#121712',
+            surfaceRaised: '#1A211B',
+            border: '#273128',
+            text: '#F4F2ED',
+            textMuted: '#B0B9B0',
+            accent: '#87977F',
+            accentSoft: '#313B32',
+            orange: '#FF6B19',
+            onAccent: '#081009',
+          }
+        : {
+            bg: '#F4F2ED',
+            surface: '#FFFFFF',
+            surfaceRaised: '#F8F7F2',
+            border: '#D8D6CF',
+            text: '#151B16',
+            textMuted: '#697169',
+            accent: '#646F5E',
+            accentSoft: '#E6E9E2',
+            orange: '#FF6B19',
+            onAccent: '#FFFFFF',
+          },
+    [isDark]
+  );
+
+  useEffect(() => {
+    if (action === 'new') {
+      router.replace('/workout/builder');
+    }
+  }, [action]);
+
+  const loadWeek = useCallback(async ({ refresh = false } = {}) => {
+    if (action === 'new') return;
+
+    if (refresh) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+
+    try {
+      const result = await getWeekReadContract({ anchorDate: new Date() });
+      setContract(result);
+    } catch (loadError) {
+      console.warn('[MaSemaine] week_read_contract_v1 failed', loadError);
+      setError(loadError);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [action]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWeek();
+    }, [loadWeek])
+  );
+
+  const visibleItems = contract?.visibleItems ?? [];
+  const weekDays = useMemo(
+    () => buildWeekDays(contract?.weekStart),
+    [contract?.weekStart]
+  );
+  const weekRange = useMemo(
+    () => formatWeekRange(contract?.weekStart, contract?.weekEnd),
+    [contract?.weekStart, contract?.weekEnd]
+  );
+
+  if (action === 'new') {
+    return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
+  }
+
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadWeek({ refresh: true })}
+            tintColor={palette.accent}
+          />
+        }
+      >
+        <View style={styles.contentInner}>
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={[styles.eyebrow, { color: palette.accent }]}>COACH</Text>
+              <Text style={[styles.title, { color: palette.text }]}>MA SEMAINE.</Text>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.profileButton,
+                { backgroundColor: palette.surface, borderColor: palette.border },
+              ]}
+              onPress={() => router.push('/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Ouvrir mon profil"
+            >
+              <Ionicons name="person-outline" size={20} color={palette.text} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.intro, { color: palette.textMuted }]}>
+            Ce qu’UGEROD envisage pour tes prochains entraînements. Les jours restent
+            souples.
+          </Text>
+
+          <View style={styles.rangeLine}>
+            <Text style={[styles.rangeLabel, { color: palette.text }]}>{weekRange}</Text>
+            {contract?.completedActualCount > 0 ? (
+              <Text style={[styles.actualLabel, { color: palette.textMuted }]}>
+                {contract.completedActualCount}{' '}
+                {contract.completedActualCount > 1 ? 'séances réalisées' : 'séance réalisée'}
+              </Text>
+            ) : null}
+          </View>
+
+          <WeekIndex days={weekDays} items={visibleItems} palette={palette} />
+
+          {loading && !contract ? (
+            <View style={styles.feedbackBlock}>
+              <ActivityIndicator color={palette.accent} size="small" />
+              <Text style={[styles.feedbackText, { color: palette.textMuted }]}>
+                UGEROD prépare la lecture de ta semaine…
+              </Text>
+            </View>
+          ) : error && !contract ? (
+            <View style={styles.feedbackBlock}>
+              <Text style={[styles.feedbackTitle, { color: palette.text }]}>
+                Impossible de charger la semaine.
+              </Text>
+              <TouchableOpacity
+                style={[styles.retryButton, { borderColor: palette.border }]}
+                onPress={() => loadWeek()}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.retryText, { color: palette.text }]}>RÉESSAYER</Text>
+              </TouchableOpacity>
+            </View>
+          ) : visibleItems.length === 0 ? (
+            <View style={styles.emptyBlock}>
+              <Text style={[styles.emptyTitle, { color: palette.text }]}>RIEN À AFFICHER POUR L’INSTANT.</Text>
+              <Text style={[styles.emptyText, { color: palette.textMuted }]}>
+                UGEROD ajustera la suite au fil de tes entraînements.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.editorialStack}>
+              {visibleItems.map((item, index) => (
+                <WeekItem
+                  key={item.planItemId ?? `${item.sequenceIndex ?? index}-${index}`}
+                  item={item}
+                  palette={palette}
+                  isLast={index === visibleItems.length - 1}
+                />
+              ))}
+            </View>
+          )}
+
+          <View
+            style={[
+              styles.coachNote,
+              { backgroundColor: palette.surface, borderColor: palette.border },
+            ]}
+          >
+            <View style={[styles.coachIcon, { backgroundColor: palette.accentSoft }]}>
+              <Ionicons name="sparkles-outline" size={18} color={palette.accent} />
+            </View>
+            <View style={styles.coachNoteBody}>
+              <Text style={[styles.coachNoteTitle, { color: palette.text }]}>À RETENIR</Text>
+              <Text style={[styles.coachNoteText, { color: palette.textMuted }]}>
+                Les jours sont des repères, pas des obligations. UGEROD réajuste la suite à
+                partir de ce que tu fais réellement.
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.createButton, { borderColor: palette.accent }]}
+            onPress={() => router.push('/workout/builder')}
+            accessibilityRole="button"
+            accessibilityLabel="Créer une séance"
+          >
+            <Ionicons name="add" size={19} color={palette.accent} />
+            <Text style={[styles.createButtonText, { color: palette.accent }]}>CRÉER UNE SÉANCE</Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.readOnlyHint, { color: palette.textMuted }]}>Lecture seule · W11.2</Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-
-  background: {
-    flex: 1,
-  },
-
   safeArea: {
     flex: 1,
   },
-
-  darkOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-  },
-
-  content: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: 8,
-  },
-
-  loadingState: {
+  scroll: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-
-  errorState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    gap: 14,
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 44,
   },
-
-  errorTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 12,
-    letterSpacing: 0.8,
-    color: colors.textSecondary,
+  contentInner: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
   },
-
-  retryButton: {
-    minWidth: 130,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  retryButtonText: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 17,
-    letterSpacing: 1,
-    color: colors.brandWhite,
-  },
-
   header: {
-    minHeight: 74,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 16,
   },
-
+  headerText: {
+    flex: 1,
+  },
+  eyebrow: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 1.8,
+    marginBottom: 3,
+  },
+  title: {
+    fontFamily: fontFamilies.display,
+    fontSize: 38,
+    lineHeight: 41,
+    letterSpacing: 1.4,
+  },
   profileButton: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: 'rgba(17,21,26,0.90)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  headerText: {
-    flex: 1,
+  intro: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 15,
+    lineHeight: 22,
+    maxWidth: 560,
+    marginTop: 10,
   },
-
-  headerEyebrow: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 1,
-    color: colors.textSecondary,
-  },
-
-  headerTitle: {
-    ...typography.display,
-    fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: 1.7,
-    color: colors.textPrimary,
-  },
-
-  blueDot: {
-    color: colors.primary,
-  },
-
-  brandIcon: {
-    width: 46,
-    height: 46,
-  },
-
-  goalCard: {
-    minHeight: 114,
-    marginTop: 8,
-    borderRadius: 18,
-    padding: 16,
-    backgroundColor: 'rgba(17,21,26,0.91)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  goalLeft: {
-    flex: 1,
-  },
-
-  goalEyebrow: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.8,
-    color: colors.textSecondary,
-  },
-
-  goalScore: {
+  rangeLine: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 5,
-  },
-
-  goalCurrent: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 42,
-    lineHeight: 44,
-  },
-
-  goalDivider: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 17,
-    color: colors.textMuted,
-    marginHorizontal: 5,
-  },
-
-  goalTarget: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 30,
-    color: colors.textPrimary,
-  },
-
-  goalRight: {
-    width: 125,
-    alignItems: 'flex-end',
-  },
-
-  goalIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(7,9,12,0.55)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  goalMessage: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.5,
-    color: colors.textSecondary,
-    textAlign: 'right',
-    marginTop: 7,
-  },
-
-  section: {
-    marginTop: 26,
-  },
-
-  sectionTitle: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.7,
-    color: colors.textPrimary,
-  },
-
-  calendarTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    gap: 16,
+    marginTop: 30,
+    marginBottom: 12,
   },
-
-  monthLabel: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 21,
-    lineHeight: 24,
-    letterSpacing: 1.2,
-    color: colors.textSecondary,
-    marginTop: 1,
+  rangeLabel: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 0.8,
   },
-
-  calendarButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  actualLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 12,
+    lineHeight: 17,
   },
-
-  calendarButtonActive: {
-    backgroundColor: 'rgba(8,104,255,0.12)',
-    borderColor: 'rgba(8,104,255,0.35)',
-  },
-
-  weekCard: {
-    minHeight: 94,
-    borderRadius: 17,
-    backgroundColor: 'rgba(17,21,26,0.91)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    paddingHorizontal: 6,
-    paddingVertical: 10,
+  weekIndex: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginHorizontal: -3,
+    marginBottom: 28,
   },
-
-  dayItem: {
+  weekDayCell: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 11,
+    paddingHorizontal: 2,
   },
-
-  dayItemToday: {
-    backgroundColor: 'rgba(255,59,59,0.06)',
+  weekDayName: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
-
-  dayLabel: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.3,
-    color: colors.textMuted,
-  },
-
-  dayLabelToday: {
-    color: colors.brandRed,
-  },
-
-  dayCircle: {
+  weekDayNumberWrap: {
     width: 34,
     height: 34,
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  dayCircleCompleted: {
-    backgroundColor: colors.primary,
+  weekDayNumber: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 14,
+    lineHeight: 18,
   },
-
-  dayCircleToday: {
-    borderWidth: 1.5,
-    borderColor: colors.brandRed,
-  },
-
-  dayNumber: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-
-  dayNumberToday: {
-    color: colors.brandWhite,
-  },
-
-  todayDot: {
+  weekMarker: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.brandRed,
+    marginTop: 7,
   },
-
-  calendarHint: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
+  editorialStack: {
+    width: '100%',
+  },
+  sessionRow: {
+    flexDirection: 'row',
+    paddingVertical: 20,
+  },
+  sessionDateColumn: {
+    width: 74,
+    paddingRight: 14,
+  },
+  sessionDate: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 12,
     lineHeight: 17,
-    color: colors.textMuted,
-    marginTop: 9,
-  },
-
-  fullCalendar: {
-    marginTop: 12,
-    borderRadius: 18,
-    padding: 15,
-    backgroundColor: 'rgba(13,17,22,0.97)',
-    borderWidth: 1,
-    borderColor: 'rgba(8,104,255,0.28)',
-  },
-
-  fullCalendarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 17,
-  },
-
-  monthNavigationButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  calendarMonthCenter: {
-    alignItems: 'center',
-  },
-
-  fullCalendarMonth: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 24,
-    lineHeight: 27,
-    letterSpacing: 1.3,
-    color: colors.textPrimary,
-  },
-
-  todayShortcut: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 8,
-    lineHeight: 12,
-    letterSpacing: 0.7,
-    color: colors.primaryLight,
-    marginTop: 2,
-  },
-
-  calendarWeekLabels: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-
-  calendarWeekLabel: {
-    width: '14.2857%',
-    textAlign: 'center',
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 9,
-    lineHeight: 13,
-    color: colors.textMuted,
-  },
-
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-
-  calendarCell: {
-    width: '14.2857%',
-    minHeight: 54,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  calendarDateCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  calendarDateToday: {
-    borderWidth: 1.5,
-    borderColor: colors.brandRed,
-  },
-
-  calendarDateCompleted: {
-    backgroundColor: colors.primary,
-  },
-
-  calendarDateCompletedToday: {
-    borderWidth: 2,
-    borderColor: colors.brandRed,
-  },
-
-  calendarDateText: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-
-  calendarDateTextToday: {
-    color: colors.brandWhite,
-  },
-
-  calendarCompletedNumber: {
-    fontFamily: 'Oswald_500Medium',
-    fontSize: 8,
-    lineHeight: 10,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-
-  calendarLegend: {
-    marginTop: 16,
-    paddingTop: 13,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-  },
-
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  legendCompleted: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  legendToday: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: colors.brandRed,
-  },
-
-  legendText: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 8,
     letterSpacing: 0.5,
-    color: colors.textMuted,
   },
-
-  calendarInstruction: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 10,
-    lineHeight: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 13,
-  },
-
-  nextWorkoutCard: {
-    marginTop: 10,
-    minHeight: 98,
-    borderRadius: 17,
-    padding: 15,
-    backgroundColor: 'rgba(17,21,26,0.91)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 13,
-  },
-
-  nextWorkoutIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(8,104,255,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(8,104,255,0.30)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  nextWorkoutText: {
-    flex: 1,
-  },
-
-  nextWorkoutTitle: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 22,
-    lineHeight: 25,
-    letterSpacing: 1,
-    color: colors.textPrimary,
-  },
-
-  nextWorkoutDescription: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.textSecondary,
-    marginTop: 3,
-  },
-
-  prepareButton: {
-    minHeight: 52,
-    marginTop: 10,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-  },
-
-  prepareButtonPressed: {
-    backgroundColor: colors.primaryDark,
-    transform: [{ scale: 0.985 }],
-  },
-
-  prepareButtonText: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 19,
-    lineHeight: 22,
-    letterSpacing: 1.1,
-    color: colors.brandWhite,
-  },
-
-  historyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  historyCount: {
-    fontFamily: 'Oswald_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.7,
-    color: colors.textMuted,
-  },
-
-  historyList: {
-    marginTop: 10,
-    gap: 10,
-  },
-
-  historyCard: {
-    minHeight: 90,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(17,21,26,0.91)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  historyCardPressed: {
-    backgroundColor: 'rgba(23,28,34,0.95)',
-    transform: [{ scale: 0.99 }],
-  },
-
-  historyCheck: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  historyMain: {
-    flex: 1,
-  },
-
-  historyDate: {
-    fontFamily: 'Oswald_600SemiBold',
+  softDateLabel: {
+    fontFamily: fontFamilies.semiBold,
     fontSize: 9,
     lineHeight: 13,
-    letterSpacing: 0.7,
-    color: colors.primaryLight,
-  },
-
-  historyTitle: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 21,
-    lineHeight: 24,
-    letterSpacing: 0.9,
-    color: colors.textPrimary,
-    marginTop: 2,
-  },
-
-  historyMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    letterSpacing: 1.1,
     marginTop: 3,
   },
-
-  historyMetaText: {
-    fontFamily: 'Oswald_500Medium',
+  sessionContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sessionTopLine: {
+    minHeight: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 6,
+  },
+  stateDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 7,
+  },
+  stateLabel: {
+    fontFamily: fontFamilies.bold,
     fontSize: 10,
     lineHeight: 14,
-    color: colors.textSecondary,
+    letterSpacing: 1,
   },
-
-  metaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.textMuted,
+  metaSeparator: {
+    width: 1,
+    height: 10,
+    marginHorizontal: 9,
   },
-
-  emptyHistoryCard: {
-    minHeight: 74,
-    marginTop: 10,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(17,21,26,0.91)',
+  sourceLabel: {
+    flexShrink: 1,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 9,
+    lineHeight: 13,
+    letterSpacing: 0.8,
+  },
+  sessionTitle: {
+    fontFamily: fontFamilies.display,
+    fontSize: 27,
+    lineHeight: 30,
+    letterSpacing: 0.7,
+  },
+  sessionMeta: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  sessionDescription: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 7,
+    maxWidth: 520,
+  },
+  feedbackBlock: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 28,
+    gap: 12,
+  },
+  feedbackTitle: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  feedbackText: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  retryButton: {
+    minHeight: 42,
+    paddingHorizontal: 18,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-
-  emptyHistoryText: {
-    fontFamily: 'Oswald_400Regular',
+  retryText: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 12,
+    lineHeight: 17,
+    letterSpacing: 0.7,
+  },
+  emptyBlock: {
+    minHeight: 170,
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  emptyTitle: {
+    fontFamily: fontFamilies.display,
+    fontSize: 25,
+    lineHeight: 29,
+    letterSpacing: 0.7,
+  },
+  emptyText: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 6,
+    maxWidth: 480,
+  },
+  coachNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 28,
+  },
+  coachIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  coachNoteBody: {
+    flex: 1,
+  },
+  coachNoteTitle: {
+    fontFamily: fontFamilies.bold,
     fontSize: 11,
-    lineHeight: 16,
-    color: colors.textMuted,
+    lineHeight: 15,
+    letterSpacing: 1,
+    marginBottom: 4,
   },
-
-  bottomSpace: {
-    height: 34,
+  coachNoteText: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 20,
   },
-
-  pressed: {
+  createButton: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 18,
+  },
+  createButtonText: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 12,
+    lineHeight: 17,
+    letterSpacing: 0.8,
+  },
+  readOnlyHint: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 10,
+    lineHeight: 15,
+    textAlign: 'center',
+    marginTop: 14,
     opacity: 0.65,
   },
 });

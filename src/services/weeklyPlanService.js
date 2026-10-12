@@ -62,6 +62,125 @@ export async function getTrainingConsistency({
   return data ?? {};
 }
 
+export async function getWeekReadContract({
+  anchorDate = new Date(),
+} = {}) {
+  const userId = await getAuthenticatedUserId();
+
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'week_read_contract_v1',
+      {
+        p_user_id: userId,
+        p_anchor_date: getLocalDateKey(anchorDate),
+      }
+    )
+  );
+
+  return normalizeWeekReadContract(data);
+}
+
+function normalizeWeekReadItem(item) {
+  const source = item ?? {};
+  const provenance = source.provenance ?? {};
+  const projection = source.coach_projection ?? {};
+  const plannedContext = source.planned_context ?? {};
+  const sessionSummary = source.session_summary ?? null;
+
+  return {
+    planItemId: source.plan_item_id ?? null,
+    sequenceIndex:
+      source.sequence_index == null
+        ? null
+        : Number(source.sequence_index),
+    recommendedDate: source.recommended_date ?? null,
+    recommendedDateIsSoft:
+      source.recommended_date_is_soft !== false,
+    lifecycleStatus: source.lifecycle_status ?? null,
+    displayState: source.display_state ?? 'PREVUE',
+    surfaceVisibility: source.surface_visibility ?? 'PRIMARY',
+    userDebtCreated: Boolean(source.user_debt_created),
+    sessionId: source.session_id ?? null,
+    sessionStatus: source.session_status ?? null,
+    provenance: {
+      code: provenance.code ?? null,
+      source: provenance.source ?? null,
+    },
+    authority: source.authority ?? {},
+    plannedContext: {
+      durationMinutes:
+        plannedContext.duration_minutes == null
+          ? null
+          : Number(plannedContext.duration_minutes),
+      environmentCode: plannedContext.environment_code ?? null,
+      equipment: Array.isArray(plannedContext.equipment)
+        ? plannedContext.equipment
+        : [],
+    },
+    sessionSummary: sessionSummary
+      ? {
+          status: sessionSummary.status ?? null,
+          durationMinutes:
+            sessionSummary.duration_minutes == null
+              ? null
+              : Number(sessionSummary.duration_minutes),
+          focus: sessionSummary.focus ?? null,
+          targetRegion: sessionSummary.target_region ?? null,
+          progressionIntent: sessionSummary.progression_intent ?? null,
+          plannedEnvironmentCode:
+            sessionSummary.planned_environment_code ?? null,
+          startedAt: sessionSummary.started_at ?? null,
+          completedAt: sessionSummary.completed_at ?? null,
+        }
+      : null,
+    coachProjection: {
+      slotKind: projection.slot_kind ?? null,
+      priority: projection.priority ?? null,
+      projectionCertainty: projection.projection_certainty ?? null,
+      relationshipToItem: projection.relationship_to_item ?? null,
+      appliesToSessionContent:
+        projection.applies_to_session_content === true,
+    },
+  };
+}
+
+function normalizeWeekReadContract(data) {
+  const source = data ?? {};
+  const semantics = source.semantics ?? {};
+  const items = Array.isArray(source.items)
+    ? source.items.map(normalizeWeekReadItem)
+    : [];
+
+  return {
+    contractVersion: source.contract_version ?? null,
+    anchorDate: source.anchor_date ?? null,
+    weekStart: source.week_start ?? null,
+    weekEnd: source.week_end ?? null,
+    weekStatus: source.week_status ?? null,
+    weeklySessionTarget:
+      source.weekly_session_target == null
+        ? null
+        : Number(source.weekly_session_target),
+    completedActualCount: Number(source.completed_actual_count ?? 0),
+    items,
+    visibleItems: items.filter(
+      (item) =>
+        item.surfaceVisibility !== 'CONTEXT_ONLY' &&
+        item.displayState !== 'CLOSED_SILENT'
+    ),
+    semantics: {
+      recommendedDatesAreSoft:
+        semantics.recommended_dates_are_soft !== false,
+      noSessionDebt: semantics.no_session_debt !== false,
+      plannedIsNotActual: semantics.planned_is_not_actual !== false,
+      futureReadinessIsNotAssumed:
+        semantics.future_readiness_is_not_assumed !== false,
+      weeklyTargetIsNotCompletionScore:
+        semantics.weekly_target_is_not_a_completion_score !== false,
+    },
+  };
+}
+
 function normalizeDashboardSnapshot(data) {
   const source = data ?? {};
   const activeSession = source.active_session_today ?? {};
