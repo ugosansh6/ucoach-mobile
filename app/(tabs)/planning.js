@@ -204,59 +204,27 @@ function getObjectKey(item, index = 0) {
 }
 
 function getIntentProfile(item) {
-  const haystack = [
-    getPriorityKey(item?.coachProjection?.priority),
-    item?.sessionSummary?.focus,
-    item?.sessionSummary?.targetRegion,
-    item?.sessionSummary?.progressionIntent,
-  ].filter(Boolean).join(' ').toLowerCase();
+  const presentation = item?.coachProjection?.presentation ?? {};
+  const description = presentation.description
+    ?? 'Ce créneau sera précisé au moment de préparer la séance.';
+  const examples = Array.isArray(presentation.exerciseExamples)
+    ? presentation.exerciseExamples.filter(Boolean)
+    : [];
+  const why = presentation?.why?.text
+    ? {
+        title: presentation.why.title ?? 'Pourquoi ce choix ?',
+        text: presentation.why.text,
+      }
+    : null;
+  const coachAdvice = presentation?.coachAdvice?.text
+    ? presentation.coachAdvice
+    : null;
 
-  if (haystack.includes('pull') || haystack.includes('tirage') || haystack.includes('back')) {
-    return {
-      description: 'UGEROD vise surtout un travail de force de tirage, puis du volume complémentaire pour consolider le haut du corps.',
-      examples: ['Tractions strictes', 'Rowing', 'Tirage horizontal', 'Farmer carry'],
-      tip: 'Si tu peux, garde une kettlebell à portée de main : elle peut ouvrir des options simples pour le travail complémentaire ou le finisher.',
-    };
-  }
-  if (haystack.includes('push') || haystack.includes('pouss')) {
-    return {
-      description: 'UGEROD vise un travail de poussée contrôlé, avec un mouvement principal exigeant puis du volume de renforcement.',
-      examples: ['Push-up tempo', 'Développé strict', 'Dips', 'Pike push-up'],
-      tip: 'Si tu peux, prévois une paire d’haltères ou une kettlebell : cela donnera plus d’options pour ajuster la charge sans compliquer la séance.',
-    };
-  }
-  if (haystack.includes('conditioning') || haystack.includes('cardio') || haystack.includes('engine')) {
-    return {
-      description: 'UGEROD veut développer ton moteur sans sacrifier la qualité de mouvement, avec un effort soutenu mais maîtrisable.',
-      examples: ['Rameur', 'Burpees', 'Goblet squat', 'Farmer carry'],
-      tip: 'Si tu peux, une kettlebell est intéressante ici : elle permet de créer rapidement un conditioning complet avec peu de transitions.',
-    };
-  }
-  if (haystack.includes('lower') || haystack.includes('legs') || haystack.includes('jamb')) {
-    return {
-      description: 'UGEROD vise surtout la force et la capacité de travail du bas du corps, avec un mouvement principal puis du renforcement.',
-      examples: ['Squat', 'Fente arrière', 'Romanian deadlift', 'Step-up'],
-      tip: 'Si tu peux, garde une kettlebell ou des haltères disponibles : ils permettront d’ajuster facilement le niveau de charge.',
-    };
-  }
-  if (haystack.includes('handstand') || haystack.includes('skill') || haystack.includes('technique')) {
-    return {
-      description: 'UGEROD veut prioriser la qualité technique et la répétition propre avant d’ajouter de la fatigue.',
-      examples: ['Handstand hold', 'Wall walk', 'Pike push-up', 'Hollow hold'],
-      tip: 'Prévois surtout un espace dégagé et un mur accessible : la qualité des répétitions comptera plus que le volume.',
-    };
-  }
-  if (haystack.includes('strength') || haystack.includes('force')) {
-    return {
-      description: 'UGEROD vise une exposition de force claire, avec un mouvement principal puis quelques exercices complémentaires bien choisis.',
-      examples: ['Squat', 'Deadlift', 'Strict press', 'Rowing'],
-      tip: 'Si tu peux, une kettlebell ou une paire d’haltères donnera plus de liberté pour ajuster la charge et le volume.',
-    };
-  }
   return {
-    description: 'UGEROD a déjà une direction pour cette journée, mais gardera le choix exact des mouvements pour le moment où tu prépareras la séance.',
-    examples: ['Goblet squat', 'Push-up', 'Rowing', 'Farmer carry'],
-    tip: 'Si tu peux, garde une kettlebell disponible : c’est un matériel polyvalent qui augmente les options sans imposer la structure de la séance.',
+    description,
+    examples,
+    why,
+    coachAdvice,
   };
 }
 
@@ -369,21 +337,33 @@ function IntentDetails({ item, dateKey, palette, onImport }) {
   const profile = getIntentProfile(item);
   const meta = getMeta(item);
   return (
-    <View style={[styles.detailPanel, { borderColor: palette.border }]}>
+    <View style={[styles.detailPanel, { borderColor: palette.border }]}> 
       <Text style={[styles.detailTitle, { color: palette.text }]}>{getShortSummary(item)}</Text>
-      <Text style={[styles.detailBody, { color: palette.textMuted }]}>{profile.description}</Text>
-      <View style={styles.detailSection}>
-        <Text style={[styles.detailLabel, { color: palette.textMuted }]}>EXERCICES QUI POURRAIENT APPARAÎTRE</Text>
-        <Text style={[styles.exercisePreviewLine, { color: palette.text }]}>{profile.examples.join('  ·  ')}</Text>
-      </View>
-      {meta.length > 0 ? <Text style={[styles.detailMeta, { color: palette.textMuted }]}>{meta.join('  ·  ')}</Text> : null}
-      <View style={[styles.coachTip, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}>
-        <Ionicons name="bulb-outline" size={18} color={palette.accent} />
-        <View style={styles.coachTipText}>
-          <Text style={[styles.coachTipTitle, { color: palette.text }]}>CONSEIL DU COACH</Text>
-          <Text style={[styles.coachTipBody, { color: palette.textMuted }]}>{profile.tip}</Text>
+      {profile.description ? (
+        <Text style={[styles.detailBody, { color: palette.textMuted }]}>{profile.description}</Text>
+      ) : null}
+      {profile.why?.text ? (
+        <View style={styles.detailSection}>
+          <Text style={[styles.detailLabel, { color: palette.textMuted }]}>{profile.why.title.toUpperCase()}</Text>
+          <Text style={[styles.explanationText, { color: palette.text }]}>{profile.why.text}</Text>
         </View>
-      </View>
+      ) : null}
+      {profile.examples.length > 0 ? (
+        <View style={styles.detailSection}>
+          <Text style={[styles.detailLabel, { color: palette.textMuted }]}>EXERCICES QUI POURRAIENT APPARAÎTRE</Text>
+          <Text style={[styles.exercisePreviewLine, { color: palette.text }]}>{profile.examples.join('  ·  ')}</Text>
+        </View>
+      ) : null}
+      {meta.length > 0 ? <Text style={[styles.detailMeta, { color: palette.textMuted }]}>{meta.join('  ·  ')}</Text> : null}
+      {profile.coachAdvice?.text ? (
+        <View style={[styles.coachTip, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}> 
+          <Ionicons name="bulb-outline" size={18} color={palette.accent} />
+          <View style={styles.coachTipText}>
+            <Text style={[styles.coachTipTitle, { color: palette.text }]}>CONSEIL DU COACH</Text>
+            <Text style={[styles.coachTipBody, { color: palette.textMuted }]}>{profile.coachAdvice.text}</Text>
+          </View>
+        </View>
+      ) : null}
       <CreationActions dateKey={dateKey} palette={palette} onImport={onImport} />
     </View>
   );
@@ -393,7 +373,7 @@ function SessionDetails({ item, exercises, palette, onOpen, opening }) {
   const meta = getMeta(item);
   const preview = Array.isArray(exercises) ? exercises.slice(0, 6) : [];
   return (
-    <View style={[styles.detailPanel, { borderColor: palette.border }]}>
+    <View style={[styles.detailPanel, { borderColor: palette.border }]}> 
       <Text style={[styles.detailTitle, { color: palette.text }]}>{getShortSummary(item)}</Text>
       {preview.length > 0 ? (
         <View style={styles.detailSection}>
@@ -486,7 +466,7 @@ function EmptyDay({ dateKey, expanded, palette, onToggle, onImport }) {
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={17} color={palette.textMuted} />
       </Pressable>
       {expanded ? (
-        <View style={[styles.emptyActionsPanel, { borderColor: palette.border }]}>
+        <View style={[styles.emptyActionsPanel, { borderColor: palette.border }]}> 
           <CreationActions dateKey={dateKey} palette={palette} onImport={onImport} />
         </View>
       ) : null}
@@ -517,7 +497,7 @@ function DaySection({
         accessibilityRole="button"
       >
         <Text style={[styles.dayName, { color: isToday ? palette.accent : palette.textMuted }]}>{day.label}</Text>
-        <View style={[styles.dayNumberWrap, isToday && { backgroundColor: palette.accent }]}>
+        <View style={[styles.dayNumberWrap, isToday && { backgroundColor: palette.accent }]}> 
           <Text style={[styles.dayNumber, { color: isToday ? palette.onAccent : palette.text }]}>{day.date.getDate()}</Text>
         </View>
       </Pressable>
@@ -575,7 +555,7 @@ function ImportModal({ visible, dateKey, palette, shareValue, onShareValueChange
               router.push({ pathname: '/(tabs)/library', params: { section: 'models', importDate: dateKey ?? '' } });
             }}
           >
-            <View style={[styles.importSourceIcon, { backgroundColor: palette.accentSoft }]}>
+            <View style={[styles.importSourceIcon, { backgroundColor: palette.accentSoft }]}> 
               <Ionicons name="bookmark-outline" size={19} color={palette.accent} />
             </View>
             <View style={styles.importSourceCopy}>
@@ -584,9 +564,9 @@ function ImportModal({ visible, dateKey, palette, shareValue, onShareValueChange
             </View>
             <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
           </TouchableOpacity>
-          <View style={[styles.shareBlock, { borderColor: palette.border }]}>
+          <View style={[styles.shareBlock, { borderColor: palette.border }]}> 
             <View style={styles.shareHeader}>
-              <View style={[styles.importSourceIcon, { backgroundColor: palette.accentSoft }]}>
+              <View style={[styles.importSourceIcon, { backgroundColor: palette.accentSoft }]}> 
                 <Ionicons name="link-outline" size={19} color={palette.accent} />
               </View>
               <View style={styles.importSourceCopy}>
@@ -672,7 +652,7 @@ export default function PlanningScreen() {
         setExercisePreviews({});
       }
     } catch (loadError) {
-      console.warn('[MaSemaine] week_read_contract_v1 failed', loadError);
+      console.warn('[MaSemaine] week_read_contract_v2 failed', loadError);
       setError(loadError);
     } finally {
       setLoading(false);
@@ -806,7 +786,7 @@ export default function PlanningScreen() {
   if (action === 'new') return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}> 
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <ScrollView
         style={styles.scroll}
@@ -833,7 +813,7 @@ export default function PlanningScreen() {
           <View style={styles.rangeLine}>
             <Text style={[styles.rangeLabel, { color: palette.text }]}>{weekRange}</Text>
             {contract?.completedActualCount > 0 ? (
-              <Text style={[styles.actualLabel, { color: palette.textMuted }]}>
+              <Text style={[styles.actualLabel, { color: palette.textMuted }]}> 
                 {contract.completedActualCount} {contract.completedActualCount > 1 ? 'séances réalisées' : 'séance réalisée'}
               </Text>
             ) : null}
@@ -891,10 +871,10 @@ export default function PlanningScreen() {
         <View pointerEvents="none" style={[
           styles.dragGhost,
           { top: Math.max(72, Number(dragY ?? 120) - 38), backgroundColor: palette.surfaceRaised, borderColor: palette.accent },
-        ]}>
+        ]}> 
           <View style={styles.dragGhostCopy}>
             <Text style={[styles.dragGhostTitle, { color: palette.text }]} numberOfLines={1}>{getShortSummary(draggingItem)}</Text>
-            <Text style={[styles.dragGhostMeta, { color: palette.textMuted }]}>
+            <Text style={[styles.dragGhostMeta, { color: palette.textMuted }]}> 
               {dropTargetDate
                 ? `Déplacer vers ${daysWithItems.find((day) => day.key === dropTargetDate)?.label ?? ''} ${daysWithItems.find((day) => day.key === dropTargetDate)?.date.getDate() ?? ''}`
                 : 'Choisis un jour'}
@@ -958,6 +938,7 @@ const styles = StyleSheet.create({
   detailBody: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, marginTop: 7 },
   detailSection: { marginTop: 15 },
   detailLabel: { fontFamily: fontFamilies.bold, fontSize: 9, lineHeight: 13, letterSpacing: 1.05, marginBottom: 5 },
+  explanationText: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20 },
   exercisePreviewLine: { fontFamily: fontFamilies.semiBold, fontSize: 13, lineHeight: 20 },
   detailMeta: { fontFamily: fontFamilies.semiBold, fontSize: 11, lineHeight: 16, marginTop: 13 },
   coachTip: { marginTop: 14, borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
