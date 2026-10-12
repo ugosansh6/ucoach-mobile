@@ -1,0 +1,47 @@
+name: Apply W11 add/remove week sessions
+
+on:
+  push:
+    paths:
+      - '.github/player-patches/run-w11-add-remove-week-sessions.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply W11 add/remove patch
+        run: |
+          node .github/player-patches/apply-w11-add-remove-week-sessions.mjs
+          sed -i "s/width: 'calc(100% - 40px)'/width: '90%'/" 'app/(tabs)/planning.js'
+      - name: Verify and export web
+        run: |
+          grep -q "AJOUTER UNE SÉANCE" 'app/(tabs)/planning.js'
+          grep -q "trash-outline" 'app/(tabs)/planning.js'
+          grep -q "removeWeekPlanItem" 'src/services/weeklyPlanService.js'
+          npx expo export --platform web
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 'app/(tabs)/planning.js' 'src/services/weeklyPlanService.js'
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "feat(week): add extra-session CTA and removable plan items"
+            git push origin ux-navigation-coach-v1
+          fi
