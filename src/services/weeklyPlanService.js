@@ -137,15 +137,36 @@ export async function updateWeekPlanItemContext({
     )
   );
 
-  const source = data ?? {};
-  const futureContext = source.future_context ?? {};
+  return normalizeWeekContextMutation(data);
+}
+
+export async function createAssistedWeekPlanItem({
+  recommendedDate,
+  context = {},
+} = {}) {
+  const dateKey = normalizeWeekDateInput(recommendedDate, 'recommendedDate');
+  const userId = await getAuthenticatedUserId();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'week_create_assisted_plan_item_v1',
+      {
+        p_user_id: userId,
+        p_recommended_date: dateKey,
+        p_context: context ?? {},
+      }
+    )
+  );
+
   return {
-    contractVersion: source.contract_version ?? null,
-    planItemId: source.plan_item_id ?? null,
-    recommendedDate: source.recommended_date ?? null,
-    futureContext: normalizeFutureContext(futureContext),
-    semantics: source.semantics ?? {},
-    raw: source,
+    ...normalizeWeekContextMutation(data),
+    created: Boolean(data?.created),
+    sequenceIndex:
+      data?.sequence_index == null
+        ? null
+        : Number(data.sequence_index),
+    weekStart: data?.week_start ?? null,
+    weekEnd: data?.week_end ?? null,
+    provenance: data?.provenance ?? null,
   };
 }
 
@@ -164,6 +185,18 @@ function normalizeFutureContext(context) {
     targetRegion: source.target_region ?? null,
     source: source.source ?? null,
     updatedAt: source.updated_at ?? null,
+  };
+}
+
+function normalizeWeekContextMutation(data) {
+  const source = data ?? {};
+  return {
+    contractVersion: source.contract_version ?? null,
+    planItemId: source.plan_item_id ?? null,
+    recommendedDate: source.recommended_date ?? null,
+    futureContext: normalizeFutureContext(source.future_context),
+    semantics: source.semantics ?? {},
+    raw: source,
   };
 }
 
