@@ -81,7 +81,7 @@ export async function getWeekReadContract({
 
   const data = await runSupabaseRequestWithAuthRetry(() =>
     supabase.rpc(
-      'week_read_contract_v1',
+      'week_read_contract_v2',
       {
         p_user_id: userId,
         p_anchor_date: getLocalDateKey(anchorDate),
@@ -115,6 +115,37 @@ export async function moveWeekPlanItem({
   );
 
   return normalizeWeekMoveResult(data);
+}
+
+function normalizeWeekPresentation(presentation) {
+  const source = presentation ?? {};
+  const why = source.why ?? null;
+  const coachAdvice = source.coach_advice ?? null;
+
+  return {
+    version: source.version ?? null,
+    description: source.description ?? null,
+    why: why
+      ? {
+          title: why.title ?? 'Pourquoi ce choix ?',
+          text: why.text ?? null,
+        }
+      : null,
+    coachAdvice: coachAdvice
+      ? {
+          type: coachAdvice.type ?? null,
+          text: coachAdvice.text ?? null,
+          evidenceReasonCodes: Array.isArray(coachAdvice.evidence_reason_codes)
+            ? coachAdvice.evidence_reason_codes
+            : [],
+        }
+      : null,
+    exerciseExamples: Array.isArray(source.exercise_examples)
+      ? source.exercise_examples
+      : [],
+    evidence: source.evidence ?? {},
+    semantics: source.semantics ?? {},
+  };
 }
 
 function normalizeWeekReadItem(item) {
@@ -177,6 +208,7 @@ function normalizeWeekReadItem(item) {
       relationshipToItem: projection.relationship_to_item ?? null,
       appliesToSessionContent:
         projection.applies_to_session_content === true,
+      presentation: normalizeWeekPresentation(projection.presentation),
     },
   };
 }
@@ -214,6 +246,14 @@ function normalizeWeekReadContract(data) {
         semantics.future_readiness_is_not_assumed !== false,
       weeklyTargetIsNotCompletionScore:
         semantics.weekly_target_is_not_a_completion_score !== false,
+      coachAdviceIsOptional:
+        semantics.coach_advice_is_optional !== false,
+      frontMustNotInventCoachAdvice:
+        semantics.front_must_not_invent_coach_advice !== false,
+      intentPresentationIsEvidenceBound:
+        semantics.intent_presentation_is_evidence_bound !== false,
+      exerciseExamplesRequireRealCandidateData:
+        semantics.exercise_examples_require_real_candidate_data !== false,
     },
   };
 }
