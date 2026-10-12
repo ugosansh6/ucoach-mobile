@@ -117,6 +117,56 @@ export async function moveWeekPlanItem({
   return normalizeWeekMoveResult(data);
 }
 
+export async function updateWeekPlanItemContext({
+  planItemId,
+  context = {},
+} = {}) {
+  if (!planItemId) {
+    throw new Error('planItemId is required to update a week item context.');
+  }
+
+  const userId = await getAuthenticatedUserId();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'week_update_plan_item_context_v1',
+      {
+        p_user_id: userId,
+        p_plan_item_id: planItemId,
+        p_context: context ?? {},
+      }
+    )
+  );
+
+  const source = data ?? {};
+  const futureContext = source.future_context ?? {};
+  return {
+    contractVersion: source.contract_version ?? null,
+    planItemId: source.plan_item_id ?? null,
+    recommendedDate: source.recommended_date ?? null,
+    futureContext: normalizeFutureContext(futureContext),
+    semantics: source.semantics ?? {},
+    raw: source,
+  };
+}
+
+function normalizeFutureContext(context) {
+  const source = context ?? {};
+  return {
+    version: source.version ?? null,
+    durationMinutes:
+      source.duration_minutes == null
+        ? null
+        : Number(source.duration_minutes),
+    environmentCode: source.environment_code ?? null,
+    equipment: Array.isArray(source.equipment) ? source.equipment : [],
+    surfaceCode: source.surface_code ?? null,
+    outdoorPlaceCode: source.outdoor_place_code ?? null,
+    targetRegion: source.target_region ?? null,
+    source: source.source ?? null,
+    updatedAt: source.updated_at ?? null,
+  };
+}
+
 function normalizeWeekPresentation(presentation) {
   const source = presentation ?? {};
   const why = source.why ?? null;
@@ -153,6 +203,7 @@ function normalizeWeekReadItem(item) {
   const provenance = source.provenance ?? {};
   const projection = source.coach_projection ?? {};
   const plannedContext = source.planned_context ?? {};
+  const futureContext = plannedContext.future_context ?? {};
   const sessionSummary = source.session_summary ?? null;
 
   return {
@@ -184,6 +235,7 @@ function normalizeWeekReadItem(item) {
       equipment: Array.isArray(plannedContext.equipment)
         ? plannedContext.equipment
         : [],
+      futureContext: normalizeFutureContext(futureContext),
     },
     sessionSummary: sessionSummary
       ? {
@@ -254,6 +306,8 @@ function normalizeWeekReadContract(data) {
         semantics.intent_presentation_is_evidence_bound !== false,
       exerciseExamplesRequireRealCandidateData:
         semantics.exercise_examples_require_real_candidate_data !== false,
+      futureContextExcludesReadinessAndPain:
+        semantics.future_context_excludes_readiness_and_pain !== false,
     },
   };
 }
