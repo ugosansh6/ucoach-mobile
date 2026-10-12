@@ -26,7 +26,9 @@ import {
   moveWeekPlanItem,
 } from '../../src/services/weeklyPlanService';
 import { getWeekSessionExercisePreviews } from '../../src/services/weekSessionPreviewService';
+import { reloadWorkoutSession } from '../../src/services/workoutService';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
+import { useWorkout } from '../../src/contexts/WorkoutContext';
 import { fontFamilies } from '../../src/constants/typography';
 
 const WEEKDAY_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
@@ -387,7 +389,7 @@ function IntentDetails({ item, dateKey, palette, onImport }) {
   );
 }
 
-function SessionDetails({ item, exercises, palette }) {
+function SessionDetails({ item, exercises, palette, onOpen, opening }) {
   const meta = getMeta(item);
   const preview = Array.isArray(exercises) ? exercises.slice(0, 6) : [];
   return (
@@ -402,22 +404,24 @@ function SessionDetails({ item, exercises, palette }) {
         <Text style={[styles.detailBody, { color: palette.textMuted }]}>Le contenu de cette séance est déjà construit.</Text>
       )}
       {meta.length > 0 ? <Text style={[styles.detailMeta, { color: palette.textMuted }]}>{meta.join('  ·  ')}</Text> : null}
-      <View style={{ marginTop: 15 }}>
-        <ActionButton
-          label="VOIR LA SÉANCE"
-          icon="arrow-forward-outline"
-          primary
-          palette={palette}
-          onPress={() => item?.sessionId && router.push(`/workout/${item.sessionId}`)}
-        />
-      </View>
+      {item?.displayState !== 'REALISEE' ? (
+        <View style={{ marginTop: 15 }}>
+          <ActionButton
+            label={opening ? 'OUVERTURE…' : item?.displayState === 'ACTIVE' ? 'REPRENDRE LA SÉANCE' : 'OUVRIR LA SÉANCE'}
+            icon={item?.displayState === 'ACTIVE' ? 'play-outline' : 'arrow-forward-outline'}
+            primary
+            palette={palette}
+            onPress={() => !opening && onOpen?.(item)}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
 
 function WeekObject({
   item, index, expanded, moving, exercises, palette, onToggle, onImport,
-  onDragStart, onDragMove, onDragDrop, onDragCancel,
+  onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
 }) {
   const built = isBuiltSession(item);
   const tone = getTone(item, palette);
@@ -461,7 +465,13 @@ function WeekObject({
       </View>
       {expanded ? (
         built
-          ? <SessionDetails item={item} exercises={exercises} palette={palette} />
+          ? <SessionDetails
+              item={item}
+              exercises={exercises}
+              palette={palette}
+              onOpen={onOpenSession}
+              opening={openingSessionId === item?.sessionId}
+            />
           : <IntentDetails item={item} dateKey={item.recommendedDate} palette={palette} onImport={onImport} />
       ) : null}
     </View>
@@ -487,7 +497,7 @@ function EmptyDay({ dateKey, expanded, palette, onToggle, onImport }) {
 function DaySection({
   day, palette, todayKey, expandedKey, movingItemId, exercisePreviews, dropTarget,
   registerDayRef, onToggleItem, onToggleEmpty, onImport,
-  onDragStart, onDragMove, onDragDrop, onDragCancel,
+  onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
 }) {
   const isToday = day.key === todayKey;
   const isTarget = dropTarget === day.key;
@@ -537,6 +547,8 @@ function DaySection({
               onDragMove={onDragMove}
               onDragDrop={onDragDrop}
               onDragCancel={onDragCancel}
+              onOpenSession={onOpenSession}
+              openingSessionId={openingSessionId}
             />
           );
         })}
@@ -591,7 +603,7 @@ function ImportModal({ visible, dateKey, palette, shareValue, onShareValueChange
               autoCorrect={false}
               style={[styles.shareInput, { color: palette.text, borderColor: palette.border, backgroundColor: palette.bg }]}
             />
-            <Text style={[styles.shareFootnote, { color: palette.textMuted }]}>La résolution du partage sera branchée avec le chantier Mes modèles / partage.</Text>
+            <Text style={[styles.shareFootnote, { color: palette.textMuted }]}>Import par lien ou code bientôt disponible.</Text>
           </View>
           <TouchableOpacity style={[styles.sheetCloseButton, { borderColor: palette.border }]} onPress={onClose}>
             <Text style={[styles.sheetCloseText, { color: palette.text }]}>FERMER</Text>
@@ -604,6 +616,7 @@ function ImportModal({ visible, dateKey, palette, shareValue, onShareValueChange
 
 export default function PlanningScreen() {
   const { isDark } = useUgerodTheme();
+  const { setGeneratedWorkout } = useWorkout();
   const params = useLocalSearchParams();
   const action = Array.isArray(params?.action) ? params.action[0] : params?.action;
   const [contract, setContract] = useState(null);
@@ -616,6 +629,7 @@ export default function PlanningScreen() {
   const [dragY, setDragY] = useState(null);
   const [dropTargetDate, setDropTargetDate] = useState(null);
   const [movingItemId, setMovingItemId] = useState(null);
+  const [openingSessionId, setOpeningSessionId] = useState(null);
   const [moveFeedback, setMoveFeedback] = useState(null);
   const [importDay, setImportDay] = useState(null);
   const [shareValue, setShareValue] = useState('');
@@ -772,6 +786,23 @@ export default function PlanningScreen() {
     performMove(item, resolveDropTarget(pageY) ?? dropTargetDate);
   }, [dropTargetDate, performMove, resolveDropTarget]);
 
+  const handleOpenSession = useCallback(async (item) => {
+    const sessionId = item?.sessionId ?? null;
+    if (!sessionId || openingSessionId) return;
+
+    try {
+      setOpeningSessionId(sessionId);
+      const restored = await reloadWorkoutSession({ sessionId });
+      setGeneratedWorkout(restored);
+      router.push('/workout/session');
+    } catch (openError) {
+      console.warn('[MaSemaine] open session failed', openError);
+      showMoveFeedback('Impossible d’ouvrir cette séance pour le moment.');
+    } finally {
+      setOpeningSessionId(null);
+    }
+  }, [openingSessionId, setGeneratedWorkout, showMoveFeedback]);
+
   if (action === 'new') return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
 
   return (
@@ -847,6 +878,8 @@ export default function PlanningScreen() {
                   onDragMove={handleDragMove}
                   onDragDrop={handleDragDrop}
                   onDragCancel={clearDrag}
+                  onOpenSession={handleOpenSession}
+                  openingSessionId={openingSessionId}
                 />
               ))}
             </View>
