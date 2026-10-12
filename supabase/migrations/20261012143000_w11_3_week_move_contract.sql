@@ -13,6 +13,8 @@ declare
   v_session_status text;
   v_anchor_week_start date;
   v_anchor_week_end date;
+  v_item_week_end date;
+  v_date_is_soft boolean;
   v_previous_date date;
   v_collision_count integer := 0;
   v_changed boolean := false;
@@ -29,7 +31,7 @@ begin
       using errcode = '42501';
   end if;
 
-  v_anchor_week_start := p_anchor_date - (extract(isodow from p_anchor_date)::int - 1);
+  v_anchor_week_start := public.d_week_start(p_anchor_date);
   v_anchor_week_end := v_anchor_week_start + 6;
 
   select *
@@ -44,21 +46,32 @@ begin
       using errcode = 'P0002';
   end if;
 
+  if v_item.week_start is null then
+    raise exception 'Week item has no week boundary';
+  end if;
+
+  v_item_week_end := v_item.week_start + 6;
+
   if v_item.week_start <> v_anchor_week_start
-     or v_item.week_end <> v_anchor_week_end then
+     or v_item_week_end <> v_anchor_week_end then
     raise exception 'Week item is outside the requested week';
   end if;
 
   if p_target_date < v_item.week_start
-     or p_target_date > v_item.week_end then
+     or p_target_date > v_item_week_end then
     raise exception 'Target date must stay inside the same week';
   end if;
 
-  if not v_item.date_is_soft then
+  v_date_is_soft := coalesce(
+    (v_item.planning_context_json->>'recommended_date_is_soft')::boolean,
+    true
+  );
+
+  if not v_date_is_soft then
     raise exception 'This item has a fixed date';
   end if;
 
-  if v_item.status not in ('planned', 'generated') then
+  if v_item.status not in ('available', 'claimed') then
     raise exception 'This item can no longer be moved';
   end if;
 
@@ -68,7 +81,7 @@ begin
     from public.workout_sessions ws
     where ws.id = v_item.session_id;
 
-    if v_session_status in ('in_progress', 'active', 'completed', 'abandoned') then
+    if v_session_status in ('in_progress', 'completed', 'abandoned') then
       raise exception 'This session can no longer be moved';
     end if;
   end if;
@@ -91,7 +104,7 @@ begin
     and i.week_start = v_item.week_start
     and i.id <> v_item.id
     and i.recommended_date = p_target_date
-    and i.status not in ('completed', 'skipped', 'cancelled');
+    and i.status in ('available', 'claimed');
 
   return jsonb_build_object(
     'contract_version', 'W11.3',
@@ -99,7 +112,7 @@ begin
     'previous_date', v_previous_date,
     'recommended_date', p_target_date,
     'week_start', v_item.week_start,
-    'week_end', v_item.week_end,
+    'week_end', v_item_week_end,
     'changed', v_changed,
     'recommended_date_is_soft', true,
     'has_collision', v_collision_count > 0,
