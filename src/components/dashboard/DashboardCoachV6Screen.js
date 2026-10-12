@@ -183,7 +183,7 @@ function PagerTrack({ activeIndex, onSelect, styles }) {
             index === 0
               ? 'Séance du Coach'
               : index === 1
-                ? 'Créer ma séance'
+                ? 'Ma semaine'
                 : 'Ajouter une séance réalisée'
           }
           onPress={() => onSelect(index)}
@@ -487,12 +487,12 @@ export default function DashboardCoachV6Screen() {
                 width={panelWidth}
                 photo={buildPhoto}
                 photoStyle={isDark ? styles.photoBuildDark : styles.photoBuildLight}
-                title={'TU SAIS CE QUE\nTU VEUX FAIRE ?'}
+                title={'TU VEUX PRENDRE\nLA MAIN ?'}
                 firstName={firstName}
-                headline="LE MOT DU COACH"
-                note="Tu préfères construire ta séance toi-même ? Compose tes blocs, choisis tes exercices et garde la main sur le format."
-                ctaLabel="CRÉER MA SÉANCE"
-                onPress={() => router.push('/workout/builder')}
+                headline="TA SEMAINE, D’UN COUP D’ŒIL"
+                note="Vois ce qu’UGEROD envisage pour la semaine. Interviens seulement là où tu en as envie."
+                ctaLabel="MA SEMAINE"
+                onPress={() => router.push('/(tabs)/planning')}
                 isDark={isDark}
                 palette={palette}
                 styles={styles}
