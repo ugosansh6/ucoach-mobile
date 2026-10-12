@@ -207,10 +207,14 @@ function normalizeWeekPresentation(presentation) {
 
   return {
     version: source.version ?? null,
+    title: source.title ?? null,
+    titleTokens: Array.isArray(source.title_tokens)
+      ? source.title_tokens
+      : [],
     description: source.description ?? null,
     why: why
       ? {
-          title: why.title ?? 'Pourquoi ce choix ?',
+          title: why.title ?? 'Pourquoi maintenant ?',
           text: why.text ?? null,
         }
       : null,
@@ -268,6 +272,9 @@ function normalizeWeekReadItem(item) {
       equipment: Array.isArray(plannedContext.equipment)
         ? plannedContext.equipment
         : [],
+      focus: plannedContext.focus ?? null,
+      targetRegion: plannedContext.target_region ?? null,
+      progressionIntent: plannedContext.progression_intent ?? null,
       futureContext: normalizeFutureContext(futureContext),
     },
     sessionSummary: sessionSummary
@@ -337,6 +344,12 @@ function normalizeWeekReadContract(data) {
         semantics.front_must_not_invent_coach_advice !== false,
       intentPresentationIsEvidenceBound:
         semantics.intent_presentation_is_evidence_bound !== false,
+      intentTitleComesFromPersistedPlanPlusConcretePriority:
+        semantics.intent_title_comes_from_persisted_plan_plus_concrete_priority !== false,
+      priorityIsNotAutomaticallyTheTitle:
+        semantics.priority_is_not_automatically_the_title !== false,
+      whyNowIsOptional:
+        semantics.why_now_is_optional !== false,
       exerciseExamplesRequireRealCandidateData:
         semantics.exercise_examples_require_real_candidate_data !== false,
       futureContextExcludesReadinessAndPain:
