@@ -499,7 +499,17 @@ function WeekObject({
   );
 }
 
-function EmptyDay({ dateKey, expanded, palette, onToggle, onImport }) {
+function EmptyDay({ dateKey, expanded, isPast = false, palette, onToggle, onImport }) {
+  if (isPast) {
+    return (
+      <View style={styles.emptyDayWrap}>
+        <View style={styles.emptyDayPress}>
+          <Text style={[styles.emptyDayText, { color: palette.textMuted }]}>Journée passée</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.emptyDayWrap}>
       <Pressable style={styles.emptyDayPress} onPress={onToggle} accessibilityRole="button">
@@ -522,6 +532,7 @@ function DaySection({
   onRequestRemove, removingItemId,
 }) {
   const isToday = day.key === todayKey;
+  const isPast = day.key < todayKey;
   const isTarget = dropTarget === day.key;
   return (
     <View
@@ -535,7 +546,10 @@ function DaySection({
     >
       <Pressable
         style={styles.dayDateColumn}
-        onPress={() => day.items.length > 0 ? onToggleItem(day.items[0], 0) : onToggleEmpty(day.key)}
+        onPress={() => {
+          if (day.items.length > 0) onToggleItem(day.items[0], 0);
+          else if (!isPast) onToggleEmpty(day.key);
+        }}
         accessibilityRole="button"
       >
         <Text style={[styles.dayName, { color: isToday ? palette.accent : palette.textMuted }]}>{day.label}</Text>
@@ -548,6 +562,7 @@ function DaySection({
           <EmptyDay
             dateKey={day.key}
             expanded={expandedKey === `empty:${day.key}`}
+            isPast={isPast}
             palette={palette}
             onToggle={() => onToggleEmpty(day.key)}
             onImport={onImport}
@@ -583,6 +598,7 @@ function DaySection({
 
 function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClose, onSelectDay }) {
   const atLimit = currentCount >= 5;
+  const selectableDays = days.filter((day) => day.key >= todayKey);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
@@ -590,13 +606,24 @@ function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClo
           <View style={styles.sheetHandle} />
           <Text style={[styles.sheetTitle, { color: palette.text }]}>AJOUTER UNE SÉANCE</Text>
           <Text style={[styles.sheetIntro, { color: palette.textMuted }]}>
-            Ouvre un créneau supplémentaire cette semaine. UGEROD préparera une intention cohérente avec le reste de ta programmation.
+            Choisis un jour libre pour ajouter une 4e ou 5e séance. Les journées déjà programmées restent inchangées.
           </Text>
           <View style={styles.addDayList}>
-            {days.map((day) => {
-              const pastOrToday = day.key <= todayKey;
-              const disabled = atLimit || pastOrToday;
+            {selectableDays.map((day) => {
+              const isToday = day.key === todayKey;
               const count = day.items?.length ?? 0;
+              const occupied = count > 0;
+              const disabled = atLimit || occupied;
+              const title = occupied
+                ? 'Séance déjà prévue'
+                : isToday
+                  ? 'Aujourd’hui · créneau disponible'
+                  : 'Créneau disponible';
+              const subtitle = atLimit
+                ? 'Limite de 5 séances atteinte pour cette semaine.'
+                : occupied
+                  ? 'Cette journée est déjà programmée.'
+                  : 'UGEROD préparera une intention cohérente avec le reste de ta semaine.';
               return (
                 <TouchableOpacity
                   key={day.key}
@@ -611,12 +638,8 @@ function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClo
                     <Text style={[styles.addDayNumber, { color: disabled ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
                   </View>
                   <View style={styles.addDayCopy}>
-                    <Text style={[styles.addDayTitle, { color: disabled ? palette.textMuted : palette.text }]}>
-                      {pastOrToday ? 'Déjà passé / aujourd’hui' : count > 0 ? `${count} séance${count > 1 ? 's' : ''} déjà prévue${count > 1 ? 's' : ''}` : 'Créneau disponible'}
-                    </Text>
-                    {!pastOrToday ? (
-                      <Text style={[styles.addDaySubtitle, { color: palette.textMuted }]}>Tu pourras préciser le contexte avant de la préparer.</Text>
-                    ) : null}
+                    <Text style={[styles.addDayTitle, { color: disabled ? palette.textMuted : palette.text }]}>{title}</Text>
+                    <Text style={[styles.addDaySubtitle, { color: palette.textMuted }]}>{subtitle}</Text>
                   </View>
                   {!disabled ? <Ionicons name="chevron-forward" size={18} color={palette.textMuted} /> : null}
                 </TouchableOpacity>
@@ -634,7 +657,6 @@ function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClo
     </Modal>
   );
 }
-
 function RemoveSessionModal({ item, visible, palette, removing, onClose, onConfirm }) {
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={() => !removing && onClose?.()}>
@@ -794,6 +816,12 @@ export default function PlanningScreen() {
   const daysWithItems = useMemo(() => buildDaysWithItems(weekDays, visibleItems), [visibleItems, weekDays]);
   const weekRange = useMemo(() => formatWeekRange(contract?.weekStart, contract?.weekEnd), [contract?.weekStart, contract?.weekEnd]);
   const todayKey = toLocalDateKey(new Date());
+  const planningSlotCount = useMemo(
+    () => (contract?.items ?? []).filter((item) =>
+      !['skipped', 'unrealized'].includes(String(item?.lifecycleStatus ?? '').toLowerCase())
+    ).length,
+    [contract?.items]
+  );
 
   const registerDayRef = useCallback((key, node) => { if (node) dayRefs.current[key] = node; }, []);
 
@@ -1037,19 +1065,19 @@ export default function PlanningScreen() {
               <TouchableOpacity
                 style={[
                   styles.addSessionButton,
-                  { borderColor: visibleItems.length >= 5 ? palette.border : palette.accent },
-                  visibleItems.length >= 5 && styles.disabledRow,
+                  { borderColor: planningSlotCount >= 5 ? palette.border : palette.accent },
+                  planningSlotCount >= 5 && styles.disabledRow,
                 ]}
-                disabled={visibleItems.length >= 5}
+                disabled={planningSlotCount >= 5}
                 onPress={() => setAddSessionOpen(true)}
                 accessibilityRole="button"
                 accessibilityLabel="Ajouter une séance à cette semaine"
               >
-                <Ionicons name="add-circle-outline" size={20} color={visibleItems.length >= 5 ? palette.textMuted : palette.accent} />
-                <Text style={[styles.addSessionButtonText, { color: visibleItems.length >= 5 ? palette.textMuted : palette.text }]}>AJOUTER UNE SÉANCE</Text>
+                <Ionicons name="add-circle-outline" size={20} color={planningSlotCount >= 5 ? palette.textMuted : palette.accent} />
+                <Text style={[styles.addSessionButtonText, { color: planningSlotCount >= 5 ? palette.textMuted : palette.text }]}>AJOUTER UNE SÉANCE</Text>
               </TouchableOpacity>
               <Text style={[styles.addSessionHint, { color: palette.textMuted }]}>
-                {visibleItems.length >= 5 ? '5 séances sont déjà prévues.' : 'Pré-programmer une 4e ou 5e séance potentielle cette semaine.'}
+                {planningSlotCount >= 5 ? '5 séances sont déjà prévues.' : 'Pré-programmer une 4e ou 5e séance potentielle cette semaine.'}
               </Text>
             </View>
           ) : null}
@@ -1078,7 +1106,7 @@ export default function PlanningScreen() {
         days={daysWithItems}
         todayKey={todayKey}
         palette={palette}
-        currentCount={visibleItems.length}
+        currentCount={planningSlotCount}
         onClose={() => setAddSessionOpen(false)}
         onSelectDay={handleAddSessionDay}
       />
