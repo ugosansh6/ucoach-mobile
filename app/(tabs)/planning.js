@@ -811,7 +811,13 @@ export default function PlanningScreen() {
 
   useFocusEffect(useCallback(() => { loadWeek(); }, [loadWeek]));
 
-  const visibleItems = contract?.visibleItems ?? [];
+  const visibleItems = useMemo(
+    () => (contract?.visibleItems ?? []).filter((item) =>
+      item?.surfaceVisibility !== 'CONTEXT_ONLY' &&
+      item?.displayState !== 'CLOSED_SILENT'
+    ),
+    [contract?.visibleItems]
+  );
   const weekDays = useMemo(() => buildWeekDays(contract?.weekStart), [contract?.weekStart]);
   const daysWithItems = useMemo(() => buildDaysWithItems(weekDays, visibleItems), [visibleItems, weekDays]);
   const weekRange = useMemo(() => formatWeekRange(contract?.weekStart, contract?.weekEnd), [contract?.weekStart, contract?.weekEnd]);
@@ -845,6 +851,7 @@ export default function PlanningScreen() {
     let nearest = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (const day of weekDays) {
+      if (day.key < todayKey) continue;
       const rect = dayRects.current[day.key];
       if (!rect) continue;
       if (pageY >= rect.y && pageY <= rect.y + rect.height) return day.key;
@@ -852,7 +859,7 @@ export default function PlanningScreen() {
       if (distance < nearestDistance) { nearest = day.key; nearestDistance = distance; }
     }
     return nearestDistance < 90 ? nearest : null;
-  }, [weekDays]);
+  }, [todayKey, weekDays]);
 
   const clearDrag = useCallback(() => {
     setDraggingItem(null); setDragY(null); setDropTargetDate(null);
@@ -892,6 +899,11 @@ export default function PlanningScreen() {
 
   const performMove = useCallback(async (item, targetDate) => {
     if (!canMoveWeekItem(item) || !targetDate) { clearDrag(); return; }
+    if (targetDate < todayKey) {
+      clearDrag();
+      showMoveFeedback('Impossible de déplacer une séance sur une journée passée.');
+      return;
+    }
     if (item.recommendedDate === targetDate) { clearDrag(); return; }
     const anchorDate = parseDateKey(contract?.weekStart) ?? new Date();
     setMovingItemId(item.planItemId);
@@ -915,7 +927,7 @@ export default function PlanningScreen() {
     } finally {
       setMovingItemId(null);
     }
-  }, [clearDrag, contract?.weekStart, showMoveFeedback]);
+  }, [clearDrag, contract?.weekStart, showMoveFeedback, todayKey]);
 
   const handleDragDrop = useCallback((item, pageY) => {
     performMove(item, resolveDropTarget(pageY) ?? dropTargetDate);
