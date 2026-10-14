@@ -1,0 +1,82 @@
+name: Apply W11 surface anchor fix
+
+on:
+  push:
+    branches: [ux-navigation-coach-v1]
+    paths:
+      - '.github/workflows/apply-w11-surface-anchor-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply surface anchor fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/(tabs)/planning.js')
+          s = p.read_text()
+          old = """    const anchorDate = parseDateKey(contract?.weekStart) ?? new Date();\n    setMovingItemId(item.planItemId);\n"""
+          new = """    const weekAnchorDate = parseDateKey(contract?.weekStart) ?? new Date();\n    // Important: the week anchor selects the week for the mutation, while the\n    // surface anchor must stay on the user's current local day. Reusing the\n    // Monday weekStart for the read makes expired Monday opportunities visible again.\n    const surfaceAnchorDate = new Date();\n    setMovingItemId(item.planItemId);\n"""
+          if old not in s:
+              raise SystemExit('performMove anchor block not found')
+          s = s.replace(old, new, 1)
+          s = s.replace(
+              "moveWeekPlanItem({ planItemId: item.planItemId, targetDate, anchorDate })",
+              "moveWeekPlanItem({ planItemId: item.planItemId, targetDate, anchorDate: weekAnchorDate })",
+              1,
+          )
+          s = s.replace(
+              "const refreshed = await getWeekReadContract({ anchorDate });",
+              "const refreshed = await getWeekReadContract({ anchorDate: surfaceAnchorDate });",
+              1,
+          )
+          s = s.replace(
+              "try { setContract(await getWeekReadContract({ anchorDate })); } catch (refreshError)",
+              "try { setContract(await getWeekReadContract({ anchorDate: surfaceAnchorDate })); } catch (refreshError)",
+              1,
+          )
+          s = s.replace(
+              "  }, [clearDrag, contract?.weekStart, showMoveFeedback, todayKey]);",
+              "  }, [clearDrag, contract?.weekStart, showMoveFeedback, todayKey]);",
+              1,
+          )
+
+          old_remove = """    const anchorDate = parseDateKey(contract?.weekStart) ?? new Date();\n    try {\n      setRemovingItemId(removeItem.planItemId);\n      await removeWeekPlanItem({ planItemId: removeItem.planItemId, anchorDate });\n      const refreshed = await getWeekReadContract({ anchorDate });\n"""
+          new_remove = """    const weekAnchorDate = parseDateKey(contract?.weekStart) ?? new Date();\n    const surfaceAnchorDate = new Date();\n    try {\n      setRemovingItemId(removeItem.planItemId);\n      await removeWeekPlanItem({ planItemId: removeItem.planItemId, anchorDate: weekAnchorDate });\n      const refreshed = await getWeekReadContract({ anchorDate: surfaceAnchorDate });\n"""
+          if old_remove not in s:
+              raise SystemExit('remove anchor block not found')
+          s = s.replace(old_remove, new_remove, 1)
+
+          # Guard against reintroducing the same bug in these mutation refresh paths.
+          if "const refreshed = await getWeekReadContract({ anchorDate });" in s:
+              raise SystemExit('stale generic anchor refresh still present')
+          p.write_text(s)
+          PY
+      - name: Verify anchor fix and export web
+        run: |
+          grep -n "surfaceAnchorDate" 'app/(tabs)/planning.js'
+          ! grep -n "const refreshed = await getWeekReadContract({ anchorDate });" 'app/(tabs)/planning.js'
+          npx expo export --platform web
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'app/(tabs)/planning.js'
+          git commit -m 'fix(week): keep current-day surface anchor after mutations'
+          git push origin ux-navigation-coach-v1
