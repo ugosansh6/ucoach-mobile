@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import PreparationCheckinV4 from '../../src/workout/PreparationCheckinV4';
-import WeekFuturePreparation from '../../src/workout/WeekFuturePreparation';
+import WeekComposer from '../../src/workout/WeekComposer';
 
 function firstParam(value) {
   return Array.isArray(value) ? value[0] : value;
@@ -18,13 +18,13 @@ export default function PreparationScreen() {
   const params = useLocalSearchParams();
   const entry = firstParam(params?.entry);
   const date = firstParam(params?.date);
-  const isFutureWeekPreparation =
+  const isFutureWeekComposer =
     entry === 'week_assisted' &&
     /^\d{4}-\d{2}-\d{2}$/.test(String(date ?? '')) &&
     date > localDateKey();
 
-  if (isFutureWeekPreparation) {
-    return <WeekFuturePreparation />;
+  if (isFutureWeekComposer) {
+    return <WeekComposer />;
   }
 
   return <PreparationCheckinV4 />;
