@@ -921,13 +921,17 @@ export default function PlanningScreen() {
       return;
     }
     if (item.recommendedDate === targetDate) { clearDrag(); return; }
-    const anchorDate = parseDateKey(contract?.weekStart) ?? new Date();
+    const weekAnchorDate = parseDateKey(contract?.weekStart) ?? new Date();
+    // Important: the week anchor selects the week for the mutation, while the
+    // surface anchor must stay on the user's current local day. Reusing the
+    // Monday weekStart for the read makes expired Monday opportunities visible again.
+    const surfaceAnchorDate = new Date();
     setMovingItemId(item.planItemId);
     setContract((current) => withOptimisticWeekDate(current, item.planItemId, targetDate));
     clearDrag();
     try {
-      const result = await moveWeekPlanItem({ planItemId: item.planItemId, targetDate, anchorDate });
-      const refreshed = await getWeekReadContract({ anchorDate });
+      const result = await moveWeekPlanItem({ planItemId: item.planItemId, targetDate, anchorDate: weekAnchorDate });
+      const refreshed = await getWeekReadContract({ anchorDate: surfaceAnchorDate });
       setContract(refreshed);
       const ids = (refreshed?.visibleItems ?? []).map((entry) => entry?.sessionId).filter(Boolean);
       setExercisePreviews(await getWeekSessionExercisePreviews(ids));
@@ -936,7 +940,7 @@ export default function PlanningScreen() {
         : 'Jour mis à jour.');
     } catch (moveError) {
       console.warn('[MaSemaine] move failed', moveError);
-      try { setContract(await getWeekReadContract({ anchorDate })); } catch (refreshError) {
+      try { setContract(await getWeekReadContract({ anchorDate: surfaceAnchorDate })); } catch (refreshError) {
         console.warn('[MaSemaine] recovery refresh failed', refreshError);
       }
       showMoveFeedback('Le déplacement n’a pas été enregistré.');
@@ -951,11 +955,12 @@ export default function PlanningScreen() {
 
   const handleRemoveWeekItem = useCallback(async () => {
     if (!removeItem?.planItemId || removingItemId) return;
-    const anchorDate = parseDateKey(contract?.weekStart) ?? new Date();
+    const weekAnchorDate = parseDateKey(contract?.weekStart) ?? new Date();
+    const surfaceAnchorDate = new Date();
     try {
       setRemovingItemId(removeItem.planItemId);
-      await removeWeekPlanItem({ planItemId: removeItem.planItemId, anchorDate });
-      const refreshed = await getWeekReadContract({ anchorDate });
+      await removeWeekPlanItem({ planItemId: removeItem.planItemId, anchorDate: weekAnchorDate });
+      const refreshed = await getWeekReadContract({ anchorDate: surfaceAnchorDate });
       setContract(refreshed);
       const ids = (refreshed?.visibleItems ?? []).map((entry) => entry?.sessionId).filter(Boolean);
       setExercisePreviews(await getWeekSessionExercisePreviews(ids));
