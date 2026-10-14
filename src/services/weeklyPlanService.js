@@ -334,6 +334,9 @@ function normalizeWeekReadContract(data) {
   const items = Array.isArray(source.items)
     ? source.items.map(normalizeWeekReadItem)
     : [];
+  const contextItems = Array.isArray(source.context_items)
+    ? source.context_items.map(normalizeWeekReadItem)
+    : [];
 
   return {
     contractVersion: source.contract_version ?? null,
@@ -346,7 +349,12 @@ function normalizeWeekReadContract(data) {
         ? null
         : Number(source.weekly_session_target),
     completedActualCount: Number(source.completed_actual_count ?? 0),
+    planningSlotCount:
+      source.planning_slot_count == null
+        ? items.length + contextItems.length
+        : Number(source.planning_slot_count),
     items,
+    contextItems,
     visibleItems: items.filter(
       (item) =>
         item.surfaceVisibility !== 'CONTEXT_ONLY' &&
@@ -377,6 +385,10 @@ function normalizeWeekReadContract(data) {
         semantics.exercise_examples_require_real_candidate_data !== false,
       futureContextExcludesReadinessAndPain:
         semantics.future_context_excludes_readiness_and_pain !== false,
+      itemsAreSurfaceVisibleOnly:
+        semantics.items_are_surface_visible_only === true,
+      contextItemsNeverRenderAsSessions:
+        semantics.context_items_never_render_as_sessions === true,
     },
   };
 }

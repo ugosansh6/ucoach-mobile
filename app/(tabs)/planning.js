@@ -503,8 +503,14 @@ function EmptyDay({ dateKey, expanded, isPast = false, palette, onToggle, onImpo
   if (isPast) {
     return (
       <View style={styles.emptyDayWrap}>
-        <View style={styles.emptyDayPress}>
-          <Text style={[styles.emptyDayText, { color: palette.textMuted }]}>Journée passée</Text>
+        <View style={[styles.pastDayCard, { backgroundColor: palette.pastDay, borderColor: palette.border }]}>
+          <View style={[styles.pastDayIcon, { backgroundColor: palette.pastDayIcon }]}>
+            <Ionicons name="time-outline" size={16} color={palette.textMuted} />
+          </View>
+          <View style={styles.pastDayCopy}>
+            <Text style={[styles.pastDayTitle, { color: palette.textMuted }]}>Journée passée</Text>
+            <Text style={[styles.pastDaySubtitle, { color: palette.textMuted }]}>Ce jour n’est plus disponible.</Text>
+          </View>
         </View>
       </View>
     );
@@ -533,6 +539,7 @@ function DaySection({
 }) {
   const isToday = day.key === todayKey;
   const isPast = day.key < todayKey;
+  const isUnavailablePast = isPast && day.items.length === 0;
   const isTarget = dropTarget === day.key;
   return (
     <View
@@ -541,6 +548,7 @@ function DaySection({
       style={[
         styles.daySection,
         { borderBottomColor: palette.border },
+        isUnavailablePast && { opacity: 0.78 },
         isTarget && { backgroundColor: palette.dropTarget, borderLeftColor: palette.accent, borderLeftWidth: 3 },
       ]}
     >
@@ -553,8 +561,12 @@ function DaySection({
         accessibilityRole="button"
       >
         <Text style={[styles.dayName, { color: isToday ? palette.accent : palette.textMuted }]}>{day.label}</Text>
-        <View style={[styles.dayNumberWrap, isToday && { backgroundColor: palette.accent }]}> 
-          <Text style={[styles.dayNumber, { color: isToday ? palette.onAccent : palette.text }]}>{day.date.getDate()}</Text>
+        <View style={[
+          styles.dayNumberWrap,
+          isToday && { backgroundColor: palette.accent },
+          isUnavailablePast && { backgroundColor: palette.pastDayIcon },
+        ]}> 
+          <Text style={[styles.dayNumber, { color: isToday ? palette.onAccent : isUnavailablePast ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
         </View>
       </Pressable>
       <View style={styles.dayContent}>
@@ -771,11 +783,13 @@ export default function PlanningScreen() {
     text: '#F4F2ED', textMuted: '#AEB6AE', accent: '#87977F', accentSoft: '#2A332B',
     orange: '#FF6B19', onAccent: '#081009', intent: '#7D8A77', intentSoft: '#141A15',
     session: '#A5B29E', done: '#778078', dropTarget: 'rgba(135,151,127,0.12)',
+    pastDay: '#111511', pastDayIcon: '#202620',
   } : {
     bg: '#F4F2ED', surface: '#FFFFFF', surfaceRaised: '#FAF9F5', border: '#D8D6CF',
     text: '#151B16', textMuted: '#697169', accent: '#646F5E', accentSoft: '#E6E9E2',
     orange: '#FF6B19', onAccent: '#FFFFFF', intent: '#8A9684', intentSoft: '#EEF0EA',
     session: '#646F5E', done: '#899087', dropTarget: 'rgba(100,111,94,0.08)',
+    pastDay: '#ECEAE4', pastDayIcon: '#DFDDD5',
   }, [isDark]);
 
   useEffect(() => {
@@ -823,10 +837,12 @@ export default function PlanningScreen() {
   const weekRange = useMemo(() => formatWeekRange(contract?.weekStart, contract?.weekEnd), [contract?.weekStart, contract?.weekEnd]);
   const todayKey = toLocalDateKey(new Date());
   const planningSlotCount = useMemo(
-    () => (contract?.items ?? []).filter((item) =>
-      !['skipped', 'unrealized'].includes(String(item?.lifecycleStatus ?? '').toLowerCase())
-    ).length,
-    [contract?.items]
+    () => Number.isFinite(contract?.planningSlotCount)
+      ? contract.planningSlotCount
+      : (contract?.items ?? []).filter((item) =>
+          !['skipped', 'unrealized'].includes(String(item?.lifecycleStatus ?? '').toLowerCase())
+        ).length,
+    [contract?.items, contract?.planningSlotCount]
   );
 
   const registerDayRef = useCallback((key, node) => { if (node) dayRefs.current[key] = node; }, []);
@@ -1183,6 +1199,11 @@ const styles = StyleSheet.create({
   emptyDayWrap: { minHeight: 52, justifyContent: 'center' },
   emptyDayPress: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 4 },
   emptyDayText: { fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 19 },
+  pastDayCard: { minHeight: 56, borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 9 },
+  pastDayIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  pastDayCopy: { flex: 1, minWidth: 0 },
+  pastDayTitle: { fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 17 },
+  pastDaySubtitle: { fontFamily: fontFamilies.regular, fontSize: 10, lineHeight: 14, marginTop: 1 },
   detailPanel: { marginTop: 9, borderTopWidth: 1, paddingTop: 14, paddingHorizontal: 2, paddingBottom: 4 },
   detailTitle: { fontFamily: fontFamilies.display, fontSize: 25, lineHeight: 28, letterSpacing: 0.6 },
   detailBody: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20 },
