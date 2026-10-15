@@ -18,12 +18,12 @@ export default function PreparationScreen() {
   const params = useLocalSearchParams();
   const entry = firstParam(params?.entry);
   const date = firstParam(params?.date);
-  const isFutureWeekComposer =
+  const isWeekComposer =
     entry === 'week_assisted' &&
     /^\d{4}-\d{2}-\d{2}$/.test(String(date ?? '')) &&
-    date > localDateKey();
+    date >= localDateKey();
 
-  if (isFutureWeekComposer) {
+  if (isWeekComposer) {
     return <WeekComposerV3 />;
   }
 
