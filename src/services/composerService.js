@@ -1,4 +1,8 @@
 import { supabase } from '../lib/supabase';
+import {
+  getAuthenticatedUserWithRetry,
+  runSupabaseRequestWithAuthRetry,
+} from '../lib/supabaseAuthRetry';
 
 const ENGINE_POLICY = 'c4-final-default';
 
@@ -106,7 +110,7 @@ export function buildComposerArchitectures({ durationMinutes, intentKey, targets
     blocks: [
       { type: 'WARMUP', label: 'Warm-up', minutes: warmup },
       { type: 'TABATA', label: 'Tabata', minutes: tabata },
-      { type: 'WOD', label: 'WOD', minutes: Math.min(durationMinutes - warmup - tabata - 4, wod + 6) },
+      { type: 'WOD', label: 'WOD', minutes: Math.max(8, Math.min(durationMinutes - warmup - tabata - 4, wod + 6)) },
     ],
   };
   const balanced = {
@@ -157,4 +161,16 @@ export function getComposerMechanicOptions({ wodMinutes = 12, exerciseCount = 3 
     recommended: index === 0,
     exerciseCount,
   }));
+}
+
+export async function saveComposerDraft({ planItemId, draft }) {
+  if (!planItemId) throw new Error('planItemId is required to save composer draft.');
+  const user = await getAuthenticatedUserWithRetry();
+  return runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_save_composer_draft_v1', {
+      p_user_id: user.id,
+      p_plan_item_id: planItemId,
+      p_draft: draft ?? {},
+    })
+  );
 }
