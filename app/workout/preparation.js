@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import PreparationCheckinV4 from '../../src/workout/PreparationCheckinV4';
-import WeekComposerV6 from '../../src/workout/WeekComposerV6';
+import WeekComposerV7 from '../../src/workout/WeekComposerV7';
 
 function firstParam(value) {
   return Array.isArray(value) ? value[0] : value;
@@ -24,7 +24,7 @@ export default function PreparationScreen() {
     date >= localDateKey();
 
   if (isWeekComposer) {
-    return <WeekComposerV6 />;
+    return <WeekComposerV7 />;
   }
 
   return <PreparationCheckinV4 />;
