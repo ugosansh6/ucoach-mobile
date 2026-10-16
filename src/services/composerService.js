@@ -103,41 +103,104 @@ export async function getComposerExerciseCandidates({
     .slice(0, Math.max(3, limit));
 }
 
-export function buildComposerArchitectures({ durationMinutes, intentKey, targets = {} }) {
-  const warmup = Number(targets.warmup_minutes ?? (durationMinutes <= 30 ? 5 : 6));
-  const tabata = Number(targets.tabata_minutes ?? 4);
-  const skill = Number(targets.skill_target_minutes ?? (durationMinutes >= 45 ? 10 : 0));
-  const wod = Number(targets.wod_target_minutes ?? Math.max(10, Math.round(durationMinutes * 0.35)));
-  const strength = Math.max(10, skill || Math.round(durationMinutes * 0.24));
+function wodLabel(minutes) {
+  if (minutes <= 15) return 'WOD court';
+  if (minutes >= 30) return 'WOD long';
+  return 'WOD';
+}
 
-  const conditioning = {
-    key: 'conditioning',
-    title: 'Plus conditioning',
-    blocks: [
-      { type: 'WARMUP', label: 'Warm-up', minutes: warmup },
-      { type: 'TABATA', label: 'Tabata', minutes: tabata },
-      { type: 'WOD', label: 'WOD', minutes: Math.max(8, Math.min(durationMinutes - warmup - tabata - 4, wod + 6)) },
-    ],
+function block(type, minutes, label = null) {
+  return {
+    type,
+    label: label ?? (type === 'WARMUP' ? 'Warm-up' : type === 'STRENGTH' ? 'Strength' : type === 'TABATA' ? 'Tabata' : type),
+    minutes: Math.max(1, Math.round(minutes)),
   };
-  const balanced = {
-    key: 'balanced',
-    title: 'Équilibrée',
-    blocks: [
-      { type: 'WARMUP', label: 'Warm-up', minutes: warmup },
-      { type: 'TABATA', label: 'Tabata', minutes: tabata },
-      { type: 'STRENGTH', label: 'Strength', minutes: strength },
-      { type: 'WOD', label: 'WOD', minutes: Math.max(8, durationMinutes - warmup - tabata - strength - 5) },
-    ],
-  };
-  const strengthFirst = {
-    key: 'strength',
-    title: 'Plus force',
-    blocks: [
-      { type: 'WARMUP', label: 'Warm-up', minutes: warmup },
-      { type: 'STRENGTH', label: 'Strength', minutes: strength + 5 },
-      { type: 'WOD', label: 'WOD court', minutes: Math.max(8, durationMinutes - warmup - strength - 10) },
-    ],
-  };
+}
+
+export function buildComposerArchitectures({ durationMinutes, intentKey, targets = {} }) {
+  const duration = Math.max(20, Number(durationMinutes) || 45);
+  const reserve = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
+  const warmup = Math.max(4, Math.min(8, Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 6))));
+  const tabata = 4;
+
+  let conditioning;
+  let balanced;
+  let strengthFirst;
+
+  if (duration <= 30) {
+    const conditioningWod = Math.max(8, duration - reserve - warmup - tabata);
+    const strengthMinutes = Math.max(10, Math.round((duration - reserve - warmup) * 0.64));
+    const strengthWod = Math.max(6, duration - reserve - warmup - strengthMinutes);
+    const balancedStrength = Math.max(9, Math.round((duration - reserve - warmup) * 0.48));
+    const balancedWod = Math.max(7, duration - reserve - warmup - balancedStrength);
+
+    conditioning = {
+      key: 'conditioning',
+      title: 'Plus conditioning',
+      blocks: [
+        block('WARMUP', warmup),
+        block('TABATA', tabata),
+        block('WOD', conditioningWod, wodLabel(conditioningWod)),
+      ],
+    };
+    balanced = {
+      key: 'balanced',
+      title: 'Équilibrée',
+      blocks: [
+        block('WARMUP', warmup),
+        block('STRENGTH', balancedStrength),
+        block('WOD', balancedWod, wodLabel(balancedWod)),
+      ],
+    };
+    strengthFirst = {
+      key: 'strength',
+      title: 'Plus force',
+      blocks: [
+        block('WARMUP', warmup),
+        block('STRENGTH', strengthMinutes),
+        block('WOD', strengthWod, wodLabel(strengthWod)),
+      ],
+    };
+  } else {
+    const strengthAvailable = Math.max(18, duration - reserve - warmup);
+    const strengthMinutes = Math.max(14, Math.round(strengthAvailable * 0.62));
+    const strengthWod = Math.max(8, strengthAvailable - strengthMinutes);
+
+    const balancedAvailable = Math.max(20, duration - reserve - warmup - tabata);
+    const balancedStrength = Math.max(11, Math.round(balancedAvailable * 0.46));
+    const balancedWod = Math.max(9, balancedAvailable - balancedStrength);
+
+    const conditioningWod = Math.max(12, duration - reserve - warmup - tabata);
+
+    conditioning = {
+      key: 'conditioning',
+      title: 'Plus conditioning',
+      blocks: [
+        block('WARMUP', warmup),
+        block('TABATA', tabata),
+        block('WOD', conditioningWod, wodLabel(conditioningWod)),
+      ],
+    };
+    balanced = {
+      key: 'balanced',
+      title: 'Équilibrée',
+      blocks: [
+        block('WARMUP', warmup),
+        block('TABATA', tabata),
+        block('STRENGTH', balancedStrength),
+        block('WOD', balancedWod, wodLabel(balancedWod)),
+      ],
+    };
+    strengthFirst = {
+      key: 'strength',
+      title: 'Plus force',
+      blocks: [
+        block('WARMUP', warmup),
+        block('STRENGTH', strengthMinutes),
+        block('WOD', strengthWod, wodLabel(strengthWod)),
+      ],
+    };
+  }
 
   const normalized = String(intentKey ?? '').toUpperCase();
   const ordered = normalized.includes('STRENGTH') || normalized.includes('FORCE')
@@ -146,7 +209,12 @@ export function buildComposerArchitectures({ durationMinutes, intentKey, targets
       ? [conditioning, balanced, strengthFirst]
       : [balanced, conditioning, strengthFirst];
 
-  return ordered.map((option, index) => ({ ...option, recommended: index === 0 }));
+  return ordered.map((option, index) => ({
+    ...option,
+    recommended: index === 0,
+    estimatedMinutes: option.blocks.reduce((sum, item) => sum + Number(item.minutes ?? 0), 0) + reserve,
+    transitionReserveMinutes: reserve,
+  }));
 }
 
 export function getComposerMechanicOptions({ wodMinutes = 12, exerciseCount = 3 }) {
