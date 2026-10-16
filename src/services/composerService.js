@@ -47,7 +47,7 @@ export async function getComposerExerciseCandidates({
   const role = BLOCK_ROLE[blockType] ?? 'WOD';
   let query = supabase
     .from('exercises')
-    .select('id,name,display_name,exercise_type,difficulty,technical_complexity,movement_pattern,exercise_family,body_region,training_focus,equipment_requirement,selection_weight,usable_for,home_friendly,prescription_type,tabata_eligible,warmup_eligible,warmup_role,wod_role')
+    .select('id,name,display_name,description,instructions,tips,image_path,exercise_type,difficulty,technical_complexity,movement_pattern,exercise_family,body_region,training_focus,equipment_requirement,selection_weight,usable_for,home_friendly,prescription_type,tabata_eligible,warmup_eligible,warmup_role,wod_role')
     .order('selection_weight', { ascending: false })
     .limit(80);
 
@@ -87,6 +87,12 @@ export async function getComposerExerciseCandidates({
     .map((exercise) => ({
       id: exercise.id,
       name: exercise.display_name || exercise.name,
+      description: exercise.description ?? null,
+      instructions: exercise.instructions ?? null,
+      tips: exercise.tips ?? null,
+      imagePath: exercise.image_path ?? null,
+      difficulty: exercise.difficulty ?? null,
+      exerciseType: exercise.exercise_type ?? null,
       bodyRegion: exercise.body_region,
       movementPattern: exercise.movement_pattern,
       exerciseFamily: exercise.exercise_family,
