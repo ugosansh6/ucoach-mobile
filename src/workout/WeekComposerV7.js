@@ -56,7 +56,6 @@ const FALLBACK_INTENTS = [
   { key: 'STRENGTH', label: 'Force', subtitle: 'Construire autour d’un travail de force.', focus: 'Strength' },
   { key: 'CONDITIONING', label: 'Conditioning', subtitle: 'Faire monter le moteur et la densité.', focus: 'Conditioning' },
   { key: 'TECHNIQUE', label: 'Technique', subtitle: 'Travailler proprement un mouvement ou une qualité.', focus: 'General Fitness' },
-  { key: 'FULL_BODY', label: 'Full body', subtitle: 'Une séance équilibrée et complète.', focus: 'General Fitness' },
 ];
 const LOAD_CAPABLE_EQUIPMENT_IDS = new Set(['E03', 'E04', 'E09', 'E14']);
 const MAIN_SHORTLIST_SIZE = 6;
@@ -136,6 +135,26 @@ function coachIntentFromItem(item) {
     focus,
     targetRegion: item?.plannedContext?.targetRegion ?? null,
     recommended: true,
+  };
+}
+
+function directionBaseLabel(choice) {
+  if (choice?.focus === 'Strength') return 'Force';
+  if (choice?.focus === 'Conditioning') return 'Conditioning';
+  if (choice?.key === 'TECHNIQUE') return 'Technique';
+  return String(choice?.label ?? 'Séance').split('·')[0].trim();
+}
+
+function directionChoiceForRegion(choice, targetRegion, plannedRegion = null) {
+  if (!choice || !targetRegion) return choice;
+  const adapted = plannedRegion && plannedRegion !== targetRegion;
+  return {
+    ...choice,
+    label: `${directionBaseLabel(choice)} · ${regionLabel(targetRegion)}`,
+    targetRegion,
+    subtitle: choice.recommended && adapted
+      ? `J’adapte la direction prévue à ta préférence ${regionLabel(targetRegion).toLowerCase()}.`
+      : choice.subtitle,
   };
 }
 
@@ -661,10 +680,16 @@ export default function WeekComposerV7() {
     );
   }
 
+  const rawCoachChoice = coachIntentFromItem(selectedItem);
+  const coachChoice = directionChoiceForRegion(rawCoachChoice, targetRegion, rawCoachChoice?.targetRegion ?? null);
+  const fallbackChoices = FALLBACK_INTENTS
+    .filter((choice) => !(coachChoice && ['Strength', 'Conditioning'].includes(choice.focus) && choice.focus === coachChoice.focus))
+    .map((choice) => directionChoiceForRegion(choice, targetRegion));
   const intentChoices = [
-    ...(coachIntentFromItem(selectedItem) ? [coachIntentFromItem(selectedItem)] : []),
-    ...FALLBACK_INTENTS,
-  ].filter((choice, index, array) => array.findIndex((item) => item.label === choice.label) === index);
+    ...(coachChoice ? [coachChoice] : []),
+    ...fallbackChoices,
+  ];
+  const effectiveIntent = intentChoices.find((choice) => choice.key === intent?.key) ?? intent;
 
   const exerciseBlocks = architecture?.blocks ?? [];
   const activeBlock = exerciseBlocks[exerciseBlockIndex] ?? null;
@@ -684,6 +709,9 @@ export default function WeekComposerV7() {
   const estimatedMinutes = architecture?.estimatedMinutes
     ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
   const equipmentSummary = equipmentLoading ? 'Chargement…' : summarizeEquipment(referenceEquipment, equipmentIds);
+  const allEquipmentSelected = referenceEquipment.length > 0
+    && referenceEquipment.every((item) => equipmentIds.includes(item.id));
+  const bodyweightOnly = equipmentIds.length === 0;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -712,7 +740,7 @@ export default function WeekComposerV7() {
                 <Text style={styles.contextPrimary}>{duration} MIN · {environmentLabel(environmentCode).toUpperCase()}</Text>
                 {targetRegion ? <Text style={styles.contextPill}>{regionLabel(targetRegion)}</Text> : null}
               </View>
-              {intent ? <Text style={styles.contextPrimary}>{intent.label.toUpperCase()}</Text> : null}
+              {effectiveIntent ? <Text style={styles.contextPrimary}>{effectiveIntent.label.toUpperCase()}</Text> : null}
               {architecture ? <Text style={styles.contextMuted}>{architecture.blocks.map((item) => item.label).join(' + ')}</Text> : null}
             </View>
           ) : null}
@@ -750,7 +778,7 @@ export default function WeekComposerV7() {
 
           {step === 1 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="DIRECTION" title="Qu’est-ce qu’on veut travailler ?" helper="UGEROD garde la direction prévue quand elle existe, mais tu peux reprendre la main." styles={styles} />
+              <StageHeader kicker="DIRECTION" title="Quel type de travail ?" helper={targetRegion ? `Ta préférence ${regionLabel(targetRegion).toLowerCase()} est déjà prise en compte.` : 'UGEROD garde la direction prévue quand elle existe, mais tu peux reprendre la main.'} styles={styles} />
               <View style={styles.optionList}>
                 {intentChoices.map((choice) => {
                   const selected = intent?.key === choice.key;
@@ -759,7 +787,7 @@ export default function WeekComposerV7() {
                       {selected ? <View style={styles.selectedRail} /> : null}
                       <View style={styles.cardTopRow}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.cardEyebrow}>{choice.recommended ? 'PRÉVU PAR UGEROD' : 'OPTION'}</Text>
+                          <Text style={styles.cardEyebrow}>{choice.recommended ? 'PROPOSITION UGEROD' : 'OPTION'}</Text>
                           <Text style={styles.cardTitle}>{choice.label}</Text>
                           <Text style={styles.cardSubtitle}>{choice.subtitle}</Text>
                         </View>
@@ -870,7 +898,7 @@ export default function WeekComposerV7() {
 
           {step === 5 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="TA SÉANCE EST PRÊTE" title={intent?.label ?? 'Séance UGEROD'} helper={`${duration} min · ${environmentLabel(environmentCode)} · estimation ≈ ${estimatedMinutes} min.`} styles={styles} />
+              <StageHeader kicker="TA SÉANCE EST PRÊTE" title={effectiveIntent?.label ?? 'Séance UGEROD'} helper={`${duration} min · ${environmentLabel(environmentCode)} · estimation ≈ ${estimatedMinutes} min.`} styles={styles} />
               <View style={styles.recapCard}>
                 {(architecture?.blocks ?? []).map((item) => (
                   <View key={`recap-${item.type}`} style={styles.recapBlock}>
@@ -919,14 +947,32 @@ export default function WeekComposerV7() {
         ) : referenceEquipment.length === 0 ? (
           <View style={styles.infoRow}><Ionicons name="body-outline" size={20} color={colors.accent} /><Text style={styles.infoText}>Aucun matériel enregistré ici. UGEROD composera au poids du corps.</Text></View>
         ) : (
-          <View style={styles.equipmentGrid}>
-            {referenceEquipment.map((item) => (
-              <Pressable key={item.id} onPress={() => toggleEquipment(item.id)} style={[styles.equipmentChoice, equipmentIds.includes(item.id) && styles.equipmentChoiceSelected]}>
-                <View style={{ flex: 1 }}><Text style={styles.equipmentChoiceTitle}>{item.name}</Text>{item.detail ? <Text style={styles.equipmentChoiceDetail}>{item.detail}</Text> : null}</View>
-                <Ionicons name={equipmentIds.includes(item.id) ? 'checkmark-circle' : 'ellipse-outline'} size={21} color={equipmentIds.includes(item.id) ? colors.accent : colors.textMuted} />
+          <>
+            <View style={styles.equipmentQuickRow}>
+              <Pressable
+                onPress={() => setEquipmentIds(referenceEquipment.map((item) => item.id))}
+                style={[styles.equipmentQuickButton, allEquipmentSelected && styles.equipmentQuickButtonSelected]}
+              >
+                <Ionicons name="checkmark-done-outline" size={18} color={allEquipmentSelected ? colors.textOnAccent : colors.accent} />
+                <Text style={[styles.equipmentQuickText, allEquipmentSelected && styles.equipmentQuickTextSelected]}>Tout mon matériel</Text>
               </Pressable>
-            ))}
-          </View>
+              <Pressable
+                onPress={() => setEquipmentIds([])}
+                style={[styles.equipmentQuickButton, bodyweightOnly && styles.equipmentQuickButtonSelected]}
+              >
+                <Ionicons name="body-outline" size={18} color={bodyweightOnly ? colors.textOnAccent : colors.accent} />
+                <Text style={[styles.equipmentQuickText, bodyweightOnly && styles.equipmentQuickTextSelected]}>Poids du corps</Text>
+              </Pressable>
+            </View>
+            <View style={styles.equipmentGrid}>
+              {referenceEquipment.map((item) => (
+                <Pressable key={item.id} onPress={() => toggleEquipment(item.id)} style={[styles.equipmentChoice, equipmentIds.includes(item.id) && styles.equipmentChoiceSelected]}>
+                  <View style={{ flex: 1 }}><Text style={styles.equipmentChoiceTitle}>{item.name}</Text>{item.detail ? <Text style={styles.equipmentChoiceDetail}>{item.detail}</Text> : null}</View>
+                  <Ionicons name={equipmentIds.includes(item.id) ? 'checkmark-circle' : 'ellipse-outline'} size={21} color={equipmentIds.includes(item.id) ? colors.accent : colors.textMuted} />
+                </Pressable>
+              ))}
+            </View>
+          </>
         )}
         <Pressable onPress={openProfileEquipment} style={styles.inlineLink}><Text style={styles.inlineLinkText}>Modifier mon matériel</Text><Ionicons name="chevron-forward" size={18} color={colors.accent} /></Pressable>
       </SheetShell>
@@ -1077,6 +1123,11 @@ function createStyles(colors) {
     sheetHelp: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, color: colors.textSecondary, marginBottom: 14 },
     sheetNotice: { marginBottom: 14, padding: 12, borderRadius: 12, backgroundColor: colors.background, fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 17, color: colors.textSecondary },
     choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+    equipmentQuickRow: { flexDirection: 'row', gap: 9, marginBottom: 14 },
+    equipmentQuickButton: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 10 },
+    equipmentQuickButtonSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+    equipmentQuickText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.accent },
+    equipmentQuickTextSelected: { color: colors.textOnAccent },
     equipmentGrid: { gap: 8 },
     equipmentChoice: { minHeight: 58, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },
     equipmentChoiceSelected: { borderColor: colors.accent, backgroundColor: colors.surfaceElevated ?? colors.surface },
