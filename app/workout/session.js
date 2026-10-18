@@ -169,7 +169,12 @@ export default function SessionScreen() {
 
   // GYM et OUTDOOR conservent leurs runtimes spécialisés (séries, cardio, course),
   // mais leur shell et leurs actions sont alignés sur le Player commun.
-  const usesSpecializedEnvironmentRuntime = ['GYM', 'OUTDOOR'].includes(environmentCode);
+  // Composer may include a native Strength block at HOME/BOX as well as WOD.
+  // The classic Functional Fitness player has a fixed block list without
+  // Strength, while the environment player reads the actual persisted blocks.
+  const usesSpecializedEnvironmentRuntime =
+    ['GYM', 'OUTDOOR'].includes(environmentCode) ||
+    String(workout?.meta?.source ?? '').toLowerCase() === 'w11_composer';
   const progressRecorded = hasRecordedProgress(workout);
   const hasResumeCursor = Boolean(
     authoritativeSessionStarted &&
