@@ -56,6 +56,7 @@ declare
   v_max_station integer;
   v_ctx jsonb;
   v_result jsonb;
+  v_expected_stimulus jsonb;
 begin
   if auth.uid() is not null and auth.uid() <> p_user_id then
     raise exception 'Forbidden user' using errcode='42501';
@@ -191,13 +192,28 @@ begin
     raise exception 'COMPOSER_TIME_BUDGET_EXCEEDED';
   end if;
 
+  -- Store the selected workload as an explicit user-authored expected-stimulus
+  -- contract; the generic C4 target policy may not support every Composer focus.
+  begin
+    v_expected_stimulus:=public.build_session_stimulus_target(v_focus,v_duration,
+      p_readiness::text,v_region,v_intent,'c4-final-default');
+  exception when others then
+    v_expected_stimulus:=jsonb_build_object(
+      'stimulus_model_status','USER_AUTHORED_NOT_AUTO_DERIVED');
+  end;
+  v_expected_stimulus:=coalesce(v_expected_stimulus,'{}'::jsonb)||
+    jsonb_build_object('source','W11_COMPOSER_DAY_J','user_authored',true,
+      'focus',v_focus,'duration_minutes',v_duration,'readiness',p_readiness,
+      'target_region',v_region,'progression_intent',v_intent,
+      'auto_generation_used',false);
+
   -- A single transaction owns both the session and every exercise; any failed
   -- dose, compatibility or density check rolls everything back.
   v_session_id:=gen_random_uuid();
   insert into public.workout_sessions (
     id,user_id,status,duration_minutes,target_region,readiness,focus,
     available_equipment,injured_zones,generated_at,progression_intent,
-    generated_workout,planning_context_json,quality_gate_json,generation_local_date,
+    generated_workout,planning_context_json,expected_stimulus_json,quality_gate_json,generation_local_date,
     planned_environment_code,planned_environment_source,planned_environment_selected_at,planned_surface_code
   ) values (
     v_session_id,p_user_id,'generated',v_duration,v_region,p_readiness::text,v_focus,
@@ -205,6 +221,7 @@ begin
     jsonb_build_object('version','w11-composer-player-v1','blocks','[]'::jsonb),
     jsonb_build_object('session_source','W11_COMPOSER_DAY_J','plan_item_id',v_item.id,
       'composer_draft',v_draft,'user_block_order_preserved',true,'day_j_readiness',p_readiness),
+    v_expected_stimulus,
     jsonb_build_object('source','w11-composer-finalizer-v1','pass',true,
       'user_exercise_choices_preserved',true,'time_budget_minutes',v_duration),
     p_local_date,v_env,'USER_COMPOSER',now(),
@@ -250,7 +267,7 @@ begin
           'cap_seconds',v_minutes*60);
       elsif v_mechanic='CIRCUIT' then
         v_rounds:=greatest(2,least(4,floor(v_minutes::numeric/5)::integer));
-        v_params:=jsonb_build_object('rounds',v_rounds,'rest_seconds',45,
+        v_params:=jsonb_build_object('rounds',v_rounds,'rest_seconds',45,'rest_between_rounds_seconds',45,
           'duration_minutes',v_minutes);
       elsif v_mechanic='HIIT' then
         v_cycles:=floor(v_minutes::numeric/v_count)::integer;
@@ -348,8 +365,12 @@ begin
         'prescription',v_pres,'prescription_json',v_pres);
       v_out_exercises:=v_out_exercises||jsonb_build_array(v_ejson);
     end loop;
-    if v_type='WOD' and v_mechanic in ('AMRAP','FOR_TIME','CIRCUIT')
-       and v_estimated_round_seconds>v_minutes*60*0.85 then
+    if v_type='WOD' and (
+       (v_mechanic='AMRAP' and v_estimated_round_seconds>v_minutes*60*0.85)
+       or (v_mechanic in ('FOR_TIME','CIRCUIT')
+         and (v_estimated_round_seconds*v_rounds
+            + greatest(0,v_rounds-1)*coalesce(v_params->>'rest_seconds','0')::integer)>v_minutes*60*0.85)
+       ) then
       raise exception 'COMPOSER_DENSITY_EXCEEDS_BUDGET';
     end if;
     if v_type='WOD' then
