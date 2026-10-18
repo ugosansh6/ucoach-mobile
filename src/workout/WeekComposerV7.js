@@ -117,21 +117,49 @@ function humanize(value) {
   return String(value).replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
 }
 
+// Resolve the visible Coach direction from one coherent source, not a mix of
+// the current projection's copy and the older weekly slot's focus.
+function classifyTrainingDirection(value) {
+  const text = String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  if (/\b(CONDITIONING|CONDITIONNEMENT|CARDIO|ENDURANCE|METCON|AEROBIE)\b/.test(text)) return 'Conditioning';
+  if (/\b(FORCE|STRENGTH)\b/.test(text)) return 'Strength';
+  if (/\b(TECHNIQUE|TECHNICAL|SKILL|GYMNASTIQUE)\b/.test(text)) return 'General Fitness';
+  return null;
+}
+
 function coachIntentFromItem(item) {
   if (!item) return null;
-  const title = item?.coachProjection?.presentation?.title
-    ?? humanize(item?.plannedContext?.focus)
-    ?? 'Séance UGEROD';
-  const raw = String(item?.plannedContext?.focus ?? item?.coachProjection?.priority?.key ?? title).toUpperCase();
-  const focus = raw.includes('STRENGTH') || raw.includes('FORCE')
-    ? 'Strength'
-    : raw.includes('CONDITION') || raw.includes('CARDIO')
+  const presentation = item?.coachProjection?.presentation ?? {};
+  const title = String(presentation.title ?? '').trim();
+  const description = String(presentation.description ?? '').trim();
+  const titleDirection = classifyTrainingDirection(title);
+  const descriptionDirection = classifyTrainingDirection(description);
+
+  // The Coach projection is fresher than plannedContext.focus, which can still
+  // describe the legacy slot (e.g. Strength for a Conditioning opportunity).
+  const focus = titleDirection
+    ?? classifyTrainingDirection(item?.coachProjection?.priority?.key)
+    ?? descriptionDirection
+    ?? classifyTrainingDirection(item?.plannedContext?.focus)
+    ?? 'General Fitness';
+
+  const legacyTitle = humanize(item?.plannedContext?.focus);
+  const fallbackTitle = focus === 'Strength'
+    ? 'Force'
+    : focus === 'Conditioning'
       ? 'Conditioning'
-      : 'General Fitness';
+      : legacyTitle ?? 'Séance UGEROD';
+  const label = title || (classifyTrainingDirection(legacyTitle) === focus ? legacyTitle : fallbackTitle);
+
+  // Hide an obsolete explanation rather than claim that Force is Conditioning.
+  const subtitle = description && (!descriptionDirection || descriptionDirection === focus)
+    ? description
+    : null;
+
   return {
-    key: `COACH_${raw.replace(/\s+/g, '_')}`,
-    label: title,
-    subtitle: item?.coachProjection?.presentation?.description ?? 'La direction déjà prévue dans ta semaine.',
+    key: `COACH_${focus.toUpperCase().replace(/\s+/g, '_')}`,
+    label,
+    subtitle,
     focus,
     targetRegion: item?.plannedContext?.targetRegion ?? null,
     recommended: true,
@@ -683,7 +711,7 @@ export default function WeekComposerV7() {
   const rawCoachChoice = coachIntentFromItem(selectedItem);
   const coachChoice = directionChoiceForRegion(rawCoachChoice, targetRegion, rawCoachChoice?.targetRegion ?? null);
   const fallbackChoices = FALLBACK_INTENTS
-    .filter((choice) => !(coachChoice && ['Strength', 'Conditioning'].includes(choice.focus) && choice.focus === coachChoice.focus))
+    .filter((choice) => !(coachChoice && directionBaseLabel(choice) === directionBaseLabel(coachChoice)))
     .map((choice) => directionChoiceForRegion(choice, targetRegion));
   const intentChoices = [
     ...(coachChoice ? [coachChoice] : []),
@@ -789,7 +817,7 @@ export default function WeekComposerV7() {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.cardEyebrow}>{choice.recommended ? 'PROPOSITION UGEROD' : 'OPTION'}</Text>
                           <Text style={styles.cardTitle}>{choice.label}</Text>
-                          <Text style={styles.cardSubtitle}>{choice.subtitle}</Text>
+                          {choice.subtitle ? <Text style={styles.cardSubtitle}>{choice.subtitle}</Text> : null}
                         </View>
                         <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
                           <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
