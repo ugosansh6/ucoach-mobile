@@ -19,6 +19,7 @@ import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   discardUnstartedWorkoutSession,
   generateWorkoutSession,
+  finalizeComposerWorkoutSession,
   replaceWorkoutSessionByUser,
 } from '../../src/services/workoutGenerationService';
 
@@ -42,7 +43,10 @@ function environmentLabel(code) {
 
 export default function GeneratingThemedScreen() {
   const searchParams = useLocalSearchParams();
-  const newSessionRequested = String(searchParams?.mode ?? '').toLowerCase() === 'new';
+  const generationMode = String(searchParams?.mode ?? '').toLowerCase();
+  const newSessionRequested = generationMode === 'new';
+  const composerPlanItemId = generationMode === 'composer' ? String(searchParams?.planItemId ?? '') : '';
+  const composerLocalDate = generationMode === 'composer' ? String(searchParams?.date ?? '') : '';
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
@@ -143,10 +147,16 @@ export default function GeneratingThemedScreen() {
           });
         }
 
-        const nextWorkout = await generateWorkoutSession(preparation, {
-          forceRecalculateStarted,
-          protectedSessionExerciseIds: newSessionRequested ? [] : protectedSessionExerciseIds,
-        });
+        const nextWorkout = composerPlanItemId
+          ? await finalizeComposerWorkoutSession({
+              planItemId: composerPlanItemId,
+              localDate: composerLocalDate,
+              preparation,
+            })
+          : await generateWorkoutSession(preparation, {
+              forceRecalculateStarted,
+              protectedSessionExerciseIds: newSessionRequested ? [] : protectedSessionExerciseIds,
+            });
         applyGenerationResult(nextWorkout);
       } catch (generationError) {
         setError(generationError?.message ?? `Impossible de générer la séance ${label.toLowerCase()}.`);
@@ -156,6 +166,8 @@ export default function GeneratingThemedScreen() {
       }
     }, [
       applyGenerationResult,
+      composerLocalDate,
+      composerPlanItemId,
       existingWorkoutActive,
       existingWorkoutStarted,
       label,
@@ -237,6 +249,13 @@ export default function GeneratingThemedScreen() {
   }
 
   const controlCopy = useMemo(() => {
+    if (controlStatus === 'COMPOSER_OTHER_SESSION_ACTIVE') {
+      return {
+        eyebrow: 'SÉANCE DU JOUR',
+        title: 'UNE AUTRE SÉANCE EST DÉJÀ PRÊTE.',
+        body: 'UGEROD a protégé ta composition. Reprends la séance active ou reviens à Preparation : ta séance composée reste enregistrée.',
+      };
+    }
     if (canReplaceExisting) {
       return {
         eyebrow: 'SÉANCE EXISTANTE',
