@@ -2596,7 +2596,12 @@ export default function EnvironmentSessionCore({
   return (
     <SafeAreaView style={shellStyles.screen}>
       <SessionPlayerHeader
-        eyebrowPrefix={environmentCode === 'GYM' ? 'SALLE' : 'EXTÉRIEUR'}
+        eyebrowPrefix={{
+          HOME: 'MAISON',
+          BOX: 'BOX',
+          GYM: 'SALLE',
+          OUTDOOR: 'EXTÉRIEUR',
+        }[String(environmentCode ?? '').toUpperCase()] ?? 'SÉANCE'}
         blockIndex={currentIndex}
         blockCount={blocks.length}
         title={blockTitle(currentBlock, currentKey.toUpperCase())}
