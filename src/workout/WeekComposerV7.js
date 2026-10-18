@@ -472,6 +472,8 @@ export default function WeekComposerV7() {
   const [exerciseBlockIndex, setExerciseBlockIndex] = useState(0);
   const [expandedExerciseId, setExpandedExerciseId] = useState(null);
   const [mechanic, setMechanic] = useState(null);
+  const [mechanicOptions, setMechanicOptions] = useState([]);
+  const [showAllMechanics, setShowAllMechanics] = useState(false);
 
   async function loadEquipmentForEnvironment(code, catalog = equipmentCatalog) {
     try {
@@ -624,7 +626,7 @@ export default function WeekComposerV7() {
     });
   }
 
-  function advanceExerciseBlock() {
+  async function advanceExerciseBlock() {
     const blocks = architecture?.blocks ?? [];
     setExpandedExerciseId(null);
     if (exerciseBlockIndex < blocks.length - 1) {
@@ -632,12 +634,31 @@ export default function WeekComposerV7() {
       return;
     }
     const wodBlock = blocks.find((block) => block.type === 'WOD');
-    const options = getComposerMechanicOptions({
-      wodMinutes: wodBlock?.minutes ?? 12,
-      exerciseCount: (selectionMap.WOD ?? []).length,
-    });
-    setMechanic(options[0] ?? null);
-    setStep(4);
+    if (!wodBlock) {
+      setMechanic(null);
+      setStep(5);
+      return;
+    }
+    try {
+      setBusy(true);
+      setError('');
+      const options = await getComposerMechanicOptions({
+        wodMinutes: wodBlock.minutes,
+        exerciseIds: selectionMap.WOD ?? [],
+        environmentCode,
+        focus: intent?.focus,
+      });
+      if (!options.length) throw new Error('Aucune mécanique compatible avec ce WOD.');
+      setMechanicOptions(options);
+      setMechanic(options[0]);
+      setShowAllMechanics(false);
+      setStep(4);
+    } catch (reason) {
+      console.warn('[Composer] mechanic recommendation failed', reason);
+      setError('Impossible de valider les formats compatibles avec tes mouvements.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   function selectedExercises(type) {
@@ -730,10 +751,6 @@ export default function WeekComposerV7() {
   ].filter((exercise, index, array) => array.findIndex((item) => item.id === exercise.id) === index);
   const extraCandidates = activeCandidates.filter((exercise) => !mainCandidates.some((item) => item.id === exercise.id));
   const wodBlock = architecture?.blocks?.find((block) => block.type === 'WOD') ?? null;
-  const mechanicOptions = getComposerMechanicOptions({
-    wodMinutes: wodBlock?.minutes ?? 12,
-    exerciseCount: (selectionMap.WOD ?? []).length,
-  });
   const estimatedMinutes = architecture?.estimatedMinutes
     ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
   const equipmentSummary = equipmentLoading ? 'Chargement…' : summarizeEquipment(referenceEquipment, equipmentIds);
@@ -901,7 +918,7 @@ export default function WeekComposerV7() {
             <View style={styles.stepWrap}>
               <StageHeader kicker="MÉCANIQUE DU WOD" title="Quel format donne le meilleur rythme ?" helper="UGEROD ne montre que les formats cohérents avec les mouvements retenus et le temps disponible." styles={styles} />
               <View style={styles.optionList}>
-                {mechanicOptions.map((option) => {
+                {mechanicOptions.filter((option, index) => showAllMechanics || index < 3).map((option) => {
                   const selected = mechanic?.key === option.key;
                   return (
                     <Pressable key={option.key} onPress={() => setMechanic(option)} style={[styles.simpleCard, selected && styles.cardSelected]}>
@@ -920,13 +937,20 @@ export default function WeekComposerV7() {
                   );
                 })}
               </View>
-              <PrimaryButton label="FINALISER LA SÉANCE" onPress={() => setStep(5)} disabled={!mechanic} styles={styles} colors={colors} />
+              {mechanicOptions.length > 3 ? (
+                <Pressable onPress={() => setShowAllMechanics((value) => !value)} style={{ paddingVertical: 14, alignItems: 'center' }}>
+                  <Text style={{ color: colors.accent, fontFamily: MANROPE.bold, textDecorationLine: 'underline' }}>
+                    {showAllMechanics ? 'Masquer les formats complémentaires' : 'Voir d’autres formats'}
+                  </Text>
+                </Pressable>
+              ) : null}
+              <PrimaryButton label="VOIR LA COMPOSITION" onPress={() => setStep(5)} disabled={!mechanic} styles={styles} colors={colors} />
             </View>
           ) : null}
 
           {step === 5 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="TA SÉANCE EST PRÊTE" title={effectiveIntent?.label ?? 'Séance UGEROD'} helper={`${duration} min · ${environmentLabel(environmentCode)} · estimation ≈ ${estimatedMinutes} min.`} styles={styles} />
+              <StageHeader kicker="COMPOSITION TERMINÉE" title={effectiveIntent?.label ?? 'Séance UGEROD'} helper={`${duration} min · ${environmentLabel(environmentCode)} · estimation ≈ ${estimatedMinutes} min.`} styles={styles} />
               <View style={styles.recapCard}>
                 {(architecture?.blocks ?? []).map((item) => (
                   <View key={`recap-${item.type}`} style={styles.recapBlock}>
