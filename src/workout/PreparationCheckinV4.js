@@ -24,6 +24,7 @@ import {
   getEquipmentCatalog,
   getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
+import { getComposerForLocalDate } from '../services/composerService';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -535,6 +536,10 @@ export default function PreparationCheckinV4() {
   const [equipmentError, setEquipmentError] = useState('');
   const [equipmentNeedsLogin, setEquipmentNeedsLogin] = useState(false);
   const [painConfirmedToday, setPainConfirmedToday] = useState(false);
+  const [todayComposer, setTodayComposer] = useState(null);
+  const [composerLoading, setComposerLoading] = useState(true);
+  const [composerReadError, setComposerReadError] = useState(false);
+  const hydratedComposerDateRef = useRef(null);
   const painScreenOpenedRef = useRef(false);
   const equipmentRef = useRef(preparation?.equipment ?? []);
   const preparationRef = useRef(preparation);
@@ -697,6 +702,57 @@ export default function PreparationCheckinV4() {
     }, [preparation?.painZones])
   );
 
+  // The dashboard must discover a composition already saved in Ma semaine.
+  // Only known future context is hydrated; today's readiness and pain are
+  // deliberately never imported from the future plan.
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    async function loadTodayComposer() {
+      setComposerLoading(true);
+      setComposerReadError(false);
+      try {
+        const date = localDateKey();
+        const saved = await getComposerForLocalDate(date);
+        if (!active) return;
+        setTodayComposer(saved);
+        if (saved && hydratedComposerDateRef.current !== date) {
+          const future = saved.futureContext ?? {};
+          const draft = saved.draft ?? {};
+          const plannedEquipment = Array.isArray(future.equipment)
+            ? future.equipment.filter(Boolean)
+            : [];
+          hydratedComposerDateRef.current = date;
+          updatePreparation({
+            duration: Number(draft.duration_minutes ?? future.duration_minutes ?? 45),
+            environmentCode: draft.environment_code ?? future.environment_code ?? 'HOME',
+            region: draft.target_region ?? future.target_region ?? null,
+            equipment: plannedEquipment.length > 0 ? plannedEquipment : ['Poids du corps'],
+            equipmentEnvironmentCode: draft.environment_code ?? future.environment_code ?? 'HOME',
+            equipmentSelectionSource: 'session_override',
+            equipmentSelectionDate: date,
+          });
+        }
+      } catch (loadError) {
+        if (active) {
+          console.warn('[Preparation] Composer day-J read failed', loadError);
+          setComposerReadError(true);
+          setTodayComposer(null);
+        }
+      } finally {
+        if (active) setComposerLoading(false);
+      }
+    }
+    loadTodayComposer();
+    return () => { active = false; };
+  }, [updatePreparation]));
+
+  function reopenTodayComposer() {
+    if (!todayComposer?.planItemId) return;
+    const date = encodeURIComponent(String(todayComposer.date ?? localDateKey()));
+    const id = encodeURIComponent(String(todayComposer.planItemId));
+    router.push(`/workout/preparation?entry=week_assisted&date=${date}&planItemId=${id}`);
+  }
+
   function handleBack() {
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)');
@@ -793,7 +849,17 @@ export default function PreparationCheckinV4() {
     router.push('/workout/injuries');
   }
 
-  function handleGenerate({ replaceExisting = false } = {}) {
+  function handleGenerate({ replaceExisting = false, ignoreComposer = false } = {}) {
+    if (composerLoading || composerReadError) {
+      setSheet('composer-read-error');
+      return;
+    }
+    if (todayComposer && !ignoreComposer) {
+      // A saved plan is not an executable session: the legacy generator would
+      // discard its chosen blocks, exercises and mechanic. Never do that silently.
+      setSheet('composer-not-materialized');
+      return;
+    }
     if (!painConfirmedToday) {
       setSheet('pain');
       return;
@@ -852,6 +918,8 @@ export default function PreparationCheckinV4() {
       : colors.secondaryAccent;
   const canGenerate =
     !equipmentLoading &&
+    !composerLoading &&
+    !composerReadError &&
     painConfirmedToday &&
     outdoorContextComplete;
 
@@ -876,6 +944,43 @@ export default function PreparationCheckinV4() {
         </View>
 
         <Text style={styles.intro}>Ajuste ta séance du jour.</Text>
+        {todayComposer ? (
+          <View style={styles.composerSavedCard}>
+            <Text style={styles.composerSavedKicker}>COMPOSÉE DANS MA SEMAINE</Text>
+            <Text style={styles.composerSavedTitle}>
+              {todayComposer.draft?.intent?.label ?? 'Ta séance personnalisée'}
+            </Text>
+            <Text style={styles.composerSavedContext}>
+              {todayComposer.draft?.duration_minutes} min · {
+                (todayComposer.draft?.architecture?.blocks ?? [])
+                  .map((block) => block.label)
+                  .filter(Boolean)
+                  .join(' + ')
+              }
+            </Text>
+            {(todayComposer.draft?.architecture?.blocks ?? []).map((block, index) => (
+              <View key={`${block.type}-${index}`} style={styles.composerSavedBlock}>
+                <Text style={styles.composerSavedBlockTitle}>{block.label} · {block.minutes} min</Text>
+                <Text style={styles.composerSavedExercises}>
+                  {(block.exercises ?? []).map((item) => item.name).join(' · ') || 'Aucun mouvement'}
+                </Text>
+              </View>
+            ))}
+            {todayComposer.draft?.mechanic?.title ? (
+              <Text style={styles.composerSavedMechanic}>WOD · {todayComposer.draft.mechanic.title}</Text>
+            ) : null}
+            <Pressable onPress={reopenTodayComposer} style={styles.composerSavedLink}>
+              <Text style={styles.composerSavedLinkText}>Revoir ma composition</Text>
+              <Ionicons name="arrow-forward" size={16} color={colors.accent} />
+            </Pressable>
+          </View>
+        ) : null}
+        {composerReadError ? (
+          <Text style={styles.composerReadError}>
+            Impossible de vérifier si une séance composée est prévue aujourd'hui.
+            La génération automatique est suspendue pour protéger tes choix.
+          </Text>
+        ) : null}
 
         <DurationControl
           value={duration}
@@ -987,7 +1092,7 @@ export default function PreparationCheckinV4() {
                 pressed && !equipmentLoading && styles.pressed,
               ]}
             >
-              <Text style={styles.primaryButtonText}>Voir ma séance</Text>
+              <Text style={styles.primaryButtonText}>{todayComposer ? 'MA SÉANCE COMPOSÉE' : 'Voir ma séance'}</Text>
               <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
             </Pressable>
           )}
@@ -995,6 +1100,48 @@ export default function PreparationCheckinV4() {
 
         <View style={styles.bottomSpace} />
       </ScrollView>
+
+      <SheetShell
+        visible={sheet === 'composer-not-materialized'}
+        title="Séance composée enregistrée"
+        onClose={() => setSheet(null)}
+        styles={styles}
+        colors={colors}
+        footer={
+          <Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}>
+            <Text style={styles.sheetDoneButtonText}>Conserver ma composition</Text>
+          </Pressable>
+        }
+      >
+        <Text style={styles.sheetHelp}>
+          Tes blocs, tes mouvements et la mécanique sont enregistrés et repris dans cette préparation.
+          La prescription et le player de cette composition ne sont pas encore raccordés.
+          Le générateur standard ne respecterait pas tes choix.
+        </Text>
+        <Pressable onPress={() => { setSheet(null); reopenTodayComposer(); }} style={styles.inlineLink}>
+          <Text style={styles.inlineLinkText}>Revoir ma composition</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+        </Pressable>
+        <Pressable
+          onPress={() => { setSheet(null); handleGenerate({ ignoreComposer: true }); }}
+          style={styles.inlineLink}
+        >
+          <Text style={styles.inlineLinkText}>Générer une autre séance à la place</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+        </Pressable>
+      </SheetShell>
+      <SheetShell
+        visible={sheet === 'composer-read-error'}
+        title="Connexion à Ma semaine indisponible"
+        onClose={() => setSheet(null)}
+        styles={styles}
+        colors={colors}
+      >
+        <Text style={styles.sheetHelp}>
+          Je ne peux pas vérifier la présence d'une séance composée. Réessaie en rouvrant Preparation
+          avant de générer, pour ne pas perdre tes choix.
+        </Text>
+      </SheetShell>
 
       <SheetShell
         visible={sheet === 'location'}
@@ -1245,6 +1392,17 @@ function createStyles(colors) {
     flexOne: { flex: 1 },
     pressed: { opacity: 0.76 },
 
+    composerSavedCard: { marginTop: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface, padding: 17 },
+    composerSavedKicker: { fontFamily: MANROPE.bold, fontSize: 10, color: colors.accent, letterSpacing: 1 },
+    composerSavedTitle: { marginTop: 8, fontFamily: MANROPE.bold, fontSize: 18, color: colors.text },
+    composerSavedContext: { marginTop: 6, fontFamily: MANROPE.medium, fontSize: 12, color: colors.textSecondary },
+    composerSavedBlock: { marginTop: 13, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
+    composerSavedBlockTitle: { fontFamily: MANROPE.bold, fontSize: 12, color: colors.text },
+    composerSavedExercises: { marginTop: 4, fontFamily: MANROPE.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+    composerSavedMechanic: { marginTop: 12, fontFamily: MANROPE.semiBold, fontSize: 12, color: colors.accent },
+    composerSavedLink: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    composerSavedLinkText: { fontFamily: MANROPE.bold, fontSize: 12, color: colors.accent },
+    composerReadError: { marginTop: 16, color: colors.error, fontFamily: MANROPE.medium, fontSize: 13 },
     header: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 12 },
     headerButton: {
       width: 42,
