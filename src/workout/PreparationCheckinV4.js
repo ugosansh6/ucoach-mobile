@@ -746,13 +746,6 @@ export default function PreparationCheckinV4() {
     return () => { active = false; };
   }, [updatePreparation]));
 
-  function reopenTodayComposer() {
-    if (!todayComposer?.planItemId) return;
-    const date = encodeURIComponent(String(todayComposer.date ?? localDateKey()));
-    const id = encodeURIComponent(String(todayComposer.planItemId));
-    router.push(`/workout/preparation?entry=week_assisted&date=${date}&planItemId=${id}`);
-  }
-
   function handleBack() {
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)');
@@ -969,10 +962,9 @@ export default function PreparationCheckinV4() {
             {todayComposer.draft?.mechanic?.title ? (
               <Text style={styles.composerSavedMechanic}>WOD · {todayComposer.draft.mechanic.title}</Text>
             ) : null}
-            <Pressable onPress={reopenTodayComposer} style={styles.composerSavedLink}>
-              <Text style={styles.composerSavedLinkText}>Revoir ma composition</Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.accent} />
-            </Pressable>
+            <Text style={styles.composerSavedPending}>
+              Tes choix sont conservés. La prescription du jour et le player ne sont pas encore raccordés à cette composition.
+            </Text>
           </View>
         ) : null}
         {composerReadError ? (
@@ -1065,7 +1057,7 @@ export default function PreparationCheckinV4() {
                 onPress={() => router.replace('/workout/session')}
                 style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
               >
-                <Text style={styles.primaryButtonText}>Reprendre ma séance</Text>
+                <Text style={styles.primaryButtonText}>{todayComposer && workout.sessionId !== todayComposer.sessionId ? 'Reprendre une autre séance' : 'Reprendre ma séance'}</Text>
                 <Ionicons name="play" size={21} color={colors.textOnAccent} />
               </Pressable>
 
@@ -1092,7 +1084,7 @@ export default function PreparationCheckinV4() {
                 pressed && !equipmentLoading && styles.pressed,
               ]}
             >
-              <Text style={styles.primaryButtonText}>{todayComposer ? 'MA SÉANCE COMPOSÉE' : 'Voir ma séance'}</Text>
+              <Text style={styles.primaryButtonText}>{todayComposer ? 'ÉTAT DE MA SÉANCE COMPOSÉE' : 'Voir ma séance'}</Text>
               <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
             </Pressable>
           )}
@@ -1118,10 +1110,7 @@ export default function PreparationCheckinV4() {
           La prescription et le player de cette composition ne sont pas encore raccordés.
           Le générateur standard ne respecterait pas tes choix.
         </Text>
-        <Pressable onPress={() => { setSheet(null); reopenTodayComposer(); }} style={styles.inlineLink}>
-          <Text style={styles.inlineLinkText}>Revoir ma composition</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.accent} />
-        </Pressable>
+
         <Pressable
           onPress={() => { setSheet(null); handleGenerate({ ignoreComposer: true }); }}
           style={styles.inlineLink}
@@ -1400,8 +1389,7 @@ function createStyles(colors) {
     composerSavedBlockTitle: { fontFamily: MANROPE.bold, fontSize: 12, color: colors.text },
     composerSavedExercises: { marginTop: 4, fontFamily: MANROPE.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     composerSavedMechanic: { marginTop: 12, fontFamily: MANROPE.semiBold, fontSize: 12, color: colors.accent },
-    composerSavedLink: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
-    composerSavedLinkText: { fontFamily: MANROPE.bold, fontSize: 12, color: colors.accent },
+    composerSavedPending: { marginTop: 14, fontFamily: MANROPE.medium, fontSize: 12, lineHeight: 19, color: colors.textSecondary },
     composerReadError: { marginTop: 16, color: colors.error, fontFamily: MANROPE.medium, fontSize: 13 },
     header: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 12 },
     headerButton: {
