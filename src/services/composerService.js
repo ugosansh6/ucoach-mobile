@@ -217,24 +217,24 @@ export function buildComposerArchitectures({ durationMinutes, intentKey, targets
   }));
 }
 
-export function getComposerMechanicOptions({ wodMinutes = 12, exerciseCount = 3 }) {
-  const options = wodMinutes <= 12
-    ? [
-        { key: 'EMOM', title: 'EMOM', description: 'Cadencé et simple à tenir.' },
-        { key: 'AMRAP', title: 'AMRAP', description: 'Rythme libre dans un temps fixé.' },
-        { key: 'CIRCUIT', title: 'Circuit', description: 'Tours réguliers, lecture facile.' },
-      ]
-    : [
-        { key: 'AMRAP', title: 'AMRAP', description: 'Bon compromis pour ce volume.' },
-        { key: 'EMOM', title: 'EMOM', description: 'Cadence maîtrisée et transitions nettes.' },
-        { key: 'FOR_TIME', title: 'For Time', description: 'Travail fini avec cap temporel.' },
-      ];
-
-  return options.map((option, index) => ({
-    ...option,
-    recommended: index === 0,
-    exerciseCount,
-  }));
+/**
+ * MSW-036: engine-owned options, calculated once after the user validates the
+ * exercise shortlist. Never fabricate a mechanic because of duration alone.
+ */
+export async function getComposerMechanicOptions({
+  wodMinutes, exerciseIds, environmentCode, focus,
+} = {}) {
+  const user = await getAuthenticatedUserWithRetry();
+  const result = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_composer_mechanic_recommendations_v1', {
+      p_user_id: user.id,
+      p_environment_code: environmentCode,
+      p_wod_minutes: wodMinutes,
+      p_exercise_ids: exerciseIds ?? [],
+      p_focus: focus ?? 'General Fitness',
+    })
+  );
+  return Array.isArray(result?.options) ? result.options : [];
 }
 
 export async function saveComposerDraft({ planItemId, draft }) {
