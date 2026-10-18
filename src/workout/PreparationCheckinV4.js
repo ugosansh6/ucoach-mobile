@@ -847,12 +847,6 @@ export default function PreparationCheckinV4() {
       setSheet('composer-read-error');
       return;
     }
-    if (todayComposer && !ignoreComposer) {
-      // A saved plan is not an executable session: the legacy generator would
-      // discard its chosen blocks, exercises and mechanic. Never do that silently.
-      setSheet('composer-not-materialized');
-      return;
-    }
     if (!painConfirmedToday) {
       setSheet('pain');
       return;
@@ -875,7 +869,12 @@ export default function PreparationCheckinV4() {
     });
 
     const navigate = () => {
-      if (replaceExisting) {
+      if (todayComposer && !ignoreComposer) {
+        router.push({
+          pathname: '/workout/generating',
+          params: { mode: 'composer', planItemId: todayComposer.planItemId, date: todayComposer.date },
+        });
+      } else if (replaceExisting) {
         router.push({ pathname: '/workout/generating', params: { mode: 'new' } });
       } else {
         router.push('/workout/generating');
@@ -963,7 +962,7 @@ export default function PreparationCheckinV4() {
               <Text style={styles.composerSavedMechanic}>WOD · {todayComposer.draft.mechanic.title}</Text>
             ) : null}
             <Text style={styles.composerSavedPending}>
-              Tes choix sont conservés. La prescription du jour et le player ne sont pas encore raccordés à cette composition.
+              Tes choix sont conservés. UGEROD finalisera séries, répétitions, récupérations et mécanique pour le player après ton check-in.
             </Text>
           </View>
         ) : null}
@@ -1084,7 +1083,7 @@ export default function PreparationCheckinV4() {
                 pressed && !equipmentLoading && styles.pressed,
               ]}
             >
-              <Text style={styles.primaryButtonText}>{todayComposer ? 'ÉTAT DE MA SÉANCE COMPOSÉE' : 'Voir ma séance'}</Text>
+              <Text style={styles.primaryButtonText}>{todayComposer ? 'FINALISER MA SÉANCE' : 'Voir ma séance'}</Text>
               <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
             </Pressable>
           )}
@@ -1093,32 +1092,6 @@ export default function PreparationCheckinV4() {
         <View style={styles.bottomSpace} />
       </ScrollView>
 
-      <SheetShell
-        visible={sheet === 'composer-not-materialized'}
-        title="Séance composée enregistrée"
-        onClose={() => setSheet(null)}
-        styles={styles}
-        colors={colors}
-        footer={
-          <Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}>
-            <Text style={styles.sheetDoneButtonText}>Conserver ma composition</Text>
-          </Pressable>
-        }
-      >
-        <Text style={styles.sheetHelp}>
-          Tes blocs, tes mouvements et la mécanique sont enregistrés et repris dans cette préparation.
-          La prescription et le player de cette composition ne sont pas encore raccordés.
-          Le générateur standard ne respecterait pas tes choix.
-        </Text>
-
-        <Pressable
-          onPress={() => { setSheet(null); handleGenerate({ ignoreComposer: true }); }}
-          style={styles.inlineLink}
-        >
-          <Text style={styles.inlineLinkText}>Générer une autre séance à la place</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.accent} />
-        </Pressable>
-      </SheetShell>
       <SheetShell
         visible={sheet === 'composer-read-error'}
         title="Connexion à Ma semaine indisponible"
