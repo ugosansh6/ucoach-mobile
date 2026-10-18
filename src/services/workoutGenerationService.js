@@ -362,3 +362,51 @@ export async function generateWorkoutSession(preparation, options = {}) {
 
   return generateLegacyWorkoutSession(preparation, options);
 }
+
+/**
+ * MSW-015 / MSW-045: finalize the selected Composer structure on day J.
+ * Unlike a free workout generation this RPC never selects replacement
+ * exercises or substitutes another mechanic. Every error is explicit.
+ */
+export async function finalizeComposerWorkoutSession({
+  planItemId, localDate, preparation,
+} = {}) {
+  if (!planItemId || !/^\d{4}-\d{2}-\d{2}$/.test(String(localDate ?? ''))) {
+    throw new Error('Le créneau Composer ou sa date est manquant.');
+  }
+  const user = await getAuthenticatedUserWithRetry();
+  const painZones = Array.isArray(preparation?.painZones)
+    ? preparation.painZones.filter(Boolean) : [];
+  if (!painZones.length) throw new Error('Confirme les gênes du jour avant de lancer ta séance.');
+  const equipped = selectedEquipmentNames(preparation);
+  const result = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_compile_composer_day_j_v1', {
+      p_user_id: user.id,
+      p_plan_item_id: planItemId,
+      p_local_date: localDate,
+      p_readiness: Math.round(Number(preparation?.readiness ?? 6)),
+      p_pain_zones: painZones,
+      p_available_equipment: equipped,
+      p_environment_code: normalizeEnvironment(preparation?.environmentCode),
+    })
+  );
+  if (result?.status === 'OTHER_SESSION_ACTIVE') {
+    return {
+      controlStatus: 'COMPOSER_OTHER_SESSION_ACTIVE',
+      sessionId: result.session_id,
+    };
+  }
+  if (!['READY', 'ALREADY_READY'].includes(result?.status) || !result?.session_id) {
+    throw new Error('La composition ne peut pas être finalisée pour le moment.');
+  }
+  const loaded = await reloadWorkoutSession({
+    sessionId: result.session_id,
+    preparationSnapshot: preparation,
+  });
+  return {
+    ...loaded,
+    meta: { ...(loaded.meta ?? {}), source: 'w11_composer',
+      environment_code: normalizeEnvironment(preparation?.environmentCode) },
+    generationControlStatus: result.status === 'ALREADY_READY' ? 'resume_existing' : 'composer_day_j_finalized',
+  };
+}
