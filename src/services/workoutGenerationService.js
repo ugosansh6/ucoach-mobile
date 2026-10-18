@@ -8,6 +8,7 @@ import {
   reloadWorkoutSession,
 } from './workoutService';
 import { getCurrentPrimaryGoal } from './goalsService';
+import { getComposerForLocalDate } from './composerService';
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -373,6 +374,20 @@ export async function finalizeComposerWorkoutSession({
 } = {}) {
   if (!planItemId || !/^\d{4}-\d{2}-\d{2}$/.test(String(localDate ?? ''))) {
     throw new Error('Le créneau Composer ou sa date est manquant.');
+  }
+  if (localDate !== localDateKey()) {
+    throw new Error('La séance composée ne peut être finalisée que le jour prévu.');
+  }
+  const planned = await getComposerForLocalDate(localDate);
+  if (!planned || planned.planItemId !== planItemId) {
+    throw new Error('La composition du jour est introuvable : reviens dans Ma semaine.');
+  }
+  const plannedDuration = Number(planned.draft?.duration_minutes ?? 0);
+  if (plannedDuration !== Number(preparation?.duration)) {
+    throw new Error(`Cette séance a été composée pour ${plannedDuration} min. Le nouveau créneau demande une adaptation de la structure avant de la lancer.`);
+  }
+  if (String(planned.draft?.environment_code ?? '').toUpperCase() !== normalizeEnvironment(preparation?.environmentCode)) {
+    throw new Error('Le lieu a changé : certains mouvements doivent être revalidés avant de lancer.');
   }
   const user = await getAuthenticatedUserWithRetry();
   const painZones = Array.isArray(preparation?.painZones)
