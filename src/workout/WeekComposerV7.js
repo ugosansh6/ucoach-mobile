@@ -27,6 +27,7 @@ import {
   getComposerArchitectureTargets,
   getComposerExerciseCandidates,
   getComposerMechanicOptions,
+  getComposerForLocalDate,
   saveComposerDraft,
 } from '../services/composerService';
 import {
@@ -497,9 +498,10 @@ export default function WeekComposerV7() {
       try {
         setLoading(true);
         setError('');
-        const [contract, catalog] = await Promise.all([
+        const [contract, catalog, saved] = await Promise.all([
           getWeekReadContract({ anchorDate: new Date() }),
           getEquipmentCatalog(),
+          getComposerForLocalDate(dateKey),
         ]);
         if (!active) return;
         const candidates = (contract?.visibleItems ?? []).filter((item) => item?.recommendedDate === dateKey && !item?.sessionId);
@@ -522,6 +524,70 @@ export default function WeekComposerV7() {
         setEquipmentIds(reference.map((entry) => entry.id));
         const coachIntent = coachIntentFromItem(item);
         if (coachIntent) setIntent(coachIntent);
+
+        // A composition already saved must reopen as the same user-owned
+        // composition, not silently start a new coach generation from scratch.
+        if (saved?.planItemId && saved.planItemId === item?.planItemId &&
+            Array.isArray(saved.draft?.architecture?.blocks)) {
+          const draft = saved.draft;
+          const blocks = draft.architecture.blocks;
+          const requested = {};
+          const exerciseMap = {};
+          for (const block of blocks) {
+            requested[block.type] = (block.exercises ?? []).map((ex) => ex.id);
+            exerciseMap[block.type] = (block.exercises ?? []).map((ex) => ({
+              id: ex.id, name: ex.name,
+            }));
+          }
+          // Fetch alternative candidates only for editing. Preserve selected
+          // exercises even if their current compatibility has changed.
+          const alternatives = await Promise.all(blocks.map(async (block) => {
+            try {
+              const choices = await getComposerExerciseCandidates({
+                blockType: block.type,
+                focus: draft.intent?.focus ?? 'General Fitness',
+                targetRegion: draft.target_region,
+                environmentCode: draft.environment_code,
+                equipmentIds: draft.equipment_ids ?? [],
+                limit: 30,
+              });
+              return [block.type, choices];
+            } catch {
+              return [block.type, []];
+            }
+          }));
+          if (!active) return;
+          for (const [type, list] of alternatives) {
+            const seen = new Set(exerciseMap[type].map((ex) => ex.id));
+            exerciseMap[type] = [...exerciseMap[type], ...list.filter((ex) => !seen.has(ex.id))];
+          }
+          setDuration(Number(draft.duration_minutes));
+          setEnvironmentCode(draft.environment_code);
+          setTargetRegion(draft.target_region ?? null);
+          setEquipmentIds(Array.isArray(draft.equipment_ids) ? draft.equipment_ids : []);
+          setIntent(draft.intent ?? coachIntent);
+          setArchitecture(draft.architecture);
+          setArchitectures([draft.architecture]);
+          setCandidateMap(exerciseMap);
+          setSelectionMap(requested);
+          setMechanic(draft.mechanic ?? null);
+          if (draft.mechanic?.key) {
+            const wod = blocks.find((b) => b.type === 'WOD');
+            try {
+              const options = await getComposerMechanicOptions({
+                wodMinutes: wod?.minutes,
+                exerciseIds: requested.WOD ?? [],
+                environmentCode: draft.environment_code,
+                focus: draft.intent?.focus,
+              });
+              if (!active) return;
+              setMechanicOptions(options);
+            } catch {
+              setMechanicOptions([draft.mechanic]);
+            }
+          }
+          setStep(5);
+        }
       } catch (loadError) {
         console.warn('[WeekComposerV7] load failed', loadError);
         if (active) setError('Impossible de charger le Composer pour le moment.');
