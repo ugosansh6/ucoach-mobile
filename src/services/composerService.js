@@ -248,3 +248,29 @@ export async function saveComposerDraft({ planItemId, draft }) {
     })
   );
 }
+
+/**
+ * Day-J read of a saved Composer structure. A Composer draft is not itself a
+ * playable workout session; the future finalizer must materialize it first.
+ */
+export async function getComposerForLocalDate(dateKey) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey ?? ''))) {
+    throw new Error('Invalid local date for Composer.');
+  }
+  const user = await getAuthenticatedUserWithRetry();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_read_composer_for_day_v1', {
+      p_user_id: user.id,
+      p_local_date: dateKey,
+    })
+  );
+  if (!data?.found) return null;
+  return {
+    planItemId: data.plan_item_id,
+    sessionId: data.session_id ?? null,
+    status: data.status,
+    date: data.local_date,
+    draft: data.composer_draft ?? {},
+    futureContext: data.future_context ?? {},
+  };
+}
