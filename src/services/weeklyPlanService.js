@@ -74,22 +74,46 @@ export async function getTrainingConsistency({
   return data ?? {};
 }
 
+const WEEK_READ_TIMEOUT_MS = 12_000;
+
+async function withWeekReadTimeout(operation) {
+  const controller = new AbortController();
+  let timerId;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timerId = setTimeout(() => {
+      controller.abort();
+      const error = new Error('Le chargement de ta semaine prend trop de temps. Réessaie.');
+      error.code = 'WEEK_READ_TIMEOUT';
+      reject(error);
+    }, WEEK_READ_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([operation(controller.signal), timeoutPromise]);
+  } finally {
+    clearTimeout(timerId);
+  }
+}
+
 export async function getWeekReadContract({
   anchorDate = new Date(),
 } = {}) {
-  const userId = await getAuthenticatedUserId();
+  return withWeekReadTimeout(async (signal) => {
+    const userId = await getAuthenticatedUserId();
 
-  const data = await runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc(
-      'week_read_contract_v2',
-      {
-        p_user_id: userId,
-        p_anchor_date: getLocalDateKey(anchorDate),
-      }
-    )
-  );
+    const data = await runSupabaseRequestWithAuthRetry(() =>
+      supabase.rpc(
+        'week_read_contract_v2',
+        {
+          p_user_id: userId,
+          p_anchor_date: getLocalDateKey(anchorDate),
+        }
+      ).abortSignal(signal)
+    );
 
-  return normalizeWeekReadContract(data);
+    return normalizeWeekReadContract(data);
+  });
 }
 
 export async function moveWeekPlanItem({
