@@ -266,6 +266,7 @@ export function rankComposerCandidates({
       type !== blockType && pattern && other.id !== exercise.id &&
       String(other.movementPattern ?? '').toLowerCase() === pattern);
     let score = Number(exercise.score ?? 0);
+    let positiveEvidence = false;
     const signals = [];
     if (selectedElsewhere.length) {
       score -= 22;
@@ -280,21 +281,31 @@ export function rankComposerCandidates({
       signals.push(`Déjà réalisé ${recent} fois sur les 14 derniers jours`);
     } else if (usage && total > 0 && recent === 0) {
       score += 7;
+      positiveEvidence = true;
       signals.push('Pas travaillé dans les 14 derniers jours');
     }
     if (differentBlockRepeats) score -= 4;
     if (usesEquipment) {
       score += 8;
+      positiveEvidence = true;
       if (!signals.length) signals.push(`Utilise ${(exercise.equipmentNames ?? []).slice(0, 2).join(' et ')} disponible`);
     }
     const conflicts = selectedElsewhere.length > 0;
+    if (!signals.length && selected.length > 0 && pattern && !differentBlockRepeats) {
+      score += 3;
+      positiveEvidence = true;
+      signals.push('Apporte un mouvement différent de ceux déjà choisis');
+    }
     const warning = thisBlockIds.has(exercise.id) && conflicts;
     return { ...exercise, recommendationScore: score, recommendationReason: signals[0] ?? null,
-      warning, hasRecommendationEvidence: Boolean(signals.length) };
+      warning, conflicts, hasRecommendationEvidence: positiveEvidence };
   });
   const ranked = [...scored].sort((a, b) => b.recommendationScore - a.recommendationScore || a.id.localeCompare(b.id));
-  const recommendedIds = new Set(ranked.filter((item) => !item.warning &&
-    item.hasRecommendationEvidence).slice(0, 3).map((item) => item.id));
+  const recommendedIds = new Set(ranked.filter((item) => !item.conflicts &&
+    item.hasRecommendationEvidence &&
+    Number(evidence[item.id]?.other_composer_plans_nearby ?? 0) === 0 &&
+    Number(evidence[item.id]?.recent_completed_14d ?? 0) < 2
+  ).slice(0, 3).map((item) => item.id));
   return ranked.map((item) => ({
     ...item, recommended: recommendedIds.has(item.id) && !item.warning,
   }));
