@@ -305,11 +305,15 @@ function DurationControl({ value, onChange, styles, colors }) {
   }), []);
 
   const left = index * step;
+  // Same duration thresholds and colors as PreparationCheckinV4.
+  const durationColor = value <= 30
+    ? colors.accent
+    : value >= 75 ? colors.secondaryAccent : colors.text;
   return (
     <View style={styles.durationShell}>
       <View style={styles.durationReadout}>
-        <Text style={styles.durationValue}>{value}</Text>
-        <Text style={styles.durationUnit}>MIN</Text>
+        <Text style={[styles.durationValue, { color: durationColor }]}>{value}</Text>
+        <Text style={[styles.durationUnit, { color: durationColor }]}>MIN</Text>
       </View>
       <View style={styles.durationSliderColumn}>
         <View
@@ -321,11 +325,11 @@ function DurationControl({ value, onChange, styles, colors }) {
           }}
         >
           <View style={styles.durationTrack}>
-            <View style={[styles.durationProgress, { width: left }]} />
+            <View style={[styles.durationProgress, { width: left, backgroundColor: durationColor }]} />
             <View style={styles.durationHitRow}>
               {DURATIONS.map((item) => <Pressable key={item} onPress={() => onChange(item)} style={styles.durationHit} />)}
             </View>
-            <View {...pan.panHandlers} style={[styles.durationKnob, { left }]}>
+            <View {...pan.panHandlers} style={[styles.durationKnob, { left, borderColor: durationColor }]}>
               <Ionicons name="stopwatch-outline" size={18} color={colors.text} />
             </View>
           </View>
@@ -1019,18 +1023,66 @@ export default function WeekComposerV7() {
 
           {step === 0 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="CADRE" title="On part de quoi ?" helper="Durée, lieu et matériel. Rien de plus pour commencer." styles={styles} />
+              <StageHeader kicker="CADRE" title="Ton cadre d’entraînement." styles={styles} />
               <DurationControl value={duration} onChange={setDuration} styles={styles} colors={colors} />
-              <View style={styles.summaryGrid}>
-                <Pressable onPress={() => setSheet('location')} style={styles.summaryCard}>
-                  <View style={styles.summaryIcon}><Ionicons name="location-outline" size={19} color={colors.accent} /></View>
-                  <View style={{ flex: 1 }}><Text style={styles.summaryLabel}>LIEU</Text><Text style={styles.summaryValue}>{environmentLabel(environmentCode)}</Text></View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                </Pressable>
-                <Pressable onPress={() => setSheet('equipment')} style={styles.summaryCard}>
-                  <View style={styles.summaryIcon}><Ionicons name="barbell-outline" size={19} color={colors.accent} /></View>
-                  <View style={{ flex: 1 }}><Text style={styles.summaryLabel}>MATÉRIEL</Text><Text numberOfLines={2} style={styles.summaryValue}>{equipmentSummary}</Text></View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              <View style={styles.contextSection}>
+                <Text style={styles.contextSectionTitle}>LIEU D’ENTRAÎNEMENT</Text>
+                <View style={styles.environmentGrid}>
+                  {ENVIRONMENTS.map((item) => {
+                    const selected = environmentCode === item.code;
+                    return (
+                      <Pressable
+                        key={item.code}
+                        onPress={() => chooseEnvironment(item.code)}
+                        disabled={equipmentLoading}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected, disabled: equipmentLoading }}
+                        accessibilityLabel={item.label}
+                        style={({ pressed }) => [
+                          styles.environmentChoice,
+                          selected && styles.environmentChoiceSelected,
+                          pressed && !equipmentLoading && styles.pressed,
+                        ]}
+                      >
+                        <Ionicons
+                          name={item.icon}
+                          size={22}
+                          color={selected ? colors.textOnAccent : colors.accent}
+                        />
+                        <Text style={[styles.environmentChoiceLabel, selected && styles.environmentChoiceLabelSelected]}>
+                          {item.label}
+                        </Text>
+                        {selected ? (
+                          <Ionicons name="checkmark-circle" size={17} color={colors.textOnAccent} style={styles.environmentCheck} />
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.contextSection}>
+                <Text style={styles.contextSectionTitle}>MATÉRIEL DISPONIBLE</Text>
+                <Pressable
+                  onPress={() => setSheet('equipment')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choisir le matériel disponible pour cette séance"
+                  style={({ pressed }) => [styles.equipmentSummaryCard, pressed && styles.pressed]}
+                >
+                  <View style={styles.summaryIcon}>
+                    <Ionicons name="barbell-outline" size={21} color={colors.accent} />
+                  </View>
+                  <View style={styles.equipmentSummaryText}>
+                    <Text style={styles.equipmentSummaryValue}>
+                      {equipmentLoading ? 'Chargement…'
+                        : equipmentIds.length === 0 ? 'Poids du corps'
+                          : `${equipmentIds.length} équipement${equipmentIds.length > 1 ? 's' : ''} sélectionné${equipmentIds.length > 1 ? 's' : ''}`}
+                    </Text>
+                    {equipmentIds.length > 0 && !equipmentLoading ? (
+                      <Text style={styles.equipmentSummaryDetail} numberOfLines={1}>{equipmentSummary}</Text>
+                    ) : null}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
                 </Pressable>
               </View>
 
@@ -1450,6 +1502,18 @@ function createStyles(colors) {
     summaryIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
     summaryLabel: { fontFamily: fontFamilies.bold, fontSize: 9, letterSpacing: 1.1, color: colors.accent },
     summaryValue: { marginTop: 4, fontFamily: fontFamilies.semiBold, fontSize: 13, lineHeight: 18, color: colors.text },
+    contextSection: { marginTop: 18 },
+    contextSectionTitle: { marginBottom: 10, fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.15, color: colors.accent },
+    environmentGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 10 },
+    environmentChoice: { width: '48%', minHeight: 89, borderRadius: 17, padding: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'space-between' },
+    environmentChoiceSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+    environmentChoiceLabel: { marginTop: 7, fontFamily: fontFamilies.semiBold, fontSize: 16, color: colors.text },
+    environmentChoiceLabelSelected: { color: colors.textOnAccent },
+    environmentCheck: { position: 'absolute', top: 13, right: 13 },
+    equipmentSummaryCard: { minHeight: 78, paddingHorizontal: 15, paddingVertical: 14, borderRadius: 17, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    equipmentSummaryText: { flex: 1 },
+    equipmentSummaryValue: { fontFamily: fontFamilies.semiBold, fontSize: 15, lineHeight: 20, color: colors.text },
+    equipmentSummaryDetail: { marginTop: 4, fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 16, color: colors.textSecondary },
     directionSection: { marginBottom: 20 },
     directionEyebrow: { marginBottom: 10, fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent },
     coachDirectionCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 17, backgroundColor: colors.surface },
