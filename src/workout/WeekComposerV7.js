@@ -29,6 +29,8 @@ import {
   getComposerExerciseCandidates,
   getComposerMechanicOptions,
   getComposerPrescriptionPreview,
+  getComposerCandidateEvidence,
+  rankComposerCandidates,
   getComposerForLocalDate,
   saveComposerDraft,
 } from '../services/composerService';
@@ -494,6 +496,7 @@ export default function WeekComposerV7() {
   const [architectures, setArchitectures] = useState([]);
   const [architecture, setArchitecture] = useState(null);
   const [candidateMap, setCandidateMap] = useState({});
+  const [candidateEvidence, setCandidateEvidence] = useState({});
   const [selectionMap, setSelectionMap] = useState({});
   const [exerciseBlockIndex, setExerciseBlockIndex] = useState(0);
   const [recapEditingBlock, setRecapEditingBlock] = useState(null);
@@ -604,6 +607,16 @@ export default function WeekComposerV7() {
           setArchitectures([draft.architecture]);
           setCandidateMap(exerciseMap);
           setSelectionMap(requested);
+          try {
+            const observations = await getComposerCandidateEvidence({
+              exerciseIds: Object.values(exerciseMap).flatMap((list) => list.map((exercise) => exercise.id)),
+              anchorDate: dateKey, planItemId: item?.planItemId ?? null,
+            });
+            if (!active) return;
+            setCandidateEvidence(observations);
+          } catch {
+            setCandidateEvidence({});
+          }
           setMechanic(draft.mechanic ?? null);
           if (draft.mechanic?.key) {
             const wod = blocks.find((b) => b.type === 'WOD');
@@ -701,6 +714,17 @@ export default function WeekComposerV7() {
       });
       setCandidateMap(Object.fromEntries(results));
       setSelectionMap(defaults);
+      try {
+        const ids = results.flatMap(([, candidates]) => candidates.map((candidate) => candidate.id));
+        const observations = await getComposerCandidateEvidence({
+          exerciseIds: ids, anchorDate: dateKey,
+          planItemId: selectedItem?.planItemId ?? null,
+        });
+        setCandidateEvidence(observations);
+      } catch (evidenceError) {
+        console.warn('[Composer] recommendations proceed without recent-history evidence', evidenceError);
+        setCandidateEvidence({});
+      }
       setRecapEditingBlock(null);
       setExerciseBlockIndex(0);
       setExpandedExerciseId(null);
@@ -892,7 +916,11 @@ export default function WeekComposerV7() {
     ? (architecture?.blocks ?? []).filter((item) => item.type === recapEditingBlock)
     : (architecture?.blocks ?? []).filter((item) => !['WARMUP', 'TABATA'].includes(item.type));
   const activeBlock = exerciseBlocks[exerciseBlockIndex] ?? null;
-  const activeCandidates = activeBlock ? candidateMap[activeBlock.type] ?? [] : [];
+  const activeCandidates = activeBlock ? rankComposerCandidates({
+    candidates: candidateMap[activeBlock.type] ?? [],
+    blockType: activeBlock.type,
+    selectionMap, candidateMap, evidence: candidateEvidence, equipmentIds,
+  }) : [];
   const activeSelected = activeBlock ? selectionMap[activeBlock.type] ?? [] : [];
   const selectedCandidateObjects = activeCandidates.filter((exercise) => activeSelected.includes(exercise.id));
   const mainCandidates = [
@@ -900,7 +928,8 @@ export default function WeekComposerV7() {
     ...activeCandidates.slice(0, MAIN_SHORTLIST_SIZE),
   ].filter((exercise, index, array) => array.findIndex((item) => item.id === exercise.id) === index);
   const extraCandidates = activeCandidates.filter((exercise) => !mainCandidates.some((item) => item.id === exercise.id));
-  const filteredExtraCandidates = extraCandidates.filter((exercise) => {
+  const replacementCandidates = activeCandidates.filter((exercise) => !activeSelected.includes(exercise.id));
+  const filteredExtraCandidates = replacementCandidates.filter((exercise) => {
     const search = exerciseQuery.trim().toLowerCase();
     return !search || [exercise.name, exercise.movementPattern, exercise.bodyRegion, ...(exercise.equipmentNames ?? [])]
       .some((value) => String(value ?? '').toLowerCase().includes(search));
@@ -1273,6 +1302,7 @@ export default function WeekComposerV7() {
                   <Text style={styles.extraExerciseName}>{exercise.name}</Text>
                   <Text style={styles.extraExerciseMeta}>{[regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ')}</Text>
                   <Text style={styles.extraExerciseMeta}>Matériel : {(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
+                  {exercise.recommended ? <Text style={styles.exerciseReason}>Recommandé · {exercise.recommendationReason}</Text> : null}
                 </View>
                 <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
                   <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
