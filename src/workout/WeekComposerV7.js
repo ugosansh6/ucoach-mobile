@@ -394,7 +394,8 @@ function ArchitectureCard({ option, selected, onPress, styles, colors }) {
 
 function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleExpand, styles, colors }) {
   const imageUri = /^https?:\/\//i.test(String(exercise.imagePath ?? '')) ? exercise.imagePath : null;
-  const conciseMeta = [regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern)].filter(Boolean).join(' · ');
+  const conciseMeta = [regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
+  const material = (exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps';
   return (
     <View style={[styles.exerciseCard, selected && styles.cardSelected, expanded && styles.exerciseCardExpanded]}>
       {selected ? <View style={styles.selectedRail} /> : null}
@@ -406,6 +407,7 @@ function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleEx
           <View style={styles.exerciseCopy}>
             <Text style={styles.exerciseName}>{exercise.name}</Text>
             {conciseMeta ? <Text style={styles.exerciseMeta}>{conciseMeta}</Text> : null}
+            <Text style={styles.exerciseEquipment}>Matériel : {material}</Text>
           </View>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={19} color={colors.textMuted} />
         </Pressable>
@@ -419,7 +421,7 @@ function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleEx
           {imageUri ? <Image source={{ uri: imageUri }} resizeMode="cover" style={styles.exerciseImage} /> : null}
           {exercise.description ? (
             <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>POURQUOI CE MOUVEMENT</Text>
+              <Text style={styles.detailLabel}>DESCRIPTION</Text>
               <Text style={styles.detailText}>{exercise.description}</Text>
             </View>
           ) : null}
@@ -956,8 +958,10 @@ export default function WeekComposerV7() {
             <View style={styles.stepWrap}>
               <StageHeader
                 kicker={`${blockTitle(activeBlock.type)} · ${activeBlock.minutes} MIN`}
-                title="Je te propose ces mouvements."
-                helper={`UGEROD en a retenu ${activeSelected.length}. Tu peux les remplacer ou ouvrir un mouvement pour voir le détail.`}
+                title={recapEditingBlock ? 'Ajuste ce bloc.' : 'Construisons le cœur de ta séance.'}
+                helper={recapEditingBlock
+                   ? 'UGEROD a déjà proposé ces mouvements. Tu peux les conserver ou les remplacer.'
+                   : `UGEROD en a retenu ${activeSelected.length}. Tu peux les remplacer ou consulter leur description.`}
                 styles={styles}
               />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.blockPositionRow}>
@@ -1050,7 +1054,8 @@ export default function WeekComposerV7() {
 
           {step === 5 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="COMPOSITION TERMINÉE" title={effectiveIntent?.label ?? 'Séance UGEROD'} helper={`${duration} min · ${environmentLabel(environmentCode)} · estimation ≈ ${estimatedMinutes} min.`} styles={styles} />
+              <StageHeader kicker="RÉCAPITULATIF" title="Ta séance est construite." helper={`${duration} min · ${environmentLabel(environmentCode)} · ≈ ${estimatedMinutes} min avec transitions.`} styles={styles} />
+              <Text style={styles.recapHelp}>Warm-up et Tabata sont déjà proposés et comptés dans ta durée. Tu peux modifier chaque bloc.</Text>
               <View style={styles.recapCard}>
                 {(architecture?.blocks ?? []).map((item) => (
                   <View key={`recap-${item.type}`} style={styles.recapBlock}>
@@ -1058,12 +1063,21 @@ export default function WeekComposerV7() {
                       <Text style={styles.recapBlockTitle}>{item.label.toUpperCase()}</Text>
                       <Text style={styles.recapMinutes}>{item.minutes} min</Text>
                     </View>
-                    {selectedExercises(item.type).map((exercise) => <Text key={exercise.id} style={styles.recapExercise}>• {exercise.name}</Text>)}
+                    {selectedExercises(item.type).map((exercise) => (
+                      <View key={exercise.id} style={styles.recapExerciseRow}>
+                        <Text style={styles.recapExercise}>{exercise.name}</Text>
+                        <Text style={styles.recapExerciseMeta}>{(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
+                      </View>
+                    ))}
                     {item.type === 'WOD' && mechanic ? <Text style={styles.recapMechanic}>{mechanic.title}</Text> : null}
+                    <Pressable onPress={() => editRecapBlock(item.type)} style={styles.recapEdit}>
+                      <Ionicons name="create-outline" size={16} color={colors.accent} />
+                      <Text style={styles.recapEditText}>Modifier {item.type === 'WOD' ? 'ce bloc ou sa mécanique' : 'les exercices'}</Text>
+                    </Pressable>
                   </View>
                 ))}
               </View>
-              <PrimaryButton label={busy ? 'ENREGISTREMENT…' : 'AJOUTER À MA SEMAINE'} onPress={addToWeek} disabled={busy} loading={busy} styles={styles} colors={colors} />
+              <PrimaryButton label={busy ? 'ENREGISTREMENT…' : 'VALIDER MA SÉANCE'} onPress={addToWeek} disabled={busy} loading={busy} styles={styles} colors={colors} />
             </View>
           ) : null}
         </View>
@@ -1146,7 +1160,8 @@ export default function WeekComposerV7() {
               <Pressable key={exercise.id} onPress={() => chooseExercise(activeBlock.type, exercise.id)} style={[styles.extraExerciseRow, selected && styles.extraExerciseRowSelected]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.extraExerciseName}>{exercise.name}</Text>
-                  <Text style={styles.extraExerciseMeta}>{[regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern)].filter(Boolean).join(' · ')}</Text>
+                  <Text style={styles.extraExerciseMeta}>{[regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ')}</Text>
+                  <Text style={styles.extraExerciseMeta}>Matériel : {(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
                 </View>
                 <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
                   <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
@@ -1242,6 +1257,7 @@ function createStyles(colors) {
     exerciseCopy: { flex: 1 },
     exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 15, lineHeight: 19, color: colors.text },
     exerciseMeta: { marginTop: 5, fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
+    exerciseEquipment: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.accent },
     exerciseDetails: { paddingHorizontal: 16, paddingBottom: 17, borderTopWidth: 1, borderTopColor: colors.border },
     exerciseImage: { marginTop: 15, width: '100%', height: 190, borderRadius: 14, backgroundColor: colors.background },
     detailBlock: { marginTop: 15 },
@@ -1258,11 +1274,16 @@ function createStyles(colors) {
     primaryButton: { marginTop: 28, minHeight: 54, borderRadius: 15, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18 },
     primaryButtonText: { fontFamily: fontFamilies.bold, fontSize: 12, letterSpacing: 0.8, color: colors.textOnAccent },
     recapCard: { borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: 'hidden' },
+    recapHelp: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, color: colors.textSecondary, marginBottom: 16 },
+    recapEdit: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', minHeight: 34 },
+    recapEditText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.accent },
+    recapExerciseRow: { marginTop: 9 },
+    recapExerciseMeta: { marginTop: 3, fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
     recapBlock: { padding: 17, borderBottomWidth: 1, borderBottomColor: colors.border },
     recapHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
     recapBlockTitle: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1, color: colors.accent },
     recapMinutes: { fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
-    recapExercise: { marginTop: 7, fontFamily: fontFamilies.medium, fontSize: 13, color: colors.text },
+    recapExercise: { fontFamily: fontFamilies.medium, fontSize: 13, color: colors.text },
     recapMechanic: { marginTop: 9, fontFamily: fontFamilies.bold, fontSize: 12, color: colors.secondaryAccent },
     modalRoot: { flex: 1, justifyContent: 'flex-end' },
     modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
