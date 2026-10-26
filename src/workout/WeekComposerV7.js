@@ -63,7 +63,7 @@ const FALLBACK_INTENTS = [
   { key: 'TECHNIQUE', label: 'Technique', subtitle: 'Travailler proprement un mouvement ou une qualité.', focus: 'General Fitness' },
 ];
 const LOAD_CAPABLE_EQUIPMENT_IDS = new Set(['E03', 'E04', 'E09', 'E14']);
-const MAIN_SHORTLIST_SIZE = 6;
+const MAIN_SHORTLIST_SIZE = 2;
 
 function firstParam(value) {
   return Array.isArray(value) ? value[0] : value;
@@ -401,7 +401,15 @@ function ArchitectureCard({ option, selected, onPress, styles, colors }) {
         </View>
       </View>
       <View style={styles.architectureBlocks}>
-        {option.blocks.map((block) => (
+        <View style={styles.architectureTimeline}>
+          {option.blocks.filter((block) => !['WARMUP', 'TABATA'].includes(block.type)).map((block) => (
+            <View key={`${option.key}-${block.type}`} style={[
+              styles.architectureTimelineSlice, { flex: Math.max(1, block.minutes) },
+              block.type === 'WOD' ? styles.architectureWodSlice : styles.architectureStrengthSlice,
+            ]} />
+          ))}
+        </View>
+        {option.blocks.filter((block) => !['WARMUP', 'TABATA'].includes(block.type)).map((block) => (
           <View key={`${option.key}-${block.type}`} style={styles.blockLine}>
             <Text style={styles.blockName}>{block.label}</Text>
             <Text style={styles.blockMinutes}>{block.minutes} min</Text>
@@ -410,7 +418,7 @@ function ArchitectureCard({ option, selected, onPress, styles, colors }) {
       </View>
       <View style={styles.cardFooter}>
         <Ionicons name="time-outline" size={15} color={colors.textSecondary} />
-        <Text style={styles.cardFooterText}>≈ {option.estimatedMinutes ?? option.blocks.reduce((sum, item) => sum + Number(item.minutes ?? 0), 0)} min tout compris</Text>
+        <Text style={styles.cardFooterText}>Warm-up et Tabata inclus · {option.estimatedMinutes ?? option.blocks.reduce((sum, item) => sum + Number(item.minutes ?? 0), 0)} min</Text>
       </View>
     </Pressable>
   );
@@ -947,10 +955,10 @@ export default function WeekComposerV7() {
   }) : [];
   const activeSelected = activeBlock ? selectionMap[activeBlock.type] ?? [] : [];
   const selectedCandidateObjects = activeCandidates.filter((exercise) => activeSelected.includes(exercise.id));
-  const mainCandidates = [
-    ...selectedCandidateObjects,
-    ...activeCandidates.slice(0, MAIN_SHORTLIST_SIZE),
-  ].filter((exercise, index, array) => array.findIndex((item) => item.id === exercise.id) === index);
+  const suggestedCandidates = activeCandidates
+    .filter((exercise) => !activeSelected.includes(exercise.id))
+    .slice(0, MAIN_SHORTLIST_SIZE);
+  const mainCandidates = [...selectedCandidateObjects, ...suggestedCandidates];
   const extraCandidates = activeCandidates.filter((exercise) => !mainCandidates.some((item) => item.id === exercise.id));
   const replacementCandidates = activeCandidates.filter((exercise) => !activeSelected.includes(exercise.id));
   const filteredExtraCandidates = replacementCandidates.filter((exercise) => {
@@ -1092,7 +1100,7 @@ export default function WeekComposerV7() {
 
           {step === 2 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="STRUCTURE" title="Voilà comment on peut la construire." helper="Même langage visuel, même logique : UGEROD propose, tu choisis. Le temps inclut une marge pour les transitions." styles={styles} />
+              <StageHeader kicker="STRUCTURE" title="Le cœur de ta séance." helper="Choisis ta combinaison : Warm-up et Tabata sont déjà compris dans la durée." styles={styles} />
               <View style={styles.optionList}>
                 {architectures.map((option) => (
                   <ArchitectureCard key={option.key} option={option} selected={architecture?.key === option.key} onPress={() => setArchitecture(option)} styles={styles} colors={colors} />
@@ -1124,8 +1132,10 @@ export default function WeekComposerV7() {
                 ))}
               </ScrollView>
 
+              <Text style={styles.sectionSmallTitle}>TES MOUVEMENTS · {activeSelected.length}</Text>
+              <Text style={styles.sectionSmallHint}>Tes choix restent toujours modifiables.</Text>
               <View style={styles.exerciseList}>
-                {mainCandidates.map((exercise) => (
+                {mainCandidates.filter((exercise) => activeSelected.includes(exercise.id)).map((exercise) => (
                   <ExerciseCard
                     key={exercise.id}
                     exercise={exercise}
@@ -1142,6 +1152,28 @@ export default function WeekComposerV7() {
                   />
                 ))}
               </View>
+
+              {suggestedCandidates.length > 0 ? (
+                <View style={styles.exerciseSuggestionsSection}>
+                  <Text style={styles.sectionSmallTitle}>ALTERNATIVES CONSEILLÉES</Text>
+                  <Text style={styles.sectionSmallHint}>Elles évoluent selon les mouvements que tu sélectionnes.</Text>
+                  <View style={styles.exerciseList}>
+                    {suggestedCandidates.map((exercise) => (
+                      <ExerciseCard
+                        key={exercise.id}
+                        exercise={exercise}
+                        selected={false}
+                        expanded={expandedExerciseId === exercise.id}
+                        onToggleSelect={() => chooseExercise(activeBlock.type, exercise.id)}
+                        onToggleExpand={() => setExpandedExerciseId((current) => current === exercise.id ? null : exercise.id)}
+                        onOpenAlternatives={() => { setExerciseQuery(''); setSheet('exercise-picker'); }}
+                        styles={styles}
+                        colors={colors}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ) : null}
 
               {extraCandidates.length > 0 ? (
                 <Pressable onPress={() => { setExerciseQuery(''); setSheet('exercise-picker'); }} style={styles.secondaryAction}>
@@ -1449,7 +1481,11 @@ function createStyles(colors) {
     cardSubtitle: { marginTop: 7, fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 19, color: colors.textSecondary },
     selectCircle: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
     selectCircleSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-    architectureBlocks: { marginTop: 16, gap: 9 },
+    architectureBlocks: { marginTop: 14, gap: 8 },
+    architectureTimeline: { flexDirection: 'row', gap: 3, height: 8, marginBottom: 6, borderRadius: 6, overflow: 'hidden' },
+    architectureTimelineSlice: { borderRadius: 4 },
+    architectureStrengthSlice: { backgroundColor: colors.accent },
+    architectureWodSlice: { backgroundColor: colors.secondaryAccent },
     blockLine: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
     blockName: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.text },
     blockMinutes: { fontFamily: fontFamilies.medium, fontSize: 12, color: colors.textSecondary },
@@ -1461,6 +1497,9 @@ function createStyles(colors) {
     blockPillText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.textSecondary },
     blockPillTextSelected: { color: colors.textOnAccent },
     exerciseList: { gap: 10 },
+    sectionSmallTitle: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent, marginBottom: 7 },
+    sectionSmallHint: { marginBottom: 12, fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 17, color: colors.textSecondary },
+    exerciseSuggestionsSection: { marginTop: 22 },
     exerciseCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     exerciseCardExpanded: { borderColor: colors.accent },
     exerciseMainRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 10 },
