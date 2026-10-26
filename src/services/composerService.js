@@ -70,6 +70,12 @@ export async function getComposerExerciseCandidates({
     .in('exercise_id', ids);
   if (requirementsError) throw requirementsError;
 
+  const requiredIds = [...new Set((requirements ?? []).map((row) => String(row.equipment_id)).filter((id) => id && id !== 'E00'))];
+  const { data: equipmentRows, error: equipmentError } = requiredIds.length
+    ? await supabase.from('equipment').select('id,name').in('id', requiredIds)
+    : { data: [], error: null };
+  if (equipmentError) throw equipmentError;
+  const equipmentNamesById = new Map((equipmentRows ?? []).map((item) => [String(item.id), item.name]));
   const available = new Set(['E00', ...(equipmentIds ?? []).map(String)]);
   const byExercise = new Map();
   (requirements ?? []).forEach((row) => {
@@ -93,6 +99,11 @@ export async function getComposerExerciseCandidates({
       imagePath: exercise.image_path ?? null,
       difficulty: exercise.difficulty ?? null,
       exerciseType: exercise.exercise_type ?? null,
+      trainingFocus: exercise.training_focus ?? null,
+      equipmentIds: (byExercise.get(exercise.id) ?? []).filter((id) => id !== 'E00'),
+      equipmentNames: (byExercise.get(exercise.id) ?? [])
+        .filter((id) => id !== 'E00')
+        .map((id) => equipmentNamesById.get(id) ?? id),
       bodyRegion: exercise.body_region,
       movementPattern: exercise.movement_pattern,
       exerciseFamily: exercise.exercise_family,
@@ -117,104 +128,55 @@ function block(type, minutes, label = null) {
   };
 }
 
+/**
+ * Composition is planned within the existing C4 architecture budget.
+ * Warm-up and Tabata are always included in the total duration. Only the
+ * main blocks are edited first; the user can edit these complements at recap.
+ * A WOD-alone option is hidden if it would require an excessively long WOD.
+ */
 export function buildComposerArchitectures({ durationMinutes, intentKey, targets = {} }) {
   const duration = Math.max(20, Number(durationMinutes) || 45);
-  const reserve = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
-  const warmup = Math.max(4, Math.min(8, Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 6))));
-  const tabata = 4;
+  const transitionReserveMinutes = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
+  const warmupMinutes = Math.max(4, Math.min(8, Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 8))));
+  const tabataMinutes = 4;
+  const coreMinutes = duration - transitionReserveMinutes - warmupMinutes - tabataMinutes;
+  const baseBlocks = [block('WARMUP', warmupMinutes), block('TABATA', tabataMinutes)];
+  const options = [];
 
-  let conditioning;
-  let balanced;
-  let strengthFirst;
-
-  if (duration <= 30) {
-    const conditioningWod = Math.max(8, duration - reserve - warmup - tabata);
-    const strengthMinutes = Math.max(10, Math.round((duration - reserve - warmup) * 0.64));
-    const strengthWod = Math.max(6, duration - reserve - warmup - strengthMinutes);
-    const balancedStrength = Math.max(9, Math.round((duration - reserve - warmup) * 0.48));
-    const balancedWod = Math.max(7, duration - reserve - warmup - balancedStrength);
-
-    conditioning = {
-      key: 'conditioning',
-      title: 'Plus conditioning',
-      blocks: [
-        block('WARMUP', warmup),
-        block('TABATA', tabata),
-        block('WOD', conditioningWod, wodLabel(conditioningWod)),
-      ],
-    };
-    balanced = {
-      key: 'balanced',
-      title: 'Équilibrée',
-      blocks: [
-        block('WARMUP', warmup),
-        block('STRENGTH', balancedStrength),
-        block('WOD', balancedWod, wodLabel(balancedWod)),
-      ],
-    };
-    strengthFirst = {
-      key: 'strength',
-      title: 'Plus force',
-      blocks: [
-        block('WARMUP', warmup),
-        block('STRENGTH', strengthMinutes),
-        block('WOD', strengthWod, wodLabel(strengthWod)),
-      ],
-    };
-  } else {
-    const strengthAvailable = Math.max(18, duration - reserve - warmup);
-    const strengthMinutes = Math.max(14, Math.round(strengthAvailable * 0.62));
-    const strengthWod = Math.max(8, strengthAvailable - strengthMinutes);
-
-    const balancedAvailable = Math.max(20, duration - reserve - warmup - tabata);
-    const balancedStrength = Math.max(11, Math.round(balancedAvailable * 0.46));
-    const balancedWod = Math.max(9, balancedAvailable - balancedStrength);
-
-    const conditioningWod = Math.max(12, duration - reserve - warmup - tabata);
-
-    conditioning = {
-      key: 'conditioning',
-      title: 'Plus conditioning',
-      blocks: [
-        block('WARMUP', warmup),
-        block('TABATA', tabata),
-        block('WOD', conditioningWod, wodLabel(conditioningWod)),
-      ],
-    };
-    balanced = {
-      key: 'balanced',
-      title: 'Équilibrée',
-      blocks: [
-        block('WARMUP', warmup),
-        block('TABATA', tabata),
-        block('STRENGTH', balancedStrength),
-        block('WOD', balancedWod, wodLabel(balancedWod)),
-      ],
-    };
-    strengthFirst = {
-      key: 'strength',
-      title: 'Plus force',
-      blocks: [
-        block('WARMUP', warmup),
-        block('STRENGTH', strengthMinutes),
-        block('WOD', strengthWod, wodLabel(strengthWod)),
-      ],
-    };
+  function add(key, title, mainBlocks) {
+    const blocks = [...baseBlocks, ...mainBlocks];
+    options.push({
+      key, title, blocks, transitionReserveMinutes,
+      estimatedMinutes: blocks.reduce((sum, item) => sum + Number(item.minutes), 0) + transitionReserveMinutes,
+    });
   }
 
-  const normalized = String(intentKey ?? '').toUpperCase();
-  const ordered = normalized.includes('STRENGTH') || normalized.includes('FORCE')
-    ? [strengthFirst, balanced, conditioning]
-    : normalized.includes('CONDITION')
-      ? [conditioning, balanced, strengthFirst]
-      : [balanced, conditioning, strengthFirst];
+  if (coreMinutes >= 16) {
+    const strengthMinutes = Math.max(8, Math.min(coreMinutes - 8, Math.round(coreMinutes * 0.46)));
+    add('balanced', 'Strength + WOD', [
+      block('STRENGTH', strengthMinutes),
+      block('WOD', coreMinutes - strengthMinutes, wodLabel(coreMinutes - strengthMinutes)),
+    ]);
+    const skillMinutes = Math.max(8, Math.min(coreMinutes - 8, Math.round(coreMinutes * 0.38)));
+    add('skill', 'Skill + WOD', [
+      block('SKILL', skillMinutes),
+      block('WOD', coreMinutes - skillMinutes, wodLabel(coreMinutes - skillMinutes)),
+    ]);
+  }
+  add('strength', 'Strength seul', [block('STRENGTH', coreMinutes)]);
+  if (coreMinutes >= 8 && coreMinutes <= 30) {
+    add('conditioning', 'WOD seul', [block('WOD', coreMinutes, wodLabel(coreMinutes))]);
+  }
 
-  return ordered.map((option, index) => ({
-    ...option,
-    recommended: index === 0,
-    estimatedMinutes: option.blocks.reduce((sum, item) => sum + Number(item.minutes ?? 0), 0) + reserve,
-    transitionReserveMinutes: reserve,
-  }));
+  const intent = String(intentKey ?? '').toUpperCase();
+  const preference = intent.includes('STRENGTH') || intent.includes('FORCE')
+    ? ['balanced', 'strength', 'skill', 'conditioning']
+    : intent.includes('TECHNIQUE') || intent.includes('SKILL')
+      ? ['skill', 'balanced', 'strength', 'conditioning']
+      : ['conditioning', 'balanced', 'skill', 'strength'];
+  return options
+    .sort((left, right) => preference.indexOf(left.key) - preference.indexOf(right.key))
+    .map((option, index) => ({ ...option, recommended: index === 0 }));
 }
 
 /**
