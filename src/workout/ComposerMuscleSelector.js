@@ -241,12 +241,12 @@ function MuscleBody({ side, colorsByMuscle, onTouch }) {
           const fill = colorsByMuscle[id] ?? GRAY;
           return (
             <G key={id + i}>
-              <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth="1.4"
+              <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth=".95" strokeLinejoin="round"
                 onPress={() => onTouch(id)} />
               {mirrored ? (
                 <G transform={FLIP}>
-                  <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth="1.4"
-                    onPress={() => onTouch(id)} />
+                  <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth=".95" strokeLinejoin="round"
+                onPress={() => onTouch(id)} />
                 </G>
               ) : null}
             </G>
