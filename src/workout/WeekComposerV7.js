@@ -897,7 +897,10 @@ export default function WeekComposerV7() {
       }
       if (!planItemId) throw new Error('Impossible de créer le créneau de semaine.');
 
-      const draft = buildCurrentDraft();
+      if (!prescriptionPreview || previewLoading) {
+        throw new Error('Le calcul de la séance est encore indisponible. Attends la prescription avant de valider.');
+      }
+      const draft = { ...buildCurrentDraft(), prescription_preview: prescriptionPreview };
       await saveComposerDraft({ planItemId, draft });
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/planning');
@@ -1232,7 +1235,14 @@ export default function WeekComposerV7() {
                   </View>
                 ))}
               </View>
-              <PrimaryButton label={busy ? 'ENREGISTREMENT…' : 'VALIDER MA SÉANCE'} onPress={addToWeek} disabled={busy} loading={busy} styles={styles} colors={colors} />
+              <PrimaryButton
+                label={busy ? 'ENREGISTREMENT…' : 'VALIDER MA SÉANCE'}
+                onPress={addToWeek}
+                disabled={busy || previewLoading || !prescriptionPreview}
+                loading={busy}
+                styles={styles}
+                colors={colors}
+              />
             </View>
           ) : null}
         </View>
