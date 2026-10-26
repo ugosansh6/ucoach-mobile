@@ -370,7 +370,7 @@ function ArchitectureCard({ option, selected, onPress, styles, colors }) {
       {selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.cardTopRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cardEyebrow}>{option.available === false ? 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
+          <Text style={styles.cardEyebrow}>{option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
           <Text style={styles.cardTitle}>{option.title}</Text>
         </View>
         <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
@@ -950,7 +950,7 @@ export default function WeekComposerV7() {
                           {choice.subtitle ? <Text style={styles.cardSubtitle}>{choice.subtitle}</Text> : null}
                         </View>
                         <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
-                          <Ionicons name={option.available === false ? 'lock-closed-outline' : selected ? 'checkmark' : 'add'} size={18} color={option.available === false ? colors.textMuted : selected ? colors.textOnAccent : colors.accent} />
+                          <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
                         </View>
                       </View>
                     </Pressable>
@@ -1039,7 +1039,7 @@ export default function WeekComposerV7() {
 
           {step === 4 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="MÉCANIQUE DU WOD" title="Quel format donne le meilleur rythme ?" helper="UGEROD ne montre que les formats cohérents avec les mouvements retenus et le temps disponible." styles={styles} />
+              <StageHeader kicker="MÉCANIQUE DU WOD" title="Quel format donne le meilleur rythme ?" helper="Les formats incompatibles sont grisés. Touche-les pour comprendre pourquoi." styles={styles} />
               <View style={styles.optionList}>
                 {mechanicOptions.filter((option, index) => showAllMechanics || index < 3).map((option) => {
                   const selected = mechanic?.key === option.key;
@@ -1050,12 +1050,12 @@ export default function WeekComposerV7() {
                       {selected ? <View style={styles.selectedRail} /> : null}
                       <View style={styles.cardTopRow}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.cardEyebrow}>{option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
+                          <Text style={styles.cardEyebrow}>{option.available === false ? 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
                           <Text style={styles.cardTitle}>{option.title}</Text>
                           <Text style={styles.cardSubtitle}>{option.available === false ? option.reason : option.description}</Text>
                         </View>
                         <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
-                          <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
+                          <Ionicons name={option.available === false ? 'lock-closed-outline' : selected ? 'checkmark' : 'add'} size={18} color={option.available === false ? colors.textMuted : selected ? colors.textOnAccent : colors.accent} />
                         </View>
                       </View>
                     </Pressable>
