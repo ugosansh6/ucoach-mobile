@@ -299,9 +299,9 @@ export function rankComposerCandidates({
     }
     if (differentBlockRepeats) score -= 4;
     if (usesEquipment) {
+      // Availability improves the sporting choice, but is already shown in
+      // the equipment row. It is not a personalized recommendation rationale.
       score += 8;
-      positiveEvidence = true;
-      if (!signals.length) signals.push(`Utilise ${(exercise.equipmentNames ?? []).slice(0, 2).join(' et ')} disponible`);
     }
     const conflicts = selectedElsewhere.length > 0;
     if (preference === 'EVITE_VOLONTAIREMENT') positiveEvidence = false;
