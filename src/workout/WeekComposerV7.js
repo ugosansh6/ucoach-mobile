@@ -18,6 +18,7 @@ import {
 
 import { spacing } from '../constants';
 import { fontFamilies } from '../constants/typography';
+import ComposerMuscleSelector from './ComposerMuscleSelector';
 import { useUgerodTheme } from '../contexts/UgerodThemeContext';
 import {
   getEquipmentCatalog,
@@ -49,13 +50,6 @@ const ENVIRONMENTS = [
   { code: 'BOX', label: 'Box', icon: 'fitness-outline' },
   { code: 'GYM', label: 'Salle', icon: 'barbell-outline' },
   { code: 'OUTDOOR', label: 'Extérieur', icon: 'leaf-outline' },
-];
-const FOCUS_OPTIONS = [
-  { value: null, label: 'UGEROD choisit' },
-  { value: 'Upper', label: 'Haut' },
-  { value: 'Lower', label: 'Jambes' },
-  { value: 'Core', label: 'Abdos / gainage' },
-  { value: 'Full Body', label: 'Full body' },
 ];
 const FALLBACK_INTENTS = [
   { key: 'STRENGTH', label: 'Force', subtitle: 'Construire autour d’un travail de force.', focus: 'Strength' },
@@ -92,6 +86,7 @@ function environmentLabel(code) {
 
 function regionLabel(value) {
   if (value === 'Upper') return 'Haut du corps';
+  if (value === 'Back') return 'Dos';
   if (value === 'Lower') return 'Jambes';
   if (value === 'Core') return 'Abdos / gainage';
   if (value === 'Full Body') return 'Full body';
@@ -1138,13 +1133,13 @@ export default function WeekComposerV7() {
               </View>
               <View style={styles.focusSection}>
                 <Text style={styles.focusTitle}>Zone à travailler</Text>
-                <Text style={styles.focusHelp}>Facultatif : cible une zone ou laisse UGEROD équilibrer.</Text>
-                <View style={styles.focusWrap}>
-                  {FOCUS_OPTIONS.map((option) => (
-                    <ChoiceChip key={option.label} label={option.label} selected={targetRegion === option.value}
-                      onPress={() => setTargetRegion(option.value)} styles={styles} colors={colors} />
-                  ))}
-                </View>
+                <Text style={styles.focusHelp}>Choisis une zone sur la silhouette, ou laisse UGEROD équilibrer la séance.</Text>
+                <ComposerMuscleSelector
+                  value={targetRegion}
+                  onChange={setTargetRegion}
+                  colors={colors}
+                  fontFamilies={fontFamilies}
+                />
               </View>
               <PrimaryButton label={busy ? 'PRÉPARATION…' : 'CHOISIR LA STRUCTURE'} onPress={goToArchitecture} disabled={!intent || busy} loading={busy} styles={styles} colors={colors} />
             </View>

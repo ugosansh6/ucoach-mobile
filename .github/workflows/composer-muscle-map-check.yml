@@ -1,0 +1,36 @@
+name: Muscle Map Expo Web QA
+
+on:
+  push:
+    branches:
+      - feat/composer-muscle-map-20261027
+  pull_request:
+    paths:
+      - 'src/workout/WeekComposerV7.js'
+      - 'src/workout/ComposerMuscleSelector.js'
+      - 'src/services/composerService.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/composer-muscle-map-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  expo-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Build Expo Web without deploying
+        run: npx expo export --platform web
+        env:
+          EXPO_PUBLIC_APP_ENV: development
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: placeholder_for_static_ci_only
