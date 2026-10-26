@@ -72,7 +72,7 @@ export async function getComposerExerciseCandidates({
 
   const requiredIds = [...new Set((requirements ?? []).map((row) => String(row.equipment_id)).filter((id) => id && id !== 'E00'))];
   const { data: equipmentRows, error: equipmentError } = requiredIds.length
-    ? await supabase.from('equipment').select('id,name').in('id', requiredIds)
+    ? await supabase.from('equipment_catalog_v2').select('id,name').in('id', requiredIds)
     : { data: [], error: null };
   if (equipmentError) throw equipmentError;
   const equipmentNamesById = new Map((equipmentRows ?? []).map((item) => [String(item.id), item.name]));
