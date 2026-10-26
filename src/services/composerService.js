@@ -268,6 +268,19 @@ export function rankComposerCandidates({
     let score = Number(exercise.score ?? 0);
     let positiveEvidence = false;
     const signals = [];
+    // These are the established explicit states, not inferred dislikes.
+    const preference = String(usage?.explicit_preference_state ?? 'NEUTRE').toUpperCase();
+    if (preference === 'FAVORI') {
+      score += 8;
+      positiveEvidence = true;
+      signals.push('Exercice enregistré dans tes favoris');
+    } else if (preference === 'SOUVENT_CHOISI') {
+      score += 4;
+      positiveEvidence = true;
+      signals.push('Exercice souvent choisi');
+    } else if (preference === 'EVITE_VOLONTAIREMENT') {
+      score -= 25;
+    }
     if (selectedElsewhere.length) {
       score -= 22;
       signals.push(`${exercise.movementPattern ?? 'Mouvement'} déjà présent dans ce bloc`);
@@ -291,6 +304,7 @@ export function rankComposerCandidates({
       if (!signals.length) signals.push(`Utilise ${(exercise.equipmentNames ?? []).slice(0, 2).join(' et ')} disponible`);
     }
     const conflicts = selectedElsewhere.length > 0;
+    if (preference === 'EVITE_VOLONTAIREMENT') positiveEvidence = false;
     if (!signals.length && selected.length > 0 && pattern && !differentBlockRepeats) {
       score += 3;
       positiveEvidence = true;
