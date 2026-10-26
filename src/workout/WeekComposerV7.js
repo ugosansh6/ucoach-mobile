@@ -471,6 +471,7 @@ export default function WeekComposerV7() {
   const [candidateMap, setCandidateMap] = useState({});
   const [selectionMap, setSelectionMap] = useState({});
   const [exerciseBlockIndex, setExerciseBlockIndex] = useState(0);
+  const [recapEditingBlock, setRecapEditingBlock] = useState(null);
   const [expandedExerciseId, setExpandedExerciseId] = useState(null);
   const [mechanic, setMechanic] = useState(null);
   const [mechanicOptions, setMechanicOptions] = useState([]);
@@ -558,8 +559,12 @@ export default function WeekComposerV7() {
           }));
           if (!active) return;
           for (const [type, list] of alternatives) {
+            const resolvedById = new Map(list.map((exercise) => [exercise.id, exercise]));
             const seen = new Set(exerciseMap[type].map((ex) => ex.id));
-            exerciseMap[type] = [...exerciseMap[type], ...list.filter((ex) => !seen.has(ex.id))];
+            exerciseMap[type] = [
+              ...exerciseMap[type].map((ex) => resolvedById.get(ex.id) ?? ex),
+              ...list.filter((ex) => !seen.has(ex.id)),
+            ];
           }
           setDuration(Number(draft.duration_minutes));
           setEnvironmentCode(draft.environment_code);
@@ -667,6 +672,7 @@ export default function WeekComposerV7() {
       });
       setCandidateMap(Object.fromEntries(results));
       setSelectionMap(defaults);
+      setRecapEditingBlock(null);
       setExerciseBlockIndex(0);
       setExpandedExerciseId(null);
       setStep(3);
@@ -693,15 +699,23 @@ export default function WeekComposerV7() {
   }
 
   async function advanceExerciseBlock() {
-    const blocks = architecture?.blocks ?? [];
+    const blocks = recapEditingBlock
+      ? (architecture?.blocks ?? []).filter((item) => item.type === recapEditingBlock)
+      : (architecture?.blocks ?? []).filter((item) => !['WARMUP', 'TABATA'].includes(item.type));
     setExpandedExerciseId(null);
     if (exerciseBlockIndex < blocks.length - 1) {
       setExerciseBlockIndex((value) => value + 1);
       return;
     }
+    if (recapEditingBlock && recapEditingBlock !== 'WOD') {
+      setRecapEditingBlock(null);
+      setStep(5);
+      return;
+    }
     const wodBlock = blocks.find((block) => block.type === 'WOD');
     if (!wodBlock) {
       setMechanic(null);
+      setRecapEditingBlock(null);
       setStep(5);
       return;
     }
@@ -728,8 +742,17 @@ export default function WeekComposerV7() {
   }
 
   function selectedExercises(type) {
-    const ids = new Set(selectionMap[type] ?? []);
-    return (candidateMap[type] ?? []).filter((candidate) => ids.has(candidate.id));
+    const candidates = candidateMap[type] ?? [];
+    return (selectionMap[type] ?? [])
+      .map((id) => candidates.find((exercise) => exercise.id === id))
+      .filter(Boolean);
+  }
+
+  function editRecapBlock(type) {
+    setRecapEditingBlock(type);
+    setExerciseBlockIndex(0);
+    setExpandedExerciseId(null);
+    setStep(3);
   }
 
   async function addToWeek() {
@@ -806,7 +829,10 @@ export default function WeekComposerV7() {
   ];
   const effectiveIntent = intentChoices.find((choice) => choice.key === intent?.key) ?? intent;
 
-  const exerciseBlocks = architecture?.blocks ?? [];
+  // Construct the main session first; keep Warm-up/Tabata for recap edits.
+  const exerciseBlocks = recapEditingBlock
+    ? (architecture?.blocks ?? []).filter((item) => item.type === recapEditingBlock)
+    : (architecture?.blocks ?? []).filter((item) => !['WARMUP', 'TABATA'].includes(item.type));
   const activeBlock = exerciseBlocks[exerciseBlockIndex] ?? null;
   const activeCandidates = activeBlock ? candidateMap[activeBlock.type] ?? [] : [];
   const activeSelected = activeBlock ? selectionMap[activeBlock.type] ?? [] : [];
@@ -976,7 +1002,15 @@ export default function WeekComposerV7() {
                 <Text style={styles.selectionFooterText}>{activeSelected.length} / {maxForBlock(activeBlock.type)} retenu{activeSelected.length > 1 ? 's' : ''}</Text>
                 <Text style={styles.selectionFooterHint}>Si le bloc est complet, choisir un autre mouvement remplace le dernier.</Text>
               </View>
-              <PrimaryButton label={exerciseBlockIndex === exerciseBlocks.length - 1 ? 'CHOISIR LA MÉCANIQUE' : 'BLOC SUIVANT'} onPress={advanceExerciseBlock} disabled={activeSelected.length === 0} styles={styles} colors={colors} />
+              <PrimaryButton
+                label={exerciseBlockIndex !== exerciseBlocks.length - 1 ? 'BLOC SUIVANT'
+                  : recapEditingBlock && recapEditingBlock !== 'WOD' ? 'REVENIR AU RÉCAPITULATIF'
+                    : architecture?.blocks?.some((item) => item.type === 'WOD') ? 'CHOISIR LA MÉCANIQUE' : 'VOIR LE RÉCAPITULATIF'}
+                onPress={advanceExerciseBlock}
+                disabled={activeSelected.length === 0 || busy}
+                styles={styles}
+                colors={colors}
+              />
             </View>
           ) : null}
 
@@ -1010,7 +1044,7 @@ export default function WeekComposerV7() {
                   </Text>
                 </Pressable>
               ) : null}
-              <PrimaryButton label="VOIR LA COMPOSITION" onPress={() => setStep(5)} disabled={!mechanic} styles={styles} colors={colors} />
+              <PrimaryButton label="VOIR LE RÉCAPITULATIF" onPress={() => { setRecapEditingBlock(null); setStep(5); }} disabled={!mechanic} styles={styles} colors={colors} />
             </View>
           ) : null}
 
