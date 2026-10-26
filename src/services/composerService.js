@@ -137,7 +137,11 @@ function block(type, minutes, label = null) {
 export function buildComposerArchitectures({ durationMinutes, intentKey, targets = {} }) {
   const duration = Math.max(20, Number(durationMinutes) || 45);
   const transitionReserveMinutes = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
-  const warmupMinutes = Math.max(4, Math.min(8, Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 8))));
+  const warmupMinutes = Math.max(4, Math.min(
+    8,
+    duration - transitionReserveMinutes - 4 - 8,
+    Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 8))
+  ));
   const tabataMinutes = 4;
   const coreMinutes = duration - transitionReserveMinutes - warmupMinutes - tabataMinutes;
   const baseBlocks = [block('WARMUP', warmupMinutes), block('TABATA', tabataMinutes)];
