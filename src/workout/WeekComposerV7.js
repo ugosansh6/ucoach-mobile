@@ -306,57 +306,30 @@ function DurationControl({ value, onChange, styles, colors }) {
 
   const left = index * step;
   return (
-    <View style={styles.durationPanel}>
-      <View style={styles.durationPanelHeader}>
-        <Text style={styles.durationHeading}>DURÉE DE LA SÉANCE</Text>
-        <Text style={styles.durationRange}>20 – 90 MIN</Text>
+    <View style={styles.durationShell}>
+      <View style={styles.durationReadout}>
+        <Text style={styles.durationValue}>{value}</Text>
+        <Text style={styles.durationUnit}>MIN</Text>
       </View>
-      <View style={styles.durationShell}>
-        <View style={styles.durationReadout}>
-          <Text style={styles.durationValue}>{value}</Text>
-          <Text style={styles.durationUnit}>MIN</Text>
-        </View>
-        <View style={styles.durationSliderColumn}>
-          <View
-            style={styles.durationTrackTouch}
-            onLayout={(event) => {
-              const width = event.nativeEvent.layout.width;
-              widthRef.current = width;
-              setTrackWidth(width);
-            }}
-          >
-            <View style={styles.durationTrack}>
-              <View style={[styles.durationProgress, { width: left }]} />
-              <View style={styles.durationHitRow}>
-                {DURATIONS.map((item) => (
-                  <Pressable
-                    key={item}
-                    onPress={() => onChange(item)}
-                    accessibilityLabel={`${item} minutes`}
-                    style={styles.durationHit}
-                  />
-                ))}
-              </View>
-              <View {...pan.panHandlers} style={[styles.durationKnob, { left }]}>
-                <Ionicons name="stopwatch-outline" size={18} color={colors.accent} />
-              </View>
+      <View style={styles.durationSliderColumn}>
+        <View
+          style={styles.durationTrackTouch}
+          onLayout={(event) => {
+            const width = event.nativeEvent.layout.width;
+            widthRef.current = width;
+            setTrackWidth(width);
+          }}
+        >
+          <View style={styles.durationTrack}>
+            <View style={[styles.durationProgress, { width: left }]} />
+            <View style={styles.durationHitRow}>
+              {DURATIONS.map((item) => <Pressable key={item} onPress={() => onChange(item)} style={styles.durationHit} />)}
+            </View>
+            <View {...pan.panHandlers} style={[styles.durationKnob, { left }]}>
+              <Ionicons name="stopwatch-outline" size={18} color={colors.text} />
             </View>
           </View>
         </View>
-      </View>
-      <View style={styles.durationQuickChoices}>
-        {DURATIONS.map((item) => (
-          <Pressable
-            key={item}
-            onPress={() => onChange(item)}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: value === item }}
-            accessibilityLabel={`${item} minutes`}
-            style={[styles.durationQuickChoice, value === item && styles.durationQuickChoiceSelected]}
-          >
-            <Text style={[styles.durationQuickText, value === item && styles.durationQuickTextSelected]}>{item}</Text>
-          </Pressable>
-        ))}
       </View>
     </View>
   );
@@ -1004,7 +977,7 @@ export default function WeekComposerV7() {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.pageScroll, step === 0 && styles.firstPageScroll]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageScroll}>
         <View style={styles.content}>
           <View style={styles.header}>
             <Pressable
@@ -1045,57 +1018,23 @@ export default function WeekComposerV7() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           {step === 0 ? (
-            <View style={[styles.stepWrap, styles.firstStepWrap]}>
-              <StageHeader
-                kicker="CADRE"
-                title="On part de quoi ?"
-                helper="Choisis le temps, le lieu et ton matériel. UGEROD s’occupe de la suite."
-                styles={styles}
-              />
+            <View style={styles.stepWrap}>
+              <StageHeader kicker="CADRE" title="On part de quoi ?" helper="Durée, lieu et matériel. Rien de plus pour commencer." styles={styles} />
               <DurationControl value={duration} onChange={setDuration} styles={styles} colors={colors} />
               <View style={styles.summaryGrid}>
-                <Pressable
-                  onPress={() => setSheet('location')}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Changer le lieu, actuellement ${environmentLabel(environmentCode)}`}
-                  style={styles.summaryCard}
-                >
-                  <View style={styles.summaryTopRow}>
-                    <View style={styles.summaryIcon}>
-                      <Ionicons name="location-outline" size={19} color={colors.accent} />
-                    </View>
-                    <Ionicons name="arrow-up-forward-outline" size={17} color={colors.textMuted} />
-                  </View>
-                  <Text style={styles.summaryLabel}>LIEU</Text>
-                  <Text style={styles.summaryValue} numberOfLines={1}>{environmentLabel(environmentCode)}</Text>
+                <Pressable onPress={() => setSheet('location')} style={styles.summaryCard}>
+                  <View style={styles.summaryIcon}><Ionicons name="location-outline" size={19} color={colors.accent} /></View>
+                  <View style={{ flex: 1 }}><Text style={styles.summaryLabel}>LIEU</Text><Text style={styles.summaryValue}>{environmentLabel(environmentCode)}</Text></View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                 </Pressable>
-                <Pressable
-                  onPress={() => setSheet('equipment')}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Modifier le matériel, ${equipmentIds.length} équipements sélectionnés`}
-                  style={styles.summaryCard}
-                >
-                  <View style={styles.summaryTopRow}>
-                    <View style={styles.summaryIcon}>
-                      <Ionicons name="barbell-outline" size={19} color={colors.accent} />
-                    </View>
-                    <Ionicons name="arrow-up-forward-outline" size={17} color={colors.textMuted} />
-                  </View>
-                  <Text style={styles.summaryLabel}>MATÉRIEL</Text>
-                  <Text style={styles.summaryValue} numberOfLines={1}>{
-                    equipmentLoading ? 'Chargement…'
-                      : equipmentIds.length === 0 ? 'Poids du corps'
-                        : `${equipmentIds.length} équipement${equipmentIds.length > 1 ? 's' : ''}`
-                  }</Text>
-                  {equipmentIds.length > 0 ? (
-                    <Text style={styles.summaryDetail} numberOfLines={1}>{equipmentSummary}</Text>
-                  ) : null}
+                <Pressable onPress={() => setSheet('equipment')} style={styles.summaryCard}>
+                  <View style={styles.summaryIcon}><Ionicons name="barbell-outline" size={19} color={colors.accent} /></View>
+                  <View style={{ flex: 1 }}><Text style={styles.summaryLabel}>MATÉRIEL</Text><Text numberOfLines={2} style={styles.summaryValue}>{equipmentSummary}</Text></View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                 </Pressable>
               </View>
 
-              <View style={styles.firstStepFooter}>
-                <PrimaryButton label="CHOISIR LA DIRECTION" onPress={() => setStep(1)} disabled={equipmentLoading} styles={styles} colors={colors} />
-              </View>
+              <PrimaryButton label="CONTINUER" onPress={() => setStep(1)} disabled={equipmentLoading} styles={styles} colors={colors} />
             </View>
           ) : null}
 
@@ -1473,8 +1412,7 @@ function createStyles(colors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     pageScroll: { flexGrow: 1, paddingBottom: 64 },
-    firstPageScroll: { paddingBottom: 20 },
-    content: { flex: 1, width: '100%', maxWidth: 820, alignSelf: 'center', paddingHorizontal: spacing.xl, paddingTop: 8 },
+    content: { width: '100%', maxWidth: 820, alignSelf: 'center', paddingHorizontal: spacing.xl, paddingTop: 8 },
     loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
     muted: { fontFamily: fontFamilies.medium, fontSize: 13, color: colors.textSecondary },
     pressed: { opacity: 0.72 },
@@ -1492,39 +1430,26 @@ function createStyles(colors) {
     contextPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', fontFamily: fontFamilies.semiBold, fontSize: 10, color: colors.accent, backgroundColor: colors.surfaceElevated ?? colors.surface },
     errorText: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.error },
     stepWrap: { marginTop: 32 },
-    firstStepWrap: { flexGrow: 1, marginTop: 24 },
-    firstStepFooter: { marginTop: 'auto', paddingTop: 24 },
     stageHeader: { marginBottom: 22 },
     kicker: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.35, color: colors.accent },
     question: { marginTop: 8, fontFamily: fontFamilies.display, fontSize: 29, lineHeight: 34, color: colors.text },
     helper: { marginTop: 10, fontFamily: fontFamilies.regular, fontSize: 14, lineHeight: 21, color: colors.textSecondary, maxWidth: 680 },
-    durationPanel: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-    durationPanelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-    durationHeading: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent },
-    durationRange: { fontFamily: fontFamilies.medium, fontSize: 10, color: colors.textSecondary },
-    durationShell: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 18 },
-    durationReadout: { minWidth: 104, flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-    durationValue: { fontFamily: fontFamilies.display, fontSize: 54, lineHeight: 64, color: colors.text },
-    durationUnit: { fontFamily: fontFamilies.bold, fontSize: 11, letterSpacing: 0.8, color: colors.accent },
+    durationShell: { minHeight: 105, flexDirection: 'row', alignItems: 'center', gap: 20 },
+    durationReadout: { minWidth: 82 },
+    durationValue: { fontFamily: fontFamilies.display, fontSize: 52, lineHeight: 56, color: colors.text },
+    durationUnit: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.4, color: colors.accent },
     durationSliderColumn: { flex: 1 },
     durationTrackTouch: { height: 54, justifyContent: 'center' },
     durationTrack: { height: 4, borderRadius: 2, backgroundColor: colors.border, position: 'relative' },
     durationProgress: { position: 'absolute', left: 0, top: 0, height: 4, borderRadius: 2, backgroundColor: colors.accent },
     durationHitRow: { position: 'absolute', left: -8, right: -8, top: -18, bottom: -18, flexDirection: 'row' },
     durationHit: { flex: 1 },
-    durationKnob: { position: 'absolute', top: -16, marginLeft: -18, width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: colors.accent, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-    durationQuickChoices: { flexDirection: 'row', gap: 3, marginTop: 3 },
-    durationQuickChoice: { flex: 1, minHeight: 31, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
-    durationQuickChoiceSelected: { backgroundColor: colors.accent },
-    durationQuickText: { fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
-    durationQuickTextSelected: { fontFamily: fontFamilies.bold, color: colors.textOnAccent },
-    summaryGrid: { marginTop: 12, flexDirection: 'row', gap: 10 },
-    summaryCard: { flex: 1, minWidth: 0, minHeight: 131, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-    summaryTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    summaryIcon: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+    durationKnob: { position: 'absolute', top: -18, marginLeft: -20, width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.accent, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    summaryGrid: { marginTop: 14, flexDirection: 'row', gap: 12 },
+    summaryCard: { flex: 1, minHeight: 82, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 11 },
+    summaryIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
     summaryLabel: { fontFamily: fontFamilies.bold, fontSize: 9, letterSpacing: 1.1, color: colors.accent },
-    summaryValue: { marginTop: 4, fontFamily: fontFamilies.semiBold, fontSize: 15, lineHeight: 20, color: colors.text },
-    summaryDetail: { marginTop: 3, fontFamily: fontFamilies.medium, fontSize: 10, lineHeight: 15, color: colors.textSecondary },
+    summaryValue: { marginTop: 4, fontFamily: fontFamilies.semiBold, fontSize: 13, lineHeight: 18, color: colors.text },
     directionSection: { marginBottom: 20 },
     directionEyebrow: { marginBottom: 10, fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent },
     coachDirectionCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 17, backgroundColor: colors.surface },
