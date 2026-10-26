@@ -1,0 +1,31 @@
+name: Composer V8 interface check
+
+on:
+  push:
+    branches:
+      - feat/composer-journey-v8-20261026
+  pull_request:
+    paths:
+      - 'src/workout/WeekComposerV7.js'
+      - '.github/workflows/composer-v8-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Compile mobile web frontend
+        run: npx expo export --platform web
+        env:
+          EXPO_PUBLIC_APP_ENV: development
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: placeholder_for_static_ci_only
