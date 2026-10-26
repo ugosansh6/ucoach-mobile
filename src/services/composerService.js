@@ -152,15 +152,17 @@ export function buildComposerArchitectures({ durationMinutes, intentKey, targets
   }
 
   if (coreMinutes >= 16) {
-    const strengthMinutes = Math.max(8, Math.min(coreMinutes - 8, Math.round(coreMinutes * 0.46)));
+    const wodMinutes = Math.max(8, Math.min(30, coreMinutes - Math.round(coreMinutes * 0.46)));
+    const strengthMinutes = coreMinutes - wodMinutes;
     add('balanced', 'Strength + WOD', [
       block('STRENGTH', strengthMinutes),
-      block('WOD', coreMinutes - strengthMinutes, wodLabel(coreMinutes - strengthMinutes)),
+      block('WOD', wodMinutes, wodLabel(wodMinutes)),
     ]);
-    const skillMinutes = Math.max(8, Math.min(coreMinutes - 8, Math.round(coreMinutes * 0.38)));
+    const skillWodMinutes = Math.max(8, Math.min(30, coreMinutes - Math.round(coreMinutes * 0.38)));
+    const skillMinutes = coreMinutes - skillWodMinutes;
     add('skill', 'Skill + WOD', [
       block('SKILL', skillMinutes),
-      block('WOD', coreMinutes - skillMinutes, wodLabel(coreMinutes - skillMinutes)),
+      block('WOD', skillWodMinutes, wodLabel(skillWodMinutes)),
     ]);
   }
   add('strength', 'Strength seul', [block('STRENGTH', coreMinutes)]);
