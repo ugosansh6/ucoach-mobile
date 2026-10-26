@@ -214,6 +214,92 @@ export async function getComposerMechanicOptions({
  * Read-only C2 preview for the recap. These values are indicative until the
  * real day-J check-in and finalization; never write sessions from the preview.
  */
+/**
+ * Reuse existing preference-evidence function and nearby user-authored
+ * compositions. Server reports observations only, without invented "AI scores".
+ */
+export async function getComposerCandidateEvidence({
+  exerciseIds = [], anchorDate, planItemId = null,
+} = {}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(anchorDate ?? ''))) return {};
+  const ids = [...new Set(exerciseIds.filter(Boolean))].slice(0, 160);
+  if (!ids.length) return {};
+  const user = await getAuthenticatedUserWithRetry();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_composer_candidate_evidence_v1', {
+      p_user_id: user.id,
+      p_exercise_ids: ids,
+      p_anchor_date: anchorDate,
+      p_plan_item_id: planItemId,
+    })
+  );
+  return data?.status === 'OK' ? (data.by_exercise ?? {}) : {};
+}
+
+/**
+ * Dynamic, conservative presentation of engine candidates. Never mutates a
+ * selected movement. Signals are derived from the real equipment catalogue,
+ * recorded exposure, other user-authored sessions, and already chosen patterns.
+ * The original engine selection_weight/focus/region score is retained.
+ */
+export function rankComposerCandidates({
+  candidates = [], blockType, selectionMap = {}, candidateMap = {},
+  evidence = {}, equipmentIds = [],
+} = {}) {
+  const thisBlockIds = new Set(selectionMap[blockType] ?? []);
+  const selected = Object.entries(selectionMap)
+    .flatMap(([type, ids]) => (ids ?? []).map((id) => ({
+      type, exercise: (candidateMap[type] ?? []).find((item) => item.id === id),
+    }))).filter((item) => item.exercise);
+  const hasEquipment = (equipmentIds ?? []).length > 0;
+  const scored = candidates.map((exercise) => {
+    const usage = evidence[exercise.id] ?? null;
+    const pattern = String(exercise.movementPattern ?? '').trim().toLowerCase();
+    const selectedElsewhere = selected.filter(({ type, exercise: other }) =>
+      other.id !== exercise.id && type === blockType && pattern &&
+      String(other.movementPattern ?? '').trim().toLowerCase() === pattern);
+    const plannedNearby = Number(usage?.other_composer_plans_nearby ?? 0);
+    const recent = Number(usage?.recent_completed_14d ?? 0);
+    const total = Number(usage?.completed_exposures ?? 0);
+    const usesEquipment = hasEquipment && (exercise.equipmentIds ?? []).length > 0;
+    const differentBlockRepeats = selected.some(({ type, exercise: other }) =>
+      type !== blockType && pattern && other.id !== exercise.id &&
+      String(other.movementPattern ?? '').toLowerCase() === pattern);
+    let score = Number(exercise.score ?? 0);
+    const signals = [];
+    if (selectedElsewhere.length) {
+      score -= 22;
+      signals.push(`${exercise.movementPattern ?? 'Mouvement'} déjà présent dans ce bloc`);
+    }
+    if (plannedNearby) {
+      score -= Math.min(18, plannedNearby * 9);
+      signals.push('Déjà prévu dans une autre séance composée');
+    }
+    if (recent >= 2) {
+      score -= 11;
+      signals.push(`Déjà réalisé ${recent} fois sur les 14 derniers jours`);
+    } else if (usage && total > 0 && recent === 0) {
+      score += 7;
+      signals.push('Pas travaillé dans les 14 derniers jours');
+    }
+    if (differentBlockRepeats) score -= 4;
+    if (usesEquipment) {
+      score += 8;
+      if (!signals.length) signals.push(`Utilise ${(exercise.equipmentNames ?? []).slice(0, 2).join(' et ')} disponible`);
+    }
+    const conflicts = selectedElsewhere.length > 0;
+    const warning = thisBlockIds.has(exercise.id) && conflicts;
+    return { ...exercise, recommendationScore: score, recommendationReason: signals[0] ?? null,
+      warning, hasRecommendationEvidence: Boolean(signals.length) };
+  });
+  const ranked = [...scored].sort((a, b) => b.recommendationScore - a.recommendationScore || a.id.localeCompare(b.id));
+  const recommendedIds = new Set(ranked.filter((item) => !item.warning &&
+    item.hasRecommendationEvidence).slice(0, 3).map((item) => item.id));
+  return ranked.map((item) => ({
+    ...item, recommended: recommendedIds.has(item.id) && !item.warning,
+  }));
+}
+
 export async function getComposerPrescriptionPreview({ draft, equipmentNames = [] } = {}) {
   const user = await getAuthenticatedUserWithRetry();
   return runSupabaseRequestWithAuthRetry(() =>
