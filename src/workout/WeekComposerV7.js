@@ -926,10 +926,9 @@ export default function WeekComposerV7() {
   }
 
   const rawCoachChoice = coachIntentFromItem(selectedItem);
-  const coachChoice = directionChoiceForRegion(rawCoachChoice, targetRegion, rawCoachChoice?.targetRegion ?? null);
+  const coachChoice = rawCoachChoice;
   const fallbackChoices = FALLBACK_INTENTS
-    .filter((choice) => !(coachChoice && directionBaseLabel(choice) === directionBaseLabel(coachChoice)))
-    .map((choice) => directionChoiceForRegion(choice, targetRegion));
+    .filter((choice) => !(coachChoice && directionBaseLabel(choice) === directionBaseLabel(coachChoice)));
   const intentChoices = [
     ...(coachChoice ? [coachChoice] : []),
     ...fallbackChoices,
@@ -1026,43 +1025,68 @@ export default function WeekComposerV7() {
                   <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                 </Pressable>
               </View>
-              <View style={styles.focusSection}>
-                <Text style={styles.focusTitle}>Une envie aujourd’hui ?</Text>
-                <Text style={styles.focusHelp}>Optionnel · UGEROD en tient compte.</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.focusRow}>
-                  {FOCUS_OPTIONS.map((option) => (
-                    <ChoiceChip key={option.label} label={option.label} selected={targetRegion === option.value} onPress={() => setTargetRegion(option.value)} styles={styles} colors={colors} />
-                  ))}
-                </ScrollView>
-              </View>
+
               <PrimaryButton label="CONTINUER" onPress={() => setStep(1)} disabled={equipmentLoading} styles={styles} colors={colors} />
             </View>
           ) : null}
 
           {step === 1 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="DIRECTION" title="Quel type de travail ?" helper={targetRegion ? `Ta préférence ${regionLabel(targetRegion).toLowerCase()} est déjà prise en compte.` : 'UGEROD garde la direction prévue quand elle existe, mais tu peux reprendre la main.'} styles={styles} />
-              <View style={styles.optionList}>
-                {intentChoices.map((choice) => {
+              <StageHeader kicker="DIRECTION" title="Quel travail aujourd’hui ?" helper="UGEROD propose une dominante, tu peux la changer." styles={styles} />
+
+              {coachChoice ? (
+                <View style={styles.directionSection}>
+                  <Text style={styles.directionEyebrow}>LA PROPOSITION DU COACH</Text>
+                  <Pressable
+                    onPress={() => setIntent(coachChoice)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: intent?.key === coachChoice.key }}
+                    style={[styles.coachDirectionCard, intent?.key === coachChoice.key && styles.cardSelected]}
+                  >
+                    {intent?.key === coachChoice.key ? <View style={styles.selectedRail} /> : null}
+                    <View style={styles.cardTopRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.coachDirectionTitle}>{directionBaseLabel(coachChoice)}</Text>
+                        {coachChoice.subtitle ? <Text style={styles.cardSubtitle}>{coachChoice.subtitle}</Text> : null}
+                      </View>
+                      <Ionicons name={intent?.key === coachChoice.key ? 'checkmark-circle' : 'ellipse-outline'} size={26} color={colors.accent} />
+                    </View>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <Text style={styles.directionEyebrow}>{coachChoice ? 'AUTRES DOMINANTES' : 'CHOISIS TA DOMINANTE'}</Text>
+              <View style={styles.intentTiles}>
+                {fallbackChoices.map((choice) => {
                   const selected = intent?.key === choice.key;
                   return (
-                    <Pressable key={choice.key} onPress={() => setIntent(choice)} style={[styles.simpleCard, selected && styles.cardSelected]}>
-                      {selected ? <View style={styles.selectedRail} /> : null}
-                      <View style={styles.cardTopRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.cardEyebrow}>{choice.recommended ? 'PROPOSITION UGEROD' : 'OPTION'}</Text>
-                          <Text style={styles.cardTitle}>{choice.label}</Text>
-                          {choice.subtitle ? <Text style={styles.cardSubtitle}>{choice.subtitle}</Text> : null}
-                        </View>
-                        <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
-                          <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
-                        </View>
+                    <Pressable
+                      key={choice.key}
+                      onPress={() => setIntent(choice)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      style={[styles.intentTile, selected && styles.cardSelected]}
+                    >
+                      <View style={styles.intentTileHead}>
+                        <Text style={styles.intentTileTitle}>{directionBaseLabel(choice)}</Text>
+                        <Ionicons name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={21} color={colors.accent} />
                       </View>
+                      <Text style={styles.intentTileHelp}>{choice.subtitle}</Text>
                     </Pressable>
                   );
                 })}
               </View>
-              <PrimaryButton label={busy ? 'PRÉPARATION…' : 'VOIR LES STRUCTURES'} onPress={goToArchitecture} disabled={!intent || busy} loading={busy} styles={styles} colors={colors} />
+              <View style={styles.focusSection}>
+                <Text style={styles.focusTitle}>Zone à travailler</Text>
+                <Text style={styles.focusHelp}>Facultatif : cible une zone ou laisse UGEROD équilibrer.</Text>
+                <View style={styles.focusWrap}>
+                  {FOCUS_OPTIONS.map((option) => (
+                    <ChoiceChip key={option.label} label={option.label} selected={targetRegion === option.value}
+                      onPress={() => setTargetRegion(option.value)} styles={styles} colors={colors} />
+                  ))}
+                </View>
+              </View>
+              <PrimaryButton label={busy ? 'PRÉPARATION…' : 'CHOISIR LA STRUCTURE'} onPress={goToArchitecture} disabled={!intent || busy} loading={busy} styles={styles} colors={colors} />
             </View>
           ) : null}
 
@@ -1394,6 +1418,16 @@ function createStyles(colors) {
     summaryIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
     summaryLabel: { fontFamily: fontFamilies.bold, fontSize: 9, letterSpacing: 1.1, color: colors.accent },
     summaryValue: { marginTop: 4, fontFamily: fontFamilies.semiBold, fontSize: 13, lineHeight: 18, color: colors.text },
+    directionSection: { marginBottom: 20 },
+    directionEyebrow: { marginBottom: 10, fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent },
+    coachDirectionCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 17, backgroundColor: colors.surface },
+    coachDirectionTitle: { fontFamily: fontFamilies.display, fontSize: 24, lineHeight: 29, color: colors.text },
+    intentTiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginBottom: 8 },
+    intentTile: { width: '48%', minHeight: 96, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 12, backgroundColor: colors.surface },
+    intentTileHead: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'space-between' },
+    intentTileTitle: { flexShrink: 1, fontFamily: fontFamilies.display, fontSize: 19, lineHeight: 22, color: colors.text },
+    intentTileHelp: { marginTop: 7, fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 15, color: colors.textSecondary },
+    focusWrap: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     focusSection: { marginTop: 25 },
     focusTitle: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: colors.text },
     focusHelp: { marginTop: 3, fontFamily: fontFamilies.regular, fontSize: 12, color: colors.textSecondary },
