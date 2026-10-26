@@ -133,7 +133,6 @@ const REAR_DETAILS = [
 // Silhouette V3.2: background anatomy only. The V3 muscle shapes, fills,
 // internal muscle tracings, and interactions are deliberately unchanged.
 const FLIP = 'translate(220 0) scale(-1 1)';
-const BODY_CLIP_ID = 'ugerod-composer-muscle-body-v32';
 const BODY_OUTLINE = '#9CA99E';
 const ANATOMY_LINE = '#B2BDB3';
 const ANATOMY_FINE = '#CAD2C9';
@@ -204,14 +203,16 @@ function MuscleBody({ side, colorsByMuscle, onTouch }) {
   const shapes = side === 'back' ? REAR : FRONT;
   const details = side === 'back' ? REAR_DETAILS : FRONT_DETAILS;
   const neutralLines = side === 'back' ? BACK_BODY_LINES : FACE_BODY_LINES;
-  const clip = 'url(#' + BODY_CLIP_ID + ')';
+  // Unique per SVG instance, safe when this selector is reused in other screens.
+  const clipId = 'ugerod-body-' + React.useId().replace(/[^A-Za-z0-9_-]/g, '');
+  const clip = 'url(#' + clipId + ')';
 
   return (
     <Svg viewBox="0 0 220 432" width="100%" height="100%"
       accessible accessibilityLabel={side === 'back'
         ? 'Silhouette musculaire vue de dos' : 'Silhouette musculaire vue de face'}>
       <Defs>
-        <ClipPath id={BODY_CLIP_ID}>
+        <ClipPath id={clipId}>
           <NeutralBody fill="#FFFFFF" />
         </ClipPath>
       </Defs>
