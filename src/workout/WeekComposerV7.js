@@ -369,7 +369,7 @@ function ArchitectureCard({ option, selected, onPress, styles, colors }) {
       {selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.cardTopRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cardEyebrow}>{option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
+          <Text style={styles.cardEyebrow}>{option.available === false ? 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
           <Text style={styles.cardTitle}>{option.title}</Text>
         </View>
         <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
@@ -477,6 +477,7 @@ export default function WeekComposerV7() {
   const [expandedExerciseId, setExpandedExerciseId] = useState(null);
   const [mechanic, setMechanic] = useState(null);
   const [mechanicOptions, setMechanicOptions] = useState([]);
+  const [mechanicIssue, setMechanicIssue] = useState(null);
   const [showAllMechanics, setShowAllMechanics] = useState(false);
 
   async function loadEquipmentForEnvironment(code, catalog = equipmentCatalog) {
@@ -730,9 +731,11 @@ export default function WeekComposerV7() {
         environmentCode,
         focus: intent?.focus,
       });
-      if (!options.length) throw new Error('Aucune mécanique compatible avec ce WOD.');
+      if (!options.some((option) => option.available !== false)) throw new Error('Aucune mécanique compatible avec ce WOD.');
       setMechanicOptions(options);
-      setMechanic((current) => options.find((option) => option.key === current?.key) ?? options[0]);
+      setMechanicIssue(null);
+      setMechanic((current) => options.find((option) => option.available !== false && option.key === current?.key)
+        ?? options.find((option) => option.available !== false));
       setShowAllMechanics(false);
       setStep(4);
     } catch (reason) {
@@ -940,7 +943,7 @@ export default function WeekComposerV7() {
                           {choice.subtitle ? <Text style={styles.cardSubtitle}>{choice.subtitle}</Text> : null}
                         </View>
                         <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
-                          <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
+                          <Ionicons name={option.available === false ? 'lock-closed-outline' : selected ? 'checkmark' : 'add'} size={18} color={option.available === false ? colors.textMuted : selected ? colors.textOnAccent : colors.accent} />
                         </View>
                       </View>
                     </Pressable>
@@ -1034,13 +1037,15 @@ export default function WeekComposerV7() {
                 {mechanicOptions.filter((option, index) => showAllMechanics || index < 3).map((option) => {
                   const selected = mechanic?.key === option.key;
                   return (
-                    <Pressable key={option.key} onPress={() => setMechanic(option)} style={[styles.simpleCard, selected && styles.cardSelected]}>
+                    <Pressable key={option.key}
+                      onPress={() => option.available === false ? setMechanicIssue(option.reason) : (setMechanic(option), setMechanicIssue(null))}
+                      style={[styles.simpleCard, selected && styles.cardSelected, option.available === false && styles.mechanicDisabled]}>
                       {selected ? <View style={styles.selectedRail} /> : null}
                       <View style={styles.cardTopRow}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.cardEyebrow}>{option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
                           <Text style={styles.cardTitle}>{option.title}</Text>
-                          <Text style={styles.cardSubtitle}>{option.description}</Text>
+                          <Text style={styles.cardSubtitle}>{option.available === false ? option.reason : option.description}</Text>
                         </View>
                         <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
                           <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
@@ -1050,6 +1055,7 @@ export default function WeekComposerV7() {
                   );
                 })}
               </View>
+              {mechanicIssue ? <Text style={styles.mechanicIssue}>{mechanicIssue}</Text> : null}
               {mechanicOptions.length > 3 ? (
                 <Pressable onPress={() => setShowAllMechanics((value) => !value)} style={{ paddingVertical: 14, alignItems: 'center' }}>
                   <Text style={{ color: colors.accent, fontFamily: MANROPE.bold, textDecorationLine: 'underline' }}>
@@ -1235,6 +1241,8 @@ function createStyles(colors) {
     choiceChipText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.textSecondary },
     choiceChipTextSelected: { color: colors.textOnAccent },
     optionList: { gap: 12 },
+    mechanicDisabled: { opacity: 0.46 },
+    mechanicIssue: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     simpleCard: { position: 'relative', overflow: 'hidden', padding: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     architectureCard: { position: 'relative', overflow: 'hidden', padding: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     cardSelected: { borderColor: colors.accent, backgroundColor: colors.surfaceElevated ?? colors.surface },
