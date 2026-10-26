@@ -70,6 +70,12 @@ export async function getComposerExerciseCandidates({
     .in('exercise_id', ids);
   if (requirementsError) throw requirementsError;
 
+  const requiredIds = [...new Set((requirements ?? []).map((row) => String(row.equipment_id)).filter((id) => id && id !== 'E00'))];
+  const { data: equipmentRows, error: equipmentError } = requiredIds.length
+    ? await supabase.from('equipment_catalog_v2').select('id,name').in('id', requiredIds)
+    : { data: [], error: null };
+  if (equipmentError) throw equipmentError;
+  const equipmentNamesById = new Map((equipmentRows ?? []).map((item) => [String(item.id), item.name]));
   const available = new Set(['E00', ...(equipmentIds ?? []).map(String)]);
   const byExercise = new Map();
   (requirements ?? []).forEach((row) => {
@@ -93,6 +99,11 @@ export async function getComposerExerciseCandidates({
       imagePath: exercise.image_path ?? null,
       difficulty: exercise.difficulty ?? null,
       exerciseType: exercise.exercise_type ?? null,
+      trainingFocus: exercise.training_focus ?? null,
+      equipmentIds: (byExercise.get(exercise.id) ?? []).filter((id) => id !== 'E00'),
+      equipmentNames: (byExercise.get(exercise.id) ?? [])
+        .filter((id) => id !== 'E00')
+        .map((id) => equipmentNamesById.get(id) ?? id),
       bodyRegion: exercise.body_region,
       movementPattern: exercise.movement_pattern,
       exerciseFamily: exercise.exercise_family,
@@ -117,104 +128,61 @@ function block(type, minutes, label = null) {
   };
 }
 
+/**
+ * Composition is planned within the existing C4 architecture budget.
+ * Warm-up and Tabata are always included in the total duration. Only the
+ * main blocks are edited first; the user can edit these complements at recap.
+ * A WOD-alone option is hidden if it would require an excessively long WOD.
+ */
 export function buildComposerArchitectures({ durationMinutes, intentKey, targets = {} }) {
   const duration = Math.max(20, Number(durationMinutes) || 45);
-  const reserve = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
-  const warmup = Math.max(4, Math.min(8, Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 6))));
-  const tabata = 4;
+  const transitionReserveMinutes = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
+  const warmupMinutes = Math.max(4, Math.min(
+    8,
+    duration - transitionReserveMinutes - 4 - 8,
+    Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 8))
+  ));
+  const tabataMinutes = 4;
+  const coreMinutes = duration - transitionReserveMinutes - warmupMinutes - tabataMinutes;
+  const baseBlocks = [block('WARMUP', warmupMinutes), block('TABATA', tabataMinutes)];
+  const options = [];
 
-  let conditioning;
-  let balanced;
-  let strengthFirst;
-
-  if (duration <= 30) {
-    const conditioningWod = Math.max(8, duration - reserve - warmup - tabata);
-    const strengthMinutes = Math.max(10, Math.round((duration - reserve - warmup) * 0.64));
-    const strengthWod = Math.max(6, duration - reserve - warmup - strengthMinutes);
-    const balancedStrength = Math.max(9, Math.round((duration - reserve - warmup) * 0.48));
-    const balancedWod = Math.max(7, duration - reserve - warmup - balancedStrength);
-
-    conditioning = {
-      key: 'conditioning',
-      title: 'Plus conditioning',
-      blocks: [
-        block('WARMUP', warmup),
-        block('TABATA', tabata),
-        block('WOD', conditioningWod, wodLabel(conditioningWod)),
-      ],
-    };
-    balanced = {
-      key: 'balanced',
-      title: 'Équilibrée',
-      blocks: [
-        block('WARMUP', warmup),
-        block('STRENGTH', balancedStrength),
-        block('WOD', balancedWod, wodLabel(balancedWod)),
-      ],
-    };
-    strengthFirst = {
-      key: 'strength',
-      title: 'Plus force',
-      blocks: [
-        block('WARMUP', warmup),
-        block('STRENGTH', strengthMinutes),
-        block('WOD', strengthWod, wodLabel(strengthWod)),
-      ],
-    };
-  } else {
-    const strengthAvailable = Math.max(18, duration - reserve - warmup);
-    const strengthMinutes = Math.max(14, Math.round(strengthAvailable * 0.62));
-    const strengthWod = Math.max(8, strengthAvailable - strengthMinutes);
-
-    const balancedAvailable = Math.max(20, duration - reserve - warmup - tabata);
-    const balancedStrength = Math.max(11, Math.round(balancedAvailable * 0.46));
-    const balancedWod = Math.max(9, balancedAvailable - balancedStrength);
-
-    const conditioningWod = Math.max(12, duration - reserve - warmup - tabata);
-
-    conditioning = {
-      key: 'conditioning',
-      title: 'Plus conditioning',
-      blocks: [
-        block('WARMUP', warmup),
-        block('TABATA', tabata),
-        block('WOD', conditioningWod, wodLabel(conditioningWod)),
-      ],
-    };
-    balanced = {
-      key: 'balanced',
-      title: 'Équilibrée',
-      blocks: [
-        block('WARMUP', warmup),
-        block('TABATA', tabata),
-        block('STRENGTH', balancedStrength),
-        block('WOD', balancedWod, wodLabel(balancedWod)),
-      ],
-    };
-    strengthFirst = {
-      key: 'strength',
-      title: 'Plus force',
-      blocks: [
-        block('WARMUP', warmup),
-        block('STRENGTH', strengthMinutes),
-        block('WOD', strengthWod, wodLabel(strengthWod)),
-      ],
-    };
+  function add(key, title, mainBlocks) {
+    const blocks = [...baseBlocks, ...mainBlocks];
+    options.push({
+      key, title, blocks, transitionReserveMinutes,
+      estimatedMinutes: blocks.reduce((sum, item) => sum + Number(item.minutes), 0) + transitionReserveMinutes,
+    });
   }
 
-  const normalized = String(intentKey ?? '').toUpperCase();
-  const ordered = normalized.includes('STRENGTH') || normalized.includes('FORCE')
-    ? [strengthFirst, balanced, conditioning]
-    : normalized.includes('CONDITION')
-      ? [conditioning, balanced, strengthFirst]
-      : [balanced, conditioning, strengthFirst];
+  if (coreMinutes >= 16) {
+    const wodMinutes = Math.max(8, Math.min(30, coreMinutes - Math.round(coreMinutes * 0.46)));
+    const strengthMinutes = coreMinutes - wodMinutes;
+    add('balanced', 'Strength + WOD', [
+      block('STRENGTH', strengthMinutes),
+      block('WOD', wodMinutes, wodLabel(wodMinutes)),
+    ]);
+    const skillWodMinutes = Math.max(8, Math.min(30, coreMinutes - Math.round(coreMinutes * 0.38)));
+    const skillMinutes = coreMinutes - skillWodMinutes;
+    add('skill', 'Skill + WOD', [
+      block('SKILL', skillMinutes),
+      block('WOD', skillWodMinutes, wodLabel(skillWodMinutes)),
+    ]);
+  }
+  add('strength', 'Strength seul', [block('STRENGTH', coreMinutes)]);
+  if (coreMinutes >= 8 && coreMinutes <= 30) {
+    add('conditioning', 'WOD seul', [block('WOD', coreMinutes, wodLabel(coreMinutes))]);
+  }
 
-  return ordered.map((option, index) => ({
-    ...option,
-    recommended: index === 0,
-    estimatedMinutes: option.blocks.reduce((sum, item) => sum + Number(item.minutes ?? 0), 0) + reserve,
-    transitionReserveMinutes: reserve,
-  }));
+  const intent = String(intentKey ?? '').toUpperCase();
+  const preference = intent.includes('STRENGTH') || intent.includes('FORCE')
+    ? ['balanced', 'strength', 'skill', 'conditioning']
+    : intent.includes('TECHNIQUE') || intent.includes('SKILL')
+      ? ['skill', 'balanced', 'strength', 'conditioning']
+      : ['conditioning', 'balanced', 'skill', 'strength'];
+  return options
+    .sort((left, right) => preference.indexOf(left.key) - preference.indexOf(right.key))
+    .map((option, index) => ({ ...option, recommended: index === 0 }));
 }
 
 /**
@@ -234,7 +202,138 @@ export async function getComposerMechanicOptions({
       p_focus: focus ?? 'General Fitness',
     })
   );
-  return Array.isArray(result?.options) ? result.options : [];
+  const available = Array.isArray(result?.options) ? result.options : [];
+  const unavailable = Array.isArray(result?.unavailable) ? result.unavailable : [];
+  return [
+    ...available.map((option) => ({ ...option, available: true })),
+    ...unavailable.map((option) => ({ ...option, available: false })),
+  ];
+}
+
+/**
+ * Read-only C2 preview for the recap. These values are indicative until the
+ * real day-J check-in and finalization; never write sessions from the preview.
+ */
+/**
+ * Reuse existing preference-evidence function and nearby user-authored
+ * compositions. Server reports observations only, without invented "AI scores".
+ */
+export async function getComposerCandidateEvidence({
+  exerciseIds = [], anchorDate, planItemId = null,
+} = {}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(anchorDate ?? ''))) return {};
+  const ids = [...new Set(exerciseIds.filter(Boolean))].slice(0, 160);
+  if (!ids.length) return {};
+  const user = await getAuthenticatedUserWithRetry();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_composer_candidate_evidence_v1', {
+      p_user_id: user.id,
+      p_exercise_ids: ids,
+      p_anchor_date: anchorDate,
+      p_plan_item_id: planItemId,
+    })
+  );
+  return data?.status === 'OK' ? (data.by_exercise ?? {}) : {};
+}
+
+/**
+ * Dynamic, conservative presentation of engine candidates. Never mutates a
+ * selected movement. Signals are derived from the real equipment catalogue,
+ * recorded exposure, other user-authored sessions, and already chosen patterns.
+ * The original engine selection_weight/focus/region score is retained.
+ */
+export function rankComposerCandidates({
+  candidates = [], blockType, selectionMap = {}, candidateMap = {},
+  evidence = {}, equipmentIds = [],
+} = {}) {
+  const thisBlockIds = new Set(selectionMap[blockType] ?? []);
+  const selected = Object.entries(selectionMap)
+    .flatMap(([type, ids]) => (ids ?? []).map((id) => ({
+      type, exercise: (candidateMap[type] ?? []).find((item) => item.id === id),
+    }))).filter((item) => item.exercise);
+  const hasEquipment = (equipmentIds ?? []).length > 0;
+  const scored = candidates.map((exercise) => {
+    const usage = evidence[exercise.id] ?? null;
+    const pattern = String(exercise.movementPattern ?? '').trim().toLowerCase();
+    const selectedElsewhere = selected.filter(({ type, exercise: other }) =>
+      other.id !== exercise.id && type === blockType && pattern &&
+      String(other.movementPattern ?? '').trim().toLowerCase() === pattern);
+    const plannedNearby = Number(usage?.other_composer_plans_nearby ?? 0);
+    const recent = Number(usage?.recent_completed_14d ?? 0);
+    const total = Number(usage?.completed_exposures ?? 0);
+    const usesEquipment = hasEquipment && (exercise.equipmentIds ?? []).length > 0;
+    const differentBlockRepeats = selected.some(({ type, exercise: other }) =>
+      type !== blockType && pattern && other.id !== exercise.id &&
+      String(other.movementPattern ?? '').toLowerCase() === pattern);
+    let score = Number(exercise.score ?? 0);
+    let positiveEvidence = false;
+    const signals = [];
+    // These are the established explicit states, not inferred dislikes.
+    const preference = String(usage?.explicit_preference_state ?? 'NEUTRE').toUpperCase();
+    if (preference === 'FAVORI') {
+      score += 8;
+      positiveEvidence = true;
+      signals.push('Exercice enregistré dans tes favoris');
+    } else if (preference === 'SOUVENT_CHOISI') {
+      score += 4;
+      positiveEvidence = true;
+      signals.push('Exercice souvent choisi');
+    } else if (preference === 'EVITE_VOLONTAIREMENT') {
+      score -= 25;
+    }
+    if (selectedElsewhere.length) {
+      score -= 22;
+      signals.push(`${exercise.movementPattern ?? 'Mouvement'} déjà présent dans ce bloc`);
+    }
+    if (plannedNearby) {
+      score -= Math.min(18, plannedNearby * 9);
+      signals.push('Déjà prévu dans une autre séance composée');
+    }
+    if (recent >= 2) {
+      score -= 11;
+      signals.push(`Déjà réalisé ${recent} fois sur les 14 derniers jours`);
+    } else if (usage && total > 0 && recent === 0) {
+      score += 7;
+      positiveEvidence = true;
+      signals.push('Pas travaillé dans les 14 derniers jours');
+    }
+    if (differentBlockRepeats) score -= 4;
+    if (usesEquipment) {
+      score += 8;
+      positiveEvidence = true;
+      if (!signals.length) signals.push(`Utilise ${(exercise.equipmentNames ?? []).slice(0, 2).join(' et ')} disponible`);
+    }
+    const conflicts = selectedElsewhere.length > 0;
+    if (preference === 'EVITE_VOLONTAIREMENT') positiveEvidence = false;
+    if (!signals.length && selected.length > 0 && pattern && !differentBlockRepeats) {
+      score += 3;
+      positiveEvidence = true;
+      signals.push('Apporte un mouvement différent de ceux déjà choisis');
+    }
+    const warning = thisBlockIds.has(exercise.id) && conflicts;
+    return { ...exercise, recommendationScore: score, recommendationReason: signals[0] ?? null,
+      warning, conflicts, hasRecommendationEvidence: positiveEvidence };
+  });
+  const ranked = [...scored].sort((a, b) => b.recommendationScore - a.recommendationScore || a.id.localeCompare(b.id));
+  const recommendedIds = new Set(ranked.filter((item) => !item.conflicts &&
+    item.hasRecommendationEvidence &&
+    Number(evidence[item.id]?.other_composer_plans_nearby ?? 0) === 0 &&
+    Number(evidence[item.id]?.recent_completed_14d ?? 0) < 2
+  ).slice(0, 3).map((item) => item.id));
+  return ranked.map((item) => ({
+    ...item, recommended: recommendedIds.has(item.id) && !item.warning,
+  }));
+}
+
+export async function getComposerPrescriptionPreview({ draft, equipmentNames = [] } = {}) {
+  const user = await getAuthenticatedUserWithRetry();
+  return runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_composer_prescription_preview_v1', {
+      p_user_id: user.id,
+      p_draft: draft,
+      p_equipment_names: equipmentNames,
+    })
+  );
 }
 
 export async function saveComposerDraft({ planItemId, draft }) {
