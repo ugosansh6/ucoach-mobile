@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -459,6 +460,7 @@ export default function WeekComposerV7() {
   const [error, setError] = useState('');
   const [step, setStep] = useState(0);
   const [sheet, setSheet] = useState(null);
+  const [exerciseQuery, setExerciseQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [duration, setDuration] = useState(60);
   const [environmentCode, setEnvironmentCode] = useState('HOME');
@@ -847,6 +849,11 @@ export default function WeekComposerV7() {
     ...activeCandidates.slice(0, MAIN_SHORTLIST_SIZE),
   ].filter((exercise, index, array) => array.findIndex((item) => item.id === exercise.id) === index);
   const extraCandidates = activeCandidates.filter((exercise) => !mainCandidates.some((item) => item.id === exercise.id));
+  const filteredExtraCandidates = extraCandidates.filter((exercise) => {
+    const search = exerciseQuery.trim().toLowerCase();
+    return !search || [exercise.name, exercise.movementPattern, exercise.bodyRegion, ...(exercise.equipmentNames ?? [])]
+      .some((value) => String(value ?? '').toLowerCase().includes(search));
+  });
   const wodBlock = architecture?.blocks?.find((block) => block.type === 'WOD') ?? null;
   const estimatedMinutes = architecture?.estimatedMinutes
     ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
@@ -1004,7 +1011,7 @@ export default function WeekComposerV7() {
               </View>
 
               {extraCandidates.length > 0 ? (
-                <Pressable onPress={() => setSheet('exercise-picker')} style={styles.secondaryAction}>
+                <Pressable onPress={() => { setExerciseQuery(''); setSheet('exercise-picker'); }} style={styles.secondaryAction}>
                   <Ionicons name="add-circle-outline" size={20} color={colors.accent} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.secondaryActionTitle}>Voir d’autres exercices</Text>
@@ -1168,8 +1175,18 @@ export default function WeekComposerV7() {
       >
         <Text style={styles.sheetHelp}>Tous restent filtrés par ton environnement, ton matériel et l’objectif de la séance.</Text>
         {activeSelected.length >= maxForBlock(activeBlock?.type) ? <Text style={styles.sheetNotice}>Le bloc est complet : choisir un autre mouvement remplacera le dernier sélectionné.</Text> : null}
+        <TextInput
+          value={exerciseQuery}
+          onChangeText={setExerciseQuery}
+          placeholder="Rechercher un mouvement ou du matériel…"
+          placeholderTextColor={colors.textMuted}
+          style={styles.exerciseSearch}
+          autoCorrect={false}
+          accessibilityLabel="Rechercher un exercice compatible"
+        />
+        {filteredExtraCandidates.length === 0 ? <Text style={styles.sheetHelp}>Aucun mouvement compatible ne correspond à cette recherche.</Text> : null}
         <View style={styles.extraExerciseList}>
-          {extraCandidates.map((exercise) => {
+          {filteredExtraCandidates.map((exercise) => {
             const selected = activeSelected.includes(exercise.id);
             return (
               <Pressable key={exercise.id} onPress={() => chooseExercise(activeBlock.type, exercise.id)} style={[styles.extraExerciseRow, selected && styles.extraExerciseRowSelected]}>
@@ -1330,6 +1347,7 @@ function createStyles(colors) {
     sheetLoading: { minHeight: 90, alignItems: 'center', justifyContent: 'center' },
     infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, backgroundColor: colors.background },
     infoText: { flex: 1, fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+    exerciseSearch: { minHeight: 48, marginBottom: 14, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.background, fontFamily: fontFamilies.medium, fontSize: 14, color: colors.text },
     extraExerciseList: { gap: 8 },
     extraExerciseRow: { minHeight: 62, paddingHorizontal: 14, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },
     extraExerciseRowSelected: { borderColor: colors.accent, backgroundColor: colors.surfaceElevated ?? colors.surface },
