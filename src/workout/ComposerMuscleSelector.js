@@ -7,12 +7,15 @@
  */
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import Svg, { G, Ellipse, Path, Line } from 'react-native-svg';
+import Svg, { G, Path } from 'react-native-svg';
 
 const ORANGE = '#FF6B19';
-const KHAKI = '#646F5E';
+// Blended with the neutral anatomy surface (~36% brand khaki), not fully opaque.
+const KHAKI = '#BDC6BA';
 const GRAY = '#E4E7E2';
-const STROKE = '#AEB5AB';
+const STROKE = '#ABB5AA';
+const BODY = '#F2F3F0';
+const MUSCLE_STROKE = '#9EAA9F';
 
 export const MUSCLE_NAMES = {
   M01: 'Pectoraux', M02: 'Grands dorsaux', M03: 'Épaules', M04: 'Biceps',
@@ -38,55 +41,153 @@ const INTENT_MUSCLES = {
   'Full Body': { primary: ['M01', 'M02', 'M06', 'M07', 'M08', 'M10'], secondary: ['M03', 'M04', 'M05', 'M09', 'M11', 'M12', 'M13'] },
 };
 
-// Symmetric paths use the LEFT anatomical side and mirror on x=110.
+// Anatomical SVG V2. The left-side paths mirror around x=110 so muscles
+// remain symmetric. Each subdivided path retains the SAME UGEROD muscle ID.
+// There are no additional sporting categories or fatigue/activation estimates.
 const FRONT = [
-  ['M03', 'M72 78 C55 81 48 93 49 107 L60 126 L75 104 Z', true],
-  ['M01', 'M103 87 C88 82 75 86 65 100 L69 125 C83 133 96 127 108 118 Z', true],
-  ['M04', 'M48 122 C41 129 34 151 31 173 L44 180 L57 140 L61 128 Z', true],
-  ['M10', 'M101 133 L119 133 L121 194 C120 202 115 210 110 214 C105 210 100 202 99 194 Z', false],
-  ['M11', 'M96 137 L86 137 L76 151 L78 194 L92 211 L100 196 Z', true],
-  ['M06', 'M78 239 Q87 228 106 241 L102 307 L91 340 Q75 329 73 305 Z', true],
-  ['M09', 'M73 351 L91 347 L87 396 Q82 408 74 395 L70 374 Z', true],
+  // Deltoid: anterior and lateral heads
+  ['M03', 'M74 78 Q62 78 53 90 L48 105 L57 120 L67 112 L80 90 Z', true],
+  ['M03', 'M67 112 L57 120 L61 132 L73 122 L83 100 Z', true],
+  // Pectoralis major, upper and lower portions
+  ['M01', 'M102 86 Q91 87 80 91 L71 103 L82 117 L105 122 Z', true],
+  ['M01', 'M82 119 Q95 127 106 124 L105 137 Q86 142 73 126 Z', true],
+  // Biceps and upper-arm definition
+  ['M04', 'M49 123 Q43 132 39 148 L37 166 L46 172 L56 144 L58 133 Z', true],
+  ['M04', 'M40 170 L46 172 L42 187 L34 184 Z', true],
+  // Visible edge of latissimus dorsi, near the axilla
+  ['M02', 'M74 128 L79 140 L76 170 L70 183 L67 150 Z', true],
+  // Rectus abdominis: separated segments, not one solid rectangle
+  ['M10', 'M98 139 L108 141 L108 153 L97 154 Z', true],
+  ['M10', 'M97 157 L108 156 L108 169 L98 170 Z', true],
+  ['M10', 'M99 173 L108 172 L108 185 L101 188 Z', true],
+  ['M10', 'M101 191 L108 188 L108 213 L106 217 L102 205 Z', true],
+  // External obliques and serratus transition
+  ['M11', 'M80 141 L94 143 L91 156 L81 161 L75 152 Z', true],
+  ['M11', 'M80 164 L93 159 L96 181 L86 201 L76 189 Z', true],
+  ['M11', 'M88 203 L99 184 L101 205 L94 216 Z', true],
+  // Quadriceps: rectus femoris, vastus lateralis and medialis
+  ['M06', 'M89 239 Q101 239 105 249 L101 304 L94 324 L86 311 Z', true],
+  ['M06', 'M79 244 L88 242 L85 310 L77 326 L71 297 Z', true],
+  ['M06', 'M88 314 L97 329 L93 344 L82 339 L78 329 Z', true],
+  // Lateral gastrocnemius visible on the front/side silhouette
+  ['M09', 'M75 349 L84 350 L80 375 L71 383 L71 366 Z', true],
 ];
 const REAR = [
-  ['M13', 'M108 68 L83 79 L68 94 L95 121 L108 111 Z', true],
-  ['M03', 'M69 85 C55 85 47 97 49 113 L60 127 L76 104 Z', true],
-  ['M05', 'M49 122 L61 132 L50 166 L35 182 L30 168 Z', true],
-  ['M02', 'M82 117 L105 126 L103 175 L94 207 L75 188 L72 147 Z', true],
-  ['M12', 'M101 179 L119 179 L126 217 L110 229 L94 217 Z', false],
-  ['M08', 'M79 229 Q96 219 109 233 L106 267 Q87 285 75 263 Z', true],
-  ['M07', 'M78 271 L104 280 L99 343 L80 347 L73 307 Z', true],
-  ['M09', 'M78 350 L96 349 L88 400 L77 410 L68 387 Z', true],
+  // Trapezius: neck / upper-fan and middle-fan, anatomical divisions.
+  ['M13', 'M108 63 L95 74 L83 80 L68 91 L87 107 L108 101 Z', true],
+  ['M13', 'M108 104 L91 111 L89 126 L106 137 L108 130 Z', true],
+  // Posterior deltoid, cap and lower portion
+  ['M03', 'M70 83 Q57 82 51 94 L49 108 L57 125 L72 105 Z', true],
+  ['M03', 'M73 107 L59 126 L66 136 L77 122 L81 112 Z', true],
+  // Triceps, long and lateral heads
+  ['M05', 'M48 123 L59 134 L55 160 L41 179 L35 163 Z', true],
+  ['M05', 'M60 135 L65 147 L55 179 L42 185 L55 162 Z', true],
+  // Rhomboid/lats: upper and lower portions share the existing M02 ID
+  ['M02', 'M86 115 L105 140 L104 159 L88 154 L76 132 Z', true],
+  ['M02', 'M74 135 L87 157 L103 163 L99 192 L88 207 L74 182 Z', true],
+  ['M02', 'M88 209 L102 193 L101 221 L91 225 L82 207 Z', true],
+  // Spinal erectors: split left and right along the lumbar spine
+  ['M12', 'M103 181 L108 183 L108 219 L103 228 L97 219 Z', true],
+  // Gluteus maximus and lateral gluteal portion
+  ['M08', 'M78 232 Q91 222 107 232 L105 251 Q104 271 86 275 L75 264 Z', true],
+  ['M08', 'M77 231 L88 227 L78 248 L72 255 Z', true],
+  // Hamstrings: biceps femoris + semitendinosus regions
+  ['M07', 'M77 275 L87 277 L89 328 L78 343 L71 309 Z', true],
+  ['M07', 'M90 279 L105 275 L100 317 L92 341 L87 325 Z', true],
+  // Calf: two heads of gastrocnemius + lower soleus
+  ['M09', 'M77 351 L87 347 L88 375 L80 393 L73 378 Z', true],
+  ['M09', 'M89 348 L99 352 L96 378 L84 394 L87 370 Z', true],
+  ['M09', 'M81 395 L95 382 L88 408 L80 414 L74 405 Z', true],
 ];
 
+// Lines are aesthetic muscle separations; they're never separate selectable IDs.
+const FRONT_DETAILS = [
+  'M98 155 L107 154', 'M98 171 L108 170', 'M100 190 L108 188',
+  'M85 141 L95 146', 'M81 163 L91 160', 'M84 185 L94 177',
+  'M88 248 L85 300', 'M94 248 L95 304', 'M81 319 L86 333',
+  'M64 111 L57 119', 'M43 144 L48 159',
+];
+const REAR_DETAILS = [
+  'M96 88 L108 101', 'M88 111 L106 134',
+  'M80 133 L98 156', 'M77 174 L94 198', 'M102 183 L106 216',
+  'M81 242 L102 251', 'M80 266 Q92 277 105 260',
+  'M83 288 L83 327', 'M96 288 L94 327',
+  'M79 359 L81 383', 'M93 358 L89 384',
+];
 const FLIP = 'translate(220 0) scale(-1 1)';
 
 function MuscleBody({ side, colorsByMuscle, onTouch }) {
   const shapes = side === 'back' ? REAR : FRONT;
+  const details = side === 'back' ? REAR_DETAILS : FRONT_DETAILS;
   return (
-    <Svg viewBox="0 0 220 432" width="100%" height="100%">
-      <Ellipse cx="110" cy="33" rx="22" ry="27" fill="#F0F2EE" stroke={STROKE} strokeWidth="1.6" />
-      <Path d="M100 58 L98 70 L83 77 Q62 79 60 108 L67 146 L73 205 Q79 225 110 236 Q141 225 147 205 L153 146 L160 108 Q158 79 137 77 L122 70 L120 58 Z" fill="#F0F2EE" stroke={STROKE} strokeWidth="1.6" />
+    <Svg viewBox="0 0 220 432" width="100%" height="100%" accessible accessibilityLabel={side === 'back' ? 'Silhouette musculaire vue de dos' : 'Silhouette musculaire vue de face'}>
+      {/* Head, neck, shoulders and torso have neutral, continuous contours. */}
+      <Path
+        d="M93 16 Q95 6 110 6 Q125 6 127 16 L129 37 Q126 52 118 58 L118 66 L140 79
+           Q153 86 158 104 L153 137 L146 178 L146 204 Q136 227 110 238
+           Q84 227 74 204 L74 178 L67 137 L62 104 Q67 86 80 79 L102 66 L102 58
+           Q94 52 91 37 Z"
+        fill={BODY} stroke={STROKE} strokeWidth="1.7" strokeLinejoin="round"
+      />
+      {/* Subtle shoulder joints, forearms, hands, hips, knees and feet. */}
       {[false, true].map((mirror) => (
-        <G key={mirror ? 'right-outline' : 'left-outline'} transform={mirror ? FLIP : undefined}>
-          <Path d="M70 80 Q51 76 43 94 L28 156 L15 215 Q18 226 28 221 L38 185 L58 130 L68 117 Z" fill="#F0F2EE" stroke={STROKE} strokeWidth="1.6" />
-          <Path d="M82 224 L108 235 L105 304 L93 348 L90 405 L81 425 Q66 429 63 418 L69 344 L71 293 Z" fill="#F0F2EE" stroke={STROKE} strokeWidth="1.6" />
+        <G key={mirror ? 'right' : 'left'} transform={mirror ? FLIP : undefined}>
+          <Path
+            d="M69 84 Q52 80 46 96 L32 147 L15 205 Q10 220 18 226
+               L26 228 L37 194 L52 158 L67 123 Z"
+            fill={BODY} stroke={STROKE} strokeWidth="1.7" strokeLinejoin="round"
+          />
+          <Path d="M15 209 L12 232 Q12 240 17 237 L21 229 L21 240 Q21 244 25 239 L30 227 L34 215"
+            fill="none" stroke={STROKE} strokeWidth="1.6" strokeLinecap="round" />
+          <Path
+            d="M79 226 Q68 250 70 288 L69 319 L73 348 L67 390 L66 413
+               Q65 424 77 425 L91 424 L95 413 L96 391 L94 346
+               Q102 319 106 289 L109 237 Z"
+            fill={BODY} stroke={STROKE} strokeWidth="1.7" strokeLinejoin="round"
+          />
+          <Path d="M68 414 Q76 418 88 414 L93 425 Q79 429 66 425 Z"
+            fill={BODY} stroke={STROKE} strokeWidth="1.3" />
+          <Path d="M72 345 Q81 350 94 347" fill="none" stroke={STROKE} strokeWidth="1" />
+          <Path d="M53 124 L38 171" fill="none" stroke="#C8CEC5" strokeWidth=".8" />
         </G>
       ))}
-      {shapes.map(([id, d, mirrored], i) => {
+
+      {/* Every selected anatomical tile maps to an existing muscle identity. */}
+      {shapes.map(([id, d, mirror], index) => {
         const fill = colorsByMuscle[id] ?? GRAY;
         return (
-          <G key={id + i}>
-            <Path d={d} fill={fill} stroke={STROKE} strokeWidth="1.4" onPress={() => onTouch(id)} />
-            {mirrored ? (
+          <G key={id + ':' + index}>
+            <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth=".95"
+              strokeLinejoin="round" onPress={() => onTouch(id)} />
+            {mirror ? (
               <G transform={FLIP}>
-                <Path d={d} fill={fill} stroke={STROKE} strokeWidth="1.4" onPress={() => onTouch(id)} />
+                <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth=".95"
+                  strokeLinejoin="round" onPress={() => onTouch(id)} />
               </G>
             ) : null}
           </G>
         );
       })}
-      <Line x1="110" y1="82" x2="110" y2="229" stroke="#B4BAB1" strokeWidth="1" />
+
+      {/* Fine anatomical lines add contour; no additional muscle classifications. */}
+      <G pointerEvents="none">
+        {details.map((d, index) => (
+          <G key={'detail:' + index}>
+            <Path d={d} fill="none" stroke="#F8F9F5" strokeWidth=".9"
+              strokeLinecap="round" />
+            <G transform={FLIP}>
+              <Path d={d} fill="none" stroke="#F8F9F5" strokeWidth=".9"
+                strokeLinecap="round" />
+            </G>
+          </G>
+        ))}
+        {side === 'back' ? (
+          <Path d="M110 81 L110 230" stroke="#F8F9F5" strokeWidth="1.5" fill="none" />
+        ) : (
+          <Path d="M110 85 L110 216" stroke="#F8F9F5" strokeWidth="1.2" fill="none" />
+        )}
+        <Path d="M110 230 L110 246" stroke={STROKE} strokeWidth="1" />
+      </G>
     </Svg>
   );
 }
