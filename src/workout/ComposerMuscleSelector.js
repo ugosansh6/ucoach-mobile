@@ -7,7 +7,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import Svg, { G, Ellipse, Path, Line, Circle } from 'react-native-svg';
+import Svg, { G, Path } from 'react-native-svg';
 
 const ORANGE = '#FF6B19';
 // Blended with the neutral anatomy surface (~36% brand khaki), not fully opaque.
