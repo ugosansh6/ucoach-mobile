@@ -416,7 +416,7 @@ function ArchitectureCard({ option, selected, onPress, styles, colors }) {
   );
 }
 
-function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleExpand, styles, colors }) {
+function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleExpand, onOpenAlternatives, suggestedAlternative, styles, colors }) {
   const imageUri = /^https?:\/\//i.test(String(exercise.imagePath ?? '')) ? exercise.imagePath : null;
   const conciseMeta = [regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
   const material = (exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps';
@@ -429,6 +429,11 @@ function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleEx
             <Ionicons name="barbell-outline" size={18} color={selected ? colors.textOnAccent : colors.accent} />
           </View>
           <View style={styles.exerciseCopy}>
+            {exercise.warning ? (
+              <Text style={styles.exerciseWarningLabel}>À RECONSIDÉRER</Text>
+            ) : exercise.recommended ? (
+              <Text style={styles.exerciseRecommendedLabel}>RECOMMANDÉ PAR UGEROD</Text>
+            ) : null}
             <Text style={styles.exerciseName}>{exercise.name}</Text>
             {conciseMeta ? <Text style={styles.exerciseMeta}>{conciseMeta}</Text> : null}
             <Text style={styles.exerciseEquipment}>Matériel : {material}</Text>
@@ -439,6 +444,22 @@ function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleEx
           <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
         </Pressable>
       </View>
+
+      {(exercise.warning || exercise.recommended) && exercise.recommendationReason ? (
+        <View style={styles.exerciseGuidance}>
+          <Ionicons name={exercise.warning ? 'alert-circle-outline' : 'bulb-outline'} size={15} color={exercise.warning ? colors.secondaryAccent : colors.accent} />
+          <Text style={styles.exerciseGuidanceText}>{exercise.recommendationReason}</Text>
+        </View>
+      ) : null}
+      {exercise.warning && selected && suggestedAlternative ? (
+        <View style={styles.exerciseSuggestion}>
+          <Text style={styles.exerciseSuggestionText}>Alternative possible : {suggestedAlternative.name}</Text>
+          <Pressable onPress={onOpenAlternatives} style={styles.exerciseSuggestionLink}>
+            <Text style={styles.exerciseSuggestionLinkText}>Voir les alternatives</Text>
+            <Ionicons name="chevron-forward" size={15} color={colors.accent} />
+          </Pressable>
+        </View>
+      ) : null}
 
       {expanded ? (
         <View style={styles.exerciseDetails}>
@@ -1084,6 +1105,10 @@ export default function WeekComposerV7() {
                     expanded={expandedExerciseId === exercise.id}
                     onToggleSelect={() => chooseExercise(activeBlock.type, exercise.id)}
                     onToggleExpand={() => setExpandedExerciseId((current) => current === exercise.id ? null : exercise.id)}
+                    suggestedAlternative={exercise.warning
+                      ? activeCandidates.find((candidate) => !activeSelected.includes(candidate.id)
+                        && candidate.movementPattern !== exercise.movementPattern) : null}
+                    onOpenAlternatives={() => { setExerciseQuery(''); setSheet('exercise-picker'); }}
                     styles={styles}
                     colors={colors}
                   />
@@ -1401,6 +1426,15 @@ function createStyles(colors) {
     exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 15, lineHeight: 19, color: colors.text },
     exerciseMeta: { marginTop: 5, fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
     exerciseEquipment: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.accent },
+    exerciseRecommendedLabel: { fontFamily: fontFamilies.bold, fontSize: 10, color: colors.accent, letterSpacing: 0.5, marginBottom: 5 },
+    exerciseWarningLabel: { fontFamily: fontFamilies.bold, fontSize: 10, color: colors.secondaryAccent, letterSpacing: 0.5, marginBottom: 5 },
+    exerciseGuidance: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginBottom: 12 },
+    exerciseGuidanceText: { flex: 1, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+    exerciseSuggestion: { marginHorizontal: 14, marginBottom: 12, padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, gap: 8, backgroundColor: colors.background },
+    exerciseSuggestionText: { fontFamily: fontFamilies.medium, fontSize: 12, color: colors.text },
+    exerciseSuggestionLink: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' },
+    exerciseSuggestionLinkText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.accent },
+    exerciseReason: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 11, lineHeight: 16, color: colors.accent },
     exerciseDetails: { paddingHorizontal: 16, paddingBottom: 17, borderTopWidth: 1, borderTopColor: colors.border },
     exerciseImage: { marginTop: 15, width: '100%', height: 190, borderRadius: 14, backgroundColor: colors.background },
     detailBlock: { marginTop: 15 },
