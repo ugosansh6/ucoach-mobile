@@ -49,7 +49,7 @@ export async function getComposerExerciseCandidates({
     .from('exercises')
     .select('id,name,display_name,description,instructions,tips,image_path,exercise_type,difficulty,technical_complexity,movement_pattern,exercise_family,body_region,training_focus,equipment_requirement,selection_weight,usable_for,home_friendly,prescription_type,tabata_eligible,warmup_eligible,warmup_role,wod_role')
     .order('selection_weight', { ascending: false })
-    .limit(80);
+    .limit(targetRegion === 'Back' ? 160 : 80);
 
   if (blockType === 'WARMUP') query = query.eq('warmup_eligible', true);
   else if (blockType === 'TABATA') query = query.eq('tabata_eligible', true);
@@ -76,6 +76,22 @@ export async function getComposerExerciseCandidates({
     : { data: [], error: null };
   if (equipmentError) throw equipmentError;
   const equipmentNamesById = new Map((equipmentRows ?? []).map((item) => [String(item.id), item.name]));
+  // Back is a targeted muscle-group request, not a new value in
+  // exercises.body_region. Reuse the authoritative exercise_muscles taxonomy.
+  // This keeps the existing Upper/Lower/Core/Full Body categories unchanged.
+  let backMuscleWeights = new Map();
+  if (targetRegion === 'Back') {
+    const { data: links, error: linksError } = await supabase
+      .from('exercise_muscles')
+      .select('exercise_id,muscle_id,priority')
+      .in('exercise_id', ids)
+      .in('muscle_id', ['M02', 'M12', 'M13']);
+    if (linksError) throw linksError;
+    for (const link of links ?? []) {
+      const weight = link.priority === 'primary' ? 48 : 18;
+      backMuscleWeights.set(link.exercise_id, (backMuscleWeights.get(link.exercise_id) ?? 0) + weight);
+    }
+  }
   const available = new Set(['E00', ...(equipmentIds ?? []).map(String)]);
   const byExercise = new Map();
   (requirements ?? []).forEach((row) => {
@@ -108,7 +124,8 @@ export async function getComposerExerciseCandidates({
       movementPattern: exercise.movement_pattern,
       exerciseFamily: exercise.exercise_family,
       prescriptionType: exercise.prescription_type,
-      score: scoreExercise(exercise, focus, targetRegion),
+      score: scoreExercise(exercise, focus, targetRegion) + (backMuscleWeights.get(exercise.id) ?? 0),
+      backMuscleEvidence: targetRegion === 'Back' ? (backMuscleWeights.get(exercise.id) ?? 0) : null,
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, Math.max(3, limit));
