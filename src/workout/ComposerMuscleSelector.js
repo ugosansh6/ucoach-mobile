@@ -191,6 +191,21 @@ function MuscleBody({ side, colorsByMuscle, onTouch }) {
         </G>
       ))}
 
+      {/* Neutral anatomical landmarks sit BEHIND the colored muscle patches.
+          They cannot dull the confirmed orange or khaki selection colors. */}
+      <G pointerEvents="none">
+        {(side === 'back' ? REAR_LANDMARKS : FRONT_LANDMARKS).map((d, index) => (
+          <G key={'landmark:' + index}>
+            <Path d={d} fill="none" stroke="#A6B1A6" strokeWidth="1.15"
+              strokeLinecap="round" />
+            <G transform={FLIP}>
+              <Path d={d} fill="none" stroke="#A6B1A6" strokeWidth="1.15"
+                strokeLinecap="round" />
+            </G>
+          </G>
+        ))}
+      </G>
+
       {/* Every selected anatomical tile maps to an existing muscle identity. */}
       {shapes.map(([id, d, mirror], index) => {
         const fill = colorsByMuscle[id] ?? GRAY;
@@ -228,16 +243,6 @@ function MuscleBody({ side, colorsByMuscle, onTouch }) {
             </G>
           );
         })}
-        {(side === 'back' ? REAR_LANDMARKS : FRONT_LANDMARKS).map((d, index) => (
-          <G key={'landmark:' + index}>
-            <Path d={d} fill="none" stroke="#A6B1A6" strokeWidth="1.15"
-              strokeLinecap="round" />
-            <G transform={FLIP}>
-              <Path d={d} fill="none" stroke="#A6B1A6" strokeWidth="1.15"
-                strokeLinecap="round" />
-            </G>
-          </G>
-        ))}
         <Path
           d={side === 'back' ? 'M110 80 L110 228' : 'M110 90 L110 217'}
           stroke="#ACB7AA" strokeWidth="1.1" fill="none" />
