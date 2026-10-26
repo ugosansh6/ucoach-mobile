@@ -7,7 +7,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import Svg, { G, Path } from 'react-native-svg';
+import Svg, { G, Path, Defs, ClipPath } from 'react-native-svg';
 
 const ORANGE = '#FF6B19';
 // Light secondary khaki, distinct from gray without competing with orange.
@@ -130,64 +130,132 @@ const REAR_DETAILS = [
   'M78 356 Q77 370 80 380',
   'M94 354 Q94 369 90 382',
 ];
+// Silhouette V3.2: background anatomy only. The V3 muscle shapes, fills,
+// internal muscle tracings, and interactions are deliberately unchanged.
 const FLIP = 'translate(220 0) scale(-1 1)';
+const BODY_CLIP_ID = 'ugerod-composer-muscle-body-v32';
+const BODY_OUTLINE = '#9CA99E';
+const ANATOMY_LINE = '#B2BDB3';
+const ANATOMY_FINE = '#CAD2C9';
+
+// Anatomically shaped envelope. The same paths paint the neutral body and
+// form the clipping boundary for every colored muscle.
+const NEUTRAL_TORSO = 'M94 17 Q97 5 110 5 Q123 5 126 17 Q130 32 121 52 L120 63 C127 72 137 76 144 80 Q156 87 159 101 Q158 117 153 136 L146 189 Q144 204 146 211 C142 223 127 232 116 239 Q110 243 104 239 C93 232 78 223 74 211 Q76 204 74 189 L67 136 Q62 117 61 101 Q64 87 76 80 C83 76 93 72 100 63 L99 52 Q90 32 94 17 Z';
+const NEUTRAL_ARM = 'M67 83 C55 80 48 86 44 97 Q40 114 36 136 C30 158 21 185 16 204 Q12 215 15 224 Q20 232 27 226 C35 208 42 184 51 161 C61 138 68 116 70 100 Q71 89 67 83 Z';
+const NEUTRAL_HAND = 'M16 207 Q12 216 12 232 Q12 239 17 238 L21 229 L22 239 Q25 242 28 234 L34 213 Q32 206 29 205 Z';
+const NEUTRAL_LEG = 'M79 228 C71 241 69 260 70 282 Q67 305 70 325 Q70 341 73 350 C70 370 68 390 66 415 Q65 426 76 426 L88 426 Q97 422 95 413 L96 389 Q98 365 94 345 Q101 324 104 296 Q110 258 110 238 Q94 226 79 228 Z';
+const NEUTRAL_FOOT = 'M67 413 Q74 417 88 413 L95 419 Q95 427 86 427 L70 427 Q64 424 67 413 Z';
+
+// Decorative background landmarks. None participates in hit testing.
+const FACE_BODY_LINES = [
+  'M99 59 Q105 68 110 71',
+  'M86 82 Q97 85 107 91',
+  'M72 103 Q69 120 70 135',
+  'M73 149 Q71 165 74 179',
+  'M76 194 Q85 214 97 222',
+  'M99 224 Q106 230 110 230',
+  'M49 115 Q42 132 40 148',
+  'M37 174 Q33 191 26 207',
+  'M21 214 Q18 224 17 232',
+  'M79 250 Q75 273 76 298',
+  'M74 346 Q85 351 95 346',
+  'M78 360 Q76 381 74 393',
+  'M84 407 Q80 418 74 421',
+];
+const BACK_BODY_LINES = [
+  'M99 63 Q103 70 110 73',
+  'M85 101 Q93 107 100 119',
+  'M78 119 Q78 136 85 146',
+  'M74 163 Q72 182 80 197',
+  'M91 214 Q101 222 110 226',
+  'M82 238 Q80 248 80 259',
+  'M80 268 Q94 280 105 270',
+  'M80 288 Q76 307 81 329',
+  'M74 345 Q83 349 95 344',
+  'M79 357 Q75 376 79 389',
+  'M85 400 Q81 415 75 420',
+  'M48 126 Q43 145 39 166',
+  'M35 179 Q32 194 27 208',
+];
+
+function NeutralBody({ fill, stroke = 'none', strokeWidth = 0 }) {
+  return (
+    <G>
+      <Path d={NEUTRAL_TORSO} fill={fill} stroke={stroke}
+        strokeWidth={strokeWidth} strokeLinejoin="round" />
+      {[false, true].map((mirrored) => (
+        <G key={mirrored ? 'right-neutral' : 'left-neutral'}
+          transform={mirrored ? FLIP : undefined}>
+          <Path d={NEUTRAL_ARM} fill={fill} stroke={stroke}
+            strokeWidth={strokeWidth} strokeLinejoin="round" />
+          <Path d={NEUTRAL_HAND} fill={fill} stroke={stroke}
+            strokeWidth={strokeWidth * .75} strokeLinejoin="round" />
+          <Path d={NEUTRAL_LEG} fill={fill} stroke={stroke}
+            strokeWidth={strokeWidth} strokeLinejoin="round" />
+          <Path d={NEUTRAL_FOOT} fill={fill} stroke={stroke}
+            strokeWidth={strokeWidth * .75} strokeLinejoin="round" />
+        </G>
+      ))}
+    </G>
+  );
+}
 
 function MuscleBody({ side, colorsByMuscle, onTouch }) {
   const shapes = side === 'back' ? REAR : FRONT;
   const details = side === 'back' ? REAR_DETAILS : FRONT_DETAILS;
+  const neutralLines = side === 'back' ? BACK_BODY_LINES : FACE_BODY_LINES;
+  const clip = 'url(#' + BODY_CLIP_ID + ')';
+
   return (
-    <Svg viewBox="0 0 220 432" width="100%" height="100%" accessible accessibilityLabel={side === 'back' ? 'Silhouette musculaire vue de dos' : 'Silhouette musculaire vue de face'}>
-      {/* Head, neck, shoulders and torso have neutral, continuous contours. */}
-      <Path
-        d="M93 16 Q95 6 110 6 Q125 6 127 16 L129 37 Q126 52 118 58 L118 66 L140 79
-           Q153 86 158 104 L153 137 L146 178 L146 204 Q136 227 110 238
-           Q84 227 74 204 L74 178 L67 137 L62 104 Q67 86 80 79 L102 66 L102 58
-           Q94 52 91 37 Z"
-        fill={BODY} stroke={STROKE} strokeWidth="1.7" strokeLinejoin="round"
-      />
-      {/* Subtle shoulder joints, forearms, hands, hips, knees and feet. */}
-      {[false, true].map((mirror) => (
-        <G key={mirror ? 'right' : 'left'} transform={mirror ? FLIP : undefined}>
-          <Path
-            d="M69 84 Q53 81 47 95 C42 107 38 129 32 148 L17 205
-               Q12 217 17 226 Q22 229 27 225 L37 194 Q42 180 52 157 L67 123 Z"
-            fill={BODY} stroke={STROKE} strokeWidth="1.7" strokeLinejoin="round"
-          />
-          <Path d="M15 209 L12 232 Q12 240 17 237 L21 229 L21 240 Q21 244 25 239 L30 227 L34 215"
-            fill="none" stroke={STROKE} strokeWidth="1.6" strokeLinecap="round" />
-          <Path
-            d="M79 228 C69 243 69 268 71 289 L69 318 Q68 331 73 348
-               C70 365 68 381 67 393 L66 414 Q68 426 79 426 L90 425
-               Q95 418 94 411 L96 390 Q97 367 94 347
-               C101 326 103 305 105 286 L109 237 Z"
-            fill={BODY} stroke={STROKE} strokeWidth="1.7" strokeLinejoin="round"
-          />
-          <Path d="M68 414 Q76 418 88 414 L93 425 Q79 429 66 425 Z"
-            fill={BODY} stroke={STROKE} strokeWidth="1.3" />
-          <Path d="M72 345 Q81 350 94 347" fill="none" stroke={STROKE} strokeWidth="1" />
-          <Path d="M53 124 L38 171" fill="none" stroke="#C8CEC5" strokeWidth=".8" />
-        </G>
-      ))}
+    <Svg viewBox="0 0 220 432" width="100%" height="100%"
+      accessible accessibilityLabel={side === 'back'
+        ? 'Silhouette musculaire vue de dos' : 'Silhouette musculaire vue de face'}>
+      <Defs>
+        <ClipPath id={BODY_CLIP_ID}>
+          <NeutralBody fill="#FFFFFF" />
+        </ClipPath>
+      </Defs>
 
-      {/* Every selected anatomical tile maps to an existing muscle identity. */}
-      {shapes.map(([id, d, mirror], index) => {
-        const fill = colorsByMuscle[id] ?? GRAY;
-        return (
-          <G key={id + ':' + index}>
-            <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth=".95"
-              strokeLinejoin="round" onPress={() => onTouch(id)} />
-            {mirror ? (
-              <G transform={FLIP}>
-                <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth=".95"
-                  strokeLinejoin="round" onPress={() => onTouch(id)} />
-              </G>
-            ) : null}
+      {/* The anatomy outline is an independent background layer. */}
+      <NeutralBody fill={BODY} stroke={BODY_OUTLINE} strokeWidth={1.65} />
+
+      <G clipPath={clip} pointerEvents="none">
+        {[false, true].map((mirrored) => (
+          <G key={mirrored ? 'neutral-detail-right' : 'neutral-detail-left'}
+            transform={mirrored ? FLIP : undefined}>
+            {neutralLines.map((d, i) => (
+              <Path key={i} d={d} fill="none"
+                stroke={i % 3 === 0 ? ANATOMY_LINE : ANATOMY_FINE}
+                strokeWidth={i % 3 === 0 ? 1.1 : .85}
+                strokeLinecap="round" strokeLinejoin="round" />
+            ))}
           </G>
-        );
-      })}
+        ))}
+        <Path d={side === 'back' ? 'M110 81 L110 230' : 'M110 93 L110 214'}
+          fill="none" stroke={ANATOMY_FINE} strokeWidth=".9" />
+      </G>
 
-      {/* Fine anatomical lines add contour; no additional muscle classifications. */}
-      <G pointerEvents="none">
+      {/* Unchanged V3 muscles, now guaranteed to remain inside the silhouette. */}
+      <G clipPath={clip}>
+        {shapes.map(([id, d, mirrored], i) => {
+          const fill = colorsByMuscle[id] ?? GRAY;
+          return (
+            <G key={id + i}>
+              <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth="1.4"
+                onPress={() => onTouch(id)} />
+              {mirrored ? (
+                <G transform={FLIP}>
+                  <Path d={d} fill={fill} stroke={MUSCLE_STROKE} strokeWidth="1.4"
+                    onPress={() => onTouch(id)} />
+                </G>
+              ) : null}
+            </G>
+          );
+        })}
+      </G>
+
+      {/* Existing V3 internal tracings, also clipped and never interactive. */}
+      <G pointerEvents="none" clipPath={clip}>
         {details.map((d, index) => (
           <G key={'detail:' + index}>
             <Path d={d} fill="none" stroke="#F8F9F5" strokeWidth=".9"
