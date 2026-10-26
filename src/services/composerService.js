@@ -210,6 +210,21 @@ export async function getComposerMechanicOptions({
   ];
 }
 
+/**
+ * Read-only C2 preview for the recap. These values are indicative until the
+ * real day-J check-in and finalization; never write sessions from the preview.
+ */
+export async function getComposerPrescriptionPreview({ draft, equipmentNames = [] } = {}) {
+  const user = await getAuthenticatedUserWithRetry();
+  return runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_composer_prescription_preview_v1', {
+      p_user_id: user.id,
+      p_draft: draft,
+      p_equipment_names: equipmentNames,
+    })
+  );
+}
+
 export async function saveComposerDraft({ planItemId, draft }) {
   if (!planItemId) throw new Error('planItemId is required to save composer draft.');
   const user = await getAuthenticatedUserWithRetry();
