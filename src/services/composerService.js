@@ -198,7 +198,12 @@ export async function getComposerMechanicOptions({
       p_focus: focus ?? 'General Fitness',
     })
   );
-  return Array.isArray(result?.options) ? result.options : [];
+  const available = Array.isArray(result?.options) ? result.options : [];
+  const unavailable = Array.isArray(result?.unavailable) ? result.unavailable : [];
+  return [
+    ...available.map((option) => ({ ...option, available: true })),
+    ...unavailable.map((option) => ({ ...option, available: false })),
+  ];
 }
 
 export async function saveComposerDraft({ planItemId, draft }) {
