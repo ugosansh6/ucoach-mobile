@@ -808,7 +808,8 @@ export default function WeekComposerV7() {
       },
       mechanic: mechanic ? { key: mechanic.key, title: mechanic.title } : null,
       estimated_minutes: estimatedMinutes,
-    };  }
+    };
+  }
 
   useEffect(() => {
     if (loading || step !== 5 || !architecture || !Object.keys(selectionMap).length) return undefined;
@@ -1127,7 +1128,17 @@ export default function WeekComposerV7() {
           {step === 5 ? (
             <View style={styles.stepWrap}>
               <StageHeader kicker="RÉCAPITULATIF" title="Ta séance est construite." helper={`${duration} min · ${environmentLabel(environmentCode)} · ≈ ${estimatedMinutes} min avec transitions.`} styles={styles} />
-              <Text style={styles.recapHelp}>Warm-up et Tabata sont déjà proposés et comptés dans ta durée. Tu peux modifier chaque bloc.</Text>
+              <Text style={styles.recapHelp}>Warm-up et Tabata sont inclus dans la durée. Tu peux modifier chaque bloc.</Text>
+              {previewLoading ? (
+                <View style={styles.previewState}>
+                  <ActivityIndicator size="small" color={colors.accent} />
+                  <Text style={styles.previewNote}>Calcul des prescriptions C2…</Text>
+                </View>
+              ) : prescriptionPreview ? (
+                <Text style={styles.previewNote}>Prescription C2 prévisionnelle · le jour J, la forme et les gênes pourront entraîner des ajustements.</Text>
+              ) : previewError ? (
+                <Text style={styles.previewWarning}>Prévision indisponible : vérifie la connexion avant de valider.</Text>
+              ) : null}
               <View style={styles.recapCard}>
                 {(architecture?.blocks ?? []).map((item) => (
                   <View key={`recap-${item.type}`} style={styles.recapBlock}>
@@ -1135,12 +1146,30 @@ export default function WeekComposerV7() {
                       <Text style={styles.recapBlockTitle}>{item.label.toUpperCase()}</Text>
                       <Text style={styles.recapMinutes}>{item.minutes} min</Text>
                     </View>
-                    {selectedExercises(item.type).map((exercise) => (
-                      <View key={exercise.id} style={styles.recapExerciseRow}>
-                        <Text style={styles.recapExercise}>{exercise.name}</Text>
-                        <Text style={styles.recapExerciseMeta}>{(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
-                      </View>
-                    ))}
+                    {(() => {
+                      const prescription = prescriptionPreview?.blocks?.find((block) => block.type === item.type);
+                      if (!prescription) return null;
+                      if (item.type === 'TABATA') {
+                        return <Text style={styles.recapDose}>8 intervalles · 20 s effort / 10 s repos</Text>;
+                      }
+                      if (item.type === 'WOD' && prescription.rounds != null) {
+                        const units = prescription.mechanic === 'EMOM' ? 'cycles' : 'tours';
+                        return <Text style={styles.recapDose}>{prescription.rounds} {units}</Text>;
+                      }
+                      return null;
+                    })()}
+                    {selectedExercises(item.type).map((exercise) => {
+                      const dose = prescriptionPreview?.blocks
+                        ?.find((block) => block.type === item.type)?.exercises
+                        ?.find((value) => value.id === exercise.id);
+                      return (
+                        <View key={exercise.id} style={styles.recapExerciseRow}>
+                          <Text style={styles.recapExercise}>{exercise.name}</Text>
+                          {dose ? <Text style={styles.recapDose}>{formatPreviewDose(dose, item.type)}</Text> : null}
+                          <Text style={styles.recapExerciseMeta}>{(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
+                        </View>
+                      );
+                    })}
                     {item.type === 'WOD' && mechanic ? <Text style={styles.recapMechanic}>{mechanic.title}</Text> : null}
                     <Pressable onPress={() => editRecapBlock(item.type)} style={styles.recapEdit}>
                       <Ionicons name="create-outline" size={16} color={colors.accent} />
@@ -1359,6 +1388,10 @@ function createStyles(colors) {
     primaryButtonText: { fontFamily: fontFamilies.bold, fontSize: 12, letterSpacing: 0.8, color: colors.textOnAccent },
     recapCard: { borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: 'hidden' },
     recapHelp: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, color: colors.textSecondary, marginBottom: 16 },
+    previewState: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12 },
+    previewNote: { fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary, marginBottom: 12 },
+    previewWarning: { fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.error, marginBottom: 12 },
+    recapDose: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.accent },
     recapEdit: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', minHeight: 34 },
     recapEditText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.accent },
     recapExerciseRow: { marginTop: 9 },
