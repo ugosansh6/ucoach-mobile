@@ -7,7 +7,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import Svg, { G, Path, Defs, ClipPath } from 'react-native-svg';
+import Svg, { G, Path } from 'react-native-svg';
 
 const ORANGE = '#FF6B19';
 // Light secondary khaki, distinct from gray without competing with orange.
@@ -142,7 +142,7 @@ const ANATOMY_FINE = '#CAD2C9';
 const NEUTRAL_TORSO = 'M94 17 Q97 5 110 5 Q123 5 126 17 Q130 32 121 52 L120 63 C127 72 137 76 144 80 Q156 87 159 101 Q158 117 153 136 L146 189 Q144 204 146 211 C142 223 127 232 116 239 Q110 243 104 239 C93 232 78 223 74 211 Q76 204 74 189 L67 136 Q62 117 61 101 Q64 87 76 80 C83 76 93 72 100 63 L99 52 Q90 32 94 17 Z';
 const NEUTRAL_ARM = 'M67 83 C55 80 48 86 44 97 Q40 114 36 136 C30 158 21 185 16 204 Q12 215 15 224 Q20 232 27 226 C35 208 42 184 51 161 C61 138 68 116 70 100 Q71 89 67 83 Z';
 const NEUTRAL_HAND = 'M16 207 Q12 216 12 232 Q12 239 17 238 L21 229 L22 239 Q25 242 28 234 L34 213 Q32 206 29 205 Z';
-const NEUTRAL_LEG = 'M79 228 C71 241 69 260 70 282 Q67 305 70 325 Q70 341 73 350 C70 370 68 390 66 415 Q65 426 76 426 L88 426 Q97 422 95 413 L96 389 Q98 365 94 345 Q101 324 104 296 Q110 258 110 238 Q94 226 79 228 Z';
+const NEUTRAL_LEG = 'M79 228 C71 241 69 260 70 282 Q67 305 70 325 Q70 341 73 350 C69 370 68 390 66 415 Q65 426 76 426 L88 426 Q97 422 97 413 L99 390 Q102 365 103 349 Q110 324 109 296 Q112 258 110 238 Q94 226 79 228 Z';
 const NEUTRAL_FOOT = 'M67 413 Q74 417 88 413 L95 419 Q95 427 86 427 L70 427 Q64 424 67 413 Z';
 
 // Decorative background landmarks. None participates in hit testing.
@@ -203,24 +203,15 @@ function MuscleBody({ side, colorsByMuscle, onTouch }) {
   const shapes = side === 'back' ? REAR : FRONT;
   const details = side === 'back' ? REAR_DETAILS : FRONT_DETAILS;
   const neutralLines = side === 'back' ? BACK_BODY_LINES : FACE_BODY_LINES;
-  // Unique per SVG instance, safe when this selector is reused in other screens.
-  const clipId = 'ugerod-body-' + React.useId().replace(/[^A-Za-z0-9_-]/g, '');
-  const clip = 'url(#' + clipId + ')';
 
   return (
     <Svg viewBox="0 0 220 432" width="100%" height="100%"
       accessible accessibilityLabel={side === 'back'
         ? 'Silhouette musculaire vue de dos' : 'Silhouette musculaire vue de face'}>
-      <Defs>
-        <ClipPath id={clipId}>
-          <NeutralBody fill="#FFFFFF" />
-        </ClipPath>
-      </Defs>
-
       {/* The anatomy outline is an independent background layer. */}
       <NeutralBody fill={BODY} stroke={BODY_OUTLINE} strokeWidth={1.65} />
 
-      <G clipPath={clip} pointerEvents="none">
+      <G pointerEvents="none">
         {[false, true].map((mirrored) => (
           <G key={mirrored ? 'neutral-detail-right' : 'neutral-detail-left'}
             transform={mirrored ? FLIP : undefined}>
@@ -236,8 +227,8 @@ function MuscleBody({ side, colorsByMuscle, onTouch }) {
           fill="none" stroke={ANATOMY_FINE} strokeWidth=".9" />
       </G>
 
-      {/* Unchanged V3 muscles, now guaranteed to remain inside the silhouette. */}
-      <G clipPath={clip}>
+      {/* Original V3 muscles, shown without Safari-sensitive clipping. */}
+      <G>
         {shapes.map(([id, d, mirrored], i) => {
           const fill = colorsByMuscle[id] ?? GRAY;
           return (
@@ -255,8 +246,8 @@ function MuscleBody({ side, colorsByMuscle, onTouch }) {
         })}
       </G>
 
-      {/* Existing V3 internal tracings, also clipped and never interactive. */}
-      <G pointerEvents="none" clipPath={clip}>
+      {/* Original V3 muscle details, unchanged and non-interactive. */}
+      <G pointerEvents="none">
         {details.map((d, index) => (
           <G key={'detail:' + index}>
             <Path d={d} fill="none" stroke="#F8F9F5" strokeWidth=".9"
