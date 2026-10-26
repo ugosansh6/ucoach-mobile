@@ -60,7 +60,7 @@ const FOCUS_OPTIONS = [
 const FALLBACK_INTENTS = [
   { key: 'STRENGTH', label: 'Force', subtitle: 'Construire autour d’un travail de force.', focus: 'Strength' },
   { key: 'CONDITIONING', label: 'Conditioning', subtitle: 'Faire monter le moteur et la densité.', focus: 'Conditioning' },
-  { key: 'TECHNIQUE', label: 'Technique', subtitle: 'Travailler proprement un mouvement ou une qualité.', focus: 'General Fitness' },
+  { key: 'TECHNIQUE', label: 'Skill', subtitle: 'Maîtriser un mouvement ou développer une compétence.', focus: 'General Fitness' },
 ];
 const LOAD_CAPABLE_EQUIPMENT_IDS = new Set(['E03', 'E04', 'E09', 'E14']);
 const MAIN_SHORTLIST_SIZE = 2;
@@ -194,7 +194,7 @@ function coachIntentFromItem(item) {
 function directionBaseLabel(choice) {
   if (choice?.focus === 'Strength') return 'Force';
   if (choice?.focus === 'Conditioning') return 'Conditioning';
-  if (choice?.key === 'TECHNIQUE') return 'Technique';
+  if (choice?.key === 'TECHNIQUE') return 'Skill';
   return String(choice?.label ?? 'Séance').split('·')[0].trim();
 }
 
