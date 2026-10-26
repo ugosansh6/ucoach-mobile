@@ -26,9 +26,9 @@ export const MUSCLE_NAMES = {
 export const COMPOSER_TARGETS = [
   { value: null, label: 'UGEROD choisit' },
   { value: 'Upper', label: 'Haut du corps' },
-  { value: 'Back', label: 'Dos' },
   { value: 'Lower', label: 'Jambes' },
   { value: 'Core', label: 'Abdos / gainage' },
+  { value: 'Back', label: 'Dos' },
   { value: 'Full Body', label: 'Corps entier' },
 ];
 
