@@ -732,7 +732,7 @@ export default function WeekComposerV7() {
       });
       if (!options.length) throw new Error('Aucune mécanique compatible avec ce WOD.');
       setMechanicOptions(options);
-      setMechanic(options[0]);
+      setMechanic((current) => options.find((option) => option.key === current?.key) ?? options[0]);
       setShowAllMechanics(false);
       setStep(4);
     } catch (reason) {
@@ -859,9 +859,18 @@ export default function WeekComposerV7() {
         <View style={styles.content}>
           <View style={styles.header}>
             <Pressable
-              onPress={() => step > 0
-                ? setStep((value) => value - 1)
-                : (router.canGoBack() ? router.back() : router.replace('/(tabs)/planning'))}
+              onPress={() => {
+                if (recapEditingBlock && step === 3) {
+                  setRecapEditingBlock(null);
+                  setStep(5);
+                } else if (step > 0) {
+                  setStep((value) => value - 1);
+                } else if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/planning');
+                }
+              }
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={20} color={colors.text} />
