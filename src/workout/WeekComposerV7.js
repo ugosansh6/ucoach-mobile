@@ -985,7 +985,7 @@ export default function WeekComposerV7() {
                 } else {
                   router.replace('/(tabs)/planning');
                 }
-              }
+              }}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={20} color={colors.text} />
