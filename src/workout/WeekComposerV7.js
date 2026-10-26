@@ -28,6 +28,7 @@ import {
   getComposerArchitectureTargets,
   getComposerExerciseCandidates,
   getComposerMechanicOptions,
+  getComposerPrescriptionPreview,
   getComposerForLocalDate,
   saveComposerDraft,
 } from '../services/composerService';
@@ -112,6 +113,26 @@ function movementLabel(value) {
     jump: 'Saut',
   };
   return labels[key] ?? raw.replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function formatPreviewDose(dose, blockType) {
+  if (!dose) return '';
+  if (blockType === 'TABATA') return dose.intervals_per_exercise
+    ? `${dose.intervals_per_exercise} passages · 20 s effort / 10 s repos`
+    : '20 s effort / 10 s repos';
+  const parts = [];
+  if (dose.reps != null && Number.isFinite(Number(dose.reps))) {
+    const reps = `${dose.reps} reps${dose.reps_semantics === 'per_side' ? ' / côté' : ''}`;
+    parts.push(dose.sets ? `${dose.sets} × ${reps}` : reps);
+  } else if (dose.duration_seconds != null) {
+    parts.push(`${dose.duration_seconds} s`);
+  } else if (dose.distance_meters != null) {
+    parts.push(`${dose.distance_meters} m`);
+  }
+  if (dose.load_kg != null) parts.push(`${dose.load_kg} kg`);
+  else if (dose.band_resistance_label) parts.push(`Élastique ${dose.band_resistance_label}`);
+  if (dose.rest_seconds && ['STRENGTH', 'SKILL'].includes(blockType)) parts.push(`${dose.rest_seconds} s repos`);
+  return parts.join(' · ') || 'Dosage à calibrer';
 }
 
 function humanize(value) {
@@ -480,6 +501,9 @@ export default function WeekComposerV7() {
   const [mechanic, setMechanic] = useState(null);
   const [mechanicOptions, setMechanicOptions] = useState([]);
   const [mechanicIssue, setMechanicIssue] = useState(null);
+  const [prescriptionPreview, setPrescriptionPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
   const [showAllMechanics, setShowAllMechanics] = useState(false);
 
   async function loadEquipmentForEnvironment(code, catalog = equipmentCatalog) {
@@ -762,6 +786,53 @@ export default function WeekComposerV7() {
     setStep(3);
   }
 
+  function buildCurrentDraft() {
+    const estimatedMinutes = architecture?.estimatedMinutes
+      ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
+    return {
+      target_date: dateKey,
+      duration_minutes: duration,
+      environment_code: environmentCode,
+      equipment_ids: equipmentIds,
+      target_region: targetRegion,
+      intent: { key: intent?.key ?? null, label: intent?.label ?? null, focus: intent?.focus ?? null },
+      architecture: {
+        key: architecture?.key ?? null,
+        title: architecture?.title ?? null,
+        blocks: (architecture?.blocks ?? []).map((block) => ({
+          type: block.type,
+          label: block.label,
+          minutes: block.minutes,
+          exercises: selectedExercises(block.type).map((exercise) => ({ id: exercise.id, name: exercise.name })),
+        })),
+      },
+      mechanic: mechanic ? { key: mechanic.key, title: mechanic.title } : null,
+      estimated_minutes: estimatedMinutes,
+    };  }
+
+  useEffect(() => {
+    if (loading || step !== 5 || !architecture || !Object.keys(selectionMap).length) return undefined;
+    let active = true;
+    const draft = buildCurrentDraft();
+    const selectedNames = referenceEquipment
+      .filter((item) => equipmentIds.includes(String(item.id)))
+      .map((item) => item.name).filter(Boolean);
+    setPreviewLoading(true);
+    setPreviewError(false);
+    setPrescriptionPreview(null);
+    getComposerPrescriptionPreview({ draft, equipmentNames: selectedNames })
+      .then((result) => { if (active) setPrescriptionPreview(result?.status === 'PREVIEW' ? result : null); })
+      .catch((reason) => {
+        if (active) {
+          console.warn('[Composer] C2 preview unavailable', reason);
+          setPreviewError(true);
+        }
+      })
+      .finally(() => { if (active) setPreviewLoading(false); });
+    return () => { active = false; };
+  }, [loading, step, architecture, selectionMap, candidateMap, mechanic,
+      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey]);
+
   async function addToWeek() {
     try {
       setBusy(true);
@@ -780,28 +851,7 @@ export default function WeekComposerV7() {
       }
       if (!planItemId) throw new Error('Impossible de créer le créneau de semaine.');
 
-      const estimatedMinutes = architecture?.estimatedMinutes
-        ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
-      const draft = {
-        target_date: dateKey,
-        duration_minutes: duration,
-        environment_code: environmentCode,
-        equipment_ids: equipmentIds,
-        target_region: targetRegion,
-        intent: { key: intent?.key ?? null, label: intent?.label ?? null, focus: intent?.focus ?? null },
-        architecture: {
-          key: architecture?.key ?? null,
-          title: architecture?.title ?? null,
-          blocks: (architecture?.blocks ?? []).map((block) => ({
-            type: block.type,
-            label: block.label,
-            minutes: block.minutes,
-            exercises: selectedExercises(block.type).map((exercise) => ({ id: exercise.id, name: exercise.name })),
-          })),
-        },
-        mechanic: mechanic ? { key: mechanic.key, title: mechanic.title } : null,
-        estimated_minutes: estimatedMinutes,
-      };
+      const draft = buildCurrentDraft();
       await saveComposerDraft({ planItemId, draft });
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/planning');
@@ -1065,7 +1115,7 @@ export default function WeekComposerV7() {
               {mechanicIssue ? <Text style={styles.mechanicIssue}>{mechanicIssue}</Text> : null}
               {mechanicOptions.length > 3 ? (
                 <Pressable onPress={() => setShowAllMechanics((value) => !value)} style={{ paddingVertical: 14, alignItems: 'center' }}>
-                  <Text style={{ color: colors.accent, fontFamily: MANROPE.bold, textDecorationLine: 'underline' }}>
+                  <Text style={{ color: colors.accent, fontFamily: fontFamilies.bold, textDecorationLine: 'underline' }}>
                     {showAllMechanics ? 'Masquer les formats complémentaires' : 'Voir d’autres formats'}
                   </Text>
                 </Pressable>
