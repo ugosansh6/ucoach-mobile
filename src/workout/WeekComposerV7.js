@@ -840,6 +840,7 @@ export default function WeekComposerV7() {
       environment_code: environmentCode,
       equipment_ids: equipmentIds,
       target_region: targetRegion,
+      progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
       intent: { key: intent?.key ?? null, label: intent?.label ?? null, focus: intent?.focus ?? null },
       architecture: {
         key: architecture?.key ?? null,
