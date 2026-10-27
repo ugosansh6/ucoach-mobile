@@ -382,6 +382,63 @@ export function rankComposerCandidates({
   }));
 }
 
+/**
+ * Composer initial proposals, built AFTER retrieving recent training evidence.
+ * Reuse the existing candidate ranking at every pick, but prefer complementary
+ * movement patterns rather than blindly taking the first N catalogue rows.
+ *
+ * A scarce catalogue can yield fewer auto-selections; never manufacture a
+ * duplicate to satisfy a UI quota. A user may still add similar movements
+ * manually, in which case rankComposerCandidates surfaces its warning.
+ * Preserve all engine types and selected IDs; no prescription changes.
+ */
+export function selectComposerDefaultExercises({
+  candidateMap = {}, evidence = {}, equipmentIds = [], maxPerBlock = {},
+} = {}) {
+  const defaults = {};
+  const pickedExerciseIds = new Set();
+  const types = Object.keys(candidateMap ?? {});
+  // Protect the important training blocks first; complements are editable
+  // afterwards in the recap, and must not claim all available movements.
+  const orderedTypes = [
+    ...types.filter((type) => !['WARMUP', 'TABATA'].includes(type)),
+    ...types.filter((type) => ['WARMUP', 'TABATA'].includes(type)),
+  ];
+
+  for (const type of orderedTypes) {
+    defaults[type] = [];
+    const max = Math.max(0, Math.min(8, Number(maxPerBlock[type] ?? 0) || 0));
+    const patterns = new Set();
+    const unclassifiedFamilies = new Set();
+
+    while (defaults[type].length < max) {
+      const ranked = rankComposerCandidates({
+        candidates: candidateMap[type] ?? [], blockType: type,
+        selectionMap: defaults, candidateMap, evidence, equipmentIds,
+      });
+      const choice = ranked.find((exercise) => {
+        if (!exercise?.id || pickedExerciseIds.has(exercise.id)) return false;
+        if (String(evidence[exercise.id]?.explicit_preference_state ?? '').toUpperCase()
+          === 'EVITE_VOLONTAIREMENT') return false;
+        const pattern = String(exercise.movementPattern ?? '').trim().toLowerCase();
+        const family = String(exercise.exerciseFamily ?? '').trim().toLowerCase();
+        if (pattern && patterns.has(pattern)) return false;
+        if (!pattern && family && unclassifiedFamilies.has(family)) return false;
+        return !exercise.conflicts;
+      });
+      if (!choice) break;
+
+      defaults[type].push(choice.id);
+      pickedExerciseIds.add(choice.id);
+      const pattern = String(choice.movementPattern ?? '').trim().toLowerCase();
+      const family = String(choice.exerciseFamily ?? '').trim().toLowerCase();
+      if (pattern) patterns.add(pattern);
+      else if (family) unclassifiedFamilies.add(family);
+    }
+  }
+  return defaults;
+}
+
 export async function getComposerPrescriptionPreview({ draft, equipmentNames = [] } = {}) {
   const user = await getAuthenticatedUserWithRetry();
   return runSupabaseRequestWithAuthRetry(() =>

@@ -1,0 +1,123 @@
+#!/usr/bin/env node
+'use strict';
+
+/**
+ * Pure, deterministic Composer default-selection regression tests.
+ * Load the actual exported functions from composerService.js without network,
+ * authentication or a Supabase test account. Expo Web builds run separately.
+ */
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const service = fs.readFileSync(path.join(__dirname, '../src/services/composerService.js'), 'utf8');
+function section(start, end) {
+  const from = service.indexOf(start), to = service.indexOf(end, from);
+  assert.ok(from >= 0 && to > from, 'Missing tested service implementation: ' + start);
+  return service.slice(from, to).replaceAll('export function ', 'function ');
+}
+const tested = [
+  section('function wodLabel(minutes)', 'function block(type'),
+  section('function block(type', '/**\n * MSW-036'),
+  section('export function rankComposerCandidates', 'export async function getComposerPrescriptionPreview'),
+].join('\n');
+const context = vm.createContext({});
+vm.runInContext(tested + '\nglobalThis.tested = { buildComposerArchitectures, composerBlockDisplayLabel, composerArchitectureDisplayTitle, rankComposerCandidates, selectComposerDefaultExercises };', context);
+const {
+  buildComposerArchitectures,
+  composerBlockDisplayLabel,
+  composerArchitectureDisplayTitle,
+  rankComposerCandidates,
+  selectComposerDefaultExercises,
+} = context.tested;
+
+const push = { id: 'push', name: 'Push-ups', movementPattern: 'Push Horizontal', score: 100, exerciseFamily: 'push' };
+const diamond = { id: 'diamond', name: 'Pompe diamant', movementPattern: 'Push Horizontal', score: 96, exerciseFamily: 'push' };
+const row = { id: 'row', name: 'Band Row', movementPattern: 'Pull Horizontal', score: 88, exerciseFamily: 'pull' };
+const squat = { id: 'squat', movementPattern: 'Squat', score: 80, exerciseFamily: 'squat' };
+const getDefaults = (candidateMap, evidence = {}, maxPerBlock = { STRENGTH: 2 }) =>
+  selectComposerDefaultExercises({ candidateMap, evidence, maxPerBlock });
+
+let passed = 0;
+function check(label, fn) {
+  fn();
+  passed++;
+  console.log('PASS', label);
+}
+
+check('Push-ups + diamond are never automatically selected together', () => {
+  const selected = getDefaults({ STRENGTH: [push, diamond, row, squat] });
+  assert.equal(selected.STRENGTH.join(','), 'push,row');
+  const ranked = rankComposerCandidates({
+    candidates: [push, diamond, row, squat],
+    blockType: 'STRENGTH',
+    selectionMap: selected,
+    candidateMap: { STRENGTH: [push, diamond, row, squat] },
+  });
+  assert.equal(ranked.filter((item) => selected.STRENGTH.includes(item.id) && item.warning).length, 0);
+});
+
+check('Only one movement is automatically chosen when all candidates share a pattern', () => {
+  assert.equal(getDefaults({ STRENGTH: [push, diamond] }).STRENGTH.join(','), 'push');
+});
+
+check('Explicitly avoided exercises are never auto-selected', () => {
+  const selected = getDefaults(
+    { STRENGTH: [push, diamond, row] },
+    { push: { explicit_preference_state: 'EVITE_VOLONTAIREMENT' } }
+  );
+  assert.equal(selected.STRENGTH.join(','), 'diamond,row');
+});
+
+check('Main blocks retain priority over complements and exercise IDs do not repeat', () => {
+  const selected = getDefaults(
+    { WARMUP: [push, { id: 'mob', movementPattern: 'Mobility', score: 20 }], STRENGTH: [push, row] },
+    {}, { WARMUP: 1, STRENGTH: 2 }
+  );
+  assert.equal(selected.STRENGTH.join(','), 'push,row');
+  assert.equal(selected.WARMUP.join(','), 'mob');
+});
+
+check('User-chosen duplicate patterns remain possible and warnings identify them', () => {
+  const candidates = [push, diamond, row];
+  const ranked = rankComposerCandidates({
+    candidates, blockType: 'STRENGTH',
+    selectionMap: { STRENGTH: ['push', 'diamond'] },
+    candidateMap: { STRENGTH: candidates },
+  });
+  assert.equal(ranked.filter((item) => item.warning).length, 2);
+});
+
+check('Empty or incomplete catalogue does not invent a selection', () => {
+  assert.equal(getDefaults({ STRENGTH: [] }).STRENGTH.length, 0);
+  assert.equal(getDefaults({ STRENGTH: [row] }).STRENGTH.join(','), 'row');
+});
+
+check('Structure budget always equals requested duration for all supported durations', () => {
+  for (const duration of [20, 30, 45, 60, 75, 90]) {
+    for (const intentKey of ['STRENGTH', 'TECHNIQUE', 'CONDITIONING']) {
+      for (const environmentCode of ['BOX', 'GYM', 'HOME', 'OUTDOOR']) {
+        const options = buildComposerArchitectures({ durationMinutes: duration, intentKey, environmentCode });
+        assert.ok(options.length);
+        for (const option of options) {
+          const subtotal = option.blocks.reduce((sum, block) => sum + block.minutes, 0) + option.transitionReserveMinutes;
+          assert.equal(subtotal, duration);
+          assert.equal(option.estimatedMinutes, duration);
+        }
+      }
+    }
+  }
+});
+
+check('Display labels vary with environment while canonical block types remain unchanged', () => {
+  assert.equal(composerBlockDisplayLabel('STRENGTH', 'GYM'), 'Musculation');
+  assert.equal(composerBlockDisplayLabel('STRENGTH', 'HOME'), 'Renforcement');
+  assert.equal(composerBlockDisplayLabel('STRENGTH', 'BOX'), 'Force');
+  assert.equal(composerBlockDisplayLabel('SKILL', 'BOX'), 'Skill');
+  assert.equal(composerArchitectureDisplayTitle(
+    buildComposerArchitectures({ durationMinutes: 60, intentKey: 'STRENGTH', environmentCode: 'HOME' })[0], 'HOME'
+  ), 'Renforcement seul');
+});
+
+console.log('\n' + passed + ' Composer regression tests passed.');
