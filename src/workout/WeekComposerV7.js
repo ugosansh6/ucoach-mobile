@@ -26,6 +26,8 @@ import {
 } from '../services/equipmentService';
 import {
   buildComposerArchitectures,
+  composerBlockDisplayLabel,
+  composerArchitectureDisplayTitle,
   getComposerArchitectureTargets,
   getComposerExerciseCandidates,
   getComposerMechanicOptions,
@@ -214,13 +216,8 @@ function maxForBlock(type) {
   return 2;
 }
 
-function blockTitle(type) {
-  if (type === 'WARMUP') return 'WARM-UP';
-  if (type === 'TABATA') return 'TABATA';
-  if (type === 'STRENGTH') return 'STRENGTH';
-  if (type === 'SKILL') return 'SKILL';
-  if (type === 'WOD') return 'WOD';
-  return type;
+function blockTitle(type, environmentCode = 'BOX') {
+  return composerBlockDisplayLabel(type, environmentCode).toUpperCase();
 }
 
 function buildReferenceEquipment(catalog, inventory) {
@@ -386,38 +383,79 @@ function StageHeader({ kicker, title, helper, styles }) {
   );
 }
 
-function ArchitectureCard({ option, selected, onPress, styles, colors }) {
+function ArchitectureCard({ option, selected, onPress, styles, colors, environmentCode }) {
+  // Use the backend-owned durations: two complements, main blocks, transitions.
+  const segments = [
+    ...(option.blocks ?? []),
+    ...(Number(option.transitionReserveMinutes ?? 0) > 0
+      ? [{ type: 'TRANSITION', minutes: Number(option.transitionReserveMinutes) }]
+      : []),
+  ].filter((block) => Number(block.minutes) > 0);
+  const totalMinutes = Number(option.estimatedMinutes)
+    || segments.reduce((sum, block) => sum + Number(block.minutes || 0), 0);
+
+  function segmentColor(type) {
+    if (type === 'WARMUP') return '#B6C3B3';
+    if (type === 'TABATA') return '#F0AC80';
+    if (type === 'TRANSITION') return '#C6CDC4';
+    if (type === 'WOD') return colors.secondaryAccent;
+    return colors.accent;
+  }
+
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.architectureCard, selected && styles.cardSelected, pressed && styles.pressed]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={composerArchitectureDisplayTitle(option, environmentCode) + ', ' + totalMinutes + ' minutes'}
+      style={({ pressed }) => [
+        styles.architectureCard, selected && styles.cardSelected, pressed && styles.pressed,
+      ]}
+    >
       {selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.cardTopRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.cardEyebrow}>{option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
-          <Text style={styles.cardTitle}>{option.title}</Text>
+          <Text style={styles.cardTitle}>{composerArchitectureDisplayTitle(option, environmentCode)}</Text>
         </View>
-        <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
-          <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
-        </View>
+        <Ionicons
+          name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+          size={30}
+          color={selected ? colors.accent : colors.textMuted}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
       </View>
       <View style={styles.architectureBlocks}>
         <View style={styles.architectureTimeline}>
-          {option.blocks.filter((block) => !['WARMUP', 'TABATA'].includes(block.type)).map((block) => (
-            <View key={`${option.key}-${block.type}`} style={[
-              styles.architectureTimelineSlice, { flex: Math.max(1, block.minutes) },
-              block.type === 'WOD' ? styles.architectureWodSlice : styles.architectureStrengthSlice,
-            ]} />
+          {segments.map((block, index) => (
+            <View
+              key={option.key + '-' + block.type + '-' + index}
+              style={[
+                styles.architectureTimelineSlice,
+                {
+                  flex: Math.max(1, Number(block.minutes)),
+                  backgroundColor: segmentColor(block.type),
+                },
+              ]}
+            />
           ))}
         </View>
-        {option.blocks.filter((block) => !['WARMUP', 'TABATA'].includes(block.type)).map((block) => (
-          <View key={`${option.key}-${block.type}`} style={styles.blockLine}>
-            <Text style={styles.blockName}>{block.label}</Text>
-            <Text style={styles.blockMinutes}>{block.minutes} min</Text>
-          </View>
-        ))}
+        <View style={styles.architectureLegend}>
+          {segments.map((block, index) => (
+            <View key={option.key + '-legend-' + block.type + '-' + index} style={styles.architectureLegendItem}>
+              <View style={[styles.architectureLegendDot, { backgroundColor: segmentColor(block.type) }]} />
+              <Text style={styles.architectureLegendLabel}>
+                {composerBlockDisplayLabel(block.type, environmentCode)}
+                <Text style={styles.architectureLegendMinutes}>{' · ' + block.minutes + ' min'}</Text>
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
-      <View style={styles.cardFooter}>
+      <View style={styles.architectureDurationFooter}>
         <Ionicons name="time-outline" size={15} color={colors.textSecondary} />
-        <Text style={styles.cardFooterText}>Warm-up et Tabata inclus · {option.estimatedMinutes ?? option.blocks.reduce((sum, item) => sum + Number(item.minutes ?? 0), 0)} min</Text>
+        <Text style={styles.cardFooterText}>{'Durée totale : ' + totalMinutes + ' min'}</Text>
       </View>
     </Pressable>
   );
@@ -708,7 +746,7 @@ export default function WeekComposerV7() {
       setBusy(true);
       setError('');
       const targets = await getComposerArchitectureTargets(duration);
-      const next = buildComposerArchitectures({ durationMinutes: duration, intentKey: intent.key, targets });
+      const next = buildComposerArchitectures({ durationMinutes: duration, intentKey: intent.key, environmentCode, targets });
       setArchitectures(next);
       setArchitecture(next[0] ?? null);
       setStep(2);
@@ -1010,7 +1048,7 @@ export default function WeekComposerV7() {
                 {targetRegion ? <Text style={styles.contextPill}>{regionLabel(targetRegion)}</Text> : null}
               </View>
               {effectiveIntent ? <Text style={styles.contextPrimary}>{effectiveIntent.label.toUpperCase()}</Text> : null}
-              {architecture ? <Text style={styles.contextMuted}>{architecture.blocks.map((item) => item.label).join(' + ')}</Text> : null}
+              {architecture ? <Text style={styles.contextMuted}>{architecture.blocks.map((item) => composerBlockDisplayLabel(item.type, environmentCode)).join(' + ')}</Text> : null}
             </View>
           ) : null}
 
@@ -1147,10 +1185,10 @@ export default function WeekComposerV7() {
 
           {step === 2 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="STRUCTURE" title="Le cœur de ta séance." helper="Choisis ta combinaison : Warm-up et Tabata sont déjà compris dans la durée." styles={styles} />
+              <StageHeader kicker="STRUCTURE" title="Le cœur de ta séance." helper="Warm-up, Tabata et transitions sont compris dans la durée de ta séance." styles={styles} />
               <View style={styles.optionList}>
                 {architectures.map((option) => (
-                  <ArchitectureCard key={option.key} option={option} selected={architecture?.key === option.key} onPress={() => setArchitecture(option)} styles={styles} colors={colors} />
+                  <ArchitectureCard key={option.key} option={option} selected={architecture?.key === option.key} onPress={() => setArchitecture(option)} styles={styles} colors={colors} environmentCode={environmentCode} />
                 ))}
               </View>
               <PrimaryButton label={busy ? 'CHARGEMENT…' : 'CHOISIR LES MOUVEMENTS'} onPress={goToExercises} disabled={!architecture || busy} loading={busy} styles={styles} colors={colors} />
@@ -1160,7 +1198,7 @@ export default function WeekComposerV7() {
           {step === 3 && activeBlock ? (
             <View style={styles.stepWrap}>
               <StageHeader
-                kicker={`${blockTitle(activeBlock.type)} · ${activeBlock.minutes} MIN`}
+                kicker={`${blockTitle(activeBlock.type, environmentCode)} · ${activeBlock.minutes} MIN`}
                 title={recapEditingBlock ? 'Ajuste ce bloc.' : 'Construisons le cœur de ta séance.'}
                 helper={recapEditingBlock
                    ? 'UGEROD a déjà proposé ces mouvements. Tu peux les conserver ou les remplacer.'
@@ -1414,7 +1452,7 @@ export default function WeekComposerV7() {
 
       <SheetShell
         visible={sheet === 'exercise-picker'}
-        title={`Autres exercices · ${activeBlock ? blockTitle(activeBlock.type) : ''}`}
+        title={`Autres exercices · ${activeBlock ? blockTitle(activeBlock.type, environmentCode) : ''}`}
         onClose={() => setSheet(null)}
         styles={styles}
         colors={colors}
@@ -1532,7 +1570,7 @@ function createStyles(colors) {
     mechanicDisabled: { opacity: 0.46 },
     mechanicIssue: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     simpleCard: { position: 'relative', overflow: 'hidden', padding: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-    architectureCard: { position: 'relative', overflow: 'hidden', padding: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    architectureCard: { position: 'relative', overflow: 'hidden', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     cardSelected: { borderColor: colors.accent, backgroundColor: colors.surfaceElevated ?? colors.surface },
     selectedRail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.accent },
     cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
@@ -1541,14 +1579,15 @@ function createStyles(colors) {
     cardSubtitle: { marginTop: 7, fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 19, color: colors.textSecondary },
     selectCircle: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
     selectCircleSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-    architectureBlocks: { marginTop: 14, gap: 8 },
-    architectureTimeline: { flexDirection: 'row', gap: 3, height: 8, marginBottom: 6, borderRadius: 6, overflow: 'hidden' },
+    architectureBlocks: { marginTop: 12, gap: 10 },
+    architectureTimeline: { flexDirection: 'row', gap: 3, height: 10, borderRadius: 6, overflow: 'hidden' },
     architectureTimelineSlice: { borderRadius: 4 },
-    architectureStrengthSlice: { backgroundColor: colors.accent },
-    architectureWodSlice: { backgroundColor: colors.secondaryAccent },
-    blockLine: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-    blockName: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.text },
-    blockMinutes: { fontFamily: fontFamilies.medium, fontSize: 12, color: colors.textSecondary },
+    architectureLegend: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 7, columnGap: 14 },
+    architectureLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    architectureLegendDot: { width: 8, height: 8, borderRadius: 2 },
+    architectureLegendLabel: { fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 15, color: colors.text },
+    architectureLegendMinutes: { color: colors.textSecondary },
+    architectureDurationFooter: { marginTop: 11, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 7 },
     cardFooter: { marginTop: 15, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 7 },
     cardFooterText: { fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
     blockPositionRow: { gap: 8, paddingRight: 10, marginBottom: 16 },

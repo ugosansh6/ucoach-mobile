@@ -137,6 +137,37 @@ function wodLabel(minutes) {
   return 'WOD';
 }
 
+/**
+ * Localized structure labels follow the existing environment UX: a gym
+ * strength block is shown as Musculation, while BOX/HOME retain Force/Skill.
+ * These are DISPLAY labels only; STRENGTH, SKILL, WOD and prescription types
+ * are never remapped or substituted.
+ */
+export function composerBlockDisplayLabel(type, environmentCode = 'BOX') {
+  const env = String(environmentCode ?? 'BOX').toUpperCase();
+  if (type === 'WARMUP') return 'Warm-up';
+  if (type === 'TABATA') return 'Tabata';
+  if (type === 'TRANSITION') return 'Transitions';
+  if (type === 'STRENGTH') {
+    if (env === 'GYM') return 'Musculation';
+    if (env === 'HOME' || env === 'OUTDOOR') return 'Renforcement';
+    return 'Force';
+  }
+  if (type === 'SKILL') return env === 'GYM' || env === 'OUTDOOR' ? 'Technique' : 'Skill';
+  if (type === 'WOD') return env === 'GYM' || env === 'OUTDOOR' ? 'Conditioning' : 'WOD';
+  return String(type ?? '');
+}
+
+export function composerArchitectureDisplayTitle(option, environmentCode = 'BOX') {
+  const mainBlocks = (option?.blocks ?? []).filter(
+    (item) => !['WARMUP', 'TABATA'].includes(item.type)
+  );
+  if (!mainBlocks.length) return option?.title ?? 'Séance';
+  const labels = mainBlocks.map((item) => composerBlockDisplayLabel(item.type, environmentCode));
+  if (labels.length > 1) return labels.join(' + ');
+  return labels[0] + (['Musculation', 'Force', 'Technique'].includes(labels[0]) ? ' seule' : ' seul');
+}
+
 function block(type, minutes, label = null) {
   return {
     type,
@@ -151,7 +182,7 @@ function block(type, minutes, label = null) {
  * main blocks are edited first; the user can edit these complements at recap.
  * A WOD-alone option is hidden if it would require an excessively long WOD.
  */
-export function buildComposerArchitectures({ durationMinutes, intentKey, targets = {} }) {
+export function buildComposerArchitectures({ durationMinutes, intentKey, environmentCode = 'BOX', targets = {} }) {
   const duration = Math.max(20, Number(durationMinutes) || 45);
   const transitionReserveMinutes = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
   const warmupMinutes = Math.max(4, Math.min(
@@ -192,11 +223,20 @@ export function buildComposerArchitectures({ durationMinutes, intentKey, targets
   }
 
   const intent = String(intentKey ?? '').toUpperCase();
-  const preference = intent.includes('STRENGTH') || intent.includes('FORCE')
-    ? ['balanced', 'strength', 'skill', 'conditioning']
-    : intent.includes('TECHNIQUE') || intent.includes('SKILL')
-      ? ['skill', 'balanced', 'strength', 'conditioning']
-      : ['conditioning', 'balanced', 'skill', 'strength'];
+  const env = String(environmentCode ?? 'BOX').toUpperCase();
+  const wantsStrength = intent.includes('STRENGTH') || intent.includes('FORCE');
+  const wantsSkill = intent.includes('TECHNIQUE') || intent.includes('SKILL');
+  // The user's dominant intent wins; environment only breaks ties between
+  // compatible structures. Never force a WOD or a Skill block in the gym.
+  const preference = wantsSkill
+    ? ['skill', 'balanced', 'strength', 'conditioning']
+    : wantsStrength
+      ? env === 'GYM' || env === 'HOME'
+        ? ['strength', 'balanced', 'skill', 'conditioning']
+        : ['balanced', 'strength', 'skill', 'conditioning']
+      : env === 'GYM'
+        ? ['balanced', 'conditioning', 'strength', 'skill']
+        : ['conditioning', 'balanced', 'skill', 'strength'];
   return options
     .sort((left, right) => preference.indexOf(left.key) - preference.indexOf(right.key))
     .map((option, index) => ({ ...option, recommended: index === 0 }));
