@@ -464,51 +464,68 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
 
 function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleExpand, onOpenAlternatives, suggestedAlternative, styles, colors }) {
   const imageUri = /^https?:\/\//i.test(String(exercise.imagePath ?? '')) ? exercise.imagePath : null;
-  const conciseMeta = [regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
   const material = (exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps';
+  const compactMeta = [movementLabel(exercise.movementPattern), material].filter(Boolean).join(' · ');
+  const detailMeta = [regionLabel(exercise.bodyRegion), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
   return (
     <View style={[styles.exerciseCard, selected && styles.cardSelected, expanded && styles.exerciseCardExpanded]}>
       {selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.exerciseMainRow}>
-        <Pressable onPress={onToggleExpand} style={({ pressed }) => [styles.exerciseInfoButton, pressed && styles.pressed]}>
+        <Pressable
+          onPress={onToggleExpand}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={'Détails de ' + exercise.name}
+          style={({ pressed }) => [styles.exerciseInfoButton, pressed && styles.pressed]}
+        >
           <View style={[styles.exerciseGlyph, selected && styles.exerciseGlyphSelected]}>
             <Ionicons name="barbell-outline" size={18} color={selected ? colors.textOnAccent : colors.accent} />
           </View>
           <View style={styles.exerciseCopy}>
-            {exercise.warning ? (
-              <Text style={styles.exerciseWarningLabel}>À RECONSIDÉRER</Text>
-            ) : exercise.recommended ? (
-              <Text style={styles.exerciseRecommendedLabel}>RECOMMANDÉ PAR UGEROD</Text>
-            ) : null}
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {conciseMeta ? <Text style={styles.exerciseMeta}>{conciseMeta}</Text> : null}
-            <Text style={styles.exerciseEquipment}>Matériel : {material}</Text>
+            <Text numberOfLines={1} style={styles.exerciseName}>{exercise.name}</Text>
+            {compactMeta ? <Text numberOfLines={1} style={styles.exerciseMeta}>{compactMeta}</Text> : null}
           </View>
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={19} color={colors.textMuted} />
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
         </Pressable>
-        <Pressable onPress={onToggleSelect} style={[styles.selectCircle, selected && styles.selectCircleSelected]} hitSlop={8}>
+        <Pressable
+          onPress={onToggleSelect}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selected }}
+          accessibilityLabel={(selected ? 'Retirer ' : 'Choisir ') + exercise.name}
+          style={[styles.selectCircle, selected && styles.selectCircleSelected]}
+          hitSlop={8}
+        >
           <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
         </Pressable>
       </View>
 
-      {(exercise.warning || exercise.recommended) && exercise.recommendationReason ? (
+      {/* Never hide relevant movement conflicts behind collapsed details. */}
+      {exercise.warning && selected ? (
         <View style={styles.exerciseGuidance}>
-          <Ionicons name={exercise.warning ? 'alert-circle-outline' : 'bulb-outline'} size={15} color={exercise.warning ? colors.secondaryAccent : colors.accent} />
-          <Text style={styles.exerciseGuidanceText}>{exercise.recommendationReason}</Text>
-        </View>
-      ) : null}
-      {exercise.warning && selected && suggestedAlternative ? (
-        <View style={styles.exerciseSuggestion}>
-          <Text style={styles.exerciseSuggestionText}>Alternative possible : {suggestedAlternative.name}</Text>
-          <Pressable onPress={onOpenAlternatives} style={styles.exerciseSuggestionLink}>
-            <Text style={styles.exerciseSuggestionLinkText}>Voir les alternatives</Text>
-            <Ionicons name="chevron-forward" size={15} color={colors.accent} />
-          </Pressable>
+          <Ionicons name="alert-circle-outline" size={15} color={colors.secondaryAccent} />
+          <Text style={styles.exerciseGuidanceText} numberOfLines={2}>
+            {exercise.recommendationReason || 'Mouvement similaire déjà sélectionné'}
+          </Text>
         </View>
       ) : null}
 
       {expanded ? (
         <View style={styles.exerciseDetails}>
+          {detailMeta ? <Text style={styles.exerciseDetailMeta}>{detailMeta}</Text> : null}
+          {!exercise.warning && exercise.recommendationReason ? (
+            <View style={styles.exerciseDetailReason}>
+              <Ionicons name="bulb-outline" size={15} color={colors.accent} />
+              <Text style={styles.exerciseGuidanceText}>{exercise.recommendationReason}</Text>
+            </View>
+          ) : null}
+          {exercise.warning && selected && suggestedAlternative ? (
+            <Pressable onPress={onOpenAlternatives} style={styles.exerciseDetailReason}>
+              <Text style={styles.exerciseSuggestionLinkText}>
+                {'Essayer plutôt : ' + suggestedAlternative.name}
+              </Text>
+              <Ionicons name="chevron-forward" size={15} color={colors.accent} />
+            </Pressable>
+          ) : null}
           {imageUri ? <Image source={{ uri: imageUri }} resizeMode="cover" style={styles.exerciseImage} /> : null}
           {exercise.description ? (
             <View style={styles.detailBlock}>
