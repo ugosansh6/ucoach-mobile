@@ -34,6 +34,7 @@ import {
   getComposerPrescriptionPreview,
   getComposerCandidateEvidence,
   rankComposerCandidates,
+  selectComposerDefaultExercises,
   getComposerForLocalDate,
   saveComposerDraft,
 } from '../services/composerService';
@@ -774,23 +775,26 @@ export default function WeekComposerV7() {
         });
         return [block.type, candidates];
       }));
-      const defaults = {};
-      results.forEach(([type, candidates]) => {
-        defaults[type] = candidates.slice(0, maxForBlock(type)).map((candidate) => candidate.id);
-      });
-      setCandidateMap(Object.fromEntries(results));
-      setSelectionMap(defaults);
+      const candidatesByBlock = Object.fromEntries(results);
+      let observations = {};
       try {
         const ids = results.flatMap(([, candidates]) => candidates.map((candidate) => candidate.id));
-        const observations = await getComposerCandidateEvidence({
+        observations = await getComposerCandidateEvidence({
           exerciseIds: ids, anchorDate: dateKey,
           planItemId: selectedItem?.planItemId ?? null,
         });
-        setCandidateEvidence(observations);
       } catch (evidenceError) {
         console.warn('[Composer] recommendations proceed without recent-history evidence', evidenceError);
-        setCandidateEvidence({});
       }
+      const defaults = selectComposerDefaultExercises({
+        candidateMap: candidatesByBlock,
+        evidence: observations,
+        equipmentIds,
+        maxPerBlock: Object.fromEntries(results.map(([type]) => [type, maxForBlock(type)])),
+      });
+      setCandidateMap(candidatesByBlock);
+      setCandidateEvidence(observations);
+      setSelectionMap(defaults);
       setRecapEditingBlock(null);
       setExerciseBlockIndex(0);
       setExpandedExerciseId(null);
@@ -984,6 +988,16 @@ export default function WeekComposerV7() {
   const exerciseBlocks = recapEditingBlock
     ? (architecture?.blocks ?? []).filter((item) => item.type === recapEditingBlock)
     : (architecture?.blocks ?? []).filter((item) => !['WARMUP', 'TABATA'].includes(item.type));
+  const mainTypes = (architecture?.blocks ?? [])
+    .filter((item) => !['WARMUP', 'TABATA'].includes(item.type))
+    .map((item) => item.type);
+  const intentKey = String(effectiveIntent?.key ?? '').toUpperCase();
+  const intentFocus = String(effectiveIntent?.focus ?? '').toUpperCase();
+  const dominantType = intentFocus === 'CONDITIONING' ? 'WOD'
+    : intentKey === 'TECHNIQUE' || intentKey.includes('SKILL') ? 'SKILL'
+      : intentFocus === 'STRENGTH' ? 'STRENGTH' : null;
+  const structureDiffersFromDominant = dominantType && architecture
+    && !mainTypes.includes(dominantType);
   const activeBlock = exerciseBlocks[exerciseBlockIndex] ?? null;
   const activeCandidates = activeBlock ? rankComposerCandidates({
     candidates: candidateMap[activeBlock.type] ?? [],
@@ -1047,8 +1061,8 @@ export default function WeekComposerV7() {
                 <Text style={styles.contextPrimary}>{duration} MIN · {environmentLabel(environmentCode).toUpperCase()}</Text>
                 {targetRegion ? <Text style={styles.contextPill}>{regionLabel(targetRegion)}</Text> : null}
               </View>
-              {effectiveIntent ? <Text style={styles.contextPrimary}>{effectiveIntent.label.toUpperCase()}</Text> : null}
-              {architecture ? <Text style={styles.contextMuted}>{architecture.blocks.map((item) => composerBlockDisplayLabel(item.type, environmentCode)).join(' + ')}</Text> : null}
+              {effectiveIntent ? <Text style={styles.contextPrimary}>DOMINANTE · {directionBaseLabel(effectiveIntent).toUpperCase()}</Text> : null}
+              {architecture ? <Text style={styles.contextMuted}>STRUCTURE · {composerArchitectureDisplayTitle(architecture, environmentCode)}</Text> : null}
             </View>
           ) : null}
 
@@ -1205,6 +1219,14 @@ export default function WeekComposerV7() {
                    : `UGEROD en a retenu ${activeSelected.length}. Tu peux les remplacer ou consulter leur description.`}
                 styles={styles}
               />
+              {structureDiffersFromDominant ? (
+                <View style={styles.structureExplanation}>
+                  <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+                  <Text style={styles.structureExplanationText}>
+                    Tu as choisi {directionBaseLabel(effectiveIntent)} comme dominante, mais cette structure privilégie {composerArchitectureDisplayTitle(architecture, environmentCode).toLowerCase()}. Tu peux revenir à Structure pour la modifier.
+                  </Text>
+                </View>
+              ) : null}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.blockPositionRow}>
                 {exerciseBlocks.map((item, index) => (
                   <Pressable
@@ -1212,13 +1234,13 @@ export default function WeekComposerV7() {
                     onPress={() => { setExerciseBlockIndex(index); setExpandedExerciseId(null); }}
                     style={[styles.blockPill, index === exerciseBlockIndex && styles.blockPillSelected]}
                   >
-                    <Text style={[styles.blockPillText, index === exerciseBlockIndex && styles.blockPillTextSelected]}>{item.label}</Text>
+                    <Text style={[styles.blockPillText, index === exerciseBlockIndex && styles.blockPillTextSelected]}>{composerBlockDisplayLabel(item.type, environmentCode)}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
 
               <Text style={styles.sectionSmallTitle}>TES MOUVEMENTS · {activeSelected.length}</Text>
-              <Text style={styles.sectionSmallHint}>Tes choix restent toujours modifiables.</Text>
+              <Text style={styles.sectionSmallHint}>UGEROD privilégie des mouvements complémentaires. Tu peux modifier cette sélection, même pour choisir deux variantes similaires.</Text>
               <View style={styles.exerciseList}>
                 {mainCandidates.filter((exercise) => activeSelected.includes(exercise.id)).map((exercise) => (
                   <ExerciseCard
@@ -1590,6 +1612,8 @@ function createStyles(colors) {
     architectureDurationFooter: { marginTop: 11, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 7 },
     cardFooter: { marginTop: 15, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 7 },
     cardFooterText: { fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
+    structureExplanation: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 11, marginBottom: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    structureExplanationText: { flex: 1, fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     blockPositionRow: { gap: 8, paddingRight: 10, marginBottom: 16 },
     blockPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     blockPillSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
