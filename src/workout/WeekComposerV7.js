@@ -110,6 +110,10 @@ function movementLabel(value) {
     core: 'Gainage',
     rotation: 'Rotation',
     'anti rotation': 'Anti-rotation',
+    'push horizontal': 'Poussée horizontale',
+    'pull horizontal': 'Tirage horizontal',
+    'push vertical': 'Poussée verticale',
+    'pull vertical': 'Tirage vertical',
     jump: 'Saut',
   };
   return labels[key] ?? raw.replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
@@ -1230,17 +1234,14 @@ export default function WeekComposerV7() {
             <View style={styles.stepWrap}>
               <StageHeader
                 kicker={`${blockTitle(activeBlock.type, environmentCode)} · ${activeBlock.minutes} MIN`}
-                title={recapEditingBlock ? 'Ajuste ce bloc.' : 'Construisons le cœur de ta séance.'}
-                helper={recapEditingBlock
-                   ? 'UGEROD a déjà proposé ces mouvements. Tu peux les conserver ou les remplacer.'
-                   : `UGEROD en a retenu ${activeSelected.length}. Tu peux les remplacer ou consulter leur description.`}
+                title={recapEditingBlock ? 'Ajuste tes mouvements.' : 'Tes mouvements.'}
                 styles={styles}
               />
               {structureDiffersFromDominant ? (
                 <View style={styles.structureExplanation}>
                   <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
                   <Text style={styles.structureExplanationText}>
-                    Tu as choisi {directionBaseLabel(effectiveIntent)} comme dominante, mais cette structure privilégie {composerArchitectureDisplayTitle(architecture, environmentCode).toLowerCase()}. Tu peux revenir à Structure pour la modifier.
+                    {directionBaseLabel(effectiveIntent)} choisi · {composerArchitectureDisplayTitle(architecture, environmentCode)} retenu.
                   </Text>
                 </View>
               ) : null}
@@ -1256,8 +1257,7 @@ export default function WeekComposerV7() {
                 ))}
               </ScrollView>
 
-              <Text style={styles.sectionSmallTitle}>TES MOUVEMENTS · {activeSelected.length}</Text>
-              <Text style={styles.sectionSmallHint}>UGEROD privilégie des mouvements complémentaires. Tu peux modifier cette sélection, même pour choisir deux variantes similaires.</Text>
+              <Text style={styles.selectionCount}>{activeSelected.length} / {maxForBlock(activeBlock.type)} sélectionnés</Text>
               <View style={styles.exerciseList}>
                 {mainCandidates.filter((exercise) => activeSelected.includes(exercise.id)).map((exercise) => (
                   <ExerciseCard
@@ -1277,43 +1277,21 @@ export default function WeekComposerV7() {
                 ))}
               </View>
 
-              {suggestedCandidates.length > 0 ? (
-                <View style={styles.exerciseSuggestionsSection}>
-                  <Text style={styles.sectionSmallTitle}>ALTERNATIVES CONSEILLÉES</Text>
-                  <Text style={styles.sectionSmallHint}>Elles évoluent selon les mouvements que tu sélectionnes.</Text>
-                  <View style={styles.exerciseList}>
-                    {suggestedCandidates.map((exercise) => (
-                      <ExerciseCard
-                        key={exercise.id}
-                        exercise={exercise}
-                        selected={false}
-                        expanded={expandedExerciseId === exercise.id}
-                        onToggleSelect={() => chooseExercise(activeBlock.type, exercise.id)}
-                        onToggleExpand={() => setExpandedExerciseId((current) => current === exercise.id ? null : exercise.id)}
-                        onOpenAlternatives={() => { setExerciseQuery(''); setSheet('exercise-picker'); }}
-                        styles={styles}
-                        colors={colors}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-
-              {extraCandidates.length > 0 ? (
-                <Pressable onPress={() => { setExerciseQuery(''); setSheet('exercise-picker'); }} style={styles.secondaryAction}>
-                  <Ionicons name="add-circle-outline" size={20} color={colors.accent} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.secondaryActionTitle}>Voir d’autres exercices</Text>
-                    <Text style={styles.secondaryActionText}>{extraCandidates.length} autres mouvements compatibles avec ce bloc.</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              {replacementCandidates.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Voir les autres exercices compatibles"
+                  onPress={() => { setExerciseQuery(''); setSheet('exercise-picker'); }}
+                  style={styles.exerciseChangeAction}
+                >
+                  <Ionicons name="swap-horizontal-outline" size={20} color={colors.accent} />
+                  <Text style={styles.exerciseChangeLabel}>
+                    {activeSelected.length ? 'Changer / ajouter un mouvement' : 'Choisir un mouvement'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.accent} />
                 </Pressable>
               ) : null}
 
-              <View style={styles.selectionFooter}>
-                <Text style={styles.selectionFooterText}>{activeSelected.length} / {maxForBlock(activeBlock.type)} retenu{activeSelected.length > 1 ? 's' : ''}</Text>
-                <Text style={styles.selectionFooterHint}>Si le bloc est complet, choisir un autre mouvement remplace le dernier.</Text>
-              </View>
               <PrimaryButton
                 label={exerciseBlockIndex !== exerciseBlocks.length - 1 ? 'BLOC SUIVANT'
                   : recapEditingBlock && recapEditingBlock !== 'WOD' ? 'REVENIR AU RÉCAPITULATIF'
