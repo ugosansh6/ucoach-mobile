@@ -60,7 +60,6 @@ const FALLBACK_INTENTS = [
   { key: 'TECHNIQUE', label: 'Skill', subtitle: 'Maîtriser un mouvement ou développer une compétence.', focus: 'General Fitness' },
 ];
 const LOAD_CAPABLE_EQUIPMENT_IDS = new Set(['E03', 'E04', 'E09', 'E14']);
-const MAIN_SHORTLIST_SIZE = 2;
 
 function firstParam(value) {
   return Array.isArray(value) ? value[0] : value;
@@ -1252,7 +1251,7 @@ export default function WeekComposerV7() {
                 ))}
               </ScrollView>
 
-              <Text style={styles.selectionCount}>{activeSelected.length} / {maxForBlock(activeBlock.type)} sélectionnés</Text>
+              <Text style={styles.selectionCount}>{activeSelected.length} / {maxForBlock(activeBlock.type)} {activeSelected.length > 1 ? 'sélectionnés' : 'sélectionné'}</Text>
               <View style={styles.exerciseList}>
                 {selectedCandidateObjects.map((exercise) => (
                   <ExerciseCard
