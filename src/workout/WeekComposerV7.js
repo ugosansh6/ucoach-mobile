@@ -60,7 +60,6 @@ const FALLBACK_INTENTS = [
   { key: 'TECHNIQUE', label: 'Skill', subtitle: 'Maîtriser un mouvement ou développer une compétence.', focus: 'General Fitness' },
 ];
 const LOAD_CAPABLE_EQUIPMENT_IDS = new Set(['E03', 'E04', 'E09', 'E14']);
-const MAIN_SHORTLIST_SIZE = 2;
 
 function firstParam(value) {
   return Array.isArray(value) ? value[0] : value;
@@ -110,6 +109,10 @@ function movementLabel(value) {
     core: 'Gainage',
     rotation: 'Rotation',
     'anti rotation': 'Anti-rotation',
+    'push horizontal': 'Poussée horizontale',
+    'pull horizontal': 'Tirage horizontal',
+    'push vertical': 'Poussée verticale',
+    'pull vertical': 'Tirage vertical',
     jump: 'Saut',
   };
   return labels[key] ?? raw.replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
@@ -464,51 +467,68 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
 
 function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleExpand, onOpenAlternatives, suggestedAlternative, styles, colors }) {
   const imageUri = /^https?:\/\//i.test(String(exercise.imagePath ?? '')) ? exercise.imagePath : null;
-  const conciseMeta = [regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
   const material = (exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps';
+  const compactMeta = [movementLabel(exercise.movementPattern), material].filter(Boolean).join(' · ');
+  const detailMeta = [regionLabel(exercise.bodyRegion), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
   return (
     <View style={[styles.exerciseCard, selected && styles.cardSelected, expanded && styles.exerciseCardExpanded]}>
       {selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.exerciseMainRow}>
-        <Pressable onPress={onToggleExpand} style={({ pressed }) => [styles.exerciseInfoButton, pressed && styles.pressed]}>
+        <Pressable
+          onPress={onToggleExpand}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={'Détails de ' + exercise.name}
+          style={({ pressed }) => [styles.exerciseInfoButton, pressed && styles.pressed]}
+        >
           <View style={[styles.exerciseGlyph, selected && styles.exerciseGlyphSelected]}>
             <Ionicons name="barbell-outline" size={18} color={selected ? colors.textOnAccent : colors.accent} />
           </View>
           <View style={styles.exerciseCopy}>
-            {exercise.warning ? (
-              <Text style={styles.exerciseWarningLabel}>À RECONSIDÉRER</Text>
-            ) : exercise.recommended ? (
-              <Text style={styles.exerciseRecommendedLabel}>RECOMMANDÉ PAR UGEROD</Text>
-            ) : null}
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {conciseMeta ? <Text style={styles.exerciseMeta}>{conciseMeta}</Text> : null}
-            <Text style={styles.exerciseEquipment}>Matériel : {material}</Text>
+            <Text numberOfLines={1} style={styles.exerciseName}>{exercise.name}</Text>
+            {compactMeta ? <Text numberOfLines={1} style={styles.exerciseMeta}>{compactMeta}</Text> : null}
           </View>
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={19} color={colors.textMuted} />
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
         </Pressable>
-        <Pressable onPress={onToggleSelect} style={[styles.selectCircle, selected && styles.selectCircleSelected]} hitSlop={8}>
+        <Pressable
+          onPress={onToggleSelect}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selected }}
+          accessibilityLabel={(selected ? 'Retirer ' : 'Choisir ') + exercise.name}
+          style={[styles.selectCircle, selected && styles.selectCircleSelected]}
+          hitSlop={8}
+        >
           <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
         </Pressable>
       </View>
 
-      {(exercise.warning || exercise.recommended) && exercise.recommendationReason ? (
+      {/* Never hide relevant movement conflicts behind collapsed details. */}
+      {exercise.warning && selected ? (
         <View style={styles.exerciseGuidance}>
-          <Ionicons name={exercise.warning ? 'alert-circle-outline' : 'bulb-outline'} size={15} color={exercise.warning ? colors.secondaryAccent : colors.accent} />
-          <Text style={styles.exerciseGuidanceText}>{exercise.recommendationReason}</Text>
-        </View>
-      ) : null}
-      {exercise.warning && selected && suggestedAlternative ? (
-        <View style={styles.exerciseSuggestion}>
-          <Text style={styles.exerciseSuggestionText}>Alternative possible : {suggestedAlternative.name}</Text>
-          <Pressable onPress={onOpenAlternatives} style={styles.exerciseSuggestionLink}>
-            <Text style={styles.exerciseSuggestionLinkText}>Voir les alternatives</Text>
-            <Ionicons name="chevron-forward" size={15} color={colors.accent} />
-          </Pressable>
+          <Ionicons name="alert-circle-outline" size={15} color={colors.secondaryAccent} />
+          <Text style={styles.exerciseGuidanceText} numberOfLines={2}>
+            {exercise.recommendationReason || 'Mouvement similaire déjà sélectionné'}
+          </Text>
         </View>
       ) : null}
 
       {expanded ? (
         <View style={styles.exerciseDetails}>
+          {detailMeta ? <Text style={styles.exerciseDetailMeta}>{detailMeta}</Text> : null}
+          {!exercise.warning && exercise.recommendationReason ? (
+            <View style={styles.exerciseDetailReason}>
+              <Ionicons name="bulb-outline" size={15} color={colors.accent} />
+              <Text style={styles.exerciseGuidanceText}>{exercise.recommendationReason}</Text>
+            </View>
+          ) : null}
+          {exercise.warning && selected && suggestedAlternative ? (
+            <Pressable onPress={onOpenAlternatives} style={styles.exerciseDetailReason}>
+              <Text style={styles.exerciseSuggestionLinkText}>
+                {'Essayer plutôt : ' + suggestedAlternative.name}
+              </Text>
+              <Ionicons name="chevron-forward" size={15} color={colors.accent} />
+            </Pressable>
+          ) : null}
           {imageUri ? <Image source={{ uri: imageUri }} resizeMode="cover" style={styles.exerciseImage} /> : null}
           {exercise.description ? (
             <View style={styles.detailBlock}>
@@ -1006,11 +1026,6 @@ export default function WeekComposerV7() {
   }) : [];
   const activeSelected = activeBlock ? selectionMap[activeBlock.type] ?? [] : [];
   const selectedCandidateObjects = activeCandidates.filter((exercise) => activeSelected.includes(exercise.id));
-  const suggestedCandidates = activeCandidates
-    .filter((exercise) => !activeSelected.includes(exercise.id))
-    .slice(0, MAIN_SHORTLIST_SIZE);
-  const mainCandidates = [...selectedCandidateObjects, ...suggestedCandidates];
-  const extraCandidates = activeCandidates.filter((exercise) => !mainCandidates.some((item) => item.id === exercise.id));
   const replacementCandidates = activeCandidates.filter((exercise) => !activeSelected.includes(exercise.id));
   const filteredExtraCandidates = replacementCandidates.filter((exercise) => {
     const search = exerciseQuery.trim().toLowerCase();
@@ -1213,17 +1228,14 @@ export default function WeekComposerV7() {
             <View style={styles.stepWrap}>
               <StageHeader
                 kicker={`${blockTitle(activeBlock.type, environmentCode)} · ${activeBlock.minutes} MIN`}
-                title={recapEditingBlock ? 'Ajuste ce bloc.' : 'Construisons le cœur de ta séance.'}
-                helper={recapEditingBlock
-                   ? 'UGEROD a déjà proposé ces mouvements. Tu peux les conserver ou les remplacer.'
-                   : `UGEROD en a retenu ${activeSelected.length}. Tu peux les remplacer ou consulter leur description.`}
+                title={recapEditingBlock ? 'Ajuste tes mouvements.' : 'Tes mouvements.'}
                 styles={styles}
               />
               {structureDiffersFromDominant ? (
                 <View style={styles.structureExplanation}>
                   <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
                   <Text style={styles.structureExplanationText}>
-                    Tu as choisi {directionBaseLabel(effectiveIntent)} comme dominante, mais cette structure privilégie {composerArchitectureDisplayTitle(architecture, environmentCode).toLowerCase()}. Tu peux revenir à Structure pour la modifier.
+                    {directionBaseLabel(effectiveIntent)} choisi · {composerArchitectureDisplayTitle(architecture, environmentCode)} retenu.
                   </Text>
                 </View>
               ) : null}
@@ -1239,10 +1251,9 @@ export default function WeekComposerV7() {
                 ))}
               </ScrollView>
 
-              <Text style={styles.sectionSmallTitle}>TES MOUVEMENTS · {activeSelected.length}</Text>
-              <Text style={styles.sectionSmallHint}>UGEROD privilégie des mouvements complémentaires. Tu peux modifier cette sélection, même pour choisir deux variantes similaires.</Text>
+              <Text style={styles.selectionCount}>{activeSelected.length} / {maxForBlock(activeBlock.type)} {activeSelected.length > 1 ? 'sélectionnés' : 'sélectionné'}</Text>
               <View style={styles.exerciseList}>
-                {mainCandidates.filter((exercise) => activeSelected.includes(exercise.id)).map((exercise) => (
+                {selectedCandidateObjects.map((exercise) => (
                   <ExerciseCard
                     key={exercise.id}
                     exercise={exercise}
@@ -1260,43 +1271,21 @@ export default function WeekComposerV7() {
                 ))}
               </View>
 
-              {suggestedCandidates.length > 0 ? (
-                <View style={styles.exerciseSuggestionsSection}>
-                  <Text style={styles.sectionSmallTitle}>ALTERNATIVES CONSEILLÉES</Text>
-                  <Text style={styles.sectionSmallHint}>Elles évoluent selon les mouvements que tu sélectionnes.</Text>
-                  <View style={styles.exerciseList}>
-                    {suggestedCandidates.map((exercise) => (
-                      <ExerciseCard
-                        key={exercise.id}
-                        exercise={exercise}
-                        selected={false}
-                        expanded={expandedExerciseId === exercise.id}
-                        onToggleSelect={() => chooseExercise(activeBlock.type, exercise.id)}
-                        onToggleExpand={() => setExpandedExerciseId((current) => current === exercise.id ? null : exercise.id)}
-                        onOpenAlternatives={() => { setExerciseQuery(''); setSheet('exercise-picker'); }}
-                        styles={styles}
-                        colors={colors}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-
-              {extraCandidates.length > 0 ? (
-                <Pressable onPress={() => { setExerciseQuery(''); setSheet('exercise-picker'); }} style={styles.secondaryAction}>
-                  <Ionicons name="add-circle-outline" size={20} color={colors.accent} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.secondaryActionTitle}>Voir d’autres exercices</Text>
-                    <Text style={styles.secondaryActionText}>{extraCandidates.length} autres mouvements compatibles avec ce bloc.</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              {replacementCandidates.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Voir les autres exercices compatibles"
+                  onPress={() => { setExerciseQuery(''); setSheet('exercise-picker'); }}
+                  style={styles.exerciseChangeAction}
+                >
+                  <Ionicons name="swap-horizontal-outline" size={20} color={colors.accent} />
+                  <Text style={styles.exerciseChangeLabel}>
+                    {activeSelected.length ? 'Changer / ajouter un mouvement' : 'Choisir un mouvement'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.accent} />
                 </Pressable>
               ) : null}
 
-              <View style={styles.selectionFooter}>
-                <Text style={styles.selectionFooterText}>{activeSelected.length} / {maxForBlock(activeBlock.type)} retenu{activeSelected.length > 1 ? 's' : ''}</Text>
-                <Text style={styles.selectionFooterHint}>Si le bloc est complet, choisir un autre mouvement remplace le dernier.</Text>
-              </View>
               <PrimaryButton
                 label={exerciseBlockIndex !== exerciseBlocks.length - 1 ? 'BLOC SUIVANT'
                   : recapEditingBlock && recapEditingBlock !== 'WOD' ? 'REVENIR AU RÉCAPITULATIF'
@@ -1537,7 +1526,7 @@ function createStyles(colors) {
     contextPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', fontFamily: fontFamilies.semiBold, fontSize: 10, color: colors.accent, backgroundColor: colors.surfaceElevated ?? colors.surface },
     errorText: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.error },
     stepWrap: { marginTop: 32 },
-    stageHeader: { marginBottom: 22 },
+    stageHeader: { marginBottom: 16 },
     kicker: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.35, color: colors.accent },
     question: { marginTop: 8, fontFamily: fontFamilies.display, fontSize: 29, lineHeight: 34, color: colors.text },
     helper: { marginTop: 10, fontFamily: fontFamilies.regular, fontSize: 14, lineHeight: 21, color: colors.textSecondary, maxWidth: 680 },
@@ -1625,14 +1614,18 @@ function createStyles(colors) {
     exerciseSuggestionsSection: { marginTop: 22 },
     exerciseCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     exerciseCardExpanded: { borderColor: colors.accent },
-    exerciseMainRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 10 },
-    exerciseInfoButton: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-    exerciseGlyph: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+    exerciseMainRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 },
+    exerciseInfoButton: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10 },
+    exerciseGlyph: { width: 36, height: 36, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
     exerciseGlyphSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-    exerciseCopy: { flex: 1 },
-    exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 15, lineHeight: 19, color: colors.text },
-    exerciseMeta: { marginTop: 5, fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
-    exerciseEquipment: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.accent },
+    exerciseCopy: { flex: 1, minWidth: 0 },
+    exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 16, lineHeight: 20, color: colors.text },
+    exerciseMeta: { marginTop: 3, fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 15, color: colors.textSecondary },
+    exerciseDetailMeta: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, color: colors.textSecondary },
+    exerciseDetailReason: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+    selectionCount: { marginBottom: 10, fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.textSecondary },
+    exerciseChangeAction: { marginTop: 12, minHeight: 48, paddingHorizontal: 13, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 10 },
+    exerciseChangeLabel: { flex: 1, fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.accent },
     exerciseRecommendedLabel: { fontFamily: fontFamilies.bold, fontSize: 10, color: colors.accent, letterSpacing: 0.5, marginBottom: 5 },
     exerciseWarningLabel: { fontFamily: fontFamilies.bold, fontSize: 10, color: colors.secondaryAccent, letterSpacing: 0.5, marginBottom: 5 },
     exerciseGuidance: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginBottom: 12 },
@@ -1642,7 +1635,7 @@ function createStyles(colors) {
     exerciseSuggestionLink: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' },
     exerciseSuggestionLinkText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.accent },
     exerciseReason: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 11, lineHeight: 16, color: colors.accent },
-    exerciseDetails: { paddingHorizontal: 16, paddingBottom: 17, borderTopWidth: 1, borderTopColor: colors.border },
+    exerciseDetails: { paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: colors.border },
     exerciseImage: { marginTop: 15, width: '100%', height: 190, borderRadius: 14, backgroundColor: colors.background },
     detailBlock: { marginTop: 15 },
     detailLabel: { fontFamily: fontFamilies.bold, fontSize: 9, letterSpacing: 1, color: colors.accent },
