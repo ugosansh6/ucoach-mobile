@@ -165,7 +165,7 @@ export function composerArchitectureDisplayTitle(option, environmentCode = 'BOX'
   if (!mainBlocks.length) return option?.title ?? 'Séance';
   const labels = mainBlocks.map((item) => composerBlockDisplayLabel(item.type, environmentCode));
   if (labels.length > 1) return labels.join(' + ');
-  return labels[0] + (labels[0] === 'Musculation' ? ' seule' : ' seul');
+  return labels[0] + (['Musculation', 'Force', 'Technique'].includes(labels[0]) ? ' seule' : ' seul');
 }
 
 function block(type, minutes, label = null) {
