@@ -18,7 +18,7 @@ function section(start, end) {
   return service.slice(from, to).replaceAll('export function ', 'function ');
 }
 const tested = [
-  section('export function composerBlockDisplayLabel', 'function block(type'),
+  section('function wodLabel(minutes)', 'function block(type'),
   section('function block(type', '/**\n * MSW-036'),
   section('export function rankComposerCandidates', 'export async function getComposerPrescriptionPreview'),
 ].join('\n');
