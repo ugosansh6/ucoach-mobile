@@ -73,3 +73,28 @@ The migration checks the inspected C4 wrapper hash before replacing it. A
 different environment or intervening backend change requires a rebase rather
 than silently overwriting its wrapper. Existing generated or started sessions
 are not rewritten by the migration; a new generation consumes the fix.
+
+## Full Body warm-up coverage
+
+The 45-minute follow-up exposed another gap: the three-slot warm-up prepared
+two core Skill patterns before the WOD's upper-body movement, leaving its
+lunge without preparation. Whole-session WOD balance alone did not fix that.
+
+The preparation consumer now prioritizes final WOD targets for Full Body and
+covers distinct regions before spending a second slot on the same region.
+Core and anti-extension are grouped together. Explicit Upper/Lower/Core
+sessions retain their Skill-first target ordering. Candidate safety,
+regression and equipment selection still use the existing preparation engine.
+
+The reported warm-up changes from Flutter Kicks / knee plank / Pike Hold to
+Pike Hold / reverse lunge reach / Flutter Kicks. The Skill, Tabata, WOD,
+prescriptions outside the warm-up and block durations remain unchanged.
+A targeted suite verifies regional coverage, existing safety caps, explicit
+regional ordering and parity between persisted rows and the session payload.
+The earlier Full Body generation suite also passed with this consumer.
+
+The additional migration is active on DEV. The reported, still unstarted
+session's warm-up was refreshed after its status was locked and checked; all
+other blocks were verified unchanged. Future generations and recalculation
+warm-up refreshes share the corrected consumer. A targeted Skill remains a
+learning block; Full Body describes the distribution of the complete session.
