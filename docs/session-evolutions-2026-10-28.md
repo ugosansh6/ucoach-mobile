@@ -14,4 +14,8 @@ Changes were implemented in increasing order of complexity on the existing branc
 
 Backend migrations are applied on DEV. Existing started sessions are not rewritten. The interface changes require the frontend branch to be integrated/deployed; a successful local web export is not a deployment.
 
+Follow-up: final signature selection excludes the functional families of the actual WOD, Skill and preparation. It reselects the signature rather than changing a selected WOD target. The WOD persistence boundary also rejects a recompile/format change that would reintroduce a signature family, including when the Tabata has already been performed. The live session is not silently rewritten.
+
+Timed movements in the Circuit/AMRAP/For Time work lists have individual countdown controls derived from numeric duration prescriptions (for example Hollow Hold 35 seconds). Local pause/reset is available, the main WOD pause freezes the countdown, and a new round resets it. Repetition counts and block budgets are never interpreted as hold durations. This is a local execution aid, not proof that the movement was performed.
+
 Validation: 13 Composer regression checks, Strength routing/warm-up navigation checks, Expo web export, unilateral Skill SQL checks, 30-minute Full Body coverage and preparation exclusions, Back primary-muscle selection, and the existing environment plan matrix. The global backend suite still has its previously documented SAFE-001 catalogue gaps; it is not claimed green.
