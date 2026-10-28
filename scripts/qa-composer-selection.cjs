@@ -23,11 +23,13 @@ const tested = [
   section('export function rankComposerCandidates', 'export async function getComposerPrescriptionPreview'),
 ].join('\n');
 const context = vm.createContext({});
-vm.runInContext(tested + '\nglobalThis.tested = { buildComposerArchitectures, composerBlockDisplayLabel, composerArchitectureDisplayTitle, rankComposerCandidates, selectComposerDefaultExercises };', context);
+vm.runInContext(tested + '\nglobalThis.tested = { buildComposerArchitectures, composerBlockDisplayLabel, composerArchitectureDisplayTitle, composerArchitecturePurpose, composerExerciseSlotLimit, rankComposerCandidates, selectComposerDefaultExercises };', context);
 const {
   buildComposerArchitectures,
   composerBlockDisplayLabel,
   composerArchitectureDisplayTitle,
+  composerArchitecturePurpose,
+  composerExerciseSlotLimit,
   rankComposerCandidates,
   selectComposerDefaultExercises,
 } = context.tested;
@@ -92,6 +94,46 @@ check('User-chosen duplicate patterns remain possible and warnings identify them
 check('Empty or incomplete catalogue does not invent a selection', () => {
   assert.equal(getDefaults({ STRENGTH: [] }).STRENGTH.length, 0);
   assert.equal(getDefaults({ STRENGTH: [row] }).STRENGTH.join(','), 'row');
+});
+
+check('Strength exercise capacity scales with its actual block minutes (not whole session)', () => {
+  assert.equal(composerExerciseSlotLimit('STRENGTH', 14), 2);
+  assert.equal(composerExerciseSlotLimit('STRENGTH', 21), 2);
+  assert.equal(composerExerciseSlotLimit('STRENGTH', 30), 3);
+  assert.equal(composerExerciseSlotLimit('STRENGTH', 45), 4);
+  assert.equal(composerExerciseSlotLimit('STRENGTH', 60), 5);
+  assert.equal(composerExerciseSlotLimit('SKILL', 45), 2);
+  assert.equal(composerExerciseSlotLimit('WOD', 30), 3);
+});
+
+check('Four complementary movements can be picked for a 45-minute Strength block', () => {
+  const hinge = { id: 'hinge', movementPattern: 'Hinge', score: 79 };
+  const candidates = [push, diamond, row, squat, hinge];
+  const slots = composerExerciseSlotLimit('STRENGTH', 45);
+  const selected = getDefaults({ STRENGTH: candidates }, {}, { STRENGTH: slots });
+  assert.equal(selected.STRENGTH.length, 4);
+  assert.equal(new Set(selected.STRENGTH).size, 4);
+  assert.equal(selected.STRENGTH.includes('diamond'), false);
+  const patterns = candidates.filter((x) => selected.STRENGTH.includes(x.id)).map(x => x.movementPattern);
+  assert.equal(new Set(patterns).size, 4);
+});
+
+check('Even a 45-minute block never fabricates duplicate exercises to fill capacity', () => {
+  const selected = getDefaults({ STRENGTH: [push, diamond, row] }, {}, {
+    STRENGTH: composerExerciseSlotLimit('STRENGTH', 45)
+  });
+  assert.equal(selected.STRENGTH.join(','), 'push,row');
+});
+
+check('Structure cards directly explain Skill versus Strength', () => {
+  const skill = { blocks: [{ type: 'SKILL' }, { type: 'WOD' }] };
+  const strength = { blocks: [{ type: 'STRENGTH' }] };
+  const skillCopy = composerArchitecturePurpose(skill);
+  const strengthCopy = composerArchitecturePurpose(strength);
+  assert.match(skillCopy, /Technique/);
+  assert.match(skillCopy, /geste/);
+  assert.match(strengthCopy, /Force et muscles/);
+  assert.match(strengthCopy, /répétitions/);
 });
 
 check('Structure budget always equals requested duration for all supported durations', () => {
