@@ -28,6 +28,8 @@ import {
   buildComposerArchitectures,
   composerBlockDisplayLabel,
   composerArchitectureDisplayTitle,
+  composerArchitecturePurpose,
+  composerExerciseSlotLimit,
   getComposerArchitectureTargets,
   getComposerExerciseCandidates,
   getComposerMechanicOptions,
@@ -212,12 +214,8 @@ function directionChoiceForRegion(choice, targetRegion, plannedRegion = null) {
   };
 }
 
-function maxForBlock(type) {
-  if (type === 'WARMUP') return 3;
-  if (type === 'TABATA') return 2;
-  if (type === 'STRENGTH' || type === 'SKILL') return 2;
-  if (type === 'WOD') return 3;
-  return 2;
+function maxForBlock(type, minutes = 0) {
+  return composerExerciseSlotLimit(type, minutes);
 }
 
 function blockTitle(type, environmentCode = 'BOX') {
@@ -421,6 +419,7 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
         <View style={{ flex: 1 }}>
           <Text style={styles.cardEyebrow}>{option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
           <Text style={styles.cardTitle}>{composerArchitectureDisplayTitle(option, environmentCode)}</Text>
+          <Text style={styles.architecturePurpose} numberOfLines={2}>{composerArchitecturePurpose(option)}</Text>
         </View>
         <Ionicons
           name={selected ? 'checkmark-circle' : 'ellipse-outline'}
@@ -810,7 +809,9 @@ export default function WeekComposerV7() {
         candidateMap: candidatesByBlock,
         evidence: observations,
         equipmentIds,
-        maxPerBlock: Object.fromEntries(results.map(([type]) => [type, maxForBlock(type)])),
+        maxPerBlock: Object.fromEntries((architecture.blocks ?? []).map(
+          (block) => [block.type, maxForBlock(block.type, block.minutes)]
+        )),
       });
       setCandidateMap(candidatesByBlock);
       setCandidateEvidence(observations);
@@ -828,7 +829,8 @@ export default function WeekComposerV7() {
   }
 
   function chooseExercise(type, id) {
-    const max = maxForBlock(type);
+    const minutes = architecture?.blocks?.find((block) => block.type === type)?.minutes ?? 0;
+    const max = maxForBlock(type, minutes);
     setSelectionMap((current) => {
       const selected = current[type] ?? [];
       if (selected.includes(id)) {
@@ -1251,7 +1253,17 @@ export default function WeekComposerV7() {
                 ))}
               </ScrollView>
 
-              <Text style={styles.selectionCount}>{activeSelected.length} / {maxForBlock(activeBlock.type)} {activeSelected.length > 1 ? 'sélectionnés' : 'sélectionné'}</Text>
+              <Text style={styles.selectionCount}>{activeSelected.length} / {maxForBlock(activeBlock.type, activeBlock.minutes)} {activeSelected.length > 1 ? 'sélectionnés' : 'sélectionné'}</Text>
+              {activeBlock.type === 'STRENGTH'
+                && activeBlock.minutes >= 35
+                && activeSelected.length < 3 ? (
+                  <View style={styles.structureExplanation}>
+                    <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+                    <Text style={styles.structureExplanationText}>
+                      {activeBlock.minutes} min de renforcement : diversifie les mouvements pour couvrir le bloc, ou ajuste la structure.
+                    </Text>
+                  </View>
+                ) : null}
               <View style={styles.exerciseList}>
                 {selectedCandidateObjects.map((exercise) => (
                   <ExerciseCard
@@ -1470,7 +1482,7 @@ export default function WeekComposerV7() {
         footer={<Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}><Text style={styles.sheetDoneButtonText}>Terminé</Text></Pressable>}
       >
         <Text style={styles.sheetHelp}>Tous restent filtrés par ton environnement, ton matériel et l’objectif de la séance.</Text>
-        {activeSelected.length >= maxForBlock(activeBlock?.type) ? <Text style={styles.sheetNotice}>Le bloc est complet : choisir un autre mouvement remplacera le dernier sélectionné.</Text> : null}
+        {activeSelected.length >= maxForBlock(activeBlock?.type, activeBlock?.minutes) ? <Text style={styles.sheetNotice}>Le bloc est complet : choisir un autre mouvement remplacera le dernier sélectionné.</Text> : null}
         <TextInput
           value={exerciseQuery}
           onChangeText={setExerciseQuery}
@@ -1590,6 +1602,7 @@ function createStyles(colors) {
     cardSubtitle: { marginTop: 7, fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 19, color: colors.textSecondary },
     selectCircle: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
     selectCircleSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+    architecturePurpose: { marginTop: 5, fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 17, color: colors.textSecondary },
     architectureBlocks: { marginTop: 12, gap: 10 },
     architectureTimeline: { flexDirection: 'row', gap: 3, height: 10, borderRadius: 6, overflow: 'hidden' },
     architectureTimelineSlice: { borderRadius: 4 },
