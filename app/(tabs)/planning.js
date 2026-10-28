@@ -25,6 +25,7 @@ import {
   getWeekReadContract,
   moveWeekPlanItem,
   removeWeekPlanItem,
+  withConfirmedWeekRemoval,
 } from '../../src/services/weeklyPlanService';
 import { getWeekSessionExercisePreviews } from '../../src/services/weekSessionPreviewService';
 import { reloadWorkoutSession } from '../../src/services/workoutService';
@@ -305,6 +306,7 @@ function RemoveButton({ item, palette, disabled, onPress }) {
   return (
     <TouchableOpacity
       style={styles.removeButton}
+      hitSlop={6}
       onPress={() => !disabled && onPress?.(item)}
       disabled={disabled}
       accessibilityRole="button"
@@ -673,7 +675,7 @@ function RemoveSessionModal({ item, visible, palette, removing, onClose, onConfi
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={() => !removing && onClose?.()}>
       <Pressable style={styles.modalBackdrop} onPress={() => !removing && onClose?.()}>
-        <Pressable style={[styles.removeSheet, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]} onPress={() => {}}>
+        <Pressable style={[styles.removeSheet, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]} onPress={(event) => event?.stopPropagation?.()}>
           <View style={[styles.removeIconWrap, { backgroundColor: palette.accentSoft }]}>
             <Ionicons name="trash-outline" size={21} color={palette.orange} />
           </View>
@@ -682,10 +684,10 @@ function RemoveSessionModal({ item, visible, palette, removing, onClose, onConfi
             {item ? getShortSummary(item) : 'Cette séance'} disparaîtra de ta semaine. Aucun retard ni dette d’entraînement ne sera créé.
           </Text>
           <View style={styles.removeActions}>
-            <TouchableOpacity style={[styles.removeCancel, { borderColor: palette.border }]} disabled={removing} onPress={onClose}>
+            <TouchableOpacity style={[styles.removeCancel, { borderColor: palette.border }]} disabled={removing} onPress={(event) => { event?.stopPropagation?.(); onClose?.(); }}>
               <Text style={[styles.removeCancelText, { color: palette.text }]}>ANNULER</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.removeConfirm, { backgroundColor: palette.orange }]} disabled={removing} onPress={onConfirm}>
+            <TouchableOpacity style={[styles.removeConfirm, { backgroundColor: palette.orange }]} disabled={removing} onPress={(event) => { event?.stopPropagation?.(); onConfirm?.(); }}>
               <Text style={[styles.removeConfirmText, { color: '#FFFFFF' }]}>{removing ? 'RETRAIT…' : 'RETIRER'}</Text>
             </TouchableOpacity>
           </View>
@@ -955,23 +957,50 @@ export default function PlanningScreen() {
 
   const handleRemoveWeekItem = useCallback(async () => {
     if (!removeItem?.planItemId || removingItemId) return;
+    const planItemId = removeItem.planItemId;
+    const sessionId = removeItem.sessionId;
     const weekAnchorDate = parseDateKey(contract?.weekStart) ?? new Date();
     const surfaceAnchorDate = new Date();
+
+    // Server acknowledgement is the commit boundary. Refresh errors must NOT
+    // turn a successful removal into a false "Impossible" message.
     try {
-      setRemovingItemId(removeItem.planItemId);
-      await removeWeekPlanItem({ planItemId: removeItem.planItemId, anchorDate: weekAnchorDate });
-      const refreshed = await getWeekReadContract({ anchorDate: surfaceAnchorDate });
-      setContract(refreshed);
-      const ids = (refreshed?.visibleItems ?? []).map((entry) => entry?.sessionId).filter(Boolean);
-      setExercisePreviews(await getWeekSessionExercisePreviews(ids));
-      setExpandedKey(null);
-      setRemoveItem(null);
-      showMoveFeedback('Séance retirée de ta semaine.');
+      setRemovingItemId(planItemId);
+      await removeWeekPlanItem({ planItemId, anchorDate: weekAnchorDate });
     } catch (removeError) {
-      console.warn('[MaSemaine] remove failed', removeError);
-      showMoveFeedback('Impossible de retirer cette séance pour le moment.');
+      console.warn('[MaSemaine] removal RPC failed', removeError);
+      showMoveFeedback('Retrait non enregistré. Réessaie.');
+      return;
     } finally {
       setRemovingItemId(null);
+    }
+
+    // Remove from the rendered week as soon as the server confirms success.
+    setContract((current) => withConfirmedWeekRemoval(current, planItemId));
+    if (sessionId) {
+      setExercisePreviews((current) => {
+        const next = { ...current };
+        delete next[sessionId];
+        return next;
+      });
+    }
+    setExpandedKey(null);
+    setRemoveItem(null);
+    showMoveFeedback('Séance retirée de ta semaine.');
+
+    // A read/replan can take time; do not undo a successful removal on timeout.
+    try {
+      const refreshed = await getWeekReadContract({ anchorDate: surfaceAnchorDate });
+      setContract(refreshed);
+      try {
+        const ids = (refreshed?.visibleItems ?? []).map((entry) => entry?.sessionId).filter(Boolean);
+        setExercisePreviews(await getWeekSessionExercisePreviews(ids));
+      } catch (previewError) {
+        console.warn('[MaSemaine] previews after removal unavailable', previewError);
+      }
+    } catch (refreshError) {
+      console.warn('[MaSemaine] post-removal refresh failed, removal is confirmed', refreshError);
+      showMoveFeedback('Séance retirée. Actualise Ma semaine pour synchroniser le planning.');
     }
   }, [contract?.weekStart, removeItem, removingItemId, showMoveFeedback]);
 
@@ -1198,7 +1227,7 @@ const styles = StyleSheet.create({
   objectMeta: { fontFamily: fontFamilies.semiBold, fontSize: 10, lineHeight: 15, marginTop: 5 },
   dragHandle: { width: 40, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1 },
   dragHandleSpacer: { width: 10 },
-  removeButton: { width: 34, alignItems: 'center', justifyContent: 'center' },
+  removeButton: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   dragDots: { width: 14, height: 22, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'space-between' },
   dragDot: { width: 4, height: 4, borderRadius: 2, marginHorizontal: 1, marginVertical: 1.5 },
   emptyDayWrap: { minHeight: 52, justifyContent: 'center' },
