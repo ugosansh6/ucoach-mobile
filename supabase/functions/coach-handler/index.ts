@@ -16,7 +16,7 @@ type Payload = {
   readiness?: number | string;
   available_equipment?: string[];
   injured_zones?: string[];
-  target_region?: "Full Body" | "Lower" | "Upper" | "Core" | null;
+  target_region?: "Full Body" | "Lower" | "Upper" | "Core" | "Back" | null;
   format_preference?: string | null;
   format_variant?: string | null;
   format_overlays?: unknown[];

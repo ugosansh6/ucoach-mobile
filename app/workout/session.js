@@ -174,7 +174,17 @@ export default function SessionScreen() {
   // Strength, while the environment player reads the actual persisted blocks.
   const usesSpecializedEnvironmentRuntime =
     ['GYM', 'OUTDOOR'].includes(environmentCode) ||
-    String(workout?.meta?.source ?? '').toLowerCase() === 'w11_composer';
+    String(workout?.meta?.source ?? '').toLowerCase() === 'w11_composer' ||
+    (workout?.rawBlocks ?? []).some((block) =>
+      ['strength', 'gym', 'street_gym', 'cardio', 'conditioning'].includes(
+        normalizeBlock(block?.block_key ?? block?.blockKey)
+      )
+    ) ||
+    (workout?.exercises ?? []).some((exercise) =>
+      ['strength', 'gym', 'street_gym', 'cardio', 'conditioning'].includes(
+        normalizeBlock(exercise?.blockKey ?? exercise?.block)
+      )
+    );
   const progressRecorded = hasRecordedProgress(workout);
   const hasResumeCursor = Boolean(
     authoritativeSessionStarted &&
