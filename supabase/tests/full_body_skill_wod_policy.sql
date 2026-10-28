@@ -40,7 +40,7 @@ begin
   end if;
 
   -- The warm-up follows the actual Skill anchor and final WOD targets,
-  -- not a separate regional quota or the signature Tabata pair.
+  -- not a separate regional quota. Signature families are excluded as repeats.
   p:=jsonb_build_object('status','READY','architecture','{}'::jsonb,
     'stimulus',public.build_session_stimulus_target('Strength',45,'normal','Full Body','MAINTAIN','c1-default'),
     'blocks','[
@@ -62,13 +62,16 @@ begin
     jsonb_set(p,'{blocks,0,exercises}','[{"exercise_id":"EX523"},{"exercise_id":"EX318"}]'),
     '{}','[]','Full Body',3,'MAINTAIN');
   select x into warm2 from jsonb_array_elements(q->'blocks') x where x->>'block_key'='warmup';
-  if warm<>warm2 then raise exception 'Tabata pair changed the specific warm-up'; end if;
+  if warm2#>>'{preparation_quality_contract,selection_basis}' is distinct from 'FINAL_SKILL_AND_WOD_TARGETS' then
+    raise exception 'Signature exclusion changed the preparation target contract';
+  end if;
   foreach region in array array['Upper','Lower','Core'] loop
     q:=public.c4_apply_preparation_quality_v3_pre_exercise_coherence_v1(uid,p,'{}','[]',region,3,'MAINTAIN');
     select x into warm2 from jsonb_array_elements(q->'blocks') x where x->>'block_key'='warmup';
-    if warm2#>>'{exercises,0,prescription,warmup_target_block}'<>'skill'
-       or warm2#>>'{exercises,1,prescription,warmup_target_block}'<>'skill' then
-      raise exception 'Explicit regional preparation order changed';
+    if exists(select 1 from jsonb_array_elements(warm2->'exercises') ex
+       where ex#>>'{prescription,warmup_target_exercise_id}' is null
+          or ex#>>'{prescription,warmup_target_exercise_id}' not in ('EX087','EX_C03','EX020','EX539')) then
+      raise exception 'Regional preparation lost the final Skill/WOD targets after signature exclusions';
     end if;
   end loop;
 end;

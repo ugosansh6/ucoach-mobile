@@ -806,6 +806,7 @@ export default function WeekComposerV7() {
         console.warn('[Composer] recommendations proceed without recent-history evidence', evidenceError);
       }
       const defaults = selectComposerDefaultExercises({
+        targetRegion: targetRegion ?? intent?.targetRegion ?? selectedItem?.plannedContext?.targetRegion ?? null,
         candidateMap: candidatesByBlock,
         evidence: observations,
         equipmentIds,

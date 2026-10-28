@@ -59,7 +59,7 @@ Targeted DEV checks passed in rolled-back transactions:
 - No extra core exercise is required in an otherwise balanced upper/lower WOD.
 - Gym Strength and Outdoor Skill aliases use the common policy.
 - Preparation references final Skill/WOD targets, with no regional quota or
-  influence from the chosen Tabata pair.
+  regional quota; signature families are excluded to avoid repeating the Tabata.
 - Full generation in Home, Box, Gym and Outdoor Functional Fitness preserves
   core Tabata, regional coverage, declared equipment and final diagnostics.
 - Gym and Outdoor generation/persistence retain the policy in session payloads

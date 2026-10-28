@@ -48,6 +48,14 @@ function check(label, fn) {
   console.log('PASS', label);
 }
 
+check('Full Body defaults cover upper/lower despite three higher-scored leg patterns', () => {
+  const legs = ['Squat', 'Hinge', 'Lunge'].map((pattern, i) => ({ id: `leg${i}`, movementPattern: pattern, bodyRegion: 'Lower', score: 100-i }));
+  const upper = { id: 'upper', movementPattern: 'Push Horizontal', bodyRegion: 'Upper', score: 5 };
+  const selected = selectComposerDefaultExercises({ candidateMap: { STRENGTH: [...legs, upper] }, maxPerBlock: { STRENGTH: 3 }, targetRegion: 'Full Body' });
+  assert.ok(selected.STRENGTH.includes('upper'));
+  assert.ok(selected.STRENGTH.some((id) => id.startsWith('leg')));
+});
+
 check('Push-ups + diamond are never automatically selected together', () => {
   const selected = getDefaults({ STRENGTH: [push, diamond, row, squat] });
   assert.equal(selected.STRENGTH.join(','), 'push,row');

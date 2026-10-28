@@ -88,6 +88,7 @@ export async function getComposerExerciseCandidates({
       .in('muscle_id', ['M02', 'M12', 'M13']);
     if (linksError) throw linksError;
     for (const link of links ?? []) {
+      if (link.priority !== 'primary') continue;
       const weight = link.priority === 'primary' ? 48 : 18;
       backMuscleWeights.set(link.exercise_id, (backMuscleWeights.get(link.exercise_id) ?? 0) + weight);
     }
@@ -102,6 +103,7 @@ export async function getComposerExerciseCandidates({
 
   return exercises
     .filter((exercise) => {
+      if (targetRegion === 'Back' && !backMuscleWeights.has(exercise.id)) return false;
       const reqs = byExercise.get(exercise.id) ?? [];
       if (reqs.length === 0) return true;
       return reqs.every((equipmentId) => available.has(equipmentId));
@@ -439,7 +441,7 @@ export function rankComposerCandidates({
  * Preserve all engine types and selected IDs; no prescription changes.
  */
 export function selectComposerDefaultExercises({
-  candidateMap = {}, evidence = {}, equipmentIds = [], maxPerBlock = {},
+  candidateMap = {}, evidence = {}, equipmentIds = [], maxPerBlock = {}, targetRegion = null,
 } = {}) {
   const defaults = {};
   const pickedExerciseIds = new Set();
@@ -458,10 +460,22 @@ export function selectComposerDefaultExercises({
     const unclassifiedFamilies = new Set();
 
     while (defaults[type].length < max) {
-      const ranked = rankComposerCandidates({
+      let ranked = rankComposerCandidates({
         candidates: candidateMap[type] ?? [], blockType: type,
         selectionMap: defaults, candidateMap, evidence, equipmentIds,
       });
+      if (targetRegion === 'Full Body' && !['WARMUP', 'TABATA'].includes(type)) {
+        const region = (exercise) => {
+          if (/push|pull/i.test(exercise?.movementPattern ?? '')) return 'Upper';
+          if (/squat|hinge|lunge|step|jump/i.test(exercise?.movementPattern ?? '')) return 'Lower';
+          return exercise?.bodyRegion;
+        };
+        const covered = new Set(Object.entries(defaults)
+          .filter(([key]) => !['WARMUP', 'TABATA'].includes(key))
+          .flatMap(([key, ids]) => ids.map((id) => region((candidateMap[key] ?? []).find((e) => e.id === id)))));
+        const priority = (exercise) => ['Upper', 'Lower'].includes(region(exercise)) && !covered.has(region(exercise)) ? 1 : 0;
+        ranked = [...ranked].sort((a, b) => priority(b) - priority(a));
+      }
       const choice = ranked.find((exercise) => {
         if (!exercise?.id || pickedExerciseIds.has(exercise.id)) return false;
         if (String(evidence[exercise.id]?.explicit_preference_state ?? '').toUpperCase()
