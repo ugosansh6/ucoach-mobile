@@ -596,6 +596,7 @@ export default function WeekComposerV7() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(false);
   const [previewIssue, setPreviewIssue] = useState(null);
+  const [previewSignature, setPreviewSignature] = useState(null);
   const [strengthAssessment, setStrengthAssessment] = useState(null);
   const [strengthAssessmentLoading, setStrengthAssessmentLoading] = useState(false);
   const [strengthAssessmentError, setStrengthAssessmentError] = useState(false);
@@ -831,7 +832,10 @@ export default function WeekComposerV7() {
           equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
           targetRegion: targetRegion ?? intent?.targetRegion ?? null,
         });
-        defaults.STRENGTH = (proposal?.selected_exercises ?? []).map((item) => item.id);
+        if (!Array.isArray(proposal?.selected_exercises) || !proposal.selected_exercises.length) {
+          throw new Error('Le moteur n’a pas pu composer le renforcement. Ajuste le contexte ou la structure.');
+        }
+        defaults.STRENGTH = proposal.selected_exercises.map((item) => item.id);
         setStrengthAssessment(proposal);
         setStrengthAssessmentError(false);
       } else {
@@ -956,18 +960,22 @@ export default function WeekComposerV7() {
     if (loading || step !== 5 || !architecture || !Object.keys(selectionMap).length) return undefined;
     let active = true;
     const draft = buildCurrentDraft();
+    const draftSignature = JSON.stringify(draft);
     const selectedNames = referenceEquipment
       .filter((item) => equipmentIds.includes(String(item.id)))
       .map((item) => item.name).filter(Boolean);
     setPreviewLoading(true);
     setPreviewError(false);
     setPreviewIssue(null);
+    setPreviewSignature(null);
     setPrescriptionPreview(null);
     getComposerPrescriptionPreview({ draft, equipmentNames: selectedNames })
       .then((result) => {
         if (!active) return;
         setPrescriptionPreview(result?.status === 'PREVIEW' ? result : null);
+        setPreviewSignature(result?.status === 'PREVIEW' ? draftSignature : null);
         setPreviewIssue(result?.status === 'NEEDS_RECOMPOSITION' ? result : null);
+        if (!['PREVIEW', 'NEEDS_RECOMPOSITION'].includes(result?.status)) setPreviewError(true);
       })
       .catch((reason) => {
         if (active) {
@@ -1019,7 +1027,7 @@ export default function WeekComposerV7() {
     try {
       setBusy(true);
       setError('');
-      if (!prescriptionPreview || previewLoading || previewIssue || strengthAssessmentError
+      if (!prescriptionPreview || JSON.stringify(buildCurrentDraft()) !== previewSignature || previewLoading || previewIssue || strengthAssessmentError
           || (architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH')
              && (strengthAssessmentLoading || strengthAssessment?.status !== 'READY')) {
         throw new Error('La composition doit être validée par le moteur sportif avant enregistrement.');
@@ -1422,7 +1430,7 @@ export default function WeekComposerV7() {
 
           {step === 5 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="RÉCAPITULATIF" title="Ta séance est construite." helper={`${duration} min · ${environmentLabel(environmentCode)} · ≈ ${estimatedMinutes} min avec transitions.`} styles={styles} />
+              <StageHeader kicker="RÉCAPITULATIF" title="Ta séance en détail." helper={`${duration} min prévues · ${environmentLabel(environmentCode)} · mouvements et repos calculés.`} styles={styles} />
               <Text style={styles.recapHelp}>Warm-up et Tabata sont inclus dans la durée. Tu peux modifier chaque bloc.</Text>
               {previewLoading ? (
                 <View style={styles.previewState}>
@@ -1440,6 +1448,14 @@ export default function WeekComposerV7() {
                 </View>
               ) : previewError ? (
                 <Text style={styles.previewWarning}>Prévision indisponible : vérifie la connexion avant de valider.</Text>
+              ) : null}
+              {previewIssue ? (
+                <PrimaryButton
+                  label="ADAPTER LA STRUCTURE"
+                  onPress={() => setStep(2)}
+                  styles={styles}
+                  colors={colors}
+                />
               ) : null}
               <View style={styles.recapCard}>
                 {(architecture?.blocks ?? []).map((item) => (
@@ -1483,7 +1499,7 @@ export default function WeekComposerV7() {
               <PrimaryButton
                 label={busy ? 'ENREGISTREMENT…' : 'VALIDER MA SÉANCE'}
                 onPress={addToWeek}
-                disabled={busy || previewLoading || !prescriptionPreview || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && strengthAssessment?.status !== 'READY')}
+                disabled={busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && strengthAssessment?.status !== 'READY')}
                 loading={busy}
                 styles={styles}
                 colors={colors}
