@@ -492,10 +492,11 @@ export function selectComposerDefaultExercises({
 export async function getComposerStrengthAutoPick({
   candidates, sessionMinutes, blockMinutes, progressionIntent = 'MAINTAIN',
   equipmentNames = [], focus = 'Strength', targetRegion = null,
+  environmentCode = 'BOX',
 } = {}) {
   const user = await getAuthenticatedUserWithRetry();
   return runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc('week_composer_strength_autopick_v1', {
+    supabase.rpc('week_composer_strength_autopick_v2', {
       p_user_id: user.id,
       p_candidate_exercises: candidates,
       p_session_minutes: sessionMinutes,
@@ -504,6 +505,7 @@ export async function getComposerStrengthAutoPick({
       p_equipment_names: equipmentNames,
       p_focus: focus,
       p_target_region: targetRegion,
+      p_environment_code: environmentCode,
     })
   );
 }
@@ -511,10 +513,11 @@ export async function getComposerStrengthAutoPick({
 export async function getComposerStrengthAssessment({
   exercises, sessionMinutes, blockMinutes, progressionIntent = 'MAINTAIN',
   equipmentNames = [], focus = 'Strength', targetRegion = null,
+  environmentCode = 'BOX',
 } = {}) {
   const user = await getAuthenticatedUserWithRetry();
   return runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc('week_composer_strength_authority_v1', {
+    supabase.rpc('week_composer_strength_authority_v2', {
       p_user_id: user.id,
       p_exercises: exercises,
       p_session_minutes: sessionMinutes,
@@ -523,6 +526,7 @@ export async function getComposerStrengthAssessment({
       p_equipment_names: equipmentNames,
       p_focus: focus,
       p_target_region: targetRegion,
+      p_environment_code: environmentCode,
       p_readiness: 'normal',
     })
   );
