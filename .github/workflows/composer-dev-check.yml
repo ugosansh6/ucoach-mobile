@@ -8,7 +8,9 @@ on:
     paths:
       - 'src/workout/WeekComposerV7.js'
       - 'src/services/composerService.js'
+      - 'src/services/workoutGenerationService.js'
       - 'supabase/migrations/*week_composer*'
+      - 'supabase/migrations/*composer*'
       - '.github/workflows/composer-dev-check.yml'
 
 permissions:
