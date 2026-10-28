@@ -206,10 +206,9 @@ export function composerExerciseSlotLimit(blockType, blockMinutes = 0) {
   if (blockType === 'WOD') return 3;
   if (blockType === 'SKILL') return 2;
   if (blockType === 'STRENGTH') {
-    if (minutes >= 50) return 5;
-    if (minutes >= 35) return 4;
-    if (minutes >= 25) return 3;
-    return 2;
+    // Eight is the existing Composer draft/compiler payload safety limit,
+    // NOT an exercise recommendation. Count/sets/rest are owned by C2/C4.
+    return 8;
   }
   return 2;
 }
