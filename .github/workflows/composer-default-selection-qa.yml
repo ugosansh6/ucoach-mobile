@@ -6,6 +6,9 @@ on:
       - 'src/workout/WeekComposerV7.js'
       - 'src/services/composerService.js'
       - 'scripts/qa-composer-selection.cjs'
+      - 'scripts/qa-composer-shared-engine.cjs'
+      - 'src/services/workoutGenerationService.js'
+      - 'supabase/migrations/*composer*'
       - '.github/workflows/composer-default-selection-qa.yml'
 
 permissions:
@@ -22,3 +25,5 @@ jobs:
           node-version: '22'
       - name: Regression tests for exercise selection and budget
         run: node scripts/qa-composer-selection.cjs
+      - name: Shared C2/C4 engine contract and safety guards
+        run: node scripts/qa-composer-shared-engine.cjs

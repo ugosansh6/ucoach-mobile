@@ -34,6 +34,8 @@ import {
   getComposerExerciseCandidates,
   getComposerMechanicOptions,
   getComposerPrescriptionPreview,
+  getComposerStrengthAutoPick,
+  getComposerStrengthAssessment,
   getComposerCandidateEvidence,
   rankComposerCandidates,
   selectComposerDefaultExercises,
@@ -593,6 +595,11 @@ export default function WeekComposerV7() {
   const [prescriptionPreview, setPrescriptionPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(false);
+  const [previewIssue, setPreviewIssue] = useState(null);
+  const [previewSignature, setPreviewSignature] = useState(null);
+  const [strengthAssessment, setStrengthAssessment] = useState(null);
+  const [strengthAssessmentLoading, setStrengthAssessmentLoading] = useState(false);
+  const [strengthAssessmentError, setStrengthAssessmentError] = useState(false);
   const [showAllMechanics, setShowAllMechanics] = useState(false);
 
   async function loadEquipmentForEnvironment(code, catalog = equipmentCatalog) {
@@ -813,6 +820,28 @@ export default function WeekComposerV7() {
           (block) => [block.type, maxForBlock(block.type, block.minutes)]
         )),
       });
+      const strength = (architecture.blocks ?? []).find((block) => block.type === 'STRENGTH');
+      if (strength) {
+        const ordered = (defaults.STRENGTH ?? []).map((id) => candidatesByBlock.STRENGTH.find((x) => x.id === id))
+          .filter(Boolean).map((exercise) => ({ id: exercise.id, name: exercise.name }));
+        if (!ordered.length) throw new Error('Aucun mouvement de renforcement compatible avec le contexte.');
+        // The engine, not the screen, decides how many movements fit this block.
+        const proposal = await getComposerStrengthAutoPick({
+          candidates: ordered, sessionMinutes: duration, blockMinutes: strength.minutes,
+          progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
+          equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
+          targetRegion: targetRegion ?? intent?.targetRegion ?? null,
+          environmentCode,
+        });
+        if (!Array.isArray(proposal?.selected_exercises) || !proposal.selected_exercises.length) {
+          throw new Error('Le moteur n’a pas pu composer le renforcement. Ajuste le contexte ou la structure.');
+        }
+        defaults.STRENGTH = proposal.selected_exercises.map((item) => item.id);
+        setStrengthAssessment(proposal);
+        setStrengthAssessmentError(false);
+      } else {
+        setStrengthAssessment(null);
+      }
       setCandidateMap(candidatesByBlock);
       setCandidateEvidence(observations);
       setSelectionMap(defaults);
@@ -932,14 +961,23 @@ export default function WeekComposerV7() {
     if (loading || step !== 5 || !architecture || !Object.keys(selectionMap).length) return undefined;
     let active = true;
     const draft = buildCurrentDraft();
+    const draftSignature = JSON.stringify(draft);
     const selectedNames = referenceEquipment
       .filter((item) => equipmentIds.includes(String(item.id)))
       .map((item) => item.name).filter(Boolean);
     setPreviewLoading(true);
     setPreviewError(false);
+    setPreviewIssue(null);
+    setPreviewSignature(null);
     setPrescriptionPreview(null);
     getComposerPrescriptionPreview({ draft, equipmentNames: selectedNames })
-      .then((result) => { if (active) setPrescriptionPreview(result?.status === 'PREVIEW' ? result : null); })
+      .then((result) => {
+        if (!active) return;
+        setPrescriptionPreview(result?.status === 'PREVIEW' ? result : null);
+        setPreviewSignature(result?.status === 'PREVIEW' ? draftSignature : null);
+        setPreviewIssue(result?.status === 'NEEDS_RECOMPOSITION' ? result : null);
+        if (!['PREVIEW', 'NEEDS_RECOMPOSITION'].includes(result?.status)) setPreviewError(true);
+      })
       .catch((reason) => {
         if (active) {
           console.warn('[Composer] C2 preview unavailable', reason);
@@ -951,10 +989,51 @@ export default function WeekComposerV7() {
   }, [loading, step, architecture, selectionMap, candidateMap, mechanic,
       referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey]);
 
+  // Every manual replacement triggers the same server-side C2/C4/time budget
+  // check as automatic selection and recap. Never silently fill unused time.
+  useEffect(() => {
+    if (loading || !architecture || ![3, 4, 5].includes(step)) return undefined;
+    const strength = architecture.blocks?.find((block) => block.type === 'STRENGTH');
+    if (!strength) return undefined;
+    const ids = selectionMap.STRENGTH ?? [];
+    if (!ids.length) {
+      setStrengthAssessment(null);
+      return undefined;
+    }
+    let active = true;
+    setStrengthAssessmentLoading(true);
+    setStrengthAssessmentError(false);
+    getComposerStrengthAssessment({
+      exercises: ids.map((id) => {
+        const row = (candidateMap.STRENGTH ?? []).find((x) => x.id === id);
+        return { id, name: row?.name ?? id };
+      }),
+      sessionMinutes: duration, blockMinutes: strength.minutes,
+      progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
+      equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
+      targetRegion: targetRegion ?? intent?.targetRegion ?? null,
+      environmentCode,
+    }).then((result) => { if (active) setStrengthAssessment(result); })
+      .catch((err) => {
+        if (active) {
+          console.warn('[Composer] shared strength authority failed', err);
+          setStrengthAssessmentError(true);
+          setStrengthAssessment(null);
+        }
+      }).finally(() => { if (active) setStrengthAssessmentLoading(false); });
+    return () => { active = false; };
+  }, [loading, step, architecture, selectionMap.STRENGTH, candidateMap.STRENGTH,
+      duration, equipmentIds, referenceEquipment, intent, targetRegion, environmentCode]);
+
   async function addToWeek() {
     try {
       setBusy(true);
       setError('');
+      if (!prescriptionPreview || JSON.stringify(buildCurrentDraft()) !== previewSignature || previewLoading || previewIssue || strengthAssessmentError
+          || (architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH')
+             && (strengthAssessmentLoading || strengthAssessment?.status !== 'READY')) {
+        throw new Error('La composition doit être validée par le moteur sportif avant enregistrement.');
+      }
       const context = {
         duration_minutes: duration,
         environment_code: environmentCode,
@@ -969,9 +1048,6 @@ export default function WeekComposerV7() {
       }
       if (!planItemId) throw new Error('Impossible de créer le créneau de semaine.');
 
-      if (!prescriptionPreview || previewLoading) {
-        throw new Error('Le calcul de la séance est encore indisponible. Attends la prescription avant de valider.');
-      }
       const draft = { ...buildCurrentDraft(), prescription_preview: prescriptionPreview };
       await saveComposerDraft({ planItemId, draft });
       if (router.canGoBack()) router.back();
@@ -1253,17 +1329,24 @@ export default function WeekComposerV7() {
                 ))}
               </ScrollView>
 
-              <Text style={styles.selectionCount}>{activeSelected.length} / {maxForBlock(activeBlock.type, activeBlock.minutes)} {activeSelected.length > 1 ? 'sélectionnés' : 'sélectionné'}</Text>
-              {activeBlock.type === 'STRENGTH'
-                && activeBlock.minutes >= 35
-                && activeSelected.length < 3 ? (
-                  <View style={styles.structureExplanation}>
-                    <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
-                    <Text style={styles.structureExplanationText}>
-                      {activeBlock.minutes} min de renforcement : diversifie les mouvements pour couvrir le bloc, ou ajuste la structure.
-                    </Text>
-                  </View>
-                ) : null}
+              <Text style={styles.selectionCount}>
+                {activeBlock.type === 'STRENGTH'
+                  ? activeSelected.length + ' mouvements retenus · calcul C2/C4'
+                  : activeSelected.length + ' / ' + maxForBlock(activeBlock.type, activeBlock.minutes) + ' sélectionnés'}
+              </Text>
+              {activeBlock.type === 'STRENGTH' ? (
+                <View style={styles.structureExplanation}>
+                  <Ionicons name="time-outline" size={18} color={colors.accent} />
+                  <Text style={styles.structureExplanationText}>
+                    {strengthAssessmentLoading ? 'UGEROD vérifie le dosage et les récupérations…'
+                      : strengthAssessmentError ? 'Calcul sportif indisponible. Vérifie ta connexion.'
+                        : strengthAssessment?.time
+                          ? (Math.round(Number(strengthAssessment.time.prescribed_seconds ?? 0) / 60) + ' min de travail estimées pour ' + activeBlock.minutes + ' min prévues. ' +
+                            (strengthAssessment.status === 'READY' ? 'Durée compatible.' : 'Ajoute des mouvements ou choisis une autre structure.'))
+                          : 'Choisis des mouvements pour évaluer le temps réel.'}
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.exerciseList}>
                 {selectedCandidateObjects.map((exercise) => (
                   <ExerciseCard
@@ -1349,7 +1432,7 @@ export default function WeekComposerV7() {
 
           {step === 5 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="RÉCAPITULATIF" title="Ta séance est construite." helper={`${duration} min · ${environmentLabel(environmentCode)} · ≈ ${estimatedMinutes} min avec transitions.`} styles={styles} />
+              <StageHeader kicker="RÉCAPITULATIF" title="Ta séance en détail." helper={`${duration} min prévues · ${environmentLabel(environmentCode)} · mouvements et repos calculés.`} styles={styles} />
               <Text style={styles.recapHelp}>Warm-up et Tabata sont inclus dans la durée. Tu peux modifier chaque bloc.</Text>
               {previewLoading ? (
                 <View style={styles.previewState}>
@@ -1358,8 +1441,23 @@ export default function WeekComposerV7() {
                 </View>
               ) : prescriptionPreview ? (
                 <Text style={styles.previewNote}>Prescription C2 prévisionnelle · le jour J, la forme et les gênes pourront entraîner des ajustements.</Text>
+              ) : previewIssue ? (
+                <View style={styles.structureExplanation}>
+                  <Ionicons name="alert-circle-outline" size={18} color={colors.secondaryAccent} />
+                  <Text style={styles.structureExplanationText}>
+                    Le bloc Renforcement ne couvre pas sa durée : {Math.round(Number(previewIssue.time?.prescribed_seconds ?? 0) / 60)} min de travail estimées pour {previewIssue.block_minutes} min prévues. Reviens ajuster les mouvements ou la structure.
+                  </Text>
+                </View>
               ) : previewError ? (
                 <Text style={styles.previewWarning}>Prévision indisponible : vérifie la connexion avant de valider.</Text>
+              ) : null}
+              {previewIssue ? (
+                <PrimaryButton
+                  label="ADAPTER LA STRUCTURE"
+                  onPress={() => setStep(2)}
+                  styles={styles}
+                  colors={colors}
+                />
               ) : null}
               <View style={styles.recapCard}>
                 {(architecture?.blocks ?? []).map((item) => (
@@ -1403,7 +1501,7 @@ export default function WeekComposerV7() {
               <PrimaryButton
                 label={busy ? 'ENREGISTREMENT…' : 'VALIDER MA SÉANCE'}
                 onPress={addToWeek}
-                disabled={busy || previewLoading || !prescriptionPreview}
+                disabled={busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && strengthAssessment?.status !== 'READY')}
                 loading={busy}
                 styles={styles}
                 colors={colors}

@@ -206,10 +206,9 @@ export function composerExerciseSlotLimit(blockType, blockMinutes = 0) {
   if (blockType === 'WOD') return 3;
   if (blockType === 'SKILL') return 2;
   if (blockType === 'STRENGTH') {
-    if (minutes >= 50) return 5;
-    if (minutes >= 35) return 4;
-    if (minutes >= 25) return 3;
-    return 2;
+    // Eight is the existing Composer draft/compiler payload safety limit,
+    // NOT an exercise recommendation. Count/sets/rest are owned by C2/C4.
+    return 8;
   }
   return 2;
 }
@@ -483,6 +482,54 @@ export function selectComposerDefaultExercises({
     }
   }
   return defaults;
+}
+
+/**
+ * Strength-only adapter. The count, C4 sets/rest and time fit are produced
+ * by the same backend authority used in recap preview and Day-J compilation.
+ * Never infer the number of movements from duration in the UI.
+ */
+export async function getComposerStrengthAutoPick({
+  candidates, sessionMinutes, blockMinutes, progressionIntent = 'MAINTAIN',
+  equipmentNames = [], focus = 'Strength', targetRegion = null,
+  environmentCode = 'BOX',
+} = {}) {
+  const user = await getAuthenticatedUserWithRetry();
+  return runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_composer_strength_autopick_v2', {
+      p_user_id: user.id,
+      p_candidate_exercises: candidates,
+      p_session_minutes: sessionMinutes,
+      p_block_minutes: blockMinutes,
+      p_progression_intent: progressionIntent,
+      p_equipment_names: equipmentNames,
+      p_focus: focus,
+      p_target_region: targetRegion,
+      p_environment_code: environmentCode,
+    })
+  );
+}
+
+export async function getComposerStrengthAssessment({
+  exercises, sessionMinutes, blockMinutes, progressionIntent = 'MAINTAIN',
+  equipmentNames = [], focus = 'Strength', targetRegion = null,
+  environmentCode = 'BOX',
+} = {}) {
+  const user = await getAuthenticatedUserWithRetry();
+  return runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('week_composer_strength_authority_v2', {
+      p_user_id: user.id,
+      p_exercises: exercises,
+      p_session_minutes: sessionMinutes,
+      p_block_minutes: blockMinutes,
+      p_progression_intent: progressionIntent,
+      p_equipment_names: equipmentNames,
+      p_focus: focus,
+      p_target_region: targetRegion,
+      p_environment_code: environmentCode,
+      p_readiness: 'normal',
+    })
+  );
 }
 
 export async function getComposerPrescriptionPreview({ draft, equipmentNames = [] } = {}) {

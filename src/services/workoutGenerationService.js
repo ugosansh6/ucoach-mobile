@@ -394,17 +394,27 @@ export async function finalizeComposerWorkoutSession({
     ? preparation.painZones.filter(Boolean) : [];
   if (!painZones.length) throw new Error('Confirme les gênes du jour avant de lancer ta séance.');
   const equipped = selectedEquipmentNames(preparation);
-  const result = await runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc('week_compile_composer_day_j_v1', {
-      p_user_id: user.id,
-      p_plan_item_id: planItemId,
-      p_local_date: localDate,
-      p_readiness: Math.round(Number(preparation?.readiness ?? 6)),
-      p_pain_zones: painZones,
-      p_available_equipment: equipped,
-      p_environment_code: normalizeEnvironment(preparation?.environmentCode),
-    })
-  );
+  let result;
+  try {
+    result = await runSupabaseRequestWithAuthRetry(() =>
+      supabase.rpc('week_compile_composer_day_j_v1', {
+        p_user_id: user.id,
+        p_plan_item_id: planItemId,
+        p_local_date: localDate,
+        p_readiness: Math.round(Number(preparation?.readiness ?? 6)),
+        p_pain_zones: painZones,
+        p_available_equipment: equipped,
+        p_environment_code: normalizeEnvironment(preparation?.environmentCode),
+      })
+    );
+  } catch (cause) {
+    if (String(cause?.message ?? cause).includes('COMPOSER_STRENGTH_RECOMPOSITION_REQUIRED')) {
+      const error = new Error('La forme du jour ou le matériel modifie le dosage : la séance personnalisée doit être ajustée dans Ma semaine avant de commencer.');
+      error.code = 'COMPOSER_NEEDS_RECOMPOSITION';
+      throw error;
+    }
+    throw cause;
+  }
   if (result?.status === 'OTHER_SESSION_ACTIVE') {
     return {
       controlStatus: 'COMPOSER_OTHER_SESSION_ACTIVE',

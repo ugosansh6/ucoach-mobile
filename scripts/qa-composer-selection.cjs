@@ -20,7 +20,7 @@ function section(start, end) {
 const tested = [
   section('function wodLabel(minutes)', 'function block(type'),
   section('function block(type', '/**\n * MSW-036'),
-  section('export function rankComposerCandidates', 'export async function getComposerPrescriptionPreview'),
+  section('export function rankComposerCandidates', 'export async function getComposerStrengthAutoPick'),
 ].join('\n');
 const context = vm.createContext({});
 vm.runInContext(tested + '\nglobalThis.tested = { buildComposerArchitectures, composerBlockDisplayLabel, composerArchitectureDisplayTitle, composerArchitecturePurpose, composerExerciseSlotLimit, rankComposerCandidates, selectComposerDefaultExercises };', context);
@@ -96,12 +96,10 @@ check('Empty or incomplete catalogue does not invent a selection', () => {
   assert.equal(getDefaults({ STRENGTH: [row] }).STRENGTH.join(','), 'row');
 });
 
-check('Strength exercise capacity scales with its actual block minutes (not whole session)', () => {
-  assert.equal(composerExerciseSlotLimit('STRENGTH', 14), 2);
-  assert.equal(composerExerciseSlotLimit('STRENGTH', 21), 2);
-  assert.equal(composerExerciseSlotLimit('STRENGTH', 30), 3);
-  assert.equal(composerExerciseSlotLimit('STRENGTH', 45), 4);
-  assert.equal(composerExerciseSlotLimit('STRENGTH', 60), 5);
+check('Strength capacity is a backend contract safety ceiling, never a duration quota', () => {
+  for (const minutes of [14, 21, 30, 45, 60]) {
+    assert.equal(composerExerciseSlotLimit('STRENGTH', minutes), 8);
+  }
   assert.equal(composerExerciseSlotLimit('SKILL', 45), 2);
   assert.equal(composerExerciseSlotLimit('WOD', 30), 3);
 });
@@ -111,7 +109,7 @@ check('Four complementary movements can be picked for a 45-minute Strength block
   const candidates = [push, diamond, row, squat, hinge];
   const slots = composerExerciseSlotLimit('STRENGTH', 45);
   const selected = getDefaults({ STRENGTH: candidates }, {}, { STRENGTH: slots });
-  assert.equal(selected.STRENGTH.length, 4);
+  assert.equal(selected.STRENGTH.length, 4); // four distinct patterns, not an enforced time-based quota
   assert.equal(new Set(selected.STRENGTH).size, 4);
   assert.equal(selected.STRENGTH.includes('diamond'), false);
   const patterns = candidates.filter((x) => selected.STRENGTH.includes(x.id)).map(x => x.movementPattern);
