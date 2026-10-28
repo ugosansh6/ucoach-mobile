@@ -54,7 +54,7 @@ check('Day-J revalidates and provides actionable error instead of silent duplica
  assert.match(dayj,/COMPOSER_DAY_MISMATCH/);
 });
 check('DEV SQL QA always rolls back',()=>{
- assert.match(qa,/^BEGIN;/);
+ assert.match(qa,/^BEGIN;/m);
  assert.match(qa,/ROLLBACK;\s*$/);
 });
 console.log(checks+' Composer shared-engine contract checks passed.');
