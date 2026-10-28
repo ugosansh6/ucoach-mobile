@@ -831,6 +831,7 @@ export default function WeekComposerV7() {
           progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
           equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
           targetRegion: targetRegion ?? intent?.targetRegion ?? null,
+          environmentCode,
         });
         if (!Array.isArray(proposal?.selected_exercises) || !proposal.selected_exercises.length) {
           throw new Error('Le moteur n’a pas pu composer le renforcement. Ajuste le contexte ou la structure.');
@@ -1011,6 +1012,7 @@ export default function WeekComposerV7() {
       progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
       equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
       targetRegion: targetRegion ?? intent?.targetRegion ?? null,
+      environmentCode,
     }).then((result) => { if (active) setStrengthAssessment(result); })
       .catch((err) => {
         if (active) {
@@ -1021,7 +1023,7 @@ export default function WeekComposerV7() {
       }).finally(() => { if (active) setStrengthAssessmentLoading(false); });
     return () => { active = false; };
   }, [loading, step, architecture, selectionMap.STRENGTH, candidateMap.STRENGTH,
-      duration, equipmentIds, referenceEquipment, intent, targetRegion]);
+      duration, equipmentIds, referenceEquipment, intent, targetRegion, environmentCode]);
 
   async function addToWeek() {
     try {
