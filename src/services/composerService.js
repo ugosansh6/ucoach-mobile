@@ -168,6 +168,52 @@ export function composerArchitectureDisplayTitle(option, environmentCode = 'BOX'
   return labels[0] + (['Musculation', 'Force', 'Technique'].includes(labels[0]) ? ' seule' : ' seul');
 }
 
+/**
+ * One sentence per structure: explain the actual training outcome, not just
+ * the technical block code. Particularly important for Skill vs Strength.
+ */
+export function composerArchitecturePurpose(option) {
+  const types = (option?.blocks ?? [])
+    .filter((block) => !['WARMUP', 'TABATA'].includes(block.type))
+    .map((block) => block.type);
+  if (types.includes('SKILL')) {
+    return types.includes('WOD')
+      ? 'Technique : apprendre un geste, puis passer au WOD.'
+      : 'Technique : apprendre ou perfectionner un geste.';
+  }
+  if (types.includes('STRENGTH')) {
+    return types.includes('WOD')
+      ? 'Force et muscles, puis effort plus intense.'
+      : 'Force et muscles : séries, répétitions et récupération.';
+  }
+  if (types.includes('WOD')) return 'Conditioning : effort cardio et musculaire.';
+  return 'Entraînement personnalisé selon ton contexte.';
+}
+
+/**
+ * Dynamic movement capacity for the Composer, not a required exercise quota.
+ * A 45-minute Strength block can contain four complementary patterns,
+ * unlike a 14/21-minute Strength block. Skill is intentionally NOT scaled
+ * with length: a complex technique may be practiced for a long time.
+ *
+ * No duplicate patterns are invented by default to fill available slots.
+ * The C2 preview remains authoritative for reps, sets, load and rest.
+ */
+export function composerExerciseSlotLimit(blockType, blockMinutes = 0) {
+  const minutes = Math.max(0, Number(blockMinutes) || 0);
+  if (blockType === 'WARMUP') return 3;
+  if (blockType === 'TABATA') return 2;
+  if (blockType === 'WOD') return 3;
+  if (blockType === 'SKILL') return 2;
+  if (blockType === 'STRENGTH') {
+    if (minutes >= 50) return 5;
+    if (minutes >= 35) return 4;
+    if (minutes >= 25) return 3;
+    return 2;
+  }
+  return 2;
+}
+
 function block(type, minutes, label = null) {
   return {
     type,
