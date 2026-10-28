@@ -20,7 +20,7 @@ function section(start, end) {
 const tested = [
   section('function wodLabel(minutes)', 'function block(type'),
   section('function block(type', '/**\n * MSW-036'),
-  section('export function rankComposerCandidates', 'export async function getComposerPrescriptionPreview'),
+  section('export function rankComposerCandidates', 'export async function getComposerStrengthAutoPick'),
 ].join('\n');
 const context = vm.createContext({});
 vm.runInContext(tested + '\nglobalThis.tested = { buildComposerArchitectures, composerBlockDisplayLabel, composerArchitectureDisplayTitle, composerArchitecturePurpose, composerExerciseSlotLimit, rankComposerCandidates, selectComposerDefaultExercises };', context);
