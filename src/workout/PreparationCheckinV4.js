@@ -25,6 +25,7 @@ import {
   getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
 import { getComposerForLocalDate } from '../services/composerService';
+import ComposerMuscleSelector from './ComposerMuscleSelector';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -159,7 +160,7 @@ const FOCUS_OPTIONS = [
   { value: null, label: 'UGEROD choisit' },
   { value: 'Upper', label: 'Haut' },
   { value: 'Lower', label: 'Jambes' },
-  { value: 'Core', label: 'Core' },
+  { value: 'Core', label: 'Abdos / gainage' },
   { value: 'Full Body', label: 'Full body' },
 ];
 
@@ -1031,22 +1032,7 @@ export default function PreparationCheckinV4() {
         <View style={styles.focusSection}>
           <Text style={styles.focusTitle}>Une envie aujourd’hui ?</Text>
           <Text style={styles.focusHelp}>Optionnel · UGEROD en tient compte.</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.focusRow}
-          >
-            {FOCUS_OPTIONS.map((item) => (
-              <ChoiceChip
-                key={item.label}
-                label={item.label}
-                selected={focus === item.value}
-                onPress={() => updatePreparation({ region: item.value })}
-                styles={styles}
-                colors={colors}
-              />
-            ))}
-          </ScrollView>
+          <ComposerMuscleSelector value={focus} onChange={(region) => updatePreparation({ region })} colors={colors} fontFamilies={{ ...MANROPE, medium: MANROPE.semiBold }} />
         </View>
 
         <View style={styles.sessionActions}>

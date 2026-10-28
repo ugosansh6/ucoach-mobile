@@ -141,7 +141,7 @@ function buildBlockStructure(blockId, source, exercises) {
 
     const parts = [];
     if (sets != null) parts.push(`${sets} séries`);
-    if (reps != null) parts.push(`${reps} reps`);
+    if (reps != null) parts.push(`${reps} reps${prescription?.reps_semantics === 'per_side' ? ' / côté' : ''}`);
     else if (work != null) parts.push(`${work}s`);
     if (rest != null) parts.push(`${rest}s repos`);
     return parts.join(' · ');
@@ -487,6 +487,21 @@ export default function SessionFocusedCore({
       return;
     }
 
+    if (activeBlock.id === 'warmup') {
+      const rounds = Math.max(3, Number(prescriptionObject(activeExercise)?.warmup_rounds) || 3);
+      const round = workout?.warmupRuntime?.sessionId === workout?.sessionId
+        ? Number(workout.warmupRuntime.round ?? 1) : 1;
+      if (activeExerciseIndex >= activeBlock.exercises.length - 1 && round < rounds) {
+        updateWorkout({ warmupRuntime: { sessionId: workout.sessionId, round: round + 1 } });
+        setExerciseIndexes((current) => ({ ...current, warmup: 0 }));
+        return;
+      }
+      if (round < rounds) {
+        moveExercise(1);
+        return;
+      }
+    }
+
     if (activeExerciseIndex >= activeBlock.exercises.length - 1) {
       await completeBlock(activeBlock);
       return;
@@ -746,7 +761,9 @@ export default function SessionFocusedCore({
   const exercisePrescription =
     activeBlock?.id === 'skill' && activeBlock?.structure
       ? activeBlock.structure
-      : activeExercise?.prescription ?? null;
+      : activeBlock?.id === 'warmup'
+        ? `Tour ${workout?.warmupRuntime?.sessionId === workout?.sessionId ? workout.warmupRuntime.round ?? 1 : 1} / ${Math.max(3, Number(prescriptionObject(activeExercise)?.warmup_rounds) || 3)} · ${activeExercise?.prescription ?? ''}`
+        : activeExercise?.prescription ?? null;
   const objectiveText =
     activeBlock?.id === 'skill'
       ? activeBlock?.skillContract?.success_signal ??
@@ -1018,7 +1035,10 @@ export default function SessionFocusedCore({
             >
               <Ionicons name="checkmark-circle-outline" size={20} color={colors.textOnAccent} />
               <Text style={styles.primaryButtonTextLarge}>
-                {activeExerciseIndex >= activeBlock.exercises.length - 1
+                {activeBlock.id === 'warmup' && activeExerciseIndex >= activeBlock.exercises.length - 1 &&
+                  (workout?.warmupRuntime?.sessionId === workout?.sessionId ? Number(workout.warmupRuntime.round ?? 1) : 1) < Math.max(3, Number(prescriptionObject(activeExercise)?.warmup_rounds) || 3)
+                  ? 'Tour réalisé · tour suivant'
+                  : activeExerciseIndex >= activeBlock.exercises.length - 1
                   ? activeBlock.id === 'skill'
                     ? 'Réalisé · terminer le Skill'
                     : 'Réalisé · terminer le bloc'

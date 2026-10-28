@@ -2293,6 +2293,11 @@ export default function EnvironmentSessionCore({
 
   function markSimpleExerciseCompleted(exercise) {
     if (!exercise) return;
+    if (currentKey === 'warm_up' || currentKey === 'warmup') {
+      const round = workout?.warmupRuntime?.sessionId === workout?.sessionId ? Number(workout.warmupRuntime.round ?? 1) : 1;
+      const rounds = Math.max(3, Number(currentBlock?.warmup_rounds) || 3);
+      if (round < rounds) return;
+    }
 
     writeExerciseUpdates({
       [exerciseKey(exercise)]: {
@@ -2319,6 +2324,14 @@ export default function EnvironmentSessionCore({
   }
 
   function completeSimpleBlock(terminalExercise = null, terminalStatus = 'completed') {
+    if (currentKey === 'warm_up' || currentKey === 'warmup') {
+      const round = workout?.warmupRuntime?.sessionId === workout?.sessionId ? Number(workout.warmupRuntime.round ?? 1) : 1;
+      const rounds = Math.max(3, Number(currentBlock?.warmup_rounds) || 3);
+      if (round < rounds) {
+        updateWorkout({ warmupRuntime: { sessionId: workout.sessionId, round: round + 1 } });
+        return;
+      }
+    }
     const updates = {};
     const terminalKey = exerciseKey(terminalExercise);
 
@@ -2606,6 +2619,8 @@ export default function EnvironmentSessionCore({
         blockCount={blocks.length}
         title={blockTitle(currentBlock, currentKey.toUpperCase())}
         meta={[
+          ['warmup', 'warm_up'].includes(currentKey)
+            ? `Tour ${workout?.warmupRuntime?.sessionId === workout?.sessionId ? workout.warmupRuntime.round ?? 1 : 1} / ${Math.max(3, Number(currentBlock?.warmup_rounds) || 3)}` : null,
           currentBlock?.structure ?? currentBlock?.execution_style?.label_fr ?? null,
           Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes) > 0
             ? `${Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes)} min`
@@ -2769,6 +2784,7 @@ export default function EnvironmentSessionCore({
           />
         ) : (
           <SimpleBlock
+            key={`${currentKey}:${workout?.warmupRuntime?.round ?? 1}`}
             block={currentBlock}
             exercises={currentExercises}
             onComplete={completeSimpleBlock}
