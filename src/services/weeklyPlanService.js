@@ -161,7 +161,15 @@ export async function removeWeekPlanItem({
     )
   );
 
-  return normalizeWeekRemoveResult(data);
+  const result = normalizeWeekRemoveResult(data);
+  // The RPC returns 200 also for JSON business statuses. Do not pretend that
+  // the item disappeared unless the server explicitly confirms its removal.
+  if (!result.removed || result.planItemId !== planItemId) {
+    const error = new Error('La séance n’a pas été retirée. Réessaie.');
+    error.code = 'WEEK_REMOVE_NOT_CONFIRMED';
+    throw error;
+  }
+  return result;
 }
 
 export async function updateWeekPlanItemContext({
@@ -438,6 +446,30 @@ function normalizeWeekMoveResult(data) {
     sequenceMutated: Boolean(source.sequence_mutated),
     refreshWith: source.refresh_with ?? 'week_read_contract_v1',
     raw: source,
+  };
+}
+
+/**
+ * Apply a server-confirmed removal immediately, independently of the
+ * (potentially slow) weekly coach replan/read refresh. No data is deleted
+ * locally before the server acknowledges removed=true.
+ */
+export function withConfirmedWeekRemoval(contract, planItemId) {
+  if (!contract || !planItemId) return contract;
+  const withoutRemoved = (items) => Array.isArray(items)
+    ? items.filter((item) => item?.planItemId !== planItemId)
+    : [];
+  const wasPlanned = [...(contract.items ?? []), ...(contract.contextItems ?? [])]
+    .some((item) => item?.planItemId === planItemId
+      && !['skipped', 'unrealized'].includes(String(item?.lifecycleStatus ?? '').toLowerCase()));
+  return {
+    ...contract,
+    items: withoutRemoved(contract.items),
+    contextItems: withoutRemoved(contract.contextItems),
+    visibleItems: withoutRemoved(contract.visibleItems),
+    planningSlotCount: Math.max(0,
+      Number(contract.planningSlotCount ?? (contract.items?.length ?? 0))
+      - (wasPlanned ? 1 : 0)),
   };
 }
 
