@@ -34,8 +34,9 @@ begin
     raise exception 'Regional coverage misclassified';
   end if;
   q:=public.c4_full_body_exposure_v1('[{"block_key":"tabata","duration_minutes":4,"exercises":[{"exercise_id":"EX087"}]}]');
-  if (q#>>'{regional_minutes,Core}')::numeric<>4 or (q->>'missing_count')::int<>2 then
-    raise exception 'Tabata excluded from coverage: %',q;
+  if (q#>>'{regional_minutes,Core}')::numeric<>0 or (q->>'missing_count')::int<>2
+     or (q->>'tabata_counted')::boolean is distinct from false then
+    raise exception 'Independent Tabata contaminated Skill/WOD coverage: %',q;
   end if;
 
   p:=public.c4_plan_full_session_v2(uid,'Strength',60,'low','Full Body','DELOAD','{}','[]',3,'Intermédiaire',8,'c4-final-default');

@@ -1,100 +1,90 @@
-# Full Body session balance — 28 October 2026
+# Full Body — Skill + WOD policy
 
-Full Body previously meant that no single regional restriction was applied.
-A session could combine a core Tabata, an eight-minute core curriculum and
-additional core WOD stations, or omit upper-body work entirely, while passing
-the existing WOD quality gate.
+This document describes the current rule, superseding the broader exposure and
+warm-up region-quota interpretation in the earlier migrations.
 
-The final active C4 V2 consumer now complements the protected Skill and Tabata
-inside the WOD. It includes both blocks when measuring regional exposure and
-groups all core patterns together. Movement pattern and family take precedence
-over the generic `Full Body` catalog label, so a jump does not manufacture
-upper-body coverage. Generic conditioning/mixed exercises are not credited
-with unproven coverage of every region.
+## Product rule
 
-The exposure value divides block time across exercises. It is a programming
-proxy, not measured active work, muscle load or a physiological score. Regional
-coverage takes priority over distribution; distribution is a soft comparison,
-not a forced equal split. If no safe, coherent improvement meets the existing
-quality-delta floor, the original plan remains available with a diagnostic.
+- The signature Tabata remains abs/core/gainage focused and independent.
+- Full Body balance concerns Skill + WOD, or the equivalent native training
+  blocks. Warm-up, Unlock, signature Tabata and separate cardio are excluded.
+- Cover upper and lower body and avoid concentrating the selectable training
+  work on one region. Core Skill work counts when present, but there is no
+  additional core quota in Skill/WOD: signature Tabata already has that role.
+- Preserve the selected learning target. Complement it through the WOD while
+  respecting pain, equipment, readiness, level, mechanics, workload and duration.
+- Derive specific preparation from the final Skill anchor and WOD exercises.
+  There is no independent Full Body region quota for the warm-up.
 
-The search loads the candidate pool once and compiles at most twelve diverse
-changes per pass, with at most three passes. Every accepted WOD is recompiled
-and rechecked against the existing equipment, pain, readiness, technical level,
-mechanic, workload and functional-group gates. Preparation and its final target
-metadata are then rebuilt from the final exercises. Unchanged multi-drill Skill
-curricula remain intact, including target + optional exploration in one family.
+The distribution value divides block time across exercises. It is a selection
+proxy, not measured active work, muscle load or a physiological score. It ranks
+safe alternatives; it does not override the existing C4 quality-delta floor.
+Unknown/mixed catalog movements are not credited with invented regional coverage.
 
-Upper, Lower, Core, failed plans and exact retests retain their contracts.
-The new helpers are invoker functions with fixed search paths and no client RPC
-permissions. The existing authenticated C4 wrapper remains the entry point.
+## Shared consumers
+
+| Environment | Selection blocks | Active consumer |
+|---|---|---|
+| Home / Box | Skill + WOD | Final C4 V2 planner and recalculation continuity |
+| Gym | Strength, the native equivalent of the WOD | Gym candidate ranking, repair and style recompilation |
+| Outdoor Functional Fitness | Gym/street Skill when present + final WOD | Final Outdoor V4 assembly under Outdoor equipment/surface gates |
+
+The signature Tabata is excluded in every case. Dedicated running-only formats
+keep their running protocol; when the selected format contains no functional
+WOD, the diagnostic explicitly reports that the Skill/WOD balance is not
+applicable. Running is not silently converted into a different workout format.
+
+Gym repair is recompiled through the Gym style compiler and checked again
+before adoption. Outdoor balancing uses the actual assembled street Skill and
+WOD, rather than a reference Skill that is absent from the delivered session.
+Separate running/cardio and signature blocks remain unchanged.
+
+## Preparation and continuity
+
+The final C4 consumer rebuilds preparation after the final exercise choices.
+For Full Body, the actual Skill anchor is prepared first, followed by distinct
+final WOD patterns before secondary Skill drills. Explicit regional sessions
+retain their prior ordering. Regression, equipment, environment and pain
+selection remain delegated to the existing preparation engine.
+
+Recalculation continuity may retain old exercises only while preserving the
+current Skill/WOD coverage and distribution. The final persisted diagnostic is
+recomputed from the delivered exercises.
 
 ## Validation
 
-All draft changes were tested in transactions that were rolled back:
+Targeted DEV checks passed in rolled-back transactions:
 
-- Reported 60-minute bodyweight/core stacking case: Crunch replaced with a
-  complementary upper-body exercise; Skill and Tabata preserved byte for byte.
-- Fresh 60-minute low-readiness Strength generation: upper/lower/core coverage,
-  WOD hard gates and unchanged-session safeguards passed.
-- HOME, 30 minutes, normal readiness, bodyweight: passed full plan contract.
-- HOME, 45 minutes, normal readiness, resistance band: passed full plan contract.
-- BOX, 45 minutes, high readiness, resistance band: passed full plan contract.
-- Regional session no-ops, exact retest protection, cross-user denial and
-  internal helper permissions passed.
-- The real adaptive generation/persistence route passed in a rolled-back
-  transaction, including persisted exercise rows and an exact match between
-  the final regional diagnostic and the final exercises.
-- Recalculation continuity cannot restore an old core-heavy WOD at the expense
-  of the new balance. A parent fixture containing Crunch was tested against a
-  freshly generated child; all inserted fixture rows were rolled back.
+- Tabata duration/content, Warm-up and Unlock cannot alter Skill/WOD exposure.
+- No extra core exercise is required in an otherwise balanced upper/lower WOD.
+- Gym Strength and Outdoor Skill aliases use the common policy.
+- Preparation references final Skill/WOD targets, with no regional quota or
+  influence from the chosen Tabata pair.
+- Full generation in Home, Box, Gym and Outdoor Functional Fitness preserves
+  core Tabata, regional coverage, declared equipment and final diagnostics.
+- Gym and Outdoor generation/persistence retain the policy in session payloads
+  and canonical exercise rows.
+- Authenticated public Gym/Supersets and Outdoor gateways were exercised, using
+  an allowed Outdoor surface; private internal functions remain non-public.
+- The reported core-stacking fixture, explicit regional no-ops, exact retests,
+  user ownership checks and recalculation continuity passed.
 
-Recalculation previously ran after planning and could restore old exercises.
-It now compares each proposed restoration against current whole-session
-coverage and distribution. Equally balanced continuity is retained; a
-restoration that loses a region or increases concentration is rejected. The
-diagnostic is refreshed from the final persisted exercises afterwards.
-
-The existing `backend_core_regression.sql` also ran against the unchanged DEV
-baseline. It stops at a pre-existing SAFE-001 catalog failure: EX578, EX579,
-EX580 and EX581 lack required hard-gate metadata. That independent catalog debt
-is not modified by this fix; the entire backend suite is not claimed green.
-
-Run the targeted suites with an existing QA profile:
+Run with an existing DEV QA profile, in the same connection:
 
 ```sql
 select set_config('ugerod.qa_user_id','<QA profile uuid>',false);
--- Then run supabase/tests/full_body_session_balance.sql and
--- supabase/tests/full_body_balance_matrix.sql, followed by
--- supabase/tests/full_body_recalculation_continuity.sql in the same connection.
+-- supabase/tests/full_body_skill_wod_policy.sql
+-- supabase/tests/full_body_environments_policy.sql
+-- supabase/tests/full_body_environment_persistence.sql
+-- supabase/tests/full_body_session_balance.sql
+-- supabase/tests/full_body_recalculation_continuity.sql
 ```
 
-The migration checks the inspected C4 wrapper hash before replacing it. A
-different environment or intervening backend change requires a rebase rather
-than silently overwriting its wrapper. Existing generated or started sessions
-are not rewritten by the migration; a new generation consumes the fix.
+The global backend regression suite remains blocked by pre-existing SAFE-001
+metadata gaps on EX578–EX581; the full backend suite is not claimed green.
 
-## Full Body warm-up coverage
-
-The 45-minute follow-up exposed another gap: the three-slot warm-up prepared
-two core Skill patterns before the WOD's upper-body movement, leaving its
-lunge without preparation. Whole-session WOD balance alone did not fix that.
-
-The preparation consumer now prioritizes final WOD targets for Full Body and
-covers distinct regions before spending a second slot on the same region.
-Core and anti-extension are grouped together. Explicit Upper/Lower/Core
-sessions retain their Skill-first target ordering. Candidate safety,
-regression and equipment selection still use the existing preparation engine.
-
-The reported warm-up changes from Flutter Kicks / knee plank / Pike Hold to
-Pike Hold / reverse lunge reach / Flutter Kicks. The Skill, Tabata, WOD,
-prescriptions outside the warm-up and block durations remain unchanged.
-A targeted suite verifies regional coverage, existing safety caps, explicit
-regional ordering and parity between persisted rows and the session payload.
-The earlier Full Body generation suite also passed with this consumer.
-
-The additional migration is active on DEV. The reported, still unstarted
-session's warm-up was refreshed after its status was locked and checked; all
-other blocks were verified unchanged. Future generations and recalculation
-warm-up refreshes share the corrected consumer. A targeted Skill remains a
-learning block; Full Body describes the distribution of the complete session.
+The migration targets DEV and checks the inspected function hashes before
+replacing consumers. It preserves existing function security settings and
+permissions and does not expose a new client RPC. Other environments require
+their own inspected migration baseline. Started and completed sessions are not
+rewritten.
