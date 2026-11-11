@@ -6,6 +6,11 @@ on:
       - 'src/workout/WeekComposerV7.js'
       - 'src/services/composerService.js'
       - 'scripts/qa-composer-selection.cjs'
+      - 'scripts/qa-session-quick-evolutions.cjs'
+      - 'scripts/qa-wod-hold-timer.cjs'
+      - 'app/workout/session.js'
+      - 'app/workout/session-focused-core.js'
+      - 'src/components/workout/WodProtocolPlayerV3.js'
       - '.github/workflows/composer-default-selection-qa.yml'
 
 permissions:
@@ -22,3 +27,7 @@ jobs:
           node-version: '22'
       - name: Regression tests for exercise selection and budget
         run: node scripts/qa-composer-selection.cjs
+      - name: Strength Player routing and Warm-up round regression
+        run: node scripts/qa-session-quick-evolutions.cjs
+      - name: Timed movement hold countdown regression
+        run: node scripts/qa-wod-hold-timer.cjs
