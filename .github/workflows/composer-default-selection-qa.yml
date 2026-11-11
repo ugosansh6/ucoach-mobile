@@ -11,6 +11,9 @@ on:
       - 'app/workout/session.js'
       - 'app/workout/session-focused-core.js'
       - 'src/components/workout/WodProtocolPlayerV3.js'
+      - 'scripts/qa-composer-shared-engine.cjs'
+      - 'src/services/workoutGenerationService.js'
+      - 'supabase/migrations/*composer*'
       - '.github/workflows/composer-default-selection-qa.yml'
 
 permissions:
@@ -27,6 +30,8 @@ jobs:
           node-version: '22'
       - name: Regression tests for exercise selection and budget
         run: node scripts/qa-composer-selection.cjs
+      - name: Shared C2/C4 engine contract and safety guards
+        run: node scripts/qa-composer-shared-engine.cjs
       - name: Strength Player routing and Warm-up round regression
         run: node scripts/qa-session-quick-evolutions.cjs
       - name: Timed movement hold countdown regression
