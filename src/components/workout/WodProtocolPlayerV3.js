@@ -661,6 +661,7 @@ export default function WodProtocolPlayerV3({
           {paused ? <View style={styles.pauseNotice}><Text style={styles.pauseNoticeText}>En pause</Text></View> : null}
 
           <RuntimeBody
+            paused={paused}
             mechanic={mechanic}
             variant={variant}
             params={params}
@@ -779,7 +780,7 @@ function RuntimeBody(props) {
   const {
     mechanic, variant, params, exercises, elapsed, totalSeconds, derived,
     completedRounds, manualStep, currentItemIndex, restRemaining,
-    onRound, onStep, onItem, onSet, onFailure, onDeckNext, styles, colors,
+    onRound, onStep, onItem, onSet, onFailure, onDeckNext, styles, colors, paused,
   } = props;
 
   if (mechanic === 'AMRAP') {
@@ -787,7 +788,7 @@ function RuntimeBody(props) {
     return <>
       <ProtocolRing value={remaining} total={totalSeconds} label="Temps restant" styles={styles} colors={colors} />
       <Metric value={completedRounds} label="Tours terminés" styles={styles} colors={colors} />
-      <WorkList exercises={exercises} styles={styles} colors={colors} />
+      <WorkList key={`${completedRounds}:${manualStep}`} exercises={exercises} styles={styles} colors={colors} elapsed={elapsed} paused={paused} />
       <Action label="Tour terminé" icon="checkmark" onPress={onRound} styles={styles} colors={colors} />
     </>;
   }
@@ -799,7 +800,7 @@ function RuntimeBody(props) {
         <Metric value={formatClock(totalSeconds)} label="Cap" styles={styles} colors={colors} />
         <Metric value={`${completedRounds} / ${Math.max(1, numberOr(params.rounds, 1))}`} label="Tours" styles={styles} colors={colors} />
       </View>
-      <WorkList exercises={exercises} styles={styles} colors={colors} />
+      <WorkList key={`${completedRounds}:${manualStep}`} exercises={exercises} styles={styles} colors={colors} elapsed={elapsed} paused={paused} />
       <Action label="Tour terminé" icon="checkmark" onPress={onRound} styles={styles} colors={colors} />
     </>;
   }
@@ -840,7 +841,7 @@ function RuntimeBody(props) {
     return <>
       <ProtocolRing value={derived.phaseRemaining ?? 0} total={derived.phaseDuration ?? 120} label={derived.label ?? 'Cycle'} styles={styles} colors={colors} />
       <Text style={styles.hint}>Réalise tout le travail ci-dessous puis récupère jusqu’au prochain départ.</Text>
-      <WorkList exercises={exercises} styles={styles} colors={colors} />
+      <WorkList key={`${completedRounds}:${manualStep}`} exercises={exercises} styles={styles} colors={colors} elapsed={elapsed} paused={paused} />
     </>;
   }
 
@@ -858,7 +859,7 @@ function RuntimeBody(props) {
     const rounds = Math.max(1, numberOr(params.rounds, 1));
     return <>
       <Metric value={`${Math.min(rounds, completedRounds + 1)} / ${rounds}`} label="Tour en cours" styles={styles} large />
-      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_rounds_seconds, restRemaining))} label="Récupération" phaseColor={colors.accent} styles={styles} colors={colors} /> : <WorkList exercises={exercises} styles={styles} colors={colors} />}
+      {restRemaining > 0 ? <ProtocolRing value={restRemaining} total={Math.max(1, numberOr(params.rest_between_rounds_seconds, restRemaining))} label="Récupération" phaseColor={colors.accent} styles={styles} colors={colors} /> : <WorkList key={`${completedRounds}:${manualStep}`} exercises={exercises} styles={styles} colors={colors} elapsed={elapsed} paused={paused} />}
       <Action label="Tour terminé" icon="checkmark" onPress={onRound} disabled={restRemaining > 0} styles={styles} colors={colors} />
     </>;
   }
@@ -947,7 +948,7 @@ function RuntimeBody(props) {
     </>;
   }
 
-  return <WorkList exercises={exercises} styles={styles} colors={colors} />;
+  return <WorkList key={`${completedRounds}:${manualStep}`} exercises={exercises} styles={styles} colors={colors} elapsed={elapsed} paused={paused} />;
 }
 
 function ProtocolRing({ value, total, label, countUp = false, phaseColor = null, styles, colors }) {
@@ -996,8 +997,49 @@ function CurrentExercise({ exercise, nextExercise, prescriptionOverride = null, 
   </View>;
 }
 
-function WorkList({ exercises, styles }) {
-  return <View style={styles.workList}>{exercises.map((exercise, index) => <View key={exercise?._uiKey ?? exercise?.sessionExerciseId ?? exercise?.id ?? index} style={styles.workRow}><Text style={styles.workName}>{exercise?.name ?? 'Exercice'}</Text><Text style={styles.workPrescription}>{exercisePrescription(exercise)}</Text></View>)}</View>;
+export function timedExerciseSeconds(exercise) {
+  const p = prescriptionObject(exercise);
+  if (p.execution_target_reps != null || p.reps_min != null || p.reps_max != null) return null;
+  const value = Number(p.execution_target_duration_seconds ?? p.duration_seconds ?? p.duration_seconds_min ?? p.duration_seconds_max);
+  return Number.isFinite(value) && value > 0 ? Math.ceil(value) : null;
+}
+
+function HoldTimer({ seconds, elapsed, paused, styles }) {
+  const [offset, setOffset] = useState(0);
+  const [startAt, setStartAt] = useState(null);
+  const used = Math.min(seconds, offset + (startAt == null ? 0 : Math.max(0, elapsed - startAt)));
+  const remaining = Math.max(0, seconds - used);
+  const complete = remaining === 0;
+  const notified = useRef(false);
+  useEffect(() => {
+    if (complete && !notified.current) { notified.current = true; Vibration.vibrate(250); }
+  }, [complete]);
+  return <View style={{ alignItems: 'flex-end', gap: 6 }}>
+    <Pressable disabled={paused || complete} accessibilityRole="button"
+      accessibilityLabel={complete ? 'Temps terminé' : startAt == null ? `Lancer le compte à rebours de ${remaining} secondes` : 'Mettre le compte à rebours en pause'}
+      onPress={() => {
+        if (startAt == null) setStartAt(elapsed);
+        else { setOffset(used); setStartAt(null); }
+      }} style={styles.changeFormatButton}>
+      <Text style={styles.workPrescription}>{complete ? '✓ Terminé' : `${startAt == null ? '▶' : 'Ⅱ'} ${formatClock(remaining)}`}</Text>
+    </Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Réinitialiser le compte à rebours" onPress={() => { setOffset(0); setStartAt(null); notified.current = false; }}>
+      <Text style={styles.muted}>Recommencer</Text>
+    </Pressable>
+  </View>;
+}
+
+function WorkList({ exercises, styles, elapsed = 0, paused = false }) {
+  return <View style={styles.workList}>{exercises.map((exercise, index) => {
+    const seconds = timedExerciseSeconds(exercise);
+    return <View key={exercise?._uiKey ?? exercise?.sessionExerciseId ?? exercise?.id ?? index} style={styles.workRow}>
+      <Text style={styles.workName}>{exercise?.name ?? 'Exercice'}</Text>
+      <View style={{ gap: 8, alignItems: 'flex-end' }}>
+        <Text style={styles.workPrescription}>{exercisePrescription(exercise)}</Text>
+        {seconds ? <HoldTimer seconds={seconds} elapsed={elapsed} paused={paused} styles={styles} /> : null}
+      </View>
+    </View>;
+  })}</View>;
 }
 
 function StageList({ exercises, stage, direction, stageCount = null, styles }) {

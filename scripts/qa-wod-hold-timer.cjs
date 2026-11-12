@@ -1,0 +1,12 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const source = fs.readFileSync('src/components/workout/WodProtocolPlayerV3.js', 'utf8');
+const helper = source.slice(source.indexOf('export function timedExerciseSeconds('), source.indexOf('function HoldTimer(')).replace('export ', '');
+const seconds = new Function('prescriptionObject', helper + ';return timedExerciseSeconds;')((e) => e.prescriptionJson ?? e.prescription_json ?? {});
+assert.equal(seconds({ prescriptionJson: { execution_target_duration_seconds: 35 } }), 35);
+assert.equal(seconds({ prescription_json: { duration_seconds_min: 20, duration_seconds_max: 30 } }), 20);
+assert.equal(seconds({ prescriptionJson: { reps_min: 10, duration_seconds_min: 35 } }), null);
+assert.equal(seconds({ prescriptionJson: { duration_budget_minutes: 10 } }), null);
+assert.equal(seconds({ prescriptionJson: { duration_seconds: -1 } }), null);
+assert.equal(seconds({ prescriptionJson: { duration_seconds: '35' } }), 35);
+console.log('PASS timed holds use the prescribed duration; reps/budget never become a hold timer');

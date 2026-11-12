@@ -84,7 +84,7 @@ export const REGION_PREFERENCES = [
     value: 'Full Body',
   },
   {
-    label: 'CORE',
+    label: 'ABDOS / GAINAGE',
     value: 'Core',
   },
 ];

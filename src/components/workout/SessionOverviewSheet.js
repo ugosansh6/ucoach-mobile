@@ -315,6 +315,7 @@ export default function SessionOverviewSheet({
 
   const [availability, setAvailability] = useState({});
   const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
   const [swapExercise, setSwapExercise] = useState(null);
   const [swapBusy, setSwapBusy] = useState(false);
   const [swapError, setSwapError] = useState('');
@@ -327,10 +328,12 @@ export default function SessionOverviewSheet({
     }
     try {
       setLoadingAvailability(true);
+      setAvailabilityError('');
       const result = await getWorkoutSwapAvailability(workout.sessionId);
       setAvailability(result?.items ?? {});
     } catch (error) {
       console.warn('Session overview swap availability', error);
+      setAvailabilityError('Impossible de charger les alternatives. Ferme puis rouvre le récapitulatif pour réessayer.');
       setAvailability({});
     } finally {
       setLoadingAvailability(false);
@@ -497,7 +500,7 @@ export default function SessionOverviewSheet({
                             ? availability?.[exercise.sessionExerciseId] ?? null
                             : null;
                           const canSwap =
-                            status === 'pending' && Boolean(exercise.sessionExerciseId) && anySwapDirection(item);
+                            status === 'pending' && Boolean(exercise.sessionExerciseId);
 
                           return (
                             <View
@@ -525,6 +528,18 @@ export default function SessionOverviewSheet({
                                 ) : null}
                               </View>
 
+                              {canSwap ? (
+                                <Pressable
+                                  accessibilityLabel={`Remplacer ${exercise.name ?? 'cet exercice'}`}
+                                  onPress={() => {
+                                    setSwapError('');
+                                    setSwapExercise(exercise);
+                                  }}
+                                  style={styles.moreButton}
+                                >
+                                  <Ionicons name="swap-horizontal-outline" size={21} color={colors.secondaryAccent} />
+                                </Pressable>
+                              ) : null}
                               <Pressable
                                 onPress={() =>
                                   setDetailExercise({
@@ -632,6 +647,11 @@ export default function SessionOverviewSheet({
             </View>
 
             {swapError ? <Text style={styles.swapError}>{swapError}</Text> : null}
+            {loadingAvailability ? <ActivityIndicator color={colors.secondaryAccent} /> : null}
+            {availabilityError ? <Text style={styles.swapError}>{availabilityError}</Text> : null}
+            {!loadingAvailability && !availabilityError && !anySwapDirection(selectedAvailability) ? (
+              <Text style={styles.swapError}>Aucune alternative compatible avec le matériel, le niveau et les contraintes de cette séance.</Text>
+            ) : null}
 
             {[
               ['equivalent', 'equivalent', 'Un équivalent', 'swap-horizontal-outline'],
