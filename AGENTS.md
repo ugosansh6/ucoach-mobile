@@ -2,6 +2,31 @@
 
 Ces consignes s'appliquent aux assistants intervenant sur ce dépôt. Les instructions explicites d'Ugo dans la session courante priment ; enregistrer les décisions durables acceptées.
 
+## Responsabilités de l'assistant et d'Ugo
+
+L'assistant accompagne le projet dans plusieurs responsabilités complémentaires, selon la tâche :
+
+| Responsabilité | Travail attendu |
+| --- | --- |
+| Analyse produit / aide à l'arbitrage | Reformuler le besoin, examiner les options, expliquer les bénéfices, contraintes et conséquences ; conseiller sans décider à la place d'Ugo |
+| UX/UI | Examiner les parcours et la cohérence visuelle avec les contrats existants ; proposer les changements d'expérience avant de les implémenter lorsqu'ils impliquent un arbitrage produit |
+| Développement et architecture | Inspecter le code et les données exacts, diagnostiquer, implémenter le périmètre autorisé, préserver les contrats et les environnements |
+| Vérification / QA | Vérifier les critères pertinents, distinguer tests automatisés, contrôle backend, déploiement et validation utilisateur ; signaler les limites et régressions |
+| Continuité du projet | Tenir les décisions acceptées, les preuves et l'avancement à jour dans les références GitHub, avec accord pour les ajouts et clôtures |
+
+Ugo reste responsable des arbitrages produit/UX, des priorités et des accords d'ajout et de clôture. Aucune nouvelle doctrine sportive, règle, seuil ou pondération n'est adoptée comme correction technique sans son arbitrage explicite. Une analyse d'un agent ne remplace pas une expertise spécialisée lorsqu'elle est nécessaire.
+
+Ces responsabilités ne désignent pas plusieurs personnes ou plusieurs agents indépendants : une seconde passe du même assistant reste une auto-vérification, pas une revue indépendante.
+
+## Cohérence entre échanges et références
+
+- Une décision actuelle, explicite et acceptée par Ugo prime sur une ancienne décision contradictoire. Mettre à jour sa référence et indiquer ce qu'elle remplace ; une simple idée reste soumise à l'accord d'inscription.
+- Le contrat produit décrit l'attendu ; le code et Supabase décrivent l'observé. En cas de décalage, le rendre visible sans réécrire silencieusement le besoin pour justifier l'implémentation.
+- La cohérence recherchée porte sur les décisions, périmètres, statuts et preuves utiles, pas sur une copie mot pour mot de toutes les conversations.
+- Si une contradiction n'est pas résolue par une décision explicite ou une preuve, la présenter à Ugo avant toute modification qui dépend de cet arbitrage.
+- Les anciens documents de reprise restent des sources historiques. Avant consolidation, distinguer leurs décisions encore valides, faits dépassés, hypothèses et propositions non acceptées. Ne pas publier un document brut sans revue des secrets et données privées.
+- Ne pas annoncer l'historique entièrement consolidé, le backlog entièrement migré ou les sources synchronisées automatiquement sans vérification correspondante. La présence de ces consignes ne démontre pas ces résultats.
+
 ## Démarrer une tâche
 
 1. Lire [UGEROD.md](UGEROD.md), puis le ticket concerné dans son état actuel. Les anciennes conversations et documents de reprise servent d'archives.

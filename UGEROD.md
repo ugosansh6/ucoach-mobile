@@ -10,6 +10,21 @@ Lien de démarrage : https://github.com/ugosansh6/ucoach-mobile/blob/ux-navigati
 
 Un nouveau chat doit avoir accès au dépôt et lire ces consignes. Aucun mécanisme installé ici ne charge automatiquement le contexte dans tous les chats et aucun processus de synchronisation ne tourne en arrière-plan.
 
+## Qui fait quoi
+
+| Rôle | Responsabilité |
+| --- | --- |
+| Ugo | Décisions produit/UX, priorités, inscription des évolutions et clôture des tickets |
+| Assistant — produit / UX | Clarifier, proposer, challenger et expliquer les conséquences avant arbitrage |
+| Assistant — développement / architecture | Réaliser le périmètre autorisé et préserver les contrats existants |
+| Assistant — QA / continuité | Vérifier, signaler les limites et conserver les preuves et décisions acceptées |
+
+Il s'agit de responsabilités d'un même assistant, pas d'une équipe de relecteurs indépendants. Les tests et validations utilisateur restent des preuves distinctes.
+
+Les décisions validées dans les échanges doivent être répercutées dans leur référence GitHub. Le code et Supabase permettent de vérifier leur application ; un décalage doit être signalé. Une décision explicite plus récente remplace l'ancienne, sans transformer une idée en évolution acceptée.
+
+Les documents de reprise existants restent conservés comme archives. Leur consolidation et la migration complète du backlog Excel ne sont pas encore validées. Il n'existe pas de synchronisation automatique de toutes les conversations avec GitHub.
+
 ## Références
 
 | Élément | Référence et usage |
