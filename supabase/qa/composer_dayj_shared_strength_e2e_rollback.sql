@@ -18,6 +18,8 @@ DECLARE
  first_result jsonb;
  second_result jsonb;
  v_count int;
+ v_generated jsonb;
+ v_keys text[];
 BEGIN
  draft:=jsonb_build_object(
   'version','w11-composer-draft-v1','structure_stable',true,
@@ -45,6 +47,20 @@ BEGIN
    OR (first_result->>'exercise_count')::int<>2 THEN
    RAISE EXCEPTION 'DAY_J_EXPECTED_READY: %',first_result;
  END IF;
+ -- #3: the persisted Player payload must contain the authored Strength block,
+ -- not just separate workout_session_exercises rows.
+ SELECT ws.generated_workout INTO v_generated
+ FROM public.workout_sessions ws
+ WHERE ws.id=(first_result->>'session_id')::uuid AND ws.user_id=u;
+ SELECT array_agg(b->>'block_key' ORDER BY ordinality) INTO v_keys
+ FROM jsonb_array_elements(coalesce(v_generated->'blocks','[]'::jsonb))
+   WITH ORDINALITY AS x(b,ordinality);
+ IF v_keys IS DISTINCT FROM ARRAY['strength']::text[]
+    OR v_generated#>>'{meta,source}' IS DISTINCT FROM 'w11_composer'
+    OR jsonb_array_length(coalesce(v_generated#>'{blocks,0,exercises}','[]'::jsonb))<>2 THEN
+   RAISE EXCEPTION 'COMPOSER_PLAYER_PAYLOAD_MISSING_STRENGTH: %',v_generated;
+ END IF;
+
  SELECT count(*) INTO v_count
  FROM public.workout_session_exercises
  WHERE session_id=(first_result->>'session_id')::uuid
