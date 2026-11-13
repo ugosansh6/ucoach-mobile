@@ -15,6 +15,10 @@ Consolidation documentaire et préparation d'import. Aucun changement applicatif
 
 Cette passe porte sur les références de travail et les décisions répertoriées ; elle ne certifie pas chaque phrase des anciens handoffs, toutes les conversations ni tout le code de l'application.
 
+## Présentation retenue par Ugo
+
+Deux ensembles principaux : réalisé / historique et reste à réaliser. Les trois traitements techniques du tableau ci-dessous sont des sous-informations de rapprochement, pas trois backlogs. Les 195 restes incluent les 5 rattachements existants et les 190 candidats ; les 85 réalisations restent des déclarations historiques à confronter aux preuves au besoin. Un travail codé avec une recette restante n'est pas présenté comme à redévelopper.
+
 ## Couverture du rapprochement
 
 | Ensemble | Résultat |

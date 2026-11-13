@@ -65,9 +65,22 @@ Contrats existants à lire selon le chantier :
 
 La [référence produit](docs/PRODUCT_REFERENCE.md) conserve la doctrine et 62 décisions historiques, avec leurs réserves et les précédences récentes. L'[état de transition](docs/WORKFLOW_TRANSITION.md) décrit le rapprochement et ses limites.
 
-Le backlog Excel a été rapproché sur ses 280 lignes : 5 reliées à des tickets existants, 85 proposées comme archives de réalisation déclarée, 190 candidates soumises à validation d'inscription. Aucun de ces rapprochements ne constitue une clôture ou une validation actuelle. Le rapport détaillé est remis à Ugo pour examen ; les candidats ne sont pas inscrits automatiquement.
+Le backlog Excel a été rapproché sur ses 280 lignes et classé en deux ensembles : 85 lignes déclarées réalisées dans la source, et 195 restes à qualifier, dont 5 déjà reliés à des tickets et 190 candidats soumis à validation d'inscription. Aucun de ces rapprochements ne constitue une clôture ou une validation actuelle. Le rapport détaillé est remis à Ugo pour examen ; les candidats ne sont pas inscrits automatiquement.
 
 Le travail sur #26 et #3 garde ses priorités actuelles. L'organisation ne crée pas de gate supplémentaire pour le delivery DEV.
+
+## Classement du backlog : deux ensembles
+
+Décision d'Ugo du 13/11/2026 : distinguer avant tout **réalisé / historique** et **reste à réaliser**.
+
+- Réalisé : conserver le besoin, les décisions, les changements et les preuves disponibles ; ne pas remettre le développement à faire.
+- Reste à réaliser : noter uniquement le complément nécessaire — développement, correction, test, recette ou arbitrage — en conservant la partie déjà faite.
+- Un développement codé mais non recetté garde sa partie réalisée en historique et sa vérification comme reste ; ne pas recréer un chantier de développement complet.
+- Un statut ancien sans preuve actuelle est signalé comme tel. Ne jamais annoncer terminé un élément contradictoire ou non vérifié.
+- Les idées encore à arbitrer sont indiquées non engagées dans le reste, sans autoriser leur inscription ni leur développement.
+- La distinction n'autorise aucune clôture automatique : demander l'accord d'Ugo pour fermer les tickets.
+
+Le rapport a été réorganisé en deux parties : 85 lignes déclarées réalisées dans la source et 195 restes à qualifier (5 rattachements existants, 190 candidates). Ces nombres ne sont pas une recette actuelle : les preuves récentes peuvent faire évoluer le classement.
 
 ## Où reprendre le travail
 
