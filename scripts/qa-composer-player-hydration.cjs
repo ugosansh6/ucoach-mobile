@@ -12,10 +12,10 @@ const helper = fs.readFileSync(path.join(repoRoot, 'src/utils/playerSessionHydra
 const context = vm.createContext({});
 vm.runInContext(
   helper.replaceAll('export function ', 'function ') +
-  '\nthis.tested = { hasPlayableSessionBlocks, playerSessionNeedsReload };',
+  '\nthis.tested = { hasPlayableSessionBlocks, playerSessionNeedsReload, resolveControlResumeSessionId };',
   context
 );
-const { hasPlayableSessionBlocks, playerSessionNeedsReload } = context.tested;
+const { hasPlayableSessionBlocks, playerSessionNeedsReload, resolveControlResumeSessionId } = context.tested;
 
 const strength = {
   sessionId: 'composer-1',
@@ -42,6 +42,25 @@ assert.equal(playerSessionNeedsReload({ ...strength, rawBlocks: [], blocks: {} }
   'Missing runtime blocks cause rehydration');
 assert.equal(playerSessionNeedsReload({}, 'composer-1'), true, 'Browser refresh needs server rehydration');
 
+assert.equal(
+  resolveControlResumeSessionId({
+    controlStatus: 'COMPOSER_OTHER_SESSION_ACTIVE', sessionId: 'other-session',
+  }, 'stale-workout'),
+  'other-session', 'Use exact backend identity for Composer conflict'
+);
+assert.equal(
+  resolveControlResumeSessionId({ controlStatus: 'COMPOSER_OTHER_SESSION_ACTIVE' }, 'stale-workout'),
+  null, 'Never resume stale workout without a conflict session id'
+);
+assert.equal(
+  resolveControlResumeSessionId({ controlStatus: 'STARTED_SESSION_CONFIRM_REQUIRED', sessionId: 'started-session' }, 'stale-workout'),
+  'started-session', 'Preserve started session identity'
+);
+assert.equal(
+  resolveControlResumeSessionId({ controlStatus: 'SAFETY_ADAPT_PARTIAL_RECALC_REQUIRED' }, 'current-session'),
+  'current-session', 'Ordinary current-session resume remains possible'
+);
+
 const session = fs.readFileSync(path.join(repoRoot, 'app/workout/session.js'), 'utf8');
 const generation = fs.readFileSync(path.join(repoRoot, 'app/workout/generating-themed.js'), 'utf8');
 const preparation = fs.readFileSync(path.join(repoRoot, 'src/workout/PreparationCheckinV4.js'), 'utf8');
@@ -54,4 +73,10 @@ assert.match(generation, /composerPlanItemId && !hasPlayableSessionBlocks\(nextW
   'Composer fails closed rather than navigate to empty player');
 assert.match(preparation, /params: \{ sessionId: workout.sessionId \}/,
   'Resume route carries canonical sessionId');
-console.log('PASS: Composer Player bootstrap, preserved structures and rehydration');
+assert.match(generation, /resolveControlResumeSessionId\(control, workout\?\.sessionId\)/,
+  'Resume target is resolved from backend status');
+assert.match(generation, /params: \{ sessionId: resumeSessionId \}/,
+  'Conflict route transports the chosen session identity');
+assert.match(generation, /!error && resumeSessionId/,
+  'No resume button when conflict session id is missing');
+console.log('PASS: Composer Player bootstrap, conflict resume, preserved structures and rehydration');

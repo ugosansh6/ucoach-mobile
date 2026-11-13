@@ -23,3 +23,19 @@ export function playerSessionNeedsReload(workout, requestedSessionId) {
   if (!target) return false;
   return workout?.sessionId !== target || !hasPlayableSessionBlocks(workout);
 }
+
+/**
+ * Preserve backend identity on an existing-session conflict.
+ * A stale WorkoutContext session must not be substituted for the server result.
+ */
+export function resolveControlResumeSessionId(control, currentSessionId) {
+  const status = String(control?.controlStatus ?? '').trim().toUpperCase();
+  const serverId = String(control?.sessionId ?? '').trim();
+  const currentId = String(currentSessionId ?? '').trim();
+  if ([
+    'COMPOSER_OTHER_SESSION_ACTIVE',
+    'ENVIRONMENT_CHANGE_CONFIRM_REQUIRED',
+    'STARTED_SESSION_CONFIRM_REQUIRED',
+  ].includes(status)) return serverId || null;
+  return serverId || currentId || null;
+}

@@ -22,7 +22,7 @@ import {
   finalizeComposerWorkoutSession,
   replaceWorkoutSessionByUser,
 } from '../../src/services/workoutGenerationService';
-import { hasPlayableSessionBlocks } from '../../src/utils/playerSessionHydration';
+import { hasPlayableSessionBlocks, resolveControlResumeSessionId } from '../../src/utils/playerSessionHydration';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -213,6 +213,8 @@ export default function GeneratingThemedScreen() {
   }, [busy]);
 
   const controlStatus = String(control?.controlStatus ?? '').toUpperCase();
+  // For Composer conflicts, resume only the OTHER session returned by the backend.
+  const resumeSessionId = resolveControlResumeSessionId(control, workout?.sessionId);
   const canReplaceExisting =
     control?.environmentControlStatus === 'EXISTING_GENERATED_SESSION_CONFLICT' &&
     !control?.existingSessionStarted &&
@@ -263,7 +265,7 @@ export default function GeneratingThemedScreen() {
       return {
         eyebrow: 'SÉANCE DU JOUR',
         title: 'UNE AUTRE SÉANCE EST DÉJÀ PRÊTE.',
-        body: 'UGEROD a protégé ta composition. Reprends la séance active ou reviens à Preparation : ta séance composée reste enregistrée.',
+        body: 'Une autre séance du jour est déjà enregistrée. Ta composition dans Ma semaine est conservée. Tu peux consulter la séance existante ou revenir au check-in, sans écraser tes choix.',
       };
     }
     if (canReplaceExisting) {
@@ -317,11 +319,21 @@ export default function GeneratingThemedScreen() {
           <Text style={styles.stateTitle}>{copy.title}</Text>
           <Text style={styles.stateBody}>{copy.body}</Text>
 
-          {!error ? (
-            <Pressable onPress={() => router.replace('/workout/session')} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>REPRENDRE LA SÉANCE</Text>
+          {!error && resumeSessionId ? (
+            <Pressable
+              onPress={() => router.replace({
+                pathname: '/workout/session',
+                params: { sessionId: resumeSessionId },
+              })}
+              style={styles.primaryButton}
+            >
+              <Text style={styles.primaryButtonText}>
+                {controlStatus === 'COMPOSER_OTHER_SESSION_ACTIVE'
+                  ? 'VOIR LA SÉANCE EXISTANTE'
+                  : 'REPRENDRE LA SÉANCE'}
+              </Text>
             </Pressable>
-          ) : !missingOutdoorContext ? (
+          ) : error && !missingOutdoorContext ? (
             <Pressable onPress={() => generate()} disabled={busy} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>RÉESSAYER</Text>
             </Pressable>
