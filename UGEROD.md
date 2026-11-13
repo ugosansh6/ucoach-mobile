@@ -73,6 +73,21 @@ Si l'une des preuves manque, marquer cet étage non vérifié. L'absence d'accè
 
 Le contrôle en lecture seule du 13/11 a confirmé un écart entre les identifiants des migrations Git et le registre DEV, désormais suivi dans #27. Il ne constitue ni une comparaison complète du schéma ni une réparation. [L'audit BASE-005 antérieur](docs/backend/BASE-005_DEV_GIT_MIGRATION_AUDIT_2026-08-29.md) reste une preuve historique. Ne pas déclarer une reconstruction depuis Git validée avant un replay isolé réussi.
 
+## Inscrire une évolution au backlog
+
+**Règle décidée par Ugo le 13/11/2026 : l'assistant propose systématiquement l'inscription d'une nouvelle évolution et attend l'accord explicite d'Ugo avant tout ajout.**
+
+1. Une idée ou un arbitrage émerge dans la conversation.
+2. L'assistant reformule brièvement l'évolution et demande si elle doit être inscrite au backlog.
+3. Ugo accepte, refuse ou demande de poursuivre la réflexion. Sans accord, aucune entrée de suivi n'est créée.
+4. Après accord, l'assistant recherche un doublon et crée ou complète le ticket correspondant, avec le périmètre validé et la date de l'accord.
+
+Une demande explicite « ajoute cette évolution au backlog » constitue déjà l'accord et n'appelle pas une seconde confirmation. Une validation groupée exige une liste explicite des ajouts.
+
+Cette règle couvre aussi l'ajout d'une nouvelle évolution à un ticket existant : ne pas la glisser dans sa checklist ou un document de suivi. En fin d'arbitrage, rappeler les idées encore sans décision d'inscription pour éviter les oublis. L'agent conseille ; Ugo décide de ce qui entre au backlog. L'inscription seule ne vaut pas lancement du développement.
+
+L'agent continue à actualiser l'avancement, les résultats de tests et la prochaine action des tâches acceptées sans redemander l'accord à chaque mise à jour. L'import historique de l'Excel doit d'abord être rapproché des tickets actuels et la liste des ajouts validée explicitement.
+
 ## Format du suivi dans une issue
 
 Garder une seule description à jour, avec l'objectif et les critères d'acceptation, puis :

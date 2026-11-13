@@ -7,7 +7,7 @@ Ces consignes s'appliquent aux assistants intervenant sur ce dépôt. Les instru
 1. Lire [UGEROD.md](UGEROD.md), puis le ticket concerné dans son état actuel. Les anciennes conversations et documents de reprise servent d'archives.
 2. Vérifier la branche distante `ux-navigation-coach-v1`, sa tête, les changements locaux et les travaux en cours. `main` n'est pas la référence de développement actuelle.
 3. Lire les contrats et les fichiers/fonctions effectivement concernés. Séparer comportement attendu, comportement observé et hypothèse ; ne pas transformer un ancien compte rendu en preuve actuelle.
-4. Donner un bref constat et poursuivre la demande autorisée. Demander uniquement un arbitrage produit manquant ou signaler un accès réellement bloquant.
+4. Donner un bref constat et poursuivre la demande autorisée. Demander un arbitrage produit manquant, l'accord d'inscription au backlog défini ci-dessous, ou signaler un accès réellement bloquant.
 
 ## Une tâche, un suivi
 
@@ -17,6 +17,17 @@ Ces consignes s'appliquent aux assistants intervenant sur ce dépôt. Les instru
 - Diagnostiquer avant de corriger ; limiter les modifications au problème traité. Ugo arbitre les changements produit/UX ; les corrections techniques déjà autorisées avancent sans nouvelle demande de GO.
 - Préserver le travail existant. Pour les écritures distantes, vérifier la tête attendue et refuser les écrasements ; ne pas forcer une branche ni nettoyer les branches sans demande.
 - Ne pas considérer une correction codée comme déployée, ni un build réussi comme une validation du parcours utilisateur.
+
+## Accord d'Ugo avant tout ajout au backlog
+
+- Lorsqu'une nouvelle évolution émerge d'une discussion ou d'un arbitrage, l'assistant doit proposer explicitement son inscription au backlog avant de créer un ticket ou d'élargir la portée d'un ticket existant.
+- Présenter brièvement le titre et le besoin retenu, puis demander : « Veux-tu que j'ajoute cette évolution au backlog ? » Attendre une réponse explicite. Une idée évoquée, une solution jugée intéressante, un accord sur le principe produit, le silence ou un changement de sujet ne valent pas accord d'inscription.
+- Une instruction explicite d'Ugo d'ajouter l'élément identifié vaut déjà accord ; ne pas demander une deuxième confirmation pour la même inscription. Conserver la date et le périmètre de cet accord dans le ticket.
+- Sans accord d'inscription, ne pas ajouter l'évolution dans un ticket, une checklist, un commentaire de suivi, un document projet ou un brouillon GitHub pour contourner la règle. Les échanges exploratoires restent dans la conversation.
+- Pour éviter les oublis, avant de clore un échange d'arbitrage, rappeler les évolutions évoquées qui restent sans décision d'inscription et demander lesquelles retenir. Une validation groupée est possible si chaque ajout est présenté clairement ; aucun lot implicite.
+- Rechercher les doublons après accord, puis créer ou compléter la fiche existante sans étendre le périmètre approuvé.
+- Les mises à jour d'avancement, preuves, tests et prochaine action d'une tâche déjà acceptée restent à la charge de l'assistant et ne nécessitent pas un nouvel accord tant que sa portée ne change pas. Un accord d'inscription seul n'autorise pas le développement.
+- Pour l'import du backlog Excel, préparer le rapprochement avec les tickets actuels puis faire valider explicitement la liste des ajouts avant leur création ; ne pas importer automatiquement des idées anciennes ou des statuts historiques.
 
 ## Garder la continuité
 
