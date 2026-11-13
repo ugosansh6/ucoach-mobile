@@ -1,5 +1,7 @@
 # Composer avec UGEROD — UX/UI contract
 
+> **Lecture historique encadrée — consolidation du 13/11/2026.** Ce contrat du 14/10 reste utile pour les principes d'interaction, mais plusieurs détails ont évolué : voir [PRODUCT_REFERENCE.md](PRODUCT_REFERENCE.md), notamment les décisions du 26–27/10 et la séparation Aujourd'hui / Ma semaine du 12/11. Les choix de blocs enregistrés font autorité ; ne pas ajouter Warm-up/Tabata pour appliquer une ancienne formulation universelle. La date appartient à Ma semaine et le CTA cible a été actualisé en « Valider ma séance ». Ce bandeau ne demande aucune modification d'écran.
+
 Status: LOCKED — 2026-10-14
 Scope: MSW-032 → MSW-039
 

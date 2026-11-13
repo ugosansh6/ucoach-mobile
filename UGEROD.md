@@ -23,7 +23,7 @@ Il s'agit de responsabilités d'un même assistant, pas d'une équipe de relecte
 
 Les décisions validées dans les échanges doivent être répercutées dans leur référence GitHub. Le code et Supabase permettent de vérifier leur application ; un décalage doit être signalé. Une décision explicite plus récente remplace l'ancienne, sans transformer une idée en évolution acceptée.
 
-Les documents de reprise existants restent conservés comme archives. Leur consolidation et la migration complète du backlog Excel ne sont pas encore validées. Il n'existe pas de synchronisation automatique de toutes les conversations avec GitHub.
+Les documents de reprise existants restent conservés comme archives. Une première consolidation est disponible dans la référence produit ; la migration complète du backlog Excel n'est pas encore validée. Il n'existe pas de synchronisation automatique de toutes les conversations avec GitHub.
 
 ## Références
 
@@ -60,6 +60,14 @@ Contrats existants à lire selon le chantier :
 - [Thèmes clair/sombre et typographie](docs/UX_THEME_CONTRACT.md) : code de page commun, palettes historiques conservées.
 - [Mutation et cycle de vie d'une séance](docs/QA_MUTATION_MATRIX.md).
 - [Évolutions des séances et limites de validation](docs/session-evolutions-2026-10-28.md), compte rendu historique à confronter à l'état actuel.
+
+## Consolidation du 13 novembre 2026
+
+La [référence produit](docs/PRODUCT_REFERENCE.md) conserve la doctrine et 62 décisions historiques, avec leurs réserves et les précédences récentes. L'[état de transition](docs/WORKFLOW_TRANSITION.md) décrit le rapprochement et ses limites.
+
+Le backlog Excel a été rapproché sur ses 280 lignes : 5 reliées à des tickets existants, 85 proposées comme archives de réalisation déclarée, 190 candidates soumises à validation d'inscription. Aucun de ces rapprochements ne constitue une clôture ou une validation actuelle. Le rapport détaillé est remis à Ugo pour examen ; les candidats ne sont pas inscrits automatiquement.
+
+Le travail sur #26 et #3 garde ses priorités actuelles. L'organisation ne crée pas de gate supplémentaire pour le delivery DEV.
 
 ## Où reprendre le travail
 

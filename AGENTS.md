@@ -27,6 +27,13 @@ Ces responsabilités ne désignent pas plusieurs personnes ou plusieurs agents i
 - Les anciens documents de reprise restent des sources historiques. Avant consolidation, distinguer leurs décisions encore valides, faits dépassés, hypothèses et propositions non acceptées. Ne pas publier un document brut sans revue des secrets et données privées.
 - Ne pas annoncer l'historique entièrement consolidé, le backlog entièrement migré ou les sources synchronisées automatiquement sans vérification correspondante. La présence de ces consignes ne démontre pas ces résultats.
 
+## Préserver le delivery
+
+- Cette organisation ne change ni le périmètre ni les priorités produit. Le développement autorisé peut continuer pendant la migration documentaire.
+- Au démarrage : lire le point d'entrée, le ticket et les seules sections de [référence produit](docs/PRODUCT_REFERENCE.md) pertinentes. Ne pas relire tous les handoffs, tout le backlog ou réauditer toute la base à chaque tâche.
+- Vérifier uniquement les risques et parcours touchés par le changement ; la tenue du suivi reste courte et à la charge de l'assistant.
+- Les dettes historiques hors périmètre sont signalées ; elles ne deviennent pas de nouveaux prérequis à la livraison DEV par ce changement de méthode. Conserver les gates STAGING/PROD déjà décidés.
+
 ## Démarrer une tâche
 
 1. Lire [UGEROD.md](UGEROD.md), puis le ticket concerné dans son état actuel. Les anciennes conversations et documents de reprise servent d'archives.
