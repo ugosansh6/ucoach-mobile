@@ -1039,7 +1039,7 @@ export default function PreparationCheckinV4() {
           {hasExistingSession ? (
             <>
               <Pressable
-                onPress={() => router.replace('/workout/session')}
+                onPress={() => router.replace({ pathname: '/workout/session', params: { sessionId: workout.sessionId } })}
                 style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
               >
                 <Text style={styles.primaryButtonText}>{todayComposer && workout.sessionId !== todayComposer.sessionId ? 'Reprendre une autre séance' : 'Reprendre ma séance'}</Text>

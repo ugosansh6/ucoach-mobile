@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import SessionCore from './session-core';
@@ -10,6 +10,8 @@ import SessionWhySheet from '../../src/components/workout/SessionWhySheet';
 import SessionAdaptationSheet from '../../src/components/workout/SessionAdaptationSheet';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
+import { reloadWorkoutSession } from '../../src/services/workoutService';
+import { hasPlayableSessionBlocks, playerSessionNeedsReload } from '../../src/utils/playerSessionHydration';
 import {
   changeWholeWorkoutPlan,
   changeWorkoutSkillPlan,
@@ -70,7 +72,17 @@ function verifyPlanBReplacement({ sourceWorkout, result, nextWorkout }) {
 }
 
 export default function SessionScreen() {
-  const { workout, updateWorkout, setGeneratedWorkout } = useWorkout();
+  const { workout, updateWorkout, setGeneratedWorkout, setGeneratedWorkoutPreservingProgress } = useWorkout();
+  const routeParams = useLocalSearchParams();
+  const routeSessionId = Array.isArray(routeParams?.sessionId)
+    ? routeParams.sessionId[0]
+    : routeParams?.sessionId;
+  const targetSessionId = String(routeSessionId || workout?.sessionId || '').trim();
+  const playerDataReady = Boolean(
+    targetSessionId && targetSessionId === workout?.sessionId && hasPlayableSessionBlocks(workout)
+  );
+  const [playerReload, setPlayerReload] = useState({ status: 'pending', sessionId: null, error: null });
+  const [playerRetry, setPlayerRetry] = useState(0);
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(), []);
 
@@ -101,6 +113,50 @@ export default function SessionScreen() {
       workout?.preparationSnapshot?.environmentCode,
     ]
   );
+
+  // #3: Composer and other persisted sessions must be reloadable by identity.
+  // A browser refresh can reset WorkoutContext; never open the classic player
+  // with empty blocks or select/re-generate another session to hide this failure.
+  useEffect(() => {
+    let cancelled = false;
+    if (!targetSessionId) {
+      setPlayerReload({
+        status: 'error', sessionId: null,
+        error: 'Aucune séance à reprendre. Reviens à la préparation.',
+      });
+      return () => { cancelled = true; };
+    }
+    if (!playerSessionNeedsReload(workout, targetSessionId)) {
+      setPlayerReload({ status: 'ready', sessionId: targetSessionId, error: null });
+      return () => { cancelled = true; };
+    }
+
+    setPlayerReload({ status: 'loading', sessionId: targetSessionId, error: null });
+    reloadWorkoutSession({
+      sessionId: targetSessionId,
+      preparationSnapshot: workout?.preparationSnapshot ?? null,
+    }).then((restored) => {
+      if (cancelled) return;
+      if (restored?.sessionId !== targetSessionId || !hasPlayableSessionBlocks(restored)) {
+        setPlayerReload({
+          status: 'error', sessionId: targetSessionId,
+          error: 'La séance existe, mais ses blocs exécutables sont introuvables. Tes choix ont été conservés.',
+        });
+        return;
+      }
+      // Rehydrate rather than rebuild: preserve already recorded local progress.
+      setGeneratedWorkoutPreservingProgress(restored);
+      setPlayerReload({ status: 'ready', sessionId: targetSessionId, error: null });
+    }).catch((error) => {
+      if (cancelled) return;
+      console.warn('[Player] session hydration failed', error);
+      setPlayerReload({
+        status: 'error', sessionId: targetSessionId,
+        error: 'Impossible de recharger ta séance. Réessaie ou reviens à la préparation.',
+      });
+    });
+    return () => { cancelled = true; };
+  }, [targetSessionId, playerDataReady, playerRetry, setGeneratedWorkoutPreservingProgress]);
 
   // Le backend est l'autorité du cycle de vie. On hydrate explicitement l'état
   // avant d'autoriser un player local à enregistrer une exécution ou à révéler le WOD.
@@ -215,10 +271,10 @@ export default function SessionScreen() {
   const canChangeSkill = canRegeneratePlanB && hasSkill;
 
   useEffect(() => {
-    if (!workout?.sessionId || overviewShownForSessionRef.current === workout.sessionId) return;
+    if (!playerDataReady || !workout?.sessionId || overviewShownForSessionRef.current === workout.sessionId) return;
     overviewShownForSessionRef.current = workout.sessionId;
     if (!progressRecorded && !hasResumeCursor) setOverviewOpen(true);
-  }, [hasResumeCursor, progressRecorded, workout?.sessionId]);
+  }, [hasResumeCursor, playerDataReady, progressRecorded, workout?.sessionId]);
 
   useEffect(() => {
     if ((progressRecorded || authoritativeSessionStarted) && planBOpen) setPlanBOpen(false);
@@ -381,6 +437,40 @@ export default function SessionScreen() {
     showAdjust: authoritativeSessionStarted,
     showPlanB: showPlanBEntry,
   };
+
+  if (!playerDataReady || playerReload.status !== 'ready' ||
+      playerReload.sessionId !== targetSessionId) {
+    const failed = playerReload.status === 'error';
+    return (
+      <View style={[styles.root, {
+        backgroundColor: colors.background,
+        alignItems: 'center', justifyContent: 'center', padding: 24,
+      }]}>
+        {failed ? null : <ActivityIndicator color={colors.accent} size="large" />}
+        <Text style={{ color: colors.text, textAlign: 'center', marginTop: 20 }}>
+          {failed ? playerReload.error : 'Chargement de ta séance enregistrée…'}
+        </Text>
+        {failed && targetSessionId ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setPlayerRetry((value) => value + 1)}
+            style={{ padding: 14, marginTop: 16 }}
+          >
+            <Text style={{ color: colors.accent, fontWeight: '700' }}>RÉESSAYER</Text>
+          </Pressable>
+        ) : null}
+        {failed ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.replace('/workout/preparation')}
+            style={{ padding: 14, marginTop: 8 }}
+          >
+            <Text style={{ color: colors.text }}>Revenir au check-in</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>

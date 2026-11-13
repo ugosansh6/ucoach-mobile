@@ -22,6 +22,7 @@ import {
   finalizeComposerWorkoutSession,
   replaceWorkoutSessionByUser,
 } from '../../src/services/workoutGenerationService';
+import { hasPlayableSessionBlocks } from '../../src/utils/playerSessionHydration';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -101,6 +102,12 @@ export default function GeneratingThemedScreen() {
         return;
       }
 
+      // #3: never navigate to a blank Player after Composer finalization.
+      if (composerPlanItemId && !hasPlayableSessionBlocks(nextWorkout)) {
+        throw new Error(
+          'Ta composition a été enregistrée, mais le Player ne peut pas encore charger les blocs. Réessaie la finalisation.'
+        );
+      }
       const sameSession = Boolean(workout.sessionId) && workout.sessionId === nextWorkout?.sessionId;
       const preserveProgress =
         sameSession &&
@@ -120,9 +127,12 @@ export default function GeneratingThemedScreen() {
         return;
       }
 
-      router.replace('/workout/session');
+      router.replace({
+        pathname: '/workout/session',
+        params: { sessionId: nextWorkout.sessionId },
+      });
     },
-    [setGeneratedWorkout, setGeneratedWorkoutPreservingProgress, workout.sessionId]
+    [composerPlanItemId, setGeneratedWorkout, setGeneratedWorkoutPreservingProgress, workout.sessionId]
   );
 
   const generate = useCallback(
