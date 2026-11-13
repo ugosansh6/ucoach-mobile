@@ -88,10 +88,24 @@ Cette règle couvre aussi l'ajout d'une nouvelle évolution à un ticket existan
 
 L'agent continue à actualiser l'avancement, les résultats de tests et la prochaine action des tâches acceptées sans redemander l'accord à chaque mise à jour. L'import historique de l'Excel doit d'abord être rapproché des tickets actuels et la liste des ajouts validée explicitement.
 
+## Valider la fin d'un développement
+
+Règle décidée par Ugo le 13/11/2026 :
+
+1. L'assistant termine les vérifications pertinentes et enregistre le résultat dans le ticket.
+2. Il présente ce qui fonctionne, les preuves, les éventuelles réserves et comment vérifier.
+3. Il demande systématiquement en fin de développement de la tâche si Ugo souhaite clôturer le ticket ou le garder ouvert.
+4. Le ticket reste ouvert, à valider par Ugo, jusqu'à un accord explicite de clôture portant sur ce ticket.
+5. Après accord, l'assistant enregistre la date et les réserves éventuellement acceptées puis clôture. Une demande directe de fermeture vaut accord.
+
+Un code enregistré, un déploiement réussi et une validation utilisateur sont des étapes distinctes. Pas de clôture automatique à la fusion sans accord. Une interruption ou un développement partiel donne lieu à une mise à jour d'avancement, sans prétendre que la tâche est terminée.
+
+À la reprise, l'assistant indique brièvement le ticket, la version de code, la cible utile et la prochaine action. À la fin, il vérifie l'enregistrement des modifications et du suivi. Une seule conversation modifie une même tâche à la fois ; il s'agit d'une discipline de coordination, pas d'un verrou technique.
+
 ## Format du suivi dans une issue
 
 Garder une seule description à jour, avec l'objectif et les critères d'acceptation, puis :
-- état : à faire / en cours / à vérifier / terminé ;
+- état : à faire / en cours / à vérifier / à valider par Ugo / terminé après accord ;
 - changements : commit, fichiers et cible ;
 - vérifications : exécutées, résultats et limites ;
 - prochaine action exacte si la tâche reste ouverte.
