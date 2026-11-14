@@ -26,6 +26,7 @@ import {
 } from '../services/equipmentService';
 import { getComposerForLocalDate } from '../services/composerService';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
+import { preparationPrimaryActionLabel } from '../utils/preparationPrimaryActionLabel';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -1069,7 +1070,7 @@ export default function PreparationCheckinV4() {
                 pressed && !equipmentLoading && styles.pressed,
               ]}
             >
-              <Text style={styles.primaryButtonText}>{todayComposer ? 'FINALISER MA SÉANCE' : 'Voir ma séance'}</Text>
+              <Text style={styles.primaryButtonText}>{preparationPrimaryActionLabel({ hasComposer: Boolean(todayComposer), canGenerate })}</Text>
               <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
             </Pressable>
           )}
