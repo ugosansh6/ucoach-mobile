@@ -57,6 +57,22 @@ BEGIN
  WHERE session_id=(result->>'session_id')::uuid AND exercise_id='EX033';
  IF cnt<>2 THEN RAISE EXCEPTION 'EX033_NOT_TWO_INSTANCES: %',cnt; END IF;
  IF result->>'exercise_count'<>'3' THEN RAISE EXCEPTION 'WRONG_EXERCISE_COUNT: %',result; END IF;
+ -- Previewing the Composer WOD must not mark it started or revealed.
+ IF EXISTS (SELECT 1 FROM public.workout_sessions
+   WHERE id=(result->>'session_id')::uuid AND wod_revealed_at IS NOT NULL)
+ THEN RAISE EXCEPTION 'WOD_REVEALED_BEFORE_START'; END IF;
+ PERFORM set_config('ugerod.qa_wod_session_id',result->>'session_id',true);
+ result:=public.e_mark_session_started(current_setting('ugerod.qa_wod_session_id')::uuid,current_date);
+ IF result->>'status'<>'IN_PROGRESS' THEN RAISE EXCEPTION 'SESSION_START_FAILED: %',result; END IF;
+ result:=public.mark_wod_revealed(current_setting('ugerod.qa_wod_session_id')::uuid);
+ IF result->>'status'<>'WOD_REVEALED' THEN RAISE EXCEPTION 'WOD_REVEAL_FAILED: %',result; END IF;
+ result:=public.mark_wod_started(current_setting('ugerod.qa_wod_session_id')::uuid);
+ IF result->>'status'<>'WOD_STARTED' THEN RAISE EXCEPTION 'WOD_START_FAILED: %',result; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.workout_sessions
+   WHERE id=current_setting('ugerod.qa_wod_session_id')::uuid
+     AND wod_revealed_at IS NOT NULL AND wod_started_at IS NOT NULL)
+ THEN RAISE EXCEPTION 'WOD_LIFECYCLE_NOT_PERSISTED'; END IF;
+
  PERFORM set_config('ugerod.qa_cross_block_result',
  jsonb_build_object('status','PASS','same_block_duplicates_rejected',true,
  'cross_block_preserved',true,'EX033_instances',cnt,'blocks',jsonb_array_length(player_blocks))::text,true);

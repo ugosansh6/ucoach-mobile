@@ -49,6 +49,7 @@ Décision confirmée le 12/11/2026, à modifier lorsqu'Ugo valide une évolution
 | Aujourd'hui | Le Coach compose automatiquement la séance selon la politique applicable |
 | Aujourd'hui / Maison classique | Skill + WOD réels et exécutables ; incompatibilité explicite si une séance valide est impossible, sans READY trompeur |
 | Ma semaine / Composer | Conserver exactement les blocs choisis et leur ordre ; ne pas ajouter un bloc pour appliquer la politique automatique |
+| Visibilité WOD / séance créée par l'utilisateur | Le WOD choisi dans Ma semaine est visible dès le récapitulatif, sans révélation manuelle. La génération automatique conserve son WOD masqué jusqu'à la révélation prévue ; le cycle de vie réel du WOD n'est jamais contourné. |
 | Renforcement seul depuis Ma semaine | Strength seul doit être exécutable, y compris à la maison |
 | Check-in Jour J | Adaptation contrôlée des prescriptions, du contexte et de la sécurité ; aucune reconstruction silencieuse de l'architecture choisie |
 | Séance commencée | Préserver l'identité de séance et les éléments déjà réalisés |
