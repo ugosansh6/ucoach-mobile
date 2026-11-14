@@ -25,6 +25,7 @@ import {
 } from '../../services/environmentSessionRuntimeService';
 
 import SessionPlanBPanel from './SessionPlanBPanel';
+import { shouldShowWodContent } from '../../utils/sessionWodVisibility';
 
 const LABELS = {
   unlock: 'Unlock',
@@ -306,12 +307,9 @@ export default function SessionOverviewSheet({
   const plannedDuration =
     Number(workout?.plannedDuration ?? workout?.preparationSnapshot?.durationMinutes ?? workout?.preparationSnapshot?.duration) || null;
   const progress = blocks.length > 0 ? completedBlocks / blocks.length : 0;
-  // Ne jamais déduire la révélation du WOD de la navigation, du curseur ou d'un
-  // runtime local. Seul l'état backend hydraté par SessionScreen fait foi.
-  const wodRevealed = Boolean(
-    lifecycleReady &&
-      (workout?.wodRevealed || workout?.wodRevealedAt)
-  );
+  // The athlete chose the Composer WOD; reveal its content immediately.
+  // Automatic WODs still require server-confirmed lifecycle reveal.
+  const wodContentVisible = shouldShowWodContent(workout, { lifecycleReady });
 
   const [availability, setAvailability] = useState({});
   const [loadingAvailability, setLoadingAvailability] = useState(false);
@@ -448,7 +446,7 @@ export default function SessionOverviewSheet({
             <View style={styles.whiteboard}>
               {blocks.map((block, blockIndex) => {
                 const active = blockIndex === activeBlockIndex && !block.done;
-                const maskedWod = block.key === 'wod' && !wodRevealed;
+                const maskedWod = block.key === 'wod' && !wodContentVisible;
 
                 return (
                   <View key={`${block.key}:${blockIndex}`} style={[styles.block, blockIndex > 0 && styles.blockBorder]}>

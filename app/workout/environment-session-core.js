@@ -16,6 +16,7 @@ import { spacing } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import EnvironmentWodBlock from '../../src/components/workout/EnvironmentWodBlock';
+import { isUserComposedSession, shouldShowWodContent } from '../../src/utils/sessionWodVisibility';
 import { FocusedTabata, createStyles as createFocusedSessionStyles } from './session-focused-core';
 import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
 import SessionFormatSheet from '../../src/components/workout/SessionFormatSheet';
@@ -2149,6 +2150,8 @@ export default function EnvironmentSessionCore({
     lifecycleReady &&
       (workout?.wodRevealed || workout?.wodRevealedAt)
   );
+  const userComposedWod = isUserComposedSession(workout);
+  const wodContentVisible = shouldShowWodContent(workout, { lifecycleReady });
 
   const revealWod = useCallback(async () => {
     await ensureStarted();
@@ -2205,7 +2208,7 @@ export default function EnvironmentSessionCore({
   const ensureWodStarted = useCallback(async () => {
     await ensureStarted();
 
-    if (!wodRevealed) {
+    if (!wodRevealed && !userComposedWod) {
       throw new Error('Révèle d’abord le WOD avant de le démarrer.');
     }
 
@@ -2217,9 +2220,19 @@ export default function EnvironmentSessionCore({
     }
 
     wodStartedRef.current = true;
-    const request = markWorkoutWodStarted({
-      sessionId: workout.sessionId,
-    })
+    // Composer WOD is readable before start, but backend reveal must still
+    // happen after session start and before the actual WOD start.
+    // This request stays coalesced by wodStartPromise to protect double taps.
+    const request = (async () => {
+      if (!wodRevealed && userComposedWod) {
+        const revealed = await markWorkoutWodRevealed({ sessionId: workout.sessionId });
+        updateWorkout({
+          wodRevealed: true,
+          wodRevealedAt: revealed?.wod_revealed_at ?? new Date().toISOString(),
+        });
+      }
+      return markWorkoutWodStarted({ sessionId: workout.sessionId });
+    })()
       .then((result) => {
         updateWorkout({
           wodStarted: true,
@@ -2251,6 +2264,7 @@ export default function EnvironmentSessionCore({
     ensureStarted,
     updateWorkout,
     wodRevealed,
+    userComposedWod,
     workout?.sessionId,
     workout?.wodRevealedAt,
     workout?.wodStartedAt,
@@ -2640,7 +2654,7 @@ export default function EnvironmentSessionCore({
       />
 
       <ScrollView contentContainerStyle={shellStyles.content} showsVerticalScrollIndicator={false}>
-        {wodBlock && !wodRevealed ? (
+        {wodBlock && !wodContentVisible ? (
           <View style={focusedTabataStyles.secretCard}>
               <View style={focusedTabataStyles.secretIcon}>
                 <Ionicons
