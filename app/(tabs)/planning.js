@@ -25,6 +25,7 @@ import {
   getWeekReadContract,
   moveWeekPlanItem,
   removeWeekPlanItem,
+  replanWeekAfterConfirmedRemoval,
   withConfirmedWeekRemoval,
 } from '../../src/services/weeklyPlanService';
 import { weekRemovalFeedback } from '../../src/utils/weekRemovalRequestGuard';
@@ -1013,6 +1014,13 @@ export default function PlanningScreen() {
       console.warn('[MaSemaine] post-removal refresh failed, removal is confirmed', refreshError);
       showMoveFeedback('Séance retirée. Actualise Ma semaine pour synchroniser le planning.');
     }
+    // Best-effort follow-up: the expensive Coach calculation does not gate
+    // SQL removal confirmation, modal closure or the updated week display.
+    void replanWeekAfterConfirmedRemoval({
+      planItemId, sessionId, anchorDate: weekAnchorDate,
+    }).catch((replanError) => {
+      console.warn('[MaSemaine] post-commit Coach replan deferred', replanError);
+    });
   }, [contract?.weekStart, removeItem, removingItemId, showMoveFeedback]);
 
   const handleAddSessionDay = useCallback((dateKey) => {

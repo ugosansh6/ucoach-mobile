@@ -199,6 +199,35 @@ export async function removeWeekPlanItem({
   return result;
 }
 
+/**
+ * Recompute the Coach's persisted recommendations only after a confirmed
+ * user removal. This RPC is never part of the removal transaction.
+ */
+export async function replanWeekAfterConfirmedRemoval({
+  planItemId,
+  sessionId = null,
+  anchorDate = new Date(),
+} = {}) {
+  if (!planItemId) throw new Error('planItemId required for post-removal replan');
+  const userId = await getAuthenticatedUserId();
+  const result = await withWeekRemovalTimeout(
+    (signal) => runSupabaseRequestWithAuthRetry(() =>
+      supabase.rpc('week_replan_persisted_coach_plan_v1', {
+        p_user_id: userId,
+        p_anchor_date: normalizeWeekDateInput(anchorDate, 'anchorDate'),
+        p_reason_code: 'USER_REMOVED_WEEK_ITEM',
+        p_trigger_plan_item_id: planItemId,
+        p_trigger_session_id: sessionId,
+      }).abortSignal(signal)
+    ),
+    7000
+  );
+  if (result?.status !== 'REPLAN_EVALUATED') {
+    throw new Error('Post-removal Coach recalculation was not confirmed');
+  }
+  return result;
+}
+
 export async function updateWeekPlanItemContext({
   planItemId,
   context = {},

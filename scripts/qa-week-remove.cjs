@@ -78,6 +78,19 @@ check('removal error is visible inside the confirmation sheet',()=>{
   assert.match(ui,/accessibilityLiveRegion="polite"/);
   assert.match(ui,/setRemoveErrorMessage\(weekRemovalFeedback\(removeRequestError\)\)/);
 });
+check('Coach replan is after confirmed removal, independent of its result',()=>{
+  assert.match(service,/export async function replanWeekAfterConfirmedRemoval/);
+  assert.match(service,/week_replan_persisted_coach_plan_v1/);
+  assert.match(service,/p_reason_code: 'USER_REMOVED_WEEK_ITEM'/);
+  assert.match(service,/p_trigger_plan_item_id: planItemId/);
+  assert.match(service,/7000/);
+  const action=ui.slice(ui.indexOf('const handleRemoveWeekItem ='),ui.indexOf('const handleAddSessionDay ='));
+  assert.ok(action.indexOf('setContract((current) => withConfirmedWeekRemoval') <
+    action.indexOf('void replanWeekAfterConfirmedRemoval('));
+  assert.ok(action.indexOf('setRemoveItem(null)') <
+    action.indexOf('void replanWeekAfterConfirmedRemoval('));
+  assert.match(action,/post-commit Coach replan deferred/);
+});
 check('RPC confirms item identity before optimistic UI update',()=>{
   assert.match(service,/!result\.removed \|\| result\.planItemId !== planItemId/);
   assert.match(service,/WEEK_REMOVE_NOT_CONFIRMED/);
