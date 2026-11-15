@@ -61,6 +61,23 @@ check('a previously skipped item never consumes a slot twice', () => {
   assert.equal(result.planningSlotCount,0);
 });
 check('null input is safe', () => assert.equal(apply(null,'one'),null));
+check('bounded removal request + reconciliation are present',()=>{
+  const utility = fs.readFileSync('src/utils/weekRemovalRequestGuard.js', 'utf8');
+  assert.match(utility,/Promise\.race/);
+  assert.match(utility,/controller\.abort\(\)/);
+  assert.match(utility,/row\?\.status === 'skipped'/);
+  assert.match(utility,/user_removed === true/);
+  assert.match(service,/withWeekRemovalTimeout\(async \(signal\) =>/);
+  assert.match(service,/\.abortSignal\(signal\)/);
+  assert.match(service,/\.from\('user_training_plan_items'\)/);
+  assert.match(service,/isConfirmedWeekRemovalRow\(row\)/);
+  assert.match(service,/verifiedAfterTimeout: true/);
+});
+check('removal error is visible inside the confirmation sheet',()=>{
+  assert.match(ui,/errorMessage=\{removeErrorMessage\}/);
+  assert.match(ui,/accessibilityLiveRegion="polite"/);
+  assert.match(ui,/setRemoveErrorMessage\(weekRemovalFeedback\(removeRequestError\)\)/);
+});
 check('RPC confirms item identity before optimistic UI update',()=>{
   assert.match(service,/!result\.removed \|\| result\.planItemId !== planItemId/);
   assert.match(service,/WEEK_REMOVE_NOT_CONFIRMED/);

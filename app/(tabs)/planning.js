@@ -27,6 +27,7 @@ import {
   removeWeekPlanItem,
   withConfirmedWeekRemoval,
 } from '../../src/services/weeklyPlanService';
+import { weekRemovalFeedback } from '../../src/utils/weekRemovalRequestGuard';
 import { getWeekSessionExercisePreviews } from '../../src/services/weekSessionPreviewService';
 import { reloadWorkoutSession } from '../../src/services/workoutService';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
@@ -671,7 +672,7 @@ function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClo
     </Modal>
   );
 }
-function RemoveSessionModal({ item, visible, palette, removing, onClose, onConfirm }) {
+function RemoveSessionModal({ item, visible, palette, removing, errorMessage, onClose, onConfirm }) {
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={() => !removing && onClose?.()}>
       <Pressable style={styles.modalBackdrop} onPress={() => !removing && onClose?.()}>
@@ -683,6 +684,12 @@ function RemoveSessionModal({ item, visible, palette, removing, onClose, onConfi
           <Text style={[styles.removeText, { color: palette.textMuted }]}>
             {item ? getShortSummary(item) : 'Cette séance'} disparaîtra de ta semaine. Aucun retard ni dette d’entraînement ne sera créé.
           </Text>
+          {errorMessage ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[styles.removeText, { color: palette.orange, marginTop: 12 }]}
+            >{errorMessage}</Text>
+          ) : null}
           <View style={styles.removeActions}>
             <TouchableOpacity style={[styles.removeCancel, { borderColor: palette.border }]} disabled={removing} onPress={(event) => { event?.stopPropagation?.(); onClose?.(); }}>
               <Text style={[styles.removeCancelText, { color: palette.text }]}>ANNULER</Text>
@@ -776,6 +783,7 @@ export default function PlanningScreen() {
   const [addSessionOpen, setAddSessionOpen] = useState(false);
   const [removeItem, setRemoveItem] = useState(null);
   const [removingItemId, setRemovingItemId] = useState(null);
+  const [removeErrorMessage, setRemoveErrorMessage] = useState(null);
   const dayRefs = useRef({});
   const dayRects = useRef({});
   const feedbackTimerRef = useRef(null);
@@ -965,11 +973,13 @@ export default function PlanningScreen() {
     // Server acknowledgement is the commit boundary. Refresh errors must NOT
     // turn a successful removal into a false "Impossible" message.
     try {
+      setRemoveErrorMessage(null);
       setRemovingItemId(planItemId);
       await removeWeekPlanItem({ planItemId, anchorDate: weekAnchorDate });
-    } catch (removeError) {
-      console.warn('[MaSemaine] removal RPC failed', removeError);
-      showMoveFeedback('Retrait non enregistré. Réessaie.');
+    } catch (removeRequestError) {
+      console.warn('[MaSemaine] removal RPC failed', removeRequestError);
+      // A toast behind the modal is invisible; report the error in the sheet.
+      setRemoveErrorMessage(weekRemovalFeedback(removeRequestError));
       return;
     } finally {
       setRemovingItemId(null);
@@ -986,6 +996,7 @@ export default function PlanningScreen() {
     }
     setExpandedKey(null);
     setRemoveItem(null);
+    setRemoveErrorMessage(null);
     showMoveFeedback('Séance retirée de ta semaine.');
 
     // A read/replan can take time; do not undo a successful removal on timeout.
@@ -1115,7 +1126,10 @@ export default function PlanningScreen() {
                   onDragCancel={clearDrag}
                   onOpenSession={handleOpenSession}
                   openingSessionId={openingSessionId}
-                  onRequestRemove={setRemoveItem}
+                  onRequestRemove={(item) => {
+                    setRemoveErrorMessage(null);
+                    setRemoveItem(item);
+                  }}
                   removingItemId={removingItemId}
                 />
               ))}
@@ -1178,7 +1192,13 @@ export default function PlanningScreen() {
         item={removeItem}
         palette={palette}
         removing={Boolean(removingItemId)}
-        onClose={() => !removingItemId && setRemoveItem(null)}
+        errorMessage={removeErrorMessage}
+        onClose={() => {
+          if (!removingItemId) {
+            setRemoveItem(null);
+            setRemoveErrorMessage(null);
+          }
+        }}
         onConfirm={handleRemoveWeekItem}
       />
 

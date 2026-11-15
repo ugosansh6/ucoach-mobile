@@ -3,6 +3,7 @@ import {
   getAuthenticatedUserWithRetry,
   runSupabaseRequestWithAuthRetry,
 } from '../lib/supabaseAuthRetry';
+import { withWeekRemovalTimeout, isConfirmedWeekRemovalRow } from '../utils/weekRemovalRequestGuard';
 
 export function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -145,25 +146,51 @@ export async function removeWeekPlanItem({
   planItemId,
   anchorDate = new Date(),
 } = {}) {
-  if (!planItemId) {
-    throw new Error('planItemId is required to remove a week item.');
+  if (!planItemId) throw new Error('planItemId is required to remove a week item.');
+
+  let userId = null;
+  let data;
+  try {
+    data = await withWeekRemovalTimeout(async (signal) => {
+      userId = await getAuthenticatedUserId();
+      if (signal.aborted) {
+        const e = new Error('Le retrait a dépassé son délai de réponse.');
+        e.code = 'WEEK_REMOVE_TIMEOUT';
+        throw e;
+      }
+      return runSupabaseRequestWithAuthRetry(() =>
+        supabase.rpc('week_remove_plan_item_v1', {
+          p_user_id: userId,
+          p_plan_item_id: planItemId,
+          p_anchor_date: normalizeWeekDateInput(anchorDate, 'anchorDate'),
+        }).abortSignal(signal)
+      );
+    });
+  } catch (removeError) {
+    if (removeError?.code !== 'WEEK_REMOVE_TIMEOUT' || !userId) throw removeError;
+    try {
+      // Do not automatically replay a destructive mutation after timeout.
+      // A server commit might already have happened; verify via own-row RLS.
+      const row = await withWeekRemovalTimeout(
+        (signal) => runSupabaseRequestWithAuthRetry(() =>
+          supabase.from('user_training_plan_items')
+            .select('id,status,planning_context_json')
+            .eq('id', planItemId)
+            .eq('user_id', userId)
+            .maybeSingle().abortSignal(signal)
+        ),
+        8000
+      );
+      if (isConfirmedWeekRemovalRow(row)) {
+        return { planItemId, removed: true, verifiedAfterTimeout: true };
+      }
+    } catch (verificationError) {
+      console.warn('[MaSemaine] removal verification unavailable', verificationError);
+    }
+    throw removeError;
   }
 
-  const userId = await getAuthenticatedUserId();
-  const data = await runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc(
-      'week_remove_plan_item_v1',
-      {
-        p_user_id: userId,
-        p_plan_item_id: planItemId,
-        p_anchor_date: normalizeWeekDateInput(anchorDate, 'anchorDate'),
-      }
-    )
-  );
-
   const result = normalizeWeekRemoveResult(data);
-  // The RPC returns 200 also for JSON business statuses. Do not pretend that
-  // the item disappeared unless the server explicitly confirms its removal.
   if (!result.removed || result.planItemId !== planItemId) {
     const error = new Error('La séance n’a pas été retirée. Réessaie.');
     error.code = 'WEEK_REMOVE_NOT_CONFIRMED';
