@@ -7,10 +7,10 @@ export async function withWeekRemovalTimeout(operation, timeoutMs = 15000) {
   let timer;
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => {
-      controller.abort();
       const error = new Error('Le retrait met trop de temps à répondre.');
       error.code = 'WEEK_REMOVE_TIMEOUT';
       reject(error);
+      controller.abort();
     }, timeoutMs);
   });
   try {
