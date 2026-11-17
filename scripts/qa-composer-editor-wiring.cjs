@@ -21,6 +21,8 @@ assert.match(ui,/Tabata abdos · 4 min/);
 assert.match(ui,/Échauffement et Tabata restent inclus/);
 assert.match(service,/blocks: \[warmupBlock, tabataBlock, \.\.\.main\]/);
 assert.match(ui,/showAllMechanics \|\| option.key === mechanic\?\.key \|\| option.recommended/);
+assert.match(ui,/Aucun format compatible avec les mouvements choisis/);
+assert.match(ui,/setMechanicOptions\(options\)/);
 assert.match(ui,/b.type === 'WOD' && b.minutes >= 40/);
 assert.match(ui,/UGEROD privilégie un circuit avec récupération/);
 assert.match(ui,/b.type === 'TABATA'/);

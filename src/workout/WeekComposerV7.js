@@ -982,7 +982,13 @@ export default function WeekComposerV7() {
         environmentCode,
         focus: intent?.focus,
       });
-      if (!options.some((option) => option.available !== false)) throw new Error('Aucune mécanique compatible avec ce WOD.');
+      if (!options.some((option) => option.available !== false)) {
+        setMechanicOptions(options);
+        setMechanic(null);
+        setMechanicIssue(null);
+        setError('Aucun format compatible avec les mouvements choisis. Ajoute des mouvements au WOD ou change de structure.');
+        return;
+      }
       setMechanicOptions(options);
       setMechanicIssue(null);
       setMechanic((current) => options.find((option) => option.available !== false && option.key === current?.key)
