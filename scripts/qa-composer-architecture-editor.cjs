@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 'use strict';
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const source = fs.readFileSync('src/utils/composerArchitectureEditor.js', 'utf8');
 const { editComposerArchitecture: edit, composerAddableBlocks, composerMainBlocks } =
-  require('../src/utils/composerArchitectureEditor.js');
+  new Function(source.replaceAll('export const ', 'const ').replaceAll('export function ', 'function ') +
+    '\nreturn {editComposerArchitecture,composerAddableBlocks,composerMainBlocks};')();
 
 const initial = {
   key: 'balanced', estimatedMinutes: 60, transitionReserveMinutes: 5,

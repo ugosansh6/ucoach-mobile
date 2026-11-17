@@ -19,6 +19,11 @@ import {
 import { spacing } from '../constants';
 import { fontFamilies } from '../constants/typography';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
+import {
+  editComposerArchitecture,
+  composerMainBlocks,
+  composerAddableBlocks,
+} from '../utils/composerArchitectureEditor';
 import { useUgerodTheme } from '../contexts/UgerodThemeContext';
 import {
   getEquipmentCatalog,
@@ -59,9 +64,9 @@ const ENVIRONMENTS = [
   { code: 'OUTDOOR', label: 'Extérieur', icon: 'leaf-outline' },
 ];
 const FALLBACK_INTENTS = [
-  { key: 'STRENGTH', label: 'Force', subtitle: 'Construire autour d’un travail de force.', focus: 'Strength' },
-  { key: 'CONDITIONING', label: 'Conditioning', subtitle: 'Faire monter le moteur et la densité.', focus: 'Conditioning' },
-  { key: 'TECHNIQUE', label: 'Skill', subtitle: 'Maîtriser un mouvement ou développer une compétence.', focus: 'General Fitness' },
+  { key: 'STRENGTH', label: 'Développer ma force', subtitle: 'Force et progression musculaire.', focus: 'Strength' },
+  { key: 'CONDITIONING', label: 'Améliorer mon endurance', subtitle: 'Cardio, conditioning et capacité à soutenir l’effort.', focus: 'Conditioning' },
+  { key: 'TECHNIQUE', label: 'Progresser sur un mouvement', subtitle: 'Apprentissage et maîtrise technique.', focus: 'General Fitness' },
 ];
 const LOAD_CAPABLE_EQUIPMENT_IDS = new Set(['E03', 'E04', 'E09', 'E14']);
 
@@ -197,9 +202,9 @@ function coachIntentFromItem(item) {
 }
 
 function directionBaseLabel(choice) {
-  if (choice?.focus === 'Strength') return 'Force';
-  if (choice?.focus === 'Conditioning') return 'Conditioning';
-  if (choice?.key === 'TECHNIQUE') return 'Skill';
+  if (choice?.key === 'TECHNIQUE') return 'Progresser sur un mouvement';
+  if (choice?.focus === 'Strength') return 'Développer ma force';
+  if (choice?.focus === 'Conditioning') return 'Améliorer mon endurance';
   return String(choice?.label ?? 'Séance').split('·')[0].trim();
 }
 
@@ -583,6 +588,9 @@ export default function WeekComposerV7() {
   const [intent, setIntent] = useState(null);
   const [architectures, setArchitectures] = useState([]);
   const [architecture, setArchitecture] = useState(null);
+  const [showOtherArchitectures, setShowOtherArchitectures] = useState(false);
+  const [showArchitectureEditor, setShowArchitectureEditor] = useState(false);
+  const [architectureEditError, setArchitectureEditError] = useState('');
   const [candidateMap, setCandidateMap] = useState({});
   const [candidateEvidence, setCandidateEvidence] = useState({});
   const [selectionMap, setSelectionMap] = useState({});
@@ -698,6 +706,8 @@ export default function WeekComposerV7() {
           setIntent(draft.intent ?? coachIntent);
           setArchitecture(draft.architecture);
           setArchitectures([draft.architecture]);
+          setShowArchitectureEditor(false);
+          setShowOtherArchitectures(false);
           setCandidateMap(exerciseMap);
           setSelectionMap(requested);
           try {
@@ -776,6 +786,9 @@ export default function WeekComposerV7() {
       const next = buildComposerArchitectures({ durationMinutes: duration, intentKey: intent.key, environmentCode, targets });
       setArchitectures(next);
       setArchitecture(next[0] ?? null);
+      setShowOtherArchitectures(false);
+      setShowArchitectureEditor(false);
+      setArchitectureEditError('');
       setStep(2);
     } catch (loadError) {
       console.warn('[WeekComposerV7] architecture failed', loadError);
@@ -783,6 +796,38 @@ export default function WeekComposerV7() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function changeArchitecture(action) {
+    const result = editComposerArchitecture(architecture, action);
+    if (!result.ok) {
+      setArchitectureEditError(result.error);
+      return;
+    }
+    setArchitecture(result.architecture);
+    setArchitectureEditError('');
+    // Each type has a single identity in the current Day-J compiler; never
+    // retain exercise choices from a block the athlete explicitly removed.
+    if (result.removedType) {
+      setSelectionMap((previous) => {
+        const next = { ...previous };
+        delete next[result.removedType];
+        return next;
+      });
+      setCandidateMap((previous) => {
+        const next = { ...previous };
+        delete next[result.removedType];
+        return next;
+      });
+      if (result.removedType === 'WOD') {
+        setMechanic(null);
+        setMechanicOptions([]);
+      }
+    }
+    setPreviewSignature(null);
+    setPrescriptionPreview(null);
+    setPreviewIssue(null);
+    setStrengthAssessment(null);
   }
 
   async function goToExercises() {
@@ -802,6 +847,17 @@ export default function WeekComposerV7() {
         return [block.type, candidates];
       }));
       const candidatesByBlock = Object.fromEntries(results);
+      // Keep user-authored choices even if the ranked shortlist changes.
+      // A mismatch must be diagnosed in the preview, not silently substituted.
+      for (const block of architecture.blocks ?? []) {
+        const preservedIds = new Set(selectionMap[block.type] ?? []);
+        if (!preservedIds.size) continue;
+        const existing = candidatesByBlock[block.type] ?? [];
+        const seen = new Set(existing.map((item) => item.id));
+        const preserved = (candidateMap[block.type] ?? [])
+          .filter((item) => preservedIds.has(item.id) && !seen.has(item.id));
+        candidatesByBlock[block.type] = [...preserved, ...existing];
+      }
       let observations = {};
       try {
         const ids = results.flatMap(([, candidates]) => candidates.map((candidate) => candidate.id));
@@ -821,8 +877,15 @@ export default function WeekComposerV7() {
           (block) => [block.type, maxForBlock(block.type, block.minutes)]
         )),
       });
+      // A new or edited structure never erases exercises the athlete picked.
+      for (const block of architecture.blocks ?? []) {
+        const previousChoice = selectionMap[block.type];
+        if (Array.isArray(previousChoice) && previousChoice.length) {
+          defaults[block.type] = [...previousChoice];
+        }
+      }
       const strength = (architecture.blocks ?? []).find((block) => block.type === 'STRENGTH');
-      if (strength) {
+      if (strength && !(selectionMap.STRENGTH ?? []).length) {
         const ordered = (defaults.STRENGTH ?? []).map((id) => candidatesByBlock.STRENGTH.find((x) => x.id === id))
           .filter(Boolean).map((exercise) => ({ id: exercise.id, name: exercise.name }));
         if (!ordered.length) throw new Error('Aucun mouvement de renforcement compatible avec le contexte.');
@@ -842,6 +905,7 @@ export default function WeekComposerV7() {
         setStrengthAssessmentError(false);
       } else {
         setStrengthAssessment(null);
+        setStrengthAssessmentError(false);
       }
       setCandidateMap(candidatesByBlock);
       setCandidateEvidence(observations);
@@ -1293,12 +1357,159 @@ export default function WeekComposerV7() {
 
           {step === 2 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="STRUCTURE" title="Le cœur de ta séance." helper="Warm-up, Tabata et transitions sont compris dans la durée de ta séance." styles={styles} />
+              <StageHeader
+                kicker="STRUCTURE"
+                title="Voici comment UGEROD construirait ta séance."
+                helper="Garde cette proposition ou personnalise ses blocs. Échauffement, Tabata abdos et transitions restent inclus."
+                styles={styles}
+              />
               <View style={styles.optionList}>
-                {architectures.map((option) => (
-                  <ArchitectureCard key={option.key} option={option} selected={architecture?.key === option.key} onPress={() => setArchitecture(option)} styles={styles} colors={colors} environmentCode={environmentCode} />
+                {architecture?.key === 'custom' ? (
+                  <ArchitectureCard
+                    option={architecture}
+                    selected
+                    onPress={() => setShowArchitectureEditor(true)}
+                    styles={styles}
+                    colors={colors}
+                    environmentCode={environmentCode}
+                  />
+                ) : null}
+                {architectures.filter((option, index) =>
+                  architecture?.key !== 'custom' && (showOtherArchitectures || index === 0 || option.key === architecture?.key)
+                  || architecture?.key === 'custom' && showOtherArchitectures && option.key !== 'custom'
+                ).map((option) => (
+                  <ArchitectureCard
+                    key={option.key}
+                    option={option}
+                    selected={architecture?.key === option.key}
+                    onPress={() => {
+                      setArchitecture(option);
+                      setArchitectureEditError('');
+                    }}
+                    styles={styles}
+                    colors={colors}
+                    environmentCode={environmentCode}
+                  />
                 ))}
               </View>
+              {architectures.length > 1 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setShowOtherArchitectures((current) => !current)}
+                  style={styles.structureLink}
+                >
+                  <Text style={styles.structureLinkText}>
+                    {showOtherArchitectures ? 'Masquer les alternatives' : 'Voir d’autres structures'}
+                  </Text>
+                  <Ionicons name={showOtherArchitectures ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setShowArchitectureEditor((current) => !current);
+                  setArchitectureEditError('');
+                }}
+                style={styles.structureEditorToggle}
+              >
+                <Ionicons name="options-outline" size={20} color={colors.accent} />
+                <Text style={styles.structureLinkText}>Personnaliser ma structure</Text>
+                <Ionicons name={showArchitectureEditor ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
+              </Pressable>
+              {showArchitectureEditor && architecture ? (
+                <View style={styles.structureEditor}>
+                  <Text style={styles.structureEditorHelp}>
+                    Réorganise les blocs ou ajuste leur temps. UGEROD recalculera ensuite les exercices et prescriptions.
+                  </Text>
+                  <View style={styles.structureProtected}>
+                    <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+                    <Text style={styles.structureEditorHelp}>Échauffement · {architecture.blocks.find((b) => b.type === 'WARMUP')?.minutes} min</Text>
+                  </View>
+                  <View style={styles.structureProtected}>
+                    <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+                    <Text style={styles.structureEditorHelp}>Tabata abdos · 4 min</Text>
+                  </View>
+                  {composerMainBlocks(architecture).map((block, index, mainBlocks) => (
+                    <View key={'edit-' + block.type} style={styles.structureEditBlock}>
+                      <View style={styles.structureEditBlockTitle}>
+                        <Text style={styles.structureEditTitle}>
+                          {composerBlockDisplayLabel(block.type, environmentCode)}
+                        </Text>
+                        <Text style={styles.structureEditMinutes}>{block.minutes} min</Text>
+                      </View>
+                      <View style={styles.structureEditActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={'Monter le bloc ' + block.type}
+                          disabled={index === 0}
+                          onPress={() => changeArchitecture({ kind: 'move', blockType: block.type, direction: -1 })}
+                          style={[styles.structureIconButton, index === 0 && styles.disabled]}
+                        >
+                          <Ionicons name="arrow-up" size={19} color={colors.accent} />
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={'Descendre le bloc ' + block.type}
+                          disabled={index === mainBlocks.length - 1}
+                          onPress={() => changeArchitecture({ kind: 'move', blockType: block.type, direction: 1 })}
+                          style={[styles.structureIconButton, index === mainBlocks.length - 1 && styles.disabled]}
+                        >
+                          <Ionicons name="arrow-down" size={19} color={colors.accent} />
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={'Réduire la durée du bloc ' + block.type}
+                          disabled={mainBlocks.length < 2}
+                          onPress={() => changeArchitecture({ kind: 'minutes', blockType: block.type, delta: -2 })}
+                          style={[styles.structureIconButton, mainBlocks.length < 2 && styles.disabled]}
+                        >
+                          <Ionicons name="remove" size={20} color={colors.accent} />
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={'Augmenter la durée du bloc ' + block.type}
+                          disabled={mainBlocks.length < 2}
+                          onPress={() => changeArchitecture({ kind: 'minutes', blockType: block.type, delta: 2 })}
+                          style={[styles.structureIconButton, mainBlocks.length < 2 && styles.disabled]}
+                        >
+                          <Ionicons name="add" size={20} color={colors.accent} />
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={'Retirer le bloc ' + block.type}
+                          disabled={mainBlocks.length === 1}
+                          onPress={() => changeArchitecture({ kind: 'remove', blockType: block.type })}
+                          style={[styles.structureIconButton, mainBlocks.length === 1 && styles.disabled]}
+                        >
+                          <Ionicons name="trash-outline" size={19} color={colors.textSecondary} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+                  {composerAddableBlocks(architecture).length ? (
+                    <View style={styles.structureAddRow}>
+                      <Text style={styles.structureEditorHelp}>Ajouter un bloc</Text>
+                      <View style={styles.structureAddActions}>
+                        {composerAddableBlocks(architecture).map((type) => (
+                          <Pressable
+                            key={'add-' + type}
+                            accessibilityRole="button"
+                            onPress={() => changeArchitecture({ kind: 'add', blockType: type })}
+                            style={styles.structureAddButton}
+                          >
+                            <Ionicons name="add-circle-outline" size={17} color={colors.accent} />
+                            <Text style={styles.structureAddLabel}>{composerBlockDisplayLabel(type, environmentCode)}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
+                  <Text style={styles.structureEditorHelp}>
+                    Même type de bloc plusieurs fois et Course dédiée : extension du Player et du contrat à venir.
+                  </Text>
+                  {architectureEditError ? <Text style={styles.errorText}>{architectureEditError}</Text> : null}
+                </View>
+              ) : null}
               <PrimaryButton label={busy ? 'CHARGEMENT…' : 'CHOISIR LES MOUVEMENTS'} onPress={goToExercises} disabled={!architecture || busy} loading={busy} styles={styles} colors={colors} />
             </View>
           ) : null}
@@ -1434,7 +1645,20 @@ export default function WeekComposerV7() {
           {step === 5 ? (
             <View style={styles.stepWrap}>
               <StageHeader kicker="RÉCAPITULATIF" title="Ta séance en détail." helper={`${duration} min prévues · ${environmentLabel(environmentCode)} · mouvements et repos calculés.`} styles={styles} />
-              <Text style={styles.recapHelp}>Warm-up et Tabata sont inclus dans la durée. Tu peux modifier chaque bloc.</Text>
+              <Text style={styles.recapHelp}>Échauffement et Tabata sont inclus dans la durée. Tu peux modifier les exercices de chaque bloc.</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setShowArchitectureEditor(true);
+                  setArchitectureEditError('');
+                  setStep(2);
+                }}
+                style={styles.structureEditorToggle}
+              >
+                <Ionicons name="options-outline" size={20} color={colors.accent} />
+                <Text style={styles.structureLinkText}>Ajouter, retirer ou réorganiser les blocs</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+              </Pressable>
               {previewLoading ? (
                 <View style={styles.previewState}>
                   <ActivityIndicator size="small" color={colors.accent} />
@@ -1689,6 +1913,22 @@ function createStyles(colors) {
     choiceChipText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.textSecondary },
     choiceChipTextSelected: { color: colors.textOnAccent },
     optionList: { gap: 12 },
+    structureLink: { marginVertical: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, minHeight: 38 },
+    structureLinkText: { flex: 1, fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.accent },
+    structureEditorToggle: { marginTop: 13, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, padding: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 14 },
+    structureEditor: { marginBottom: 18, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 10 },
+    structureEditorHelp: { flex: 1, fontFamily: fontFamilies.regular, color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
+    structureProtected: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 9, backgroundColor: colors.background },
+    structureEditBlock: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, gap: 10 },
+    structureEditBlockTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    structureEditTitle: { fontFamily: fontFamilies.bold, fontSize: 14, color: colors.text },
+    structureEditMinutes: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.accent },
+    structureEditActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+    structureIconButton: { minWidth: 39, minHeight: 38, padding: 7, borderRadius: 9, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+    structureAddRow: { gap: 8, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border },
+    structureAddActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+    structureAddButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 10 },
+    structureAddLabel: { fontFamily: fontFamilies.medium, fontSize: 12, color: colors.text },
     mechanicDisabled: { opacity: 0.46 },
     mechanicIssue: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     simpleCard: { position: 'relative', overflow: 'hidden', padding: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },

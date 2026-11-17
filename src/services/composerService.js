@@ -155,7 +155,7 @@ export function composerBlockDisplayLabel(type, environmentCode = 'BOX') {
     if (env === 'HOME' || env === 'OUTDOOR') return 'Renforcement';
     return 'Force';
   }
-  if (type === 'SKILL') return env === 'GYM' || env === 'OUTDOOR' ? 'Technique' : 'Skill';
+  if (type === 'SKILL') return 'Technique';
   if (type === 'WOD') return env === 'GYM' || env === 'OUTDOOR' ? 'Conditioning' : 'WOD';
   return String(type ?? '');
 }
@@ -178,9 +178,12 @@ export function composerArchitecturePurpose(option) {
   const types = (option?.blocks ?? [])
     .filter((block) => !['WARMUP', 'TABATA'].includes(block.type))
     .map((block) => block.type);
+  if (types.includes('SKILL') && types.includes('STRENGTH')) {
+    return 'Apprendre un geste et travailler sa force avec une progression adaptée.';
+  }
   if (types.includes('SKILL')) {
     return types.includes('WOD')
-      ? 'Technique : apprendre un geste, puis passer au WOD.'
+      ? 'Technique : apprendre un geste, puis poursuivre avec un WOD.'
       : 'Technique : apprendre ou perfectionner un geste.';
   }
   if (types.includes('STRENGTH')) {
