@@ -7,8 +7,8 @@
  * requires instance identities through draft, C2 preview, Day-J and Player.
  *
  * Existing 8-minute main-block floor comes from buildComposerArchitectures.
- * A 4-minute Tabata and Warm-up remain protected when present. Do NOT invent
- * missing complements in older saved user-authored drafts.
+ * Warm-up stays protected. A 4-minute Tabata is an athlete-controlled option,
+ * never injected into an older saved user-authored draft.
  */
 export const COMPOSER_EDITABLE_BLOCK_TYPES = ['SKILL', 'STRENGTH', 'WOD'];
 export const COMPOSER_MIN_MAIN_MINUTES = 8;
@@ -57,6 +57,7 @@ function rejected(message) {
  *  {kind:'remove', blockType:...}
  *  {kind:'move', blockType:..., direction:-1|1}
  *  {kind:'minutes', blockType:..., delta:-2|2}
+ *  {kind:'tabata'} // Explicitly add/remove an optional 4-minute Tabata
  */
 export function editComposerArchitecture(architecture, action) {
   const blocks = architecture?.blocks ?? [];
@@ -65,7 +66,7 @@ export function editComposerArchitecture(architecture, action) {
   }
   // Existing saved Composer sessions can legitimately omit a complement
   // (e.g. user-authored Warm-up → Skill → WOD). Never inject it on edit.
-  // New proposals still include both, with 4 minutes of Tabata.
+  // New proposals include Warm-up; Tabata is optional and explicit.
   const complements = blocks.filter((block) => FIXED_TYPES.includes(block.type));
   const tabata = complements.find((block) => block.type === 'TABATA');
   const main = composerMainBlocks(architecture);
@@ -83,6 +84,29 @@ export function editComposerArchitecture(architecture, action) {
   if (!Number.isInteger(budget) || budget < COMPOSER_MIN_MAIN_MINUTES ||
       main.reduce((sum, block) => sum + Number(block.minutes), 0) !== budget) {
     return rejected('Le budget de temps doit être recalculé avant cette modification.');
+  }
+
+  // Optional Tabata occupies four minutes. Transfer that budget between the
+  // existing main blocks, preserving an eight-minute minimum per block.
+  if (action.kind === 'tabata') {
+    const newBudget = budget + (tabata ? 4 : -4);
+    const nextMain = allocateMainMinutes(main, newBudget);
+    if (!nextMain) {
+      return rejected('Pas assez de temps pour un Tabata de 4 minutes : augmente la durée ou retire un bloc.');
+    }
+    const nextComplements = tabata
+      ? complements.filter((item) => item.type !== 'TABATA')
+      : [...complements, { type: 'TABATA', label: 'Tabata', minutes: 4 }];
+    return {
+      ok: true,
+      removedType: tabata ? 'TABATA' : null,
+      architecture: {
+        ...architecture, key: 'custom', title: 'Structure personnalisée',
+        recommended: false,
+        blocks: [...nextComplements.map((b) => ({ ...b })), ...nextMain],
+        estimatedMinutes: total, transitionReserveMinutes: reserve,
+      },
+    };
   }
 
   const position = main.findIndex((item) => item.type === action.blockType);
