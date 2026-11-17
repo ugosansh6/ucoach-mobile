@@ -162,7 +162,9 @@ check('Display labels vary with environment while canonical block types remain u
   assert.equal(composerBlockDisplayLabel('STRENGTH', 'GYM'), 'Musculation');
   assert.equal(composerBlockDisplayLabel('STRENGTH', 'HOME'), 'Renforcement');
   assert.equal(composerBlockDisplayLabel('STRENGTH', 'BOX'), 'Force');
-  assert.equal(composerBlockDisplayLabel('SKILL', 'BOX'), 'Skill');
+  assert.equal(composerBlockDisplayLabel('SKILL', 'BOX'), 'Technique');
+  assert.equal(composerBlockDisplayLabel('WOD', 'GYM'), 'WOD');
+  assert.equal(composerBlockDisplayLabel('WOD', 'OUTDOOR'), 'WOD');
   assert.equal(composerArchitectureDisplayTitle(
     buildComposerArchitectures({ durationMinutes: 60, intentKey: 'STRENGTH', environmentCode: 'HOME' })[0], 'HOME'
   ), 'Renforcement seul');
