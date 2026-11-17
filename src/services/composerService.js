@@ -156,7 +156,7 @@ export function composerBlockDisplayLabel(type, environmentCode = 'BOX') {
     return 'Force';
   }
   if (type === 'SKILL') return 'Technique';
-  if (type === 'WOD') return env === 'GYM' || env === 'OUTDOOR' ? 'Conditioning' : 'WOD';
+  if (type === 'WOD') return 'WOD';
   return String(type ?? '');
 }
 
@@ -179,7 +179,9 @@ export function composerArchitecturePurpose(option) {
     .filter((block) => !['WARMUP', 'TABATA'].includes(block.type))
     .map((block) => block.type);
   if (types.includes('SKILL') && types.includes('STRENGTH')) {
-    return 'Apprendre un geste et travailler sa force avec une progression adaptée.';
+    return types.includes('WOD')
+      ? 'Technique, travail musculaire et WOD : chaque bloc a son rôle.'
+      : 'Apprendre un geste et travailler sa force avec une progression adaptée.';
   }
   if (types.includes('SKILL')) {
     return types.includes('WOD')
@@ -188,10 +190,15 @@ export function composerArchitecturePurpose(option) {
   }
   if (types.includes('STRENGTH')) {
     return types.includes('WOD')
-      ? 'Force et muscles, puis effort plus intense.'
+      ? 'Progression musculaire, puis WOD adapté à ton objectif.'
       : 'Force et muscles : séries, répétitions et récupération.';
   }
-  if (types.includes('WOD')) return 'Conditioning : effort cardio et musculaire.';
+  if (types.includes('WOD')) {
+    const wodMinutes = (option?.blocks ?? []).find((b) => b.type === 'WOD')?.minutes ?? 0;
+    return wodMinutes >= 40
+      ? 'Endurance : effort prolongé, rythme modulé selon la mécanique et les récupérations.'
+      : 'Conditioning : effort cardio et musculaire.';
+  }
   return 'Entraînement personnalisé selon ton contexte.';
 }
 
@@ -227,69 +234,73 @@ function block(type, minutes, label = null) {
 }
 
 /**
- * Composition is planned within the existing C4 architecture budget.
- * Warm-up and Tabata are always included in the total duration. Only the
- * main blocks are edited first; the user can edit these complements at recap.
- * A WOD-alone option is hidden if it would require an excessively long WOD.
+ * A new Composer proposal is led by the athlete's INTENT, not merely sorted
+ * from intent-independent structures. C2/C4 remain authoritative for actual
+ * movements, prescriptions, mechanics and day-J feasibility.
+ *
+ * New proposals contain Warm-up but no mandatory Tabata. An explicitly
+ * requested Tabata can be added/removed in the editor; previously saved
+ * drafts are reloaded unchanged. WOD mechanics support 3..90 minutes in DEV,
+ * so the former 30-minute cap was a local heuristic, not a technical limit.
  */
 export function buildComposerArchitectures({ durationMinutes, intentKey, environmentCode = 'BOX', targets = {} }) {
-  const duration = Math.max(20, Number(durationMinutes) || 45);
-  const transitionReserveMinutes = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
-  const warmupMinutes = Math.max(4, Math.min(
-    8,
-    duration - transitionReserveMinutes - 4 - 8,
-    Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 8))
+  const duration = Math.max(20, Math.min(90, Number(durationMinutes) || 45));
+  const reserve = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
+  const requestedWarmup = Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 8));
+  const warmup = Math.max(4, Math.min(
+    8, duration - reserve - 8,
+    Number.isFinite(requestedWarmup) ? requestedWarmup : 6
   ));
-  const tabataMinutes = 4;
-  const coreMinutes = duration - transitionReserveMinutes - warmupMinutes - tabataMinutes;
-  const baseBlocks = [block('WARMUP', warmupMinutes), block('TABATA', tabataMinutes)];
+  const mainMinutes = duration - reserve - warmup;
+  const warmupBlock = block('WARMUP', warmup);
   const options = [];
-
-  function add(key, title, mainBlocks) {
-    const blocks = [...baseBlocks, ...mainBlocks];
+  function add(key, main) {
+    if (!main.length || main.some((b) => b.minutes < 8 || b.minutes > 90)) return;
+    if (main.reduce((sum, b) => sum + b.minutes, 0) !== mainMinutes) return;
     options.push({
-      key, title, blocks, transitionReserveMinutes,
-      estimatedMinutes: blocks.reduce((sum, item) => sum + Number(item.minutes), 0) + transitionReserveMinutes,
+      key, title: key, blocks: [warmupBlock, ...main],
+      transitionReserveMinutes: reserve, estimatedMinutes: duration,
     });
   }
+  const key = String(intentKey ?? '').toUpperCase();
+  const mode = key.includes('STRENGTH') || key.includes('FORCE') ? 'strength'
+    : key.includes('TECHNIQUE') || key.includes('SKILL') ? 'skill'
+      : key.includes('CONDITIONING') || key.includes('ENDURANCE') ? 'conditioning'
+        : 'neutral';
 
-  if (coreMinutes >= 16) {
-    const wodMinutes = Math.max(8, Math.min(30, coreMinutes - Math.round(coreMinutes * 0.46)));
-    const strengthMinutes = coreMinutes - wodMinutes;
-    add('balanced', 'Strength + WOD', [
+  // Valid alone even for short sessions, including the 20-minute Technique
+  // case. The workout is not rebuilt when the user picks an alternative.
+  add('strength', [block('STRENGTH', mainMinutes)]);
+  add('technique', [block('SKILL', mainMinutes)]);
+  add('conditioning', [block('WOD', mainMinutes, wodLabel(mainMinutes))]);
+
+  if (mainMinutes >= 16) {
+    const strengthShare = mode === 'strength' ? .69 : mode === 'conditioning' ? .28 : .53;
+    const strengthMinutes = Math.max(8, Math.min(mainMinutes - 8, Math.round(mainMinutes * strengthShare)));
+    add('balanced', [
       block('STRENGTH', strengthMinutes),
-      block('WOD', wodMinutes, wodLabel(wodMinutes)),
+      block('WOD', mainMinutes - strengthMinutes, wodLabel(mainMinutes - strengthMinutes)),
     ]);
-    const skillWodMinutes = Math.max(8, Math.min(30, coreMinutes - Math.round(coreMinutes * 0.38)));
-    const skillMinutes = coreMinutes - skillWodMinutes;
-    add('skill', 'Skill + WOD', [
+    const skillShare = mode === 'skill' ? .69 : mode === 'conditioning' ? .28 : .54;
+    const skillMinutes = Math.max(8, Math.min(mainMinutes - 8, Math.round(mainMinutes * skillShare)));
+    add('skill', [
       block('SKILL', skillMinutes),
-      block('WOD', skillWodMinutes, wodLabel(skillWodMinutes)),
+      block('WOD', mainMinutes - skillMinutes, wodLabel(mainMinutes - skillMinutes)),
     ]);
   }
-  add('strength', 'Strength seul', [block('STRENGTH', coreMinutes)]);
-  if (coreMinutes >= 8 && coreMinutes <= 30) {
-    add('conditioning', 'WOD seul', [block('WOD', coreMinutes, wodLabel(coreMinutes))]);
-  }
-
-  const intent = String(intentKey ?? '').toUpperCase();
-  const env = String(environmentCode ?? 'BOX').toUpperCase();
-  const wantsStrength = intent.includes('STRENGTH') || intent.includes('FORCE');
-  const wantsSkill = intent.includes('TECHNIQUE') || intent.includes('SKILL');
-  // The user's dominant intent wins; environment only breaks ties between
-  // compatible structures. Never force a WOD or a Skill block in the gym.
-  const preference = wantsSkill
-    ? ['skill', 'balanced', 'strength', 'conditioning']
-    : wantsStrength
-      ? env === 'GYM' || env === 'HOME'
-        ? ['strength', 'balanced', 'skill', 'conditioning']
-        : ['balanced', 'strength', 'skill', 'conditioning']
-      : env === 'GYM'
-        ? ['balanced', 'conditioning', 'strength', 'skill']
-        : ['conditioning', 'balanced', 'skill', 'strength'];
+  const environment = String(environmentCode ?? 'BOX').toUpperCase();
+  const priority = mode === 'strength'
+    ? ['strength','balanced','technique','skill','conditioning']
+    : mode === 'skill'
+      ? ['skill','technique','balanced','strength','conditioning']
+      : mode === 'conditioning'
+        ? ['conditioning','balanced','skill','strength','technique']
+        : environment === 'HOME'
+          ? ['skill','balanced','strength','conditioning','technique']
+          : ['balanced','skill','strength','conditioning','technique'];
   return options
-    .sort((left, right) => preference.indexOf(left.key) - preference.indexOf(right.key))
-    .map((option, index) => ({ ...option, recommended: index === 0 }));
+    .sort((a,b) => priority.indexOf(a.key) - priority.indexOf(b.key))
+    .map((option,index) => ({ ...option, recommended: index === 0 }));
 }
 
 /**
