@@ -783,7 +783,16 @@ export default function WeekComposerV7() {
       setBusy(true);
       setError('');
       const targets = await getComposerArchitectureTargets(duration);
-      const next = buildComposerArchitectures({ durationMinutes: duration, intentKey: intent.key, environmentCode, targets });
+      // Coach source keys (COACH_STRENGTH, COACH_CONDITIONING...) are not
+      // product intent types. Follow the Coach's actual focus instead of
+      // treating a generic Coach direction as an endurance request.
+      const planningIntentKey = intent.key === 'TECHNIQUE' ? 'TECHNIQUE'
+        : intent.focus === 'Strength' ? 'STRENGTH'
+          : intent.focus === 'Conditioning' ? 'CONDITIONING'
+            : 'GENERAL_FITNESS';
+      const next = buildComposerArchitectures({
+        durationMinutes: duration, intentKey: planningIntentKey, environmentCode, targets,
+      });
       setArchitectures(next);
       setArchitecture(next[0] ?? null);
       setShowOtherArchitectures(false);
@@ -1360,7 +1369,7 @@ export default function WeekComposerV7() {
               <StageHeader
                 kicker="STRUCTURE"
                 title="Voici comment UGEROD construirait ta séance."
-                helper="Garde cette proposition ou personnalise ses blocs. Les compléments existants et les transitions restent compris dans la durée."
+                helper="La structure privilégie ton objectif. Échauffement et transitions sont compris dans la durée. Le Tabata abdos est une option."
                 styles={styles}
               />
               <View style={styles.optionList}>
@@ -1419,7 +1428,7 @@ export default function WeekComposerV7() {
               {showArchitectureEditor && architecture ? (
                 <View style={styles.structureEditor}>
                   <Text style={styles.structureEditorHelp}>
-                    Réorganise les blocs ou ajuste leur temps. UGEROD recalculera ensuite les exercices et prescriptions.
+                    Réorganise les blocs, ajuste leur temps ou ajoute un Tabata abdos. UGEROD recalculera ensuite les exercices et prescriptions.
                   </Text>
                   {architecture.blocks.some((b) => b.type === 'WARMUP') ? (
                     <View style={styles.structureProtected}>
@@ -1427,12 +1436,24 @@ export default function WeekComposerV7() {
                       <Text style={styles.structureEditorHelp}>Échauffement · {architecture.blocks.find((b) => b.type === 'WARMUP')?.minutes} min</Text>
                     </View>
                   ) : null}
-                  {architecture.blocks.some((b) => b.type === 'TABATA') ? (
-                    <View style={styles.structureProtected}>
-                      <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
-                      <Text style={styles.structureEditorHelp}>Tabata abdos · 4 min</Text>
-                    </View>
-                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={architecture.blocks.some((b) => b.type === 'TABATA')
+                      ? 'Retirer le Tabata abdos'
+                      : 'Ajouter un Tabata abdos de 4 minutes'}
+                    onPress={() => changeArchitecture({ kind: 'tabata' })}
+                    style={styles.structureEditorToggle}
+                  >
+                    <Ionicons
+                      name={architecture.blocks.some((b) => b.type === 'TABATA') ? 'remove-circle-outline' : 'add-circle-outline'}
+                      size={19} color={colors.accent}
+                    />
+                    <Text style={styles.structureLinkText}>
+                      {architecture.blocks.some((b) => b.type === 'TABATA')
+                        ? 'Retirer Tabata abdos · 4 min'
+                        : 'Ajouter Tabata abdos · 4 min'}
+                    </Text>
+                  </Pressable>
                   {composerMainBlocks(architecture).map((block, index, mainBlocks) => (
                     <View key={'edit-' + block.type} style={styles.structureEditBlock}>
                       <View style={styles.structureEditBlockTitle}>
