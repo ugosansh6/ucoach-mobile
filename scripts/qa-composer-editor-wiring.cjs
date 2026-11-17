@@ -15,6 +15,8 @@ assert.match(ui,/kind: 'remove', blockType: block\.type/);
 assert.match(ui,/kind: 'minutes', blockType: block\.type/);
 assert.match(ui,/kind: 'tabata'/);
 assert.match(ui,/intent\.focus === 'Conditioning'/);
+assert.match(ui,/COACH_TECHNIQUE/);
+assert.match(ui,/planningIntentKey/);
 assert.match(ui,/Ajouter Tabata abdos/);
 assert.match(ui,/setStep\(2\)/);
 assert.match(ui,/preservedIds/);
