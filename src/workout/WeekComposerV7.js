@@ -169,6 +169,10 @@ function coachIntentFromItem(item) {
   const description = String(presentation.description ?? '').trim();
   const titleDirection = classifyTrainingDirection(title);
   const descriptionDirection = classifyTrainingDirection(description);
+  // The Coach's technical direction is distinct from an unknown/general
+  // direction, even though both use General Fitness as the C2 focus.
+  const technicalDirection = [title, description, item?.coachProjection?.priority?.key]
+    .some((part) => /\b(TECHNIQUE|TECHNICAL|SKILL|GYMNASTIQUE)\b/i.test(String(part ?? '')));
 
   // The Coach projection is fresher than plannedContext.focus, which can still
   // describe the legacy slot (e.g. Strength for a Conditioning opportunity).
@@ -192,7 +196,9 @@ function coachIntentFromItem(item) {
     : null;
 
   return {
-    key: `COACH_${focus.toUpperCase().replace(/\s+/g, '_')}`,
+    key: focus === 'General Fitness' && technicalDirection
+      ? 'COACH_TECHNIQUE'
+      : `COACH_${focus.toUpperCase().replace(/\s+/g, '_')}`,
     label,
     subtitle,
     focus,
@@ -202,7 +208,7 @@ function coachIntentFromItem(item) {
 }
 
 function directionBaseLabel(choice) {
-  if (choice?.key === 'TECHNIQUE') return 'Progresser sur un mouvement';
+  if (choice?.key === 'TECHNIQUE' || choice?.key === 'COACH_TECHNIQUE') return 'Progresser sur un mouvement';
   if (choice?.focus === 'Strength') return 'Développer ma force';
   if (choice?.focus === 'Conditioning') return 'Améliorer mon endurance';
   return String(choice?.label ?? 'Séance').split('·')[0].trim();
@@ -786,7 +792,7 @@ export default function WeekComposerV7() {
       // Coach source keys (COACH_STRENGTH, COACH_CONDITIONING...) are not
       // product intent types. Follow the Coach's actual focus instead of
       // treating a generic Coach direction as an endurance request.
-      const planningIntentKey = intent.key === 'TECHNIQUE' ? 'TECHNIQUE'
+      const planningIntentKey = (intent.key === 'TECHNIQUE' || intent.key === 'COACH_TECHNIQUE') ? 'TECHNIQUE'
         : intent.focus === 'Strength' ? 'STRENGTH'
           : intent.focus === 'Conditioning' ? 'CONDITIONING'
             : 'GENERAL_FITNESS';
@@ -1166,7 +1172,7 @@ export default function WeekComposerV7() {
   const intentKey = String(effectiveIntent?.key ?? '').toUpperCase();
   const intentFocus = String(effectiveIntent?.focus ?? '').toUpperCase();
   const dominantType = intentFocus === 'CONDITIONING' ? 'WOD'
-    : intentKey === 'TECHNIQUE' || intentKey.includes('SKILL') ? 'SKILL'
+    : intentKey.includes('TECHNIQUE') || intentKey.includes('SKILL') ? 'SKILL'
       : intentFocus === 'STRENGTH' ? 'STRENGTH' : null;
   const structureDiffersFromDominant = dominantType && architecture
     && !mainTypes.includes(dominantType);
