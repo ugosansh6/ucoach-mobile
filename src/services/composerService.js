@@ -238,27 +238,28 @@ function block(type, minutes, label = null) {
  * from intent-independent structures. C2/C4 remain authoritative for actual
  * movements, prescriptions, mechanics and day-J feasibility.
  *
- * New proposals contain Warm-up but no mandatory Tabata. An explicitly
- * requested Tabata can be added/removed in the editor; previously saved
- * drafts are reloaded unchanged. WOD mechanics support 3..90 minutes in DEV,
+ * New proposals contain protected Warm-up and Tabata (4 min).
+ * Previously saved drafts are reloaded unchanged; no automatic insertion. WOD mechanics support 3..90 minutes in DEV,
  * so the former 30-minute cap was a local heuristic, not a technical limit.
  */
 export function buildComposerArchitectures({ durationMinutes, intentKey, environmentCode = 'BOX', targets = {} }) {
   const duration = Math.max(20, Math.min(90, Number(durationMinutes) || 45));
   const reserve = duration <= 30 ? 3 : duration <= 45 ? 4 : 5;
   const requestedWarmup = Number(targets.warmup_minutes ?? (duration <= 30 ? 5 : 8));
+  const tabataMinutes = 4;
   const warmup = Math.max(4, Math.min(
-    8, duration - reserve - 8,
+    8, duration - reserve - tabataMinutes - 8,
     Number.isFinite(requestedWarmup) ? requestedWarmup : 6
   ));
-  const mainMinutes = duration - reserve - warmup;
+  const mainMinutes = duration - reserve - warmup - tabataMinutes;
   const warmupBlock = block('WARMUP', warmup);
+  const tabataBlock = block('TABATA', tabataMinutes);
   const options = [];
   function add(key, main) {
     if (!main.length || main.some((b) => b.minutes < 8 || b.minutes > 90)) return;
     if (main.reduce((sum, b) => sum + b.minutes, 0) !== mainMinutes) return;
     options.push({
-      key, title: key, blocks: [warmupBlock, ...main],
+      key, title: key, blocks: [warmupBlock, tabataBlock, ...main],
       transitionReserveMinutes: reserve, estimatedMinutes: duration,
     });
   }

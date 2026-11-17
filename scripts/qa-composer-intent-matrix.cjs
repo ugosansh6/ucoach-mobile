@@ -32,8 +32,9 @@ for (const env of ['HOME','BOX','GYM','OUTDOOR']) {
     assert.equal(new Set(option.blocks.map(b=>b.type)).size,option.blocks.length);
     assert.equal(option.blocks[0].type,'WARMUP');
     assert.ok(option.blocks.every(b=>b.minutes>=4&&b.minutes<=90));
-    assert.ok(option.blocks.filter(b=>b.type!=='WARMUP').every(b=>b.minutes>=8));
-    assert.ok(!option.blocks.some(b=>b.type==='TABATA'),'Tabata is optional');
+    assert.ok(option.blocks.filter(b=>!['WARMUP','TABATA'].includes(b.type)).every(b=>b.minutes>=8));
+    assert.equal(option.blocks[1].type,'TABATA','Tabata included in new proposals');
+    assert.equal(option.blocks[1].minutes,4);
     assert.ok(functions.composerArchitectureDisplayTitle(option,env).length>0);
     assert.ok(functions.composerArchitecturePurpose(option).length>0);
    }
@@ -61,29 +62,25 @@ for(const env of ['HOME','BOX','GYM','OUTDOOR']) {
    for(const option of list) {
     const snapshot = JSON.stringify(option);
     assert.equal(option.blocks[0].minutes,c4Warmups[duration]);
-    const added = editor.editComposerArchitecture(option,{kind:'tabata'});
-    assert.equal(added.ok,true,added.error);
-    assert.ok(added.architecture.blocks.some(b=>b.type==='TABATA'&&b.minutes===4));
-    assert.equal(added.architecture.blocks.reduce((s,b)=>s+b.minutes,0)
-      +added.architecture.transitionReserveMinutes,duration);
-    const removed = editor.editComposerArchitecture(added.architecture,{kind:'tabata'});
-    assert.equal(removed.ok,true,removed.error);
-    assert.ok(!removed.architecture.blocks.some(b=>b.type==='TABATA'));
-    assert.equal(removed.architecture.blocks.reduce((s,b)=>s+b.minutes,0)
-      +removed.architecture.transitionReserveMinutes,duration);
+    assert.deepEqual(option.blocks.slice(0,2).map(b=>b.type),['WARMUP','TABATA']);
+    assert.equal(option.blocks[1].minutes,4);
+    const denied = editor.editComposerArchitecture(option,{kind:'tabata'});
+    assert.equal(denied.ok,false,'Protected Tabata may not be removed');
+    assert.equal(option.blocks.reduce((s,b)=>s+b.minutes,0)
+      +option.transitionReserveMinutes,duration);
     assert.equal(JSON.stringify(option),snapshot,'Original choice was mutated');
     edited++;
    }
   }
  }
 }
-assert.ok(edited>300,'All C4-target options are editable without silent rewrites');
+assert.ok(edited>300,'All C4-target options preserve Tabata and budgets');
 for(const env of ['HOME','BOX','GYM','OUTDOOR']) {
  assert.equal(functions.composerBlockDisplayLabel('WOD',env),'WOD');
  assert.equal(functions.composerBlockDisplayLabel('SKILL',env),'Technique');
 }
 const tech20=build({durationMinutes:20,intentKey:'TECHNIQUE',environmentCode:'HOME'})[0];
-assert.deepEqual(tech20.blocks.map(b=>b.type),['WARMUP','SKILL']);
+assert.deepEqual(tech20.blocks.map(b=>b.type),['WARMUP','TABATA','SKILL']);
 const endurance90=build({durationMinutes:90,intentKey:'CONDITIONING',environmentCode:'HOME'})[0];
 assert.equal(endurance90.key,'conditioning');
 assert.ok(endurance90.blocks.find(b=>b.type==='WOD').minutes>30);
@@ -91,4 +88,4 @@ const coachGeneral=build({durationMinutes:45,intentKey:'GENERAL_FITNESS',environ
 assert.notEqual(coachGeneral.key,'conditioning','Unknown Coach intent should be neutral');
 const forceBox=build({durationMinutes:60,intentKey:'STRENGTH',environmentCode:'BOX'})[0];
 assert.equal(forceBox.key,'strength');
-console.log('PASS: 72-intent matrix plus ' + edited + ' C4-target Tabata round-trip checks');
+console.log('PASS: 72-intent matrix plus ' + edited + ' C4-target protected Tabata checks');

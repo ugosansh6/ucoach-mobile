@@ -63,23 +63,13 @@ assert.equal(legacyEdited.architecture.blocks[1].minutes,20);
 assert.equal(legacyEdited.architecture.blocks.reduce((a,b)=>a+b.minutes,0)+5,30);
 assert.equal(legacyEdited.architecture.blocks.some(x=>x.type==='TABATA'),false,
   'Never add new complements to a previously saved user-authored draft');
-const noTabata = edit(initial,{kind:'tabata'});
-assert.equal(noTabata.ok,true,noTabata.error);
-assert.deepEqual(noTabata.architecture.blocks.map(x=>x.type),['WARMUP','STRENGTH','WOD']);
-assert.equal(noTabata.removedType,'TABATA');
-assert.equal(noTabata.architecture.blocks.reduce((sum,b)=>sum+b.minutes,0)+5,60);
-const restoredTabata = edit(noTabata.architecture,{kind:'tabata'});
-assert.equal(restoredTabata.ok,true,restoredTabata.error);
-assert.deepEqual(restoredTabata.architecture.blocks.map(x=>x.type),['WARMUP','TABATA','STRENGTH','WOD']);
-assert.equal(restoredTabata.architecture.blocks.reduce((sum,b)=>sum+b.minutes,0)+5,60);
+const initialSnapshot = JSON.stringify(initial);
+assert.equal(edit(initial,{kind:'tabata'}).ok,false,'New Tabata is protected');
+assert.equal(JSON.stringify(initial),initialSnapshot,'No mutation');
 const shortTechnique = {key:'technique',estimatedMinutes:20,transitionReserveMinutes:3,
-  blocks:[{type:'WARMUP',minutes:5},{type:'SKILL',minutes:12}]};
-const withTabata=edit(shortTechnique,{kind:'tabata'});
-assert.equal(withTabata.ok,true,withTabata.error);
-assert.equal(withTabata.architecture.blocks.at(-1).minutes,8);
-assert.deepEqual(withTabata.architecture.blocks.map(b=>b.type),['WARMUP','TABATA','SKILL']);
-const tooShort={key:'custom',estimatedMinutes:25,transitionReserveMinutes:3,
- blocks:[{type:'WARMUP',minutes:5},{type:'SKILL',minutes:8},{type:'WOD',minutes:9}]};
-assert.equal(edit(tooShort,{kind:'tabata'}).ok,false,
- 'Tabata cannot steal minutes under the 8-min main-block floor');
-console.log('PASS: add/remove/reorder, older drafts, time budget and optional Tabata');
+  blocks:[{type:'WARMUP',minutes:5},{type:'TABATA',minutes:4},{type:'SKILL',minutes:8}]};
+assert.equal(edit(shortTechnique,{kind:'tabata'}).ok,false,'20-minute Tabata is protected');
+const legacySnapshot = JSON.stringify(legacy);
+assert.equal(edit(legacy,{kind:'tabata'}).ok,false,'Never silently inject Tabata into older draft');
+assert.equal(JSON.stringify(legacy),legacySnapshot,'Older draft unchanged');
+console.log('PASS: add/remove/reorder, older drafts, time budget and protected Tabata');

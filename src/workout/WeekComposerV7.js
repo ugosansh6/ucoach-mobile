@@ -1375,7 +1375,7 @@ export default function WeekComposerV7() {
               <StageHeader
                 kicker="STRUCTURE"
                 title="Voici comment UGEROD construirait ta séance."
-                helper="La structure privilégie ton objectif. Échauffement et transitions sont compris dans la durée. Le Tabata abdos est une option."
+                helper="La structure privilégie ton objectif. Échauffement et transitions sont compris dans la durée. Le Tabata abdos est inclus dans chaque nouvelle séance."
                 styles={styles}
               />
               <View style={styles.optionList}>
@@ -1434,7 +1434,7 @@ export default function WeekComposerV7() {
               {showArchitectureEditor && architecture ? (
                 <View style={styles.structureEditor}>
                   <Text style={styles.structureEditorHelp}>
-                    Réorganise les blocs, ajuste leur temps ou ajoute un Tabata abdos. UGEROD recalculera ensuite les exercices et prescriptions.
+                    Réorganise les blocs principaux et ajuste leur temps. Échauffement et Tabata restent inclus. UGEROD recalculera les exercices et prescriptions.
                   </Text>
                   {architecture.blocks.some((b) => b.type === 'WARMUP') ? (
                     <View style={styles.structureProtected}>
@@ -1442,24 +1442,12 @@ export default function WeekComposerV7() {
                       <Text style={styles.structureEditorHelp}>Échauffement · {architecture.blocks.find((b) => b.type === 'WARMUP')?.minutes} min</Text>
                     </View>
                   ) : null}
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={architecture.blocks.some((b) => b.type === 'TABATA')
-                      ? 'Retirer le Tabata abdos'
-                      : 'Ajouter un Tabata abdos de 4 minutes'}
-                    onPress={() => changeArchitecture({ kind: 'tabata' })}
-                    style={styles.structureEditorToggle}
-                  >
-                    <Ionicons
-                      name={architecture.blocks.some((b) => b.type === 'TABATA') ? 'remove-circle-outline' : 'add-circle-outline'}
-                      size={19} color={colors.accent}
-                    />
-                    <Text style={styles.structureLinkText}>
-                      {architecture.blocks.some((b) => b.type === 'TABATA')
-                        ? 'Retirer Tabata abdos · 4 min'
-                        : 'Ajouter Tabata abdos · 4 min'}
-                    </Text>
-                  </Pressable>
+                  {architecture.blocks.some((b) => b.type === 'TABATA') ? (
+                    <View style={styles.structureProtected}>
+                      <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+                      <Text style={styles.structureEditorHelp}>Tabata abdos · 4 min</Text>
+                    </View>
+                  ) : null}
                   {composerMainBlocks(architecture).map((block, index, mainBlocks) => (
                     <View key={'edit-' + block.type} style={styles.structureEditBlock}>
                       <View style={styles.structureEditBlockTitle}>
