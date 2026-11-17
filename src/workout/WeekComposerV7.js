@@ -1638,9 +1638,18 @@ export default function WeekComposerV7() {
 
           {step === 4 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="MÉCANIQUE DU WOD" title="Quel format donne le meilleur rythme ?" helper="Les formats incompatibles sont grisés. Touche-les pour comprendre pourquoi." styles={styles} />
+              <StageHeader
+                  kicker="FORMAT DU WOD"
+                  title="Le bon rythme pour ton objectif."
+                  helper={(architecture?.blocks ?? []).some((b) => b.type === 'WOD' && b.minutes >= 40)
+                    ? 'Pour ce WOD long, UGEROD privilégie un circuit avec récupération. Tu peux choisir un autre format compatible.'
+                    : 'UGEROD te propose un format adapté à tes mouvements. Tu peux choisir une alternative.'}
+                  styles={styles}
+                />
               <View style={styles.optionList}>
-                {mechanicOptions.filter((option, index) => showAllMechanics || index < 3).map((option) => {
+                {mechanicOptions.filter((option) =>
+                    showAllMechanics || option.key === mechanic?.key || option.recommended
+                  ).map((option) => {
                   const selected = mechanic?.key === option.key;
                   return (
                     <Pressable key={option.key}
@@ -1662,7 +1671,7 @@ export default function WeekComposerV7() {
                 })}
               </View>
               {mechanicIssue ? <Text style={styles.mechanicIssue}>{mechanicIssue}</Text> : null}
-              {mechanicOptions.length > 3 ? (
+              {mechanicOptions.length > 1 ? (
                 <Pressable onPress={() => setShowAllMechanics((value) => !value)} style={{ paddingVertical: 14, alignItems: 'center' }}>
                   <Text style={{ color: colors.accent, fontFamily: fontFamilies.bold, textDecorationLine: 'underline' }}>
                     {showAllMechanics ? 'Masquer les formats complémentaires' : 'Voir d’autres formats'}
@@ -1676,7 +1685,11 @@ export default function WeekComposerV7() {
           {step === 5 ? (
             <View style={styles.stepWrap}>
               <StageHeader kicker="RÉCAPITULATIF" title="Ta séance en détail." helper={`${duration} min prévues · ${environmentLabel(environmentCode)} · mouvements et repos calculés.`} styles={styles} />
-              <Text style={styles.recapHelp}>Échauffement et Tabata sont inclus dans la durée. Tu peux modifier les exercices de chaque bloc.</Text>
+              <Text style={styles.recapHelp}>
+                {(architecture?.blocks ?? []).some((b) => b.type === 'TABATA')
+                  ? 'Échauffement et Tabata inclus dans la durée. Tu peux modifier les exercices de chaque bloc.'
+                  : 'Échauffement inclus dans la durée. Tu peux modifier les exercices de chaque bloc.'}
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
