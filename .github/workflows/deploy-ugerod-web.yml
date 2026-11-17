@@ -41,6 +41,10 @@ jobs:
           test -n "$EXPO_PUBLIC_SUPABASE_URL" || (echo "Missing EXPO_PUBLIC_SUPABASE_URL" && exit 1)
           test -n "$EXPO_PUBLIC_SUPABASE_ANON_KEY" || (echo "Missing EXPO_PUBLIC_SUPABASE_ANON_KEY" && exit 1)
 
+      - name: Validate Composer structure editor
+        run: |
+          node scripts/qa-composer-architecture-editor.cjs
+          node scripts/qa-composer-editor-wiring.cjs
       - name: Export Expo web app
         run: npx expo export --platform web --output-dir dist
 
