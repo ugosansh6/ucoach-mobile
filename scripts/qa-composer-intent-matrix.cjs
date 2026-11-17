@@ -42,6 +42,42 @@ for (const env of ['HOME','BOX','GYM','OUTDOOR']) {
  }
 }
 assert.equal(total,72);
+// C4 duration-target fixture read from DEV c4_session_architecture_targets_v2,
+// not a separate scheduling engine. Verify proposal and editor together.
+const c4Warmups = {20:5,30:5,45:6,60:6,75:7,90:7};
+const editorSource = fs.readFileSync('src/utils/composerArchitectureEditor.js','utf8');
+const editor = new Function(editorSource
+  .replaceAll('export const ','const ')
+  .replaceAll('export function ','function ') +
+  '\nreturn {editComposerArchitecture};')();
+let edited = 0;
+for(const env of ['HOME','BOX','GYM','OUTDOOR']) {
+ for(const intent of ['STRENGTH','CONDITIONING','TECHNIQUE']) {
+  for(const duration of [20,30,45,60,75,90]) {
+   const list = build({
+     durationMinutes:duration,intentKey:intent,environmentCode:env,
+     targets:{warmup_minutes:c4Warmups[duration]},
+   });
+   for(const option of list) {
+    const snapshot = JSON.stringify(option);
+    assert.equal(option.blocks[0].minutes,c4Warmups[duration]);
+    const added = editor.editComposerArchitecture(option,{kind:'tabata'});
+    assert.equal(added.ok,true,added.error);
+    assert.ok(added.architecture.blocks.some(b=>b.type==='TABATA'&&b.minutes===4));
+    assert.equal(added.architecture.blocks.reduce((s,b)=>s+b.minutes,0)
+      +added.architecture.transitionReserveMinutes,duration);
+    const removed = editor.editComposerArchitecture(added.architecture,{kind:'tabata'});
+    assert.equal(removed.ok,true,removed.error);
+    assert.ok(!removed.architecture.blocks.some(b=>b.type==='TABATA'));
+    assert.equal(removed.architecture.blocks.reduce((s,b)=>s+b.minutes,0)
+      +removed.architecture.transitionReserveMinutes,duration);
+    assert.equal(JSON.stringify(option),snapshot,'Original choice was mutated');
+    edited++;
+   }
+  }
+ }
+}
+assert.ok(edited>300,'All C4-target options are editable without silent rewrites');
 for(const env of ['HOME','BOX','GYM','OUTDOOR']) {
  assert.equal(functions.composerBlockDisplayLabel('WOD',env),'WOD');
  assert.equal(functions.composerBlockDisplayLabel('SKILL',env),'Technique');
@@ -55,4 +91,4 @@ const coachGeneral=build({durationMinutes:45,intentKey:'GENERAL_FITNESS',environ
 assert.notEqual(coachGeneral.key,'conditioning','Unknown Coach intent should be neutral');
 const forceBox=build({durationMinutes:60,intentKey:'STRENGTH',environmentCode:'BOX'})[0];
 assert.equal(forceBox.key,'strength');
-console.log('PASS: 72 intent×environment×duration scenarios, long WOD, short Technique, zero forced Tabata');
+console.log('PASS: 72-intent matrix plus ' + edited + ' C4-target Tabata round-trip checks');
