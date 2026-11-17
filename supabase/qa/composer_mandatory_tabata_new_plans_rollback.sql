@@ -5,7 +5,7 @@ SET LOCAL statement_timeout='90000ms';
 DO $qa$
 DECLARE
  i int; athlete uuid; duration int; plan_id uuid; blocks jsonb; draft jsonb;
- preview jsonb; compiled jsonb; keys text[]; results jsonb:='[]';
+ preview jsonb; compiled jsonb; tabata jsonb; keys text[]; results jsonb:='[]';
 BEGIN
  FOR i IN 1..2 LOOP
   athlete:=CASE WHEN i=1 THEN '00000000-0000-0000-0000-000000009771'::uuid
@@ -20,7 +20,8 @@ BEGIN
    jsonb_build_object('type','WARMUP','minutes',5,
       'exercises',jsonb_build_array(jsonb_build_object('id','EX158'))),
    jsonb_build_object('type','TABATA','minutes',4,
-      'exercises',jsonb_build_array(jsonb_build_object('id','EX087'))),
+      'exercises',CASE WHEN i=1 THEN jsonb_build_array(jsonb_build_object('id','EX087'))
+         ELSE jsonb_build_array(jsonb_build_object('id','EX087'),jsonb_build_object('id','EX081')) END),
    jsonb_build_object('type','SKILL','minutes',CASE WHEN i=1 THEN 8 ELSE 9 END,
       'exercises',jsonb_build_array(jsonb_build_object('id','EX087')))
   );
@@ -61,8 +62,29 @@ BEGIN
     OR (i=2 AND keys IS DISTINCT FROM ARRAY['warm_up','tabata','skill','wod']::text[]) THEN
     RAISE EXCEPTION 'DAYJ_BLOCK_ORDER_%:%',i,keys;
   END IF;
+  SELECT b INTO STRICT tabata
+  FROM public.workout_sessions s, jsonb_array_elements(s.generated_workout->'blocks') b
+  WHERE s.id=(compiled->>'session_id')::uuid AND b->>'block_key'='tabata';
+  IF (tabata->>'duration_minutes')::int IS DISTINCT FROM 4
+    OR tabata#>'{mechanic_json,parameters}' IS DISTINCT FROM
+      jsonb_build_object('rounds',8,'work_seconds',20,'rest_seconds',10,
+        'duration_minutes',4,'exercise_count',i)
+    OR jsonb_array_length(tabata->'exercises') IS DISTINCT FROM i THEN
+    RAISE EXCEPTION 'TABATA_PROTOCOL_%: %',i,tabata;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(tabata->'exercises') x
+    LEFT JOIN public.exercises e ON e.id=x->>'exercise_id'
+    WHERE NOT coalesce(e.tabata_eligible,false)
+      OR x#>'{prescription,protocol}' IS DISTINCT FROM
+        jsonb_build_object('rounds',8,'work_seconds',20,'rest_seconds',10)
+      OR x->'prescription' IS DISTINCT FROM x->'prescription_json'
+      OR (x#>>'{prescription,duration_seconds}')::int IS DISTINCT FROM 20
+      OR x->>'session_exercise_id' IS NULL
+  ) THEN RAISE EXCEPTION 'TABATA_EXERCISE_CONTRACT_%',i; END IF;
   results:=results||jsonb_build_array(jsonb_build_object(
-    'duration',duration,'blocks',keys,'preview','PASS','compile','READY'));
+    'duration',duration,'blocks',keys,'preview','PASS','compile','READY',
+    'tabata_exercises',i,'tabata_protocol','8 x 20/10 = 240 seconds','eligibility','PASS'));
  END LOOP;
  PERFORM set_config('ugerod.qa_mec_tabata_new',
    jsonb_build_object('status','PASS','cases',results)::text,true);

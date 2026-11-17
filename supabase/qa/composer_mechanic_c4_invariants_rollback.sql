@@ -40,5 +40,33 @@ BEGIN
   END IF;
   PERFORM set_config('ugerod.mec_contract_qa','PASS: 7 composition cases + long WOD',true);
 END $contract_qa$;
-SELECT current_setting('ugerod.mec_contract_qa') result;
+
+-- Run through the exposed roles as well as the privileged QA connection.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub='00000000-0000-0000-0000-000000007799';
+DO $acl_qa$
+BEGIN
+  PERFORM public.week_composer_mechanic_recommendations_v1(
+    '00000000-0000-0000-0000-000000007799'::uuid,'HOME',40,ARRAY['EX001'],'Conditioning');
+  BEGIN
+    PERFORM public.week_composer_mechanic_recommendations_v1(
+      '00000000-0000-0000-0000-000000007798'::uuid,'HOME',40,ARRAY['EX001'],'Conditioning');
+    RAISE EXCEPTION 'Cross-user Composer request was accepted';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END $acl_qa$;
+SET LOCAL ROLE anon;
+DO $anon_qa$
+BEGIN
+  BEGIN
+    PERFORM public.week_composer_mechanic_recommendations_v1(
+      '00000000-0000-0000-0000-000000007799'::uuid,'HOME',40,ARRAY['EX001'],'Conditioning');
+    RAISE EXCEPTION 'Anonymous Composer request was accepted';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END $anon_qa$;
+RESET ROLE;
+
+SELECT current_setting('ugerod.mec_contract_qa') result,
+  'PASS: authenticated own-user; cross-user and anonymous denied' as acl_result;
 ROLLBACK;
