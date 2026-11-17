@@ -7,8 +7,8 @@
  * requires instance identities through draft, C2 preview, Day-J and Player.
  *
  * Existing 8-minute main-block floor comes from buildComposerArchitectures.
- * The canonical 4-minute Tabata and proposed Warm-up remain protected; users
- * can still edit their exercise selections on the recap.
+ * A 4-minute Tabata and Warm-up remain protected when present. Do NOT invent
+ * missing complements in older saved user-authored drafts.
  */
 export const COMPOSER_EDITABLE_BLOCK_TYPES = ['SKILL', 'STRENGTH', 'WOD'];
 export const COMPOSER_MIN_MAIN_MINUTES = 8;
@@ -63,18 +63,23 @@ export function editComposerArchitecture(architecture, action) {
   if (!Array.isArray(blocks) || !architecture || !action) {
     return rejected('Structure indisponible : reviens choisir une proposition UGEROD.');
   }
-  const warmup = blocks.find((block) => block.type === 'WARMUP');
-  const tabata = blocks.find((block) => block.type === 'TABATA');
+  // Existing saved Composer sessions can legitimately omit a complement
+  // (e.g. user-authored Warm-up → Skill → WOD). Never inject it on edit.
+  // New proposals still include both, with 4 minutes of Tabata.
+  const complements = blocks.filter((block) => FIXED_TYPES.includes(block.type));
+  const tabata = complements.find((block) => block.type === 'TABATA');
   const main = composerMainBlocks(architecture);
-  if (!warmup || !tabata || Number(tabata.minutes) !== 4 ||
-      blocks.length !== 2 + main.length || !main.length ||
+  if ((tabata && Number(tabata.minutes) !== 4) ||
+      new Set(complements.map((block) => block.type)).size !== complements.length ||
+      blocks.length !== complements.length + main.length || !main.length ||
       new Set(main.map((b) => b.type)).size !== main.length) {
     return rejected('Cette structure utilise un contrat différent et ne peut pas être modifiée ici.');
   }
   const reserve = Number(architecture.transitionReserveMinutes ?? 0);
   const total = Number(architecture.estimatedMinutes ??
     blocks.reduce((sum, block) => sum + Number(block.minutes), reserve));
-  const budget = total - reserve - Number(warmup.minutes) - 4;
+  const budget = total - reserve -
+    complements.reduce((sum, block) => sum + Number(block.minutes), 0);
   if (!Number.isInteger(budget) || budget < COMPOSER_MIN_MAIN_MINUTES ||
       main.reduce((sum, block) => sum + Number(block.minutes), 0) !== budget) {
     return rejected('Le budget de temps doit être recalculé avant cette modification.');
@@ -148,7 +153,7 @@ export function editComposerArchitecture(architecture, action) {
       key: 'custom',
       title: 'Structure personnalisée',
       recommended: false,
-      blocks: [{ ...warmup }, { ...tabata }, ...next],
+      blocks: [...complements.map((block) => ({ ...block })), ...next],
       estimatedMinutes: total,
       transitionReserveMinutes: reserve,
     },

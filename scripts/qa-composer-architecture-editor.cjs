@@ -48,4 +48,19 @@ assert.equal(initial.blocks[2].minutes,21, 'no mutation to original proposal');
 const short = {...initial,estimatedMinutes:20,transitionReserveMinutes:3,
  blocks:[{type:'WARMUP',minutes:5},{type:'TABATA',minutes:4},{type:'WOD',minutes:8}]};
 assert.equal(edit(short,{kind:'add',blockType:'SKILL'}).ok,false);
-console.log('PASS: add/remove/reorder/time budget, fixed Tabata and no mutation of proposal');
+const legacy = {
+  key: 'user_authored', estimatedMinutes: 30, transitionReserveMinutes: 5,
+  blocks: [
+    { type:'WARMUP', minutes:5 },
+    { type:'SKILL', minutes:8 },
+    { type:'WOD', minutes:12 },
+  ],
+};
+const legacyEdited = edit(legacy, {kind:'remove',blockType:'WOD'});
+assert.equal(legacyEdited.ok,true,legacyEdited.error);
+assert.deepEqual(legacyEdited.architecture.blocks.map(x=>x.type),['WARMUP','SKILL']);
+assert.equal(legacyEdited.architecture.blocks[1].minutes,20);
+assert.equal(legacyEdited.architecture.blocks.reduce((a,b)=>a+b.minutes,0)+5,30);
+assert.equal(legacyEdited.architecture.blocks.some(x=>x.type==='TABATA'),false,
+  'Never add new complements to a previously saved user-authored draft');
+console.log('PASS: add/remove/reorder, older drafts, time budget and fixed Tabata');

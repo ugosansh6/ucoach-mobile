@@ -1360,7 +1360,7 @@ export default function WeekComposerV7() {
               <StageHeader
                 kicker="STRUCTURE"
                 title="Voici comment UGEROD construirait ta séance."
-                helper="Garde cette proposition ou personnalise ses blocs. Échauffement, Tabata abdos et transitions restent inclus."
+                helper="Garde cette proposition ou personnalise ses blocs. Les compléments existants et les transitions restent compris dans la durée."
                 styles={styles}
               />
               <View style={styles.optionList}>
@@ -1421,14 +1421,18 @@ export default function WeekComposerV7() {
                   <Text style={styles.structureEditorHelp}>
                     Réorganise les blocs ou ajuste leur temps. UGEROD recalculera ensuite les exercices et prescriptions.
                   </Text>
-                  <View style={styles.structureProtected}>
-                    <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
-                    <Text style={styles.structureEditorHelp}>Échauffement · {architecture.blocks.find((b) => b.type === 'WARMUP')?.minutes} min</Text>
-                  </View>
-                  <View style={styles.structureProtected}>
-                    <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
-                    <Text style={styles.structureEditorHelp}>Tabata abdos · 4 min</Text>
-                  </View>
+                  {architecture.blocks.some((b) => b.type === 'WARMUP') ? (
+                    <View style={styles.structureProtected}>
+                      <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+                      <Text style={styles.structureEditorHelp}>Échauffement · {architecture.blocks.find((b) => b.type === 'WARMUP')?.minutes} min</Text>
+                    </View>
+                  ) : null}
+                  {architecture.blocks.some((b) => b.type === 'TABATA') ? (
+                    <View style={styles.structureProtected}>
+                      <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+                      <Text style={styles.structureEditorHelp}>Tabata abdos · 4 min</Text>
+                    </View>
+                  ) : null}
                   {composerMainBlocks(architecture).map((block, index, mainBlocks) => (
                     <View key={'edit-' + block.type} style={styles.structureEditBlock}>
                       <View style={styles.structureEditBlockTitle}>
