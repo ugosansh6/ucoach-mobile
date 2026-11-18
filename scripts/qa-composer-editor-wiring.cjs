@@ -23,8 +23,10 @@ assert.match(service,/blocks: \[warmupBlock, tabataBlock, \.\.\.main\]/);
 assert.match(ui,/showAllMechanics \|\| option.key === mechanic\?\.key \|\| option.recommended/);
 assert.match(ui,/Aucun format compatible avec les mouvements choisis/);
 assert.match(ui,/setMechanicOptions\(options\)/);
-assert.match(ui,/b.type === 'WOD' && b.minutes >= 40/);
-assert.match(ui,/UGEROD privilégie un circuit avec récupération/);
+// Format ranking belongs to the RPC. Duration alone must not claim that a
+// circuit was chosen when the server may recommend another format.
+assert.match(ui,/composerMechanicDescription\(option\)/);
+assert.doesNotMatch(ui,/UGEROD privilégie un circuit avec récupération/);
 assert.match(ui,/b.type === 'TABATA'/);
 assert.match(ui,/setStep\(2\)/);
 assert.match(ui,/preservedIds/);

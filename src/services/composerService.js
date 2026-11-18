@@ -170,36 +170,49 @@ export function composerArchitectureDisplayTitle(option, environmentCode = 'BOX'
   return labels[0] + (['Musculation', 'Force', 'Technique'].includes(labels[0]) ? ' seule' : ' seul');
 }
 
-/**
- * One sentence per structure: explain the actual training outcome, not just
- * the technical block code. Particularly important for Skill vs Strength.
- */
-export function composerArchitecturePurpose(option) {
-  const types = (option?.blocks ?? [])
-    .filter((block) => !['WARMUP', 'TABATA'].includes(block.type))
-    .map((block) => block.type);
-  if (types.includes('SKILL') && types.includes('STRENGTH')) {
-    return types.includes('WOD')
-      ? 'Technique, travail musculaire et WOD : chaque bloc a son rôle.'
-      : 'Apprendre un geste et travailler sa force avec une progression adaptée.';
+export function composerIntentBlockType(intentKey) {
+  const key = String(intentKey ?? '').toUpperCase();
+  return key.includes('STRENGTH') || key.includes('FORCE') ? 'STRENGTH'
+    : key.includes('TECHNIQUE') || key.includes('SKILL') ? 'SKILL'
+      : key.includes('CONDITIONING') || key.includes('ENDURANCE') ? 'WOD' : null;
+}
+
+// Reuse #29's existing majority-of-main-time contract. This classifies the
+// proposals for presentation; it neither scores training nor edits a draft.
+export function composerArchitectureMatchesIntent(option, intentKey) {
+  const expected = composerIntentBlockType(intentKey);
+  if (!expected) return true;
+  const main = (option?.blocks ?? []).filter((b) => !['WARMUP', 'TABATA'].includes(b.type));
+  const total = main.reduce((sum, b) => sum + Number(b.minutes || 0), 0);
+  const dominant = main.filter((b) => b.type === expected)
+    .reduce((sum, b) => sum + Number(b.minutes || 0), 0);
+  return total > 0 && dominant >= total / 2;
+}
+
+export function composerArchitecturePurpose(option, intentKey, environmentCode = 'BOX') {
+  const main = (option?.blocks ?? []).filter((b) => !['WARMUP', 'TABATA'].includes(b.type));
+  const expected = composerIntentBlockType(intentKey);
+  if (expected && !composerArchitectureMatchesIntent(option, intentKey)) {
+    return 'Structure libre : la priorité change par rapport à ton objectif. Le choix reste possible.';
   }
-  if (types.includes('SKILL')) {
-    return types.includes('WOD')
-      ? 'Technique : apprendre un geste, puis poursuivre avec un WOD.'
-      : 'Technique : apprendre ou perfectionner un geste.';
+  if (expected) {
+    const labels = { STRENGTH: 'la force', SKILL: 'la technique', WOD: 'le conditioning' };
+    const block = main.find((b) => b.type === expected);
+    const other = main.filter((b) => b.type !== expected)
+      .map((b) => `${composerBlockDisplayLabel(b.type, environmentCode)} · ${b.minutes} min`);
+    return `Priorité à ${labels[expected]} : ${block.minutes} min dédiées.`
+      + (other.length ? ` En complément : ${other.join(', ')}.`
+        : expected === 'WOD' ? ' Le format et le dosage seront précisés ensuite.'
+          : ' Séries et récupérations précisées après le choix des mouvements.');
   }
-  if (types.includes('STRENGTH')) {
-    return types.includes('WOD')
-      ? 'Progression musculaire, puis WOD adapté à ton objectif.'
-      : 'Force et muscles : séries, répétitions et récupération.';
-  }
-  if (types.includes('WOD')) {
-    const wodMinutes = (option?.blocks ?? []).find((b) => b.type === 'WOD')?.minutes ?? 0;
-    return wodMinutes >= 40
-      ? 'Endurance : effort prolongé, rythme modulé selon la mécanique et les récupérations.'
-      : 'Conditioning : effort cardio et musculaire.';
-  }
-  return 'Entraînement personnalisé selon ton contexte.';
+  // A block label or its duration alone cannot establish a physiological goal.
+  const descriptions = {
+    SKILL: 'Technique : apprendre ou perfectionner un geste.',
+    STRENGTH: 'Force et muscles : séries, répétitions et récupération.',
+    WOD: 'WOD : le format choisi précisera l’effort et les récupérations.',
+  };
+  return main.map((b) => descriptions[b.type]).filter(Boolean).join(' ')
+    || 'Personnalise les blocs de ta séance.';
 }
 
 /**

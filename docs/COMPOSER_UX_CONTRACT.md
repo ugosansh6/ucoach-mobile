@@ -241,6 +241,15 @@ In Composer, chips and selectors live behind `Ajuster`, `Remplacer`, or `Voir d‚
 - fake/hardcoded Coach recommendations;
 - frontend recommendation scoring.
 
+## Clarifications accepted on 18 November 2026 (#29, #3, #40)
+
+- Alternatives preserving the selected goal are separate from `Composer une autre structure`. Classification reuses #29's existing majority of main-block time; it adds no training score or new weighting. Free structures and saved drafts stay available without automatic rewriting.
+- Structure descriptions explain the actual time allocation. A WOD's name or duration alone does not establish an endurance stimulus or guarantee alignment with a force goal.
+- Movement cards display the existing backend Strength prescription (sets, reps or timed work, load when available, rest). A result from a different selection, duration, equipment or context is never presented as current. Other block prescriptions remain available in the validated recap; WOD dosage also appears with its format when the existing preview succeeds.
+- `Min pr√©vues` is a time budget. The backend estimate includes work, recoveries, installation, transitions and load changes. An underfilled block is diagnosed without silently adding exercises or sets; the existing structure editor remains directly accessible.
+- The movement action says `Remplacer` at the existing capacity limit. Capacity and dose changes remain in #34; this clarification does not remove the WOD's current three-movement cap.
+- Formats are exclusive radio choices. Compact cards explain execution, and a selected protocol uses only the current backend preview. Existing server compatibility/ranking and preview/save/Player gates remain authoritative; no new mechanic is advertised as executable by this UI change.
+
 ## Final test
 
 For every visible state ask:

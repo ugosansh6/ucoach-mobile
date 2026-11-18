@@ -20,6 +20,14 @@ import { spacing } from '../constants';
 import { fontFamilies } from '../constants/typography';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
 import {
+  composerDurationSummary,
+  composerMovementAction,
+  composerMechanicDescription,
+  composerWodProtocol,
+  currentComposerAssessment,
+  formatComposerDose as formatPreviewDose,
+} from '../utils/composerPresentation';
+import {
   editComposerArchitecture,
   composerMainBlocks,
   composerAddableBlocks,
@@ -34,6 +42,7 @@ import {
   composerBlockDisplayLabel,
   composerArchitectureDisplayTitle,
   composerArchitecturePurpose,
+  composerArchitectureMatchesIntent,
   composerExerciseSlotLimit,
   getComposerArchitectureTargets,
   getComposerExerciseCandidates,
@@ -125,26 +134,6 @@ function movementLabel(value) {
     jump: 'Saut',
   };
   return labels[key] ?? raw.replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
-}
-
-function formatPreviewDose(dose, blockType) {
-  if (!dose) return '';
-  if (blockType === 'TABATA') return dose.intervals_per_exercise
-    ? `${dose.intervals_per_exercise} passages · 20 s effort / 10 s repos`
-    : '20 s effort / 10 s repos';
-  const parts = [];
-  if (dose.reps != null && Number.isFinite(Number(dose.reps))) {
-    const reps = `${dose.reps} reps${dose.reps_semantics === 'per_side' ? ' / côté' : ''}`;
-    parts.push(dose.sets ? `${dose.sets} × ${reps}` : reps);
-  } else if (dose.duration_seconds != null) {
-    parts.push(`${dose.duration_seconds} s`);
-  } else if (dose.distance_meters != null) {
-    parts.push(`${dose.distance_meters} m`);
-  }
-  if (dose.load_kg != null) parts.push(`${dose.load_kg} kg`);
-  else if (dose.band_resistance_label) parts.push(`Élastique ${dose.band_resistance_label}`);
-  if (dose.rest_seconds && ['STRENGTH', 'SKILL'].includes(blockType)) parts.push(`${dose.rest_seconds} s repos`);
-  return parts.join(' · ') || 'Dosage à calibrer';
 }
 
 function humanize(value) {
@@ -398,7 +387,7 @@ function StageHeader({ kicker, title, helper, styles }) {
   );
 }
 
-function ArchitectureCard({ option, selected, onPress, styles, colors, environmentCode }) {
+function ArchitectureCard({ option, selected, onPress, styles, colors, environmentCode, intentKey }) {
   // Use the backend-owned durations: two complements, main blocks, transitions.
   const segments = [
     ...(option.blocks ?? []),
@@ -430,9 +419,9 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
       {selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.cardTopRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cardEyebrow}>{option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
+          <Text style={styles.cardEyebrow}>{!composerArchitectureMatchesIntent(option, intentKey) ? 'STRUCTURE LIBRE' : option.recommended ? 'CHOIX UGEROD' : 'MÊME OBJECTIF'}</Text>
           <Text style={styles.cardTitle}>{composerArchitectureDisplayTitle(option, environmentCode)}</Text>
-          <Text style={styles.architecturePurpose} numberOfLines={2}>{composerArchitecturePurpose(option)}</Text>
+          <Text style={styles.architecturePurpose}>{composerArchitecturePurpose(option, intentKey, environmentCode)}</Text>
         </View>
         <Ionicons
           name={selected ? 'checkmark-circle' : 'ellipse-outline'}
@@ -471,13 +460,13 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
       </View>
       <View style={styles.architectureDurationFooter}>
         <Ionicons name="time-outline" size={15} color={colors.textSecondary} />
-        <Text style={styles.cardFooterText}>{'Durée totale : ' + totalMinutes + ' min'}</Text>
+        <Text style={styles.cardFooterText}>{'Durée prévue : ' + totalMinutes + ' min'}</Text>
       </View>
     </Pressable>
   );
 }
 
-function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleExpand, onOpenAlternatives, suggestedAlternative, styles, colors }) {
+function ExerciseCard({ exercise, doseLabel, selected, expanded, onToggleSelect, onToggleExpand, onOpenAlternatives, suggestedAlternative, styles, colors }) {
   const imageUri = /^https?:\/\//i.test(String(exercise.imagePath ?? '')) ? exercise.imagePath : null;
   const material = (exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps';
   const compactMeta = [movementLabel(exercise.movementPattern), material].filter(Boolean).join(' · ');
@@ -497,8 +486,9 @@ function ExerciseCard({ exercise, selected, expanded, onToggleSelect, onToggleEx
             <Ionicons name="barbell-outline" size={18} color={selected ? colors.textOnAccent : colors.accent} />
           </View>
           <View style={styles.exerciseCopy}>
-            <Text numberOfLines={1} style={styles.exerciseName}>{exercise.name}</Text>
+            <Text style={styles.exerciseName}>{exercise.name}</Text>
             {compactMeta ? <Text numberOfLines={1} style={styles.exerciseMeta}>{compactMeta}</Text> : null}
+            {doseLabel ? <Text style={styles.exerciseDose}>{doseLabel}</Text> : null}
           </View>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
         </Pressable>
@@ -595,6 +585,7 @@ export default function WeekComposerV7() {
   const [architectures, setArchitectures] = useState([]);
   const [architecture, setArchitecture] = useState(null);
   const [showOtherArchitectures, setShowOtherArchitectures] = useState(false);
+  const [showFreeArchitectures, setShowFreeArchitectures] = useState(false);
   const [showArchitectureEditor, setShowArchitectureEditor] = useState(false);
   const [architectureEditError, setArchitectureEditError] = useState('');
   const [candidateMap, setCandidateMap] = useState({});
@@ -612,6 +603,7 @@ export default function WeekComposerV7() {
   const [previewIssue, setPreviewIssue] = useState(null);
   const [previewSignature, setPreviewSignature] = useState(null);
   const [strengthAssessment, setStrengthAssessment] = useState(null);
+  const [strengthAssessmentSignature, setStrengthAssessmentSignature] = useState(null);
   const [strengthAssessmentLoading, setStrengthAssessmentLoading] = useState(false);
   const [strengthAssessmentError, setStrengthAssessmentError] = useState(false);
   const [showAllMechanics, setShowAllMechanics] = useState(false);
@@ -714,6 +706,7 @@ export default function WeekComposerV7() {
           setArchitectures([draft.architecture]);
           setShowArchitectureEditor(false);
           setShowOtherArchitectures(false);
+          setShowFreeArchitectures(false);
           setCandidateMap(exerciseMap);
           setSelectionMap(requested);
           try {
@@ -802,6 +795,7 @@ export default function WeekComposerV7() {
       setArchitectures(next);
       setArchitecture(next[0] ?? null);
       setShowOtherArchitectures(false);
+      setShowFreeArchitectures(false);
       setShowArchitectureEditor(false);
       setArchitectureEditError('');
       setStep(2);
@@ -1044,7 +1038,8 @@ export default function WeekComposerV7() {
   }
 
   useEffect(() => {
-    if (loading || step !== 5 || !architecture || !Object.keys(selectionMap).length) return undefined;
+    if (loading || ![4, 5].includes(step) || !architecture || !Object.keys(selectionMap).length
+        || (architecture.blocks?.some((b) => b.type === 'WOD') && !mechanic)) return undefined;
     let active = true;
     const draft = buildCurrentDraft();
     const draftSignature = JSON.stringify(draft);
@@ -1075,31 +1070,45 @@ export default function WeekComposerV7() {
   }, [loading, step, architecture, selectionMap, candidateMap, mechanic,
       referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey]);
 
+  const strengthRequest = {
+    exercises: (selectionMap.STRENGTH ?? []).map((id) => {
+      const row = (candidateMap.STRENGTH ?? []).find((x) => x.id === id);
+      return { id, name: row?.name ?? id };
+    }),
+    sessionMinutes: duration,
+    blockMinutes: architecture?.blocks?.find((b) => b.type === 'STRENGTH')?.minutes,
+    progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
+    equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
+    targetRegion: targetRegion ?? intent?.targetRegion ?? null,
+    environmentCode,
+  };
+  const strengthRequestSignature = JSON.stringify(strengthRequest);
+  const currentStrengthAssessment = currentComposerAssessment(
+    strengthAssessment, strengthAssessmentSignature, strengthRequestSignature,
+    strengthAssessmentLoading, strengthAssessmentError,
+  );
+
   // Every manual replacement triggers the same server-side C2/C4/time budget
   // check as automatic selection and recap. Never silently fill unused time.
   useEffect(() => {
     if (loading || !architecture || ![3, 4, 5].includes(step)) return undefined;
-    const strength = architecture.blocks?.find((block) => block.type === 'STRENGTH');
-    if (!strength) return undefined;
-    const ids = selectionMap.STRENGTH ?? [];
-    if (!ids.length) {
+    if (!strengthRequest.blockMinutes || !strengthRequest.exercises.length) {
       setStrengthAssessment(null);
+      setStrengthAssessmentSignature(null);
+      setStrengthAssessmentLoading(false);
+      setStrengthAssessmentError(false);
       return undefined;
     }
     let active = true;
     setStrengthAssessmentLoading(true);
     setStrengthAssessmentError(false);
-    getComposerStrengthAssessment({
-      exercises: ids.map((id) => {
-        const row = (candidateMap.STRENGTH ?? []).find((x) => x.id === id);
-        return { id, name: row?.name ?? id };
-      }),
-      sessionMinutes: duration, blockMinutes: strength.minutes,
-      progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
-      equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
-      targetRegion: targetRegion ?? intent?.targetRegion ?? null,
-      environmentCode,
-    }).then((result) => { if (active) setStrengthAssessment(result); })
+    setStrengthAssessmentSignature(null);
+    getComposerStrengthAssessment(strengthRequest).then((result) => {
+      if (active) {
+        setStrengthAssessment(result);
+        setStrengthAssessmentSignature(strengthRequestSignature);
+      }
+    })
       .catch((err) => {
         if (active) {
           console.warn('[Composer] shared strength authority failed', err);
@@ -1108,8 +1117,7 @@ export default function WeekComposerV7() {
         }
       }).finally(() => { if (active) setStrengthAssessmentLoading(false); });
     return () => { active = false; };
-  }, [loading, step, architecture, selectionMap.STRENGTH, candidateMap.STRENGTH,
-      duration, equipmentIds, referenceEquipment, intent, targetRegion, environmentCode]);
+  }, [loading, step, strengthRequestSignature]);
 
   async function addToWeek() {
     try {
@@ -1117,7 +1125,7 @@ export default function WeekComposerV7() {
       setError('');
       if (!prescriptionPreview || JSON.stringify(buildCurrentDraft()) !== previewSignature || previewLoading || previewIssue || strengthAssessmentError
           || (architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH')
-             && (strengthAssessmentLoading || strengthAssessment?.status !== 'READY')) {
+             && (strengthAssessmentLoading || currentStrengthAssessment?.status !== 'READY')) {
         throw new Error('La composition doit être validée par le moteur sportif avant enregistrement.');
       }
       const context = {
@@ -1172,16 +1180,9 @@ export default function WeekComposerV7() {
   const exerciseBlocks = recapEditingBlock
     ? (architecture?.blocks ?? []).filter((item) => item.type === recapEditingBlock)
     : (architecture?.blocks ?? []).filter((item) => !['WARMUP', 'TABATA'].includes(item.type));
-  const mainTypes = (architecture?.blocks ?? [])
-    .filter((item) => !['WARMUP', 'TABATA'].includes(item.type))
-    .map((item) => item.type);
   const intentKey = String(effectiveIntent?.key ?? '').toUpperCase();
-  const intentFocus = String(effectiveIntent?.focus ?? '').toUpperCase();
-  const dominantType = intentFocus === 'CONDITIONING' ? 'WOD'
-    : intentKey.includes('TECHNIQUE') || intentKey.includes('SKILL') ? 'SKILL'
-      : intentFocus === 'STRENGTH' ? 'STRENGTH' : null;
-  const structureDiffersFromDominant = dominantType && architecture
-    && !mainTypes.includes(dominantType);
+  const structureDiffersFromDominant = architecture
+    && !composerArchitectureMatchesIntent(architecture, intentKey);
   const activeBlock = exerciseBlocks[exerciseBlockIndex] ?? null;
   const activeCandidates = activeBlock ? rankComposerCandidates({
     candidates: candidateMap[activeBlock.type] ?? [],
@@ -1203,6 +1204,11 @@ export default function WeekComposerV7() {
   const allEquipmentSelected = referenceEquipment.length > 0
     && referenceEquipment.every((item) => equipmentIds.includes(item.id));
   const bodyweightOnly = equipmentIds.length === 0;
+  const alignedArchitectures = architectures.filter((option) => composerArchitectureMatchesIntent(option, intentKey));
+  const freeArchitectures = architectures.filter((option) => !composerArchitectureMatchesIntent(option, intentKey));
+  const currentPreview = !previewLoading && previewSignature === JSON.stringify(buildCurrentDraft())
+    ? prescriptionPreview : null;
+  const currentWodPreview = currentPreview?.blocks?.find((b) => b.type === 'WOD');
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -1393,9 +1399,10 @@ export default function WeekComposerV7() {
                     styles={styles}
                     colors={colors}
                     environmentCode={environmentCode}
+                    intentKey={intentKey}
                   />
                 ) : null}
-                {architectures.filter((option, index) =>
+                {alignedArchitectures.filter((option, index) =>
                   architecture?.key !== 'custom' && (showOtherArchitectures || index === 0 || option.key === architecture?.key)
                   || architecture?.key === 'custom' && showOtherArchitectures && option.key !== 'custom'
                 ).map((option) => (
@@ -1410,20 +1417,37 @@ export default function WeekComposerV7() {
                     styles={styles}
                     colors={colors}
                     environmentCode={environmentCode}
+                    intentKey={intentKey}
                   />
                 ))}
               </View>
-              {architectures.length > 1 ? (
+              {alignedArchitectures.length > 1 ? (
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setShowOtherArchitectures((current) => !current)}
                   style={styles.structureLink}
                 >
                   <Text style={styles.structureLinkText}>
-                    {showOtherArchitectures ? 'Masquer les alternatives' : 'Voir d’autres structures'}
+                    {showOtherArchitectures ? 'Masquer les alternatives' : 'Voir les alternatives pour cet objectif'}
                   </Text>
                   <Ionicons name={showOtherArchitectures ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
                 </Pressable>
+              ) : null}
+              {freeArchitectures.length ? (
+                <>
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: showFreeArchitectures }}
+                    onPress={() => setShowFreeArchitectures((value) => !value)} style={styles.structureLink}>
+                    <Text style={styles.structureLinkText}>{showFreeArchitectures ? 'Masquer les structures libres' : 'Composer une autre structure'}</Text>
+                    <Ionicons name={showFreeArchitectures ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
+                  </Pressable>
+                  <View style={styles.optionList}>
+                    {freeArchitectures.filter((option) => showFreeArchitectures || option.key === architecture?.key).map((option) => (
+                      <ArchitectureCard key={option.key} option={option} selected={architecture?.key === option.key}
+                        onPress={() => { setArchitecture(option); setArchitectureEditError(''); }}
+                        styles={styles} colors={colors} environmentCode={environmentCode} intentKey={intentKey} />
+                    ))}
+                  </View>
+                </>
               ) : null}
               <Pressable
                 accessibilityRole="button"
@@ -1542,7 +1566,7 @@ export default function WeekComposerV7() {
           {step === 3 && activeBlock ? (
             <View style={styles.stepWrap}>
               <StageHeader
-                kicker={`${blockTitle(activeBlock.type, environmentCode)} · ${activeBlock.minutes} MIN`}
+                kicker={`${blockTitle(activeBlock.type, environmentCode)} · ${activeBlock.minutes} MIN PRÉVUES`}
                 title={recapEditingBlock ? 'Ajuste tes mouvements.' : 'Tes mouvements.'}
                 styles={styles}
               />
@@ -1568,19 +1592,23 @@ export default function WeekComposerV7() {
 
               <Text style={styles.selectionCount}>
                 {activeBlock.type === 'STRENGTH'
-                  ? activeSelected.length + ' mouvements retenus · calcul C2/C4'
+                  ? activeSelected.length + ' mouvements retenus'
                   : activeSelected.length + ' / ' + maxForBlock(activeBlock.type, activeBlock.minutes) + ' sélectionnés'}
               </Text>
+              {activeBlock.type === 'WOD' ? <Text style={styles.sectionSmallHint}>
+                {activeSelected.length >= maxForBlock(activeBlock.type, activeBlock.minutes)
+                  ? 'Limite actuelle du WOD atteinte. Tu peux remplacer un mouvement.'
+                  : 'Ajoute ou remplace un mouvement parmi les exercices compatibles.'}
+                {' Le dosage sera précisé avec le format.'}
+              </Text> : null}
               {activeBlock.type === 'STRENGTH' ? (
                 <View style={styles.structureExplanation}>
                   <Ionicons name="time-outline" size={18} color={colors.accent} />
                   <Text style={styles.structureExplanationText}>
-                    {strengthAssessmentLoading ? 'UGEROD vérifie le dosage et les récupérations…'
-                      : strengthAssessmentError ? 'Calcul sportif indisponible. Vérifie ta connexion.'
-                        : strengthAssessment?.time
-                          ? (Math.round(Number(strengthAssessment.time.prescribed_seconds ?? 0) / 60) + ' min de travail estimées pour ' + activeBlock.minutes + ' min prévues. ' +
-                            (strengthAssessment.status === 'READY' ? 'Durée compatible.' : 'Ajoute des mouvements ou choisis une autre structure.'))
-                          : 'Choisis des mouvements pour évaluer le temps réel.'}
+                    {strengthAssessmentError ? 'Calcul sportif indisponible. Vérifie ta connexion.'
+                      : currentStrengthAssessment?.time ? composerDurationSummary(currentStrengthAssessment, activeBlock.minutes)
+                        : activeSelected.length ? 'Calcul du dosage et du temps, récupérations comprises…'
+                          : 'Choisis des mouvements pour estimer la durée du bloc.'}
                   </Text>
                 </View>
               ) : null}
@@ -1589,6 +1617,9 @@ export default function WeekComposerV7() {
                   <ExerciseCard
                     key={exercise.id}
                     exercise={exercise}
+                    doseLabel={activeBlock.type === 'STRENGTH'
+                      ? currentStrengthAssessment ? formatPreviewDose(currentStrengthAssessment.exercises?.find((x) => x.id === exercise.id), activeBlock.type) : strengthAssessmentError ? 'Dosage indisponible' : 'Dosage en attente de calcul'
+                      : null}
                     selected={activeSelected.includes(exercise.id)}
                     expanded={expandedExerciseId === exercise.id}
                     onToggleSelect={() => chooseExercise(activeBlock.type, exercise.id)}
@@ -1612,11 +1643,15 @@ export default function WeekComposerV7() {
                 >
                   <Ionicons name="swap-horizontal-outline" size={20} color={colors.accent} />
                   <Text style={styles.exerciseChangeLabel}>
-                    {activeSelected.length ? 'Changer / ajouter un mouvement' : 'Choisir un mouvement'}
+                    {composerMovementAction(activeSelected.length, maxForBlock(activeBlock.type, activeBlock.minutes))}
                   </Text>
                   <Ionicons name="chevron-forward" size={18} color={colors.accent} />
                 </Pressable>
               ) : null}
+              <Pressable accessibilityRole="button" onPress={() => { setShowArchitectureEditor(true); setArchitectureEditError(''); setStep(2); }} style={styles.structureLink}>
+                <Text style={styles.structureLinkText}>Ajuster les blocs et leurs durées</Text>
+                <Ionicons name="options-outline" size={18} color={colors.accent} />
+              </Pressable>
 
               <PrimaryButton
                 label={exerciseBlockIndex !== exerciseBlocks.length - 1 ? 'BLOC SUIVANT'
@@ -1634,10 +1669,8 @@ export default function WeekComposerV7() {
             <View style={styles.stepWrap}>
               <StageHeader
                   kicker="FORMAT DU WOD"
-                  title="Le bon rythme pour ton objectif."
-                  helper={(architecture?.blocks ?? []).some((b) => b.type === 'WOD' && b.minutes >= 40)
-                    ? 'Pour ce WOD long, UGEROD privilégie un circuit avec récupération. Tu peux choisir un autre format compatible.'
-                    : 'UGEROD te propose un format adapté à tes mouvements. Tu peux choisir une alternative.'}
+                  title="Le format de ton WOD."
+                  helper={`${wodBlock?.minutes ?? 0} min prévues · ${selectionMap.WOD?.length ?? 0} mouvements. Un seul format à la fois.`}
                   styles={styles}
                 />
               <View style={styles.optionList}>
@@ -1647,23 +1680,40 @@ export default function WeekComposerV7() {
                   const selected = mechanic?.key === option.key;
                   return (
                     <Pressable key={option.key}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected, disabled: option.available === false }}
+                      accessibilityLabel={option.title + (option.available === false ? ', indisponible, ' + option.reason : '')}
                       onPress={() => option.available === false ? setMechanicIssue(option.reason) : (setMechanic(option), setMechanicIssue(null))}
-                      style={[styles.simpleCard, selected && styles.cardSelected, option.available === false && styles.mechanicDisabled]}>
+                      style={[styles.simpleCard, styles.mechanicCard, selected && styles.cardSelected, option.available === false && styles.mechanicDisabled]}>
                       {selected ? <View style={styles.selectedRail} /> : null}
                       <View style={styles.cardTopRow}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.cardEyebrow}>{option.available === false ? 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'ALTERNATIVE'}</Text>
+                          {option.available === false || option.recommended || selected ? (
+                            <Text style={styles.cardEyebrow}>{option.available === false ? 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'FORMAT CHOISI'}</Text>
+                          ) : null}
                           <Text style={styles.cardTitle}>{option.title}</Text>
-                          <Text style={styles.cardSubtitle}>{option.available === false ? option.reason : option.description}</Text>
+                          <Text style={styles.cardSubtitle}>{composerMechanicDescription(option)}</Text>
                         </View>
                         <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
-                          <Ionicons name={option.available === false ? 'lock-closed-outline' : selected ? 'checkmark' : 'add'} size={18} color={option.available === false ? colors.textMuted : selected ? colors.textOnAccent : colors.accent} />
+                          <Ionicons name={option.available === false ? 'lock-closed-outline' : selected ? 'checkmark' : 'ellipse-outline'} size={18} color={option.available === false ? colors.textMuted : selected ? colors.textOnAccent : colors.accent} />
                         </View>
                       </View>
                     </Pressable>
                   );
                 })}
               </View>
+              {currentWodPreview ? (
+                <View style={styles.protocolCard}>
+                  <Text style={styles.sectionSmallTitle}>APERÇU DU FORMAT CHOISI</Text>
+                  {composerWodProtocol(currentWodPreview) ? <Text style={styles.recapDose}>{composerWodProtocol(currentWodPreview)}</Text> : null}
+                  {(currentWodPreview.exercises ?? []).map((dose) => (
+                    <Text key={dose.id} style={styles.protocolDose}>{dose.name} · {formatPreviewDose(dose, 'WOD')}</Text>
+                  ))}
+                  <Text style={styles.sectionSmallHint}>Dosage prévisionnel, ajustable au check-in du jour J.</Text>
+                </View>
+              ) : mechanic ? <Text style={styles.sectionSmallHint}>
+                {previewLoading ? 'Calcul du protocole…' : previewIssue ? 'Ajuste d’abord le bloc de ' + composerBlockDisplayLabel('STRENGTH', environmentCode).toLowerCase() + ' pour obtenir le protocole complet.' : 'Le protocole sera disponible après validation des blocs.'}
+              </Text> : null}
               {mechanicIssue ? <Text style={styles.mechanicIssue}>{mechanicIssue}</Text> : null}
               {mechanicOptions.length > 1 ? (
                 <Pressable onPress={() => setShowAllMechanics((value) => !value)} style={{ paddingVertical: 14, alignItems: 'center' }}>
@@ -1700,15 +1750,15 @@ export default function WeekComposerV7() {
               {previewLoading ? (
                 <View style={styles.previewState}>
                   <ActivityIndicator size="small" color={colors.accent} />
-                  <Text style={styles.previewNote}>Calcul des prescriptions C2…</Text>
+                  <Text style={styles.previewNote}>Calcul des séries, répétitions et récupérations…</Text>
                 </View>
               ) : prescriptionPreview ? (
-                <Text style={styles.previewNote}>Prescription C2 prévisionnelle · le jour J, la forme et les gênes pourront entraîner des ajustements.</Text>
+                <Text style={styles.previewNote}>Dosage prévisionnel · le jour J, la forme et les gênes pourront entraîner des ajustements.</Text>
               ) : previewIssue ? (
                 <View style={styles.structureExplanation}>
                   <Ionicons name="alert-circle-outline" size={18} color={colors.secondaryAccent} />
                   <Text style={styles.structureExplanationText}>
-                    Le bloc Renforcement ne couvre pas sa durée : {Math.round(Number(previewIssue.time?.prescribed_seconds ?? 0) / 60)} min de travail estimées pour {previewIssue.block_minutes} min prévues. Reviens ajuster les mouvements ou la structure.
+                    Le bloc {composerBlockDisplayLabel('STRENGTH', environmentCode)} ne correspond pas au temps prévu : {Math.round(Number(previewIssue.time?.prescribed_seconds ?? 0) / 60)} min estimées, récupérations comprises, pour {previewIssue.block_minutes} min prévues. Reviens ajuster les mouvements ou la structure.
                   </Text>
                 </View>
               ) : previewError ? (
@@ -1730,7 +1780,7 @@ export default function WeekComposerV7() {
                       <Text style={styles.recapMinutes}>{item.minutes} min</Text>
                     </View>
                     {(() => {
-                      const prescription = prescriptionPreview?.blocks?.find((block) => block.type === item.type);
+                      const prescription = currentPreview?.blocks?.find((block) => block.type === item.type);
                       if (!prescription) return null;
                       if (item.type === 'TABATA') {
                         return <Text style={styles.recapDose}>8 intervalles · 20 s effort / 10 s repos</Text>;
@@ -1742,7 +1792,7 @@ export default function WeekComposerV7() {
                       return null;
                     })()}
                     {selectedExercises(item.type).map((exercise) => {
-                      const dose = prescriptionPreview?.blocks
+                      const dose = currentPreview?.blocks
                         ?.find((block) => block.type === item.type)?.exercises
                         ?.find((value) => value.id === exercise.id);
                       return (
@@ -1764,7 +1814,7 @@ export default function WeekComposerV7() {
               <PrimaryButton
                 label={busy ? 'ENREGISTREMENT…' : 'VALIDER MA SÉANCE'}
                 onPress={addToWeek}
-                disabled={busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && strengthAssessment?.status !== 'READY')}
+                disabled={busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY')}
                 loading={busy}
                 styles={styles}
                 colors={colors}
@@ -1967,6 +2017,9 @@ function createStyles(colors) {
     structureAddActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
     structureAddButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 10 },
     structureAddLabel: { fontFamily: fontFamilies.medium, fontSize: 12, color: colors.text },
+    mechanicCard: { padding: 14 },
+    protocolCard: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, gap: 8, backgroundColor: colors.surface },
+    protocolDose: { fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 19, color: colors.text },
     mechanicDisabled: { opacity: 0.46 },
     mechanicIssue: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     simpleCard: { position: 'relative', overflow: 'hidden', padding: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
@@ -2010,6 +2063,7 @@ function createStyles(colors) {
     exerciseGlyphSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
     exerciseCopy: { flex: 1, minWidth: 0 },
     exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 16, lineHeight: 20, color: colors.text },
+    exerciseDose: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.accent },
     exerciseMeta: { marginTop: 3, fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 15, color: colors.textSecondary },
     exerciseDetailMeta: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, color: colors.textSecondary },
     exerciseDetailReason: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
