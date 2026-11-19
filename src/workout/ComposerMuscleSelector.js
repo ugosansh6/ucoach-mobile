@@ -8,6 +8,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import AthleticMuscleMap from '../components/body/AthleticMuscleMap';
+import { normalizeComposerRegions, toggleComposerRegion } from '../utils/composerPreferences';
 
 const ORANGE = '#FF6B19';
 // Light secondary khaki, distinct from gray without competing with orange.
@@ -44,21 +45,26 @@ const INTENT_MUSCLES = {
  * contract (Upper / Lower / Core / Full Body), extending it with Back.
  */
 export default function ComposerMuscleSelector({
-  value, onChange, colors, fontFamilies,
+  value, values, onChange, colors, fontFamilies,
 }) {
   const [side, setSide] = useState('front');
   const [inspected, setInspected] = useState(null);
-  const targets = INTENT_MUSCLES[value] ?? {};
+  const multiple = Array.isArray(values);
+  const selectedRegions = normalizeComposerRegions(multiple ? values : value);
   const colorsByMuscle = useMemo(() => {
     const mapped = {};
-    (targets.secondary ?? []).forEach((id) => { mapped[id] = KHAKI; });
-    (targets.primary ?? []).forEach((id) => { mapped[id] = ORANGE; });
+    for (const region of selectedRegions) {
+      (INTENT_MUSCLES[region]?.secondary ?? []).forEach((id) => { mapped[id] = KHAKI; });
+    }
+    for (const region of selectedRegions) {
+      (INTENT_MUSCLES[region]?.primary ?? []).forEach((id) => { mapped[id] = ORANGE; });
+    }
     return mapped;
-  }, [value]);
+  }, [JSON.stringify(selectedRegions)]);
 
   function choose(next) {
     setInspected(null);
-    onChange(next);
+    onChange(multiple ? toggleComposerRegion(selectedRegions, next) : next);
     if (next === 'Back') setSide('back');
     if (next === 'Core') setSide('front');
   }
@@ -68,7 +74,7 @@ export default function ComposerMuscleSelector({
     const category = ['M02', 'M12', 'M13'].includes(id) ? 'Back'
       : ['M06', 'M07', 'M08', 'M09'].includes(id) ? 'Lower'
         : ['M10', 'M11'].includes(id) ? 'Core' : 'Upper';
-    onChange(category);
+    onChange(multiple ? toggleComposerRegion(selectedRegions, category) : category);
     if (category === 'Back' || ['M07', 'M08', 'M12', 'M13'].includes(id)) setSide('back');
   }
 
@@ -77,13 +83,15 @@ export default function ComposerMuscleSelector({
       <View style={{ flexDirection: 'row', gap: 12, alignItems: 'stretch' }}>
         <View style={{ width: '43%', gap: 6, justifyContent: 'center' }}>
           {COMPOSER_TARGETS.map((option) => {
-            const selected = value === option.value;
+            const selected = option.value == null ? selectedRegions.length === 0
+              : selectedRegions.includes(option.value);
             return (
               <Pressable
                 key={option.label}
                 onPress={() => choose(option.value)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
+                accessibilityRole={multiple && option.value && option.value !== 'Full Body' ? 'checkbox' : 'radio'}
+                accessibilityState={multiple && option.value && option.value !== 'Full Body' ? { checked: selected } : { selected }}
+                aria-checked={selected}
                 style={{
                   minHeight: 42, justifyContent: 'center',
                   borderWidth: 1, borderRadius: 12, paddingHorizontal: 10,

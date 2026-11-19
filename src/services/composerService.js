@@ -3,8 +3,25 @@ import {
   getAuthenticatedUserWithRetry,
   runSupabaseRequestWithAuthRetry,
 } from '../lib/supabaseAuthRetry';
+import { readComposerPreferences } from '../utils/composerPreferences';
 
 const ENGINE_POLICY = 'c4-final-default';
+
+// Read the existing curated catalogue. A target is a preference, not a claim
+// that an athlete has mastered its final movement or can perform it today.
+export async function getComposerSkillTargets() {
+  await getAuthenticatedUserWithRetry();
+  const rows = await runSupabaseRequestWithAuthRetry(() => supabase
+    .from('skill_paths')
+    .select('path_key,display_name,body_region,description')
+    .eq('active', true)
+    .order('selection_priority', { ascending: false })
+    .order('display_name'));
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    key: row.path_key, name: row.display_name, region: row.body_region,
+    description: row.description ?? null,
+  }));
+}
 
 const BLOCK_ROLE = {
   WARMUP: 'Warm-up',
@@ -648,6 +665,7 @@ export async function getComposerForLocalDate(dateKey) {
     status: data.status,
     date: data.local_date,
     draft: data.composer_draft ?? {},
+    preferences: readComposerPreferences(data.composer_draft ?? {}),
     futureContext: data.future_context ?? {},
   };
 }

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { getCurrentPrimaryGoal } from './goalsService';
+import { composerSessionPreferences } from '../utils/composerPreferences';
 
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -1987,7 +1988,7 @@ export async function reloadWorkoutSession({
   const { data, error } = await supabase
     .from('workout_sessions')
     .select(
-      'id, status, generated_workout, started_at, started_local_date, wod_revealed_at, wod_started_at, format_change_count, context_recalculation_count'
+      'id, status, generated_workout, planning_context_json, started_at, started_local_date, wod_revealed_at, wod_started_at, format_change_count, context_recalculation_count'
     )
     .eq('id', sessionId)
     .single();
@@ -2002,10 +2003,18 @@ export async function reloadWorkoutSession({
     );
   }
 
+  // The existing compiler persists the entire authored draft. Read its exact
+  // preference snapshot on every reload, not just from transient check-in state.
+  const composerPreferences = data.generated_workout.meta?.composer_preferences
+    ?? composerSessionPreferences(data.planning_context_json);
   const mappedWorkout =
     mapGeneratedWorkout(
       {
         ...data.generated_workout,
+        meta: {
+          ...(data.generated_workout.meta ?? {}),
+          ...(composerPreferences ? { composer_preferences: composerPreferences } : {}),
+        },
         session_id: sessionId,
         status:
           data.status ??

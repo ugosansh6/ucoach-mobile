@@ -19,6 +19,11 @@ import {
 import { spacing } from '../constants';
 import { fontFamilies } from '../constants/typography';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
+import ComposerSkillTargetSelector from './ComposerSkillTargetSelector';
+import {
+  readComposerPreferences, legacyComposerTargetRegion, composerRegionsLabel,
+  composerShowsSkillTarget, withComposerPreferences,
+} from '../utils/composerPreferences';
 import { composerWodSelectionLimit, toggleComposerExercise } from '../utils/composerWodSelection';
 import {
   composerDurationSummary,
@@ -59,6 +64,7 @@ import {
   rankComposerCandidates,
   selectComposerDefaultExercises,
   getComposerForLocalDate,
+  getComposerSkillTargets,
   saveComposerDraft,
 } from '../services/composerService';
 import {
@@ -620,12 +626,25 @@ export default function WeekComposerV7() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [duration, setDuration] = useState(60);
   const [environmentCode, setEnvironmentCode] = useState('HOME');
-  const [targetRegion, setTargetRegion] = useState(null);
+  const [preferredRegions, setPreferredRegions] = useState([]);
+  const [skillTargetPath, setSkillTargetPath] = useState(null);
+  const [showSkillTarget, setShowSkillTarget] = useState(false);
+  const [skillTargets, setSkillTargets] = useState([]);
+  const [skillTargetsLoading, setSkillTargetsLoading] = useState(false);
+  const [skillTargetsError, setSkillTargetsError] = useState(false);
+  const [skillTargetsRetry, setSkillTargetsRetry] = useState(0);
   const [equipmentCatalog, setEquipmentCatalog] = useState([]);
   const [referenceEquipment, setReferenceEquipment] = useState([]);
   const [equipmentIds, setEquipmentIds] = useState([]);
   const [equipmentLoading, setEquipmentLoading] = useState(false);
   const [intent, setIntent] = useState(null);
+  const composerPreferences = readComposerPreferences({
+    preferred_regions: preferredRegions, skill_target_path_key: skillTargetPath,
+  });
+  const targetRegion = legacyComposerTargetRegion(composerPreferences);
+  const preferencesSignature = JSON.stringify(composerPreferences);
+  const skillTargetVisible = composerShowsSkillTarget(intent, showSkillTarget, skillTargetPath);
+  const technicalOrientation = ['TECHNIQUE', 'COACH_TECHNIQUE'].includes(intent?.key);
   const [architectures, setArchitectures] = useState([]);
   const [architecture, setArchitecture] = useState(null);
   const [showOtherArchitectures, setShowOtherArchitectures] = useState(false);
@@ -656,6 +675,22 @@ export default function WeekComposerV7() {
   const [wodContractsLoading, setWodContractsLoading] = useState(false);
   const [wodContractsError, setWodContractsError] = useState(false);
   const [wodContractsRetry, setWodContractsRetry] = useState(0);
+
+  useEffect(() => {
+    if (loading || !skillTargetVisible || skillTargets.length > 0) return undefined;
+    let active = true;
+    setSkillTargetsLoading(true);
+    setSkillTargetsError(false);
+    getComposerSkillTargets().then((options) => {
+      if (active) setSkillTargets(options);
+    }).catch((reason) => {
+      if (active) {
+        console.warn('[Composer] skill target catalogue unavailable', reason);
+        setSkillTargetsError(true);
+      }
+    }).finally(() => { if (active) setSkillTargetsLoading(false); });
+    return () => { active = false; };
+  }, [loading, skillTargetVisible, skillTargetsRetry]);
 
   function maxForBlock(type, minutes = 0) {
     return type === 'WOD' ? composerWodSelectionLimit(wodSelectionContracts)
@@ -725,7 +760,7 @@ export default function WeekComposerV7() {
         const initialTargetRegion = future.targetRegion ?? item?.plannedContext?.targetRegion ?? null;
         setDuration(DURATIONS.includes(initialDuration) ? initialDuration : 60);
         setEnvironmentCode(initialEnvironment);
-        setTargetRegion(initialTargetRegion);
+        setPreferredRegions(readComposerPreferences({ target_region: initialTargetRegion }).preferred_regions);
         const rows = await getUserEnvironmentEquipmentPreset(initialEnvironment);
         if (!active) return;
         const reference = buildReferenceEquipment(catalog ?? [], rows ?? []);
@@ -781,7 +816,9 @@ export default function WeekComposerV7() {
           }
           setDuration(Number(draft.duration_minutes));
           setEnvironmentCode(draft.environment_code);
-          setTargetRegion(draft.target_region ?? null);
+          const savedPreferences = readComposerPreferences(draft);
+          setPreferredRegions(savedPreferences.preferred_regions);
+          setSkillTargetPath(savedPreferences.skill_target_path_key);
           setEquipmentIds(Array.isArray(draft.equipment_ids) ? draft.equipment_ids : []);
           setIntent(draft.intent ?? coachIntent);
           setArchitecture(draft.architecture);
@@ -935,7 +972,7 @@ export default function WeekComposerV7() {
         const candidates = await getComposerExerciseCandidates({
           blockType: block.type,
           focus: intent?.focus ?? 'General Fitness',
-          targetRegion: targetRegion ?? intent?.targetRegion ?? selectedItem?.plannedContext?.targetRegion ?? null,
+          targetRegion,
           environmentCode,
           equipmentIds,
           limit: 30,
@@ -965,7 +1002,7 @@ export default function WeekComposerV7() {
         console.warn('[Composer] recommendations proceed without recent-history evidence', evidenceError);
       }
       const defaults = selectComposerDefaultExercises({
-        targetRegion: targetRegion ?? intent?.targetRegion ?? selectedItem?.plannedContext?.targetRegion ?? null,
+        targetRegion,
         candidateMap: candidatesByBlock,
         evidence: observations,
         equipmentIds,
@@ -992,7 +1029,7 @@ export default function WeekComposerV7() {
           candidates: ordered, sessionMinutes: duration, blockMinutes: strength.minutes,
           progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
           equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
-          targetRegion: targetRegion ?? intent?.targetRegion ?? null,
+          targetRegion,
           environmentCode,
         });
         if (!Array.isArray(proposal?.selected_exercises) || !proposal.selected_exercises.length) {
@@ -1095,13 +1132,12 @@ export default function WeekComposerV7() {
   function buildCurrentDraft() {
     const estimatedMinutes = architecture?.estimatedMinutes
       ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
-    return {
+    return withComposerPreferences({
       target_date: dateKey,
       wod_engine_version: wodEngineVersion,
       duration_minutes: duration,
       environment_code: environmentCode,
       equipment_ids: equipmentIds,
-      target_region: targetRegion,
       progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
       intent: { key: intent?.key ?? null, label: intent?.label ?? null, focus: intent?.focus ?? null },
       architecture: {
@@ -1116,7 +1152,7 @@ export default function WeekComposerV7() {
       },
       mechanic: mechanic ? { key: mechanic.key, variant_key: mechanic.variant_key ?? null, title: mechanic.title } : null,
       estimated_minutes: estimatedMinutes,
-    };
+    }, composerPreferences);
   }
 
   useEffect(() => {
@@ -1150,7 +1186,7 @@ export default function WeekComposerV7() {
       .finally(() => { if (active) setPreviewLoading(false); });
     return () => { active = false; };
   }, [loading, step, architecture, selectionMap, candidateMap, mechanic,
-      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion]);
+      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion, preferencesSignature]);
 
   const strengthRequest = {
     exercises: (selectionMap.STRENGTH ?? []).map((id) => {
@@ -1161,7 +1197,7 @@ export default function WeekComposerV7() {
     blockMinutes: architecture?.blocks?.find((b) => b.type === 'STRENGTH')?.minutes,
     progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
     equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
-    targetRegion: targetRegion ?? intent?.targetRegion ?? null,
+    targetRegion,
     environmentCode,
   };
   const strengthRequestSignature = JSON.stringify(strengthRequest);
@@ -1214,7 +1250,7 @@ export default function WeekComposerV7() {
         duration_minutes: duration,
         environment_code: environmentCode,
         equipment: equipmentNames(),
-        target_region: targetRegion ?? selectedItem?.plannedContext?.targetRegion ?? null,
+        target_region: targetRegion,
       };
       let planItemId = selectedItem?.planItemId ?? null;
       if (planItemId) await updateWeekPlanItemContext({ planItemId, context });
@@ -1326,9 +1362,10 @@ export default function WeekComposerV7() {
             <View style={styles.contextTrail}>
               <View style={styles.contextLine}>
                 <Text style={styles.contextPrimary}>{duration} MIN · {environmentLabel(environmentCode).toUpperCase()}</Text>
-                {targetRegion ? <Text style={styles.contextPill}>{regionLabel(targetRegion)}</Text> : null}
+                {preferredRegions.length ? <Text style={styles.contextPill}>{composerRegionsLabel(composerPreferences)}</Text> : null}
               </View>
               {effectiveIntent ? <Text style={styles.contextPrimary}>DOMINANTE · {directionBaseLabel(effectiveIntent).toUpperCase()}</Text> : null}
+              {skillTargetPath ? <Text style={styles.contextMuted}>OBJECTIF · {skillTargets.find((option) => option.key === skillTargetPath)?.name ?? skillTargetPath}</Text> : null}
               {architecture ? <Text style={styles.contextMuted}>STRUCTURE · {composerArchitectureDisplayTitle(architecture, environmentCode)}</Text> : null}
             </View>
           ) : null}
@@ -1451,15 +1488,24 @@ export default function WeekComposerV7() {
                 })}
               </View>
               <View style={styles.focusSection}>
-                <Text style={styles.focusTitle}>Zone à travailler</Text>
-                <Text style={styles.focusHelp}>Choisis une zone sur la silhouette, ou laisse UGEROD équilibrer la séance.</Text>
+                <Text style={styles.focusTitle}>Zones à privilégier</Text>
+                <Text style={styles.focusHelp}>Choisis une ou plusieurs zones, ou laisse UGEROD équilibrer la séance.</Text>
                 <ComposerMuscleSelector
-                  value={targetRegion}
-                  onChange={setTargetRegion}
+                  values={preferredRegions}
+                  onChange={setPreferredRegions}
                   colors={colors}
                   fontFamilies={fontFamilies}
                 />
               </View>
+              <ComposerSkillTargetSelector
+                visible={skillTargetVisible} optional={!technicalOrientation}
+                selectedPath={skillTargetPath} options={skillTargets}
+                loading={skillTargetsLoading} error={skillTargetsError}
+                onRetry={() => setSkillTargetsRetry((value) => value + 1)}
+                onOpen={() => setShowSkillTarget(true)} onChange={setSkillTargetPath}
+                onRemove={() => { setSkillTargetPath(null); setShowSkillTarget(false); }}
+                colors={colors} fontFamilies={fontFamilies}
+              />
               <PrimaryButton label={busy ? 'PRÉPARATION…' : 'CHOISIR LA STRUCTURE'} onPress={goToArchitecture} disabled={!intent || busy} loading={busy} styles={styles} colors={colors} />
             </View>
           ) : null}

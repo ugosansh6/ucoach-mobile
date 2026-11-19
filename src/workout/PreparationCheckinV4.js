@@ -25,6 +25,7 @@ import {
   getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
 import { getComposerForLocalDate } from '../services/composerService';
+import { readComposerPreferences, legacyComposerTargetRegion } from '../utils/composerPreferences';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
 import { preparationPrimaryActionLabel } from '../utils/preparationPrimaryActionLabel';
 
@@ -720,6 +721,7 @@ export default function PreparationCheckinV4() {
         if (saved && hydratedComposerDateRef.current !== date) {
           const future = saved.futureContext ?? {};
           const draft = saved.draft ?? {};
+          const preferences = saved.preferences ?? readComposerPreferences(draft);
           const plannedEquipment = Array.isArray(future.equipment)
             ? future.equipment.filter(Boolean)
             : [];
@@ -727,7 +729,8 @@ export default function PreparationCheckinV4() {
           updatePreparation({
             duration: Number(draft.duration_minutes ?? future.duration_minutes ?? 45),
             environmentCode: draft.environment_code ?? future.environment_code ?? 'HOME',
-            region: draft.target_region ?? future.target_region ?? null,
+            region: legacyComposerTargetRegion(preferences),
+            composerPreferences: preferences,
             equipment: plannedEquipment.length > 0 ? plannedEquipment : ['Poids du corps'],
             equipmentEnvironmentCode: draft.environment_code ?? future.environment_code ?? 'HOME',
             equipmentSelectionSource: 'session_override',
