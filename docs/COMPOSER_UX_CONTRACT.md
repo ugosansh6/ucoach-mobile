@@ -1,5 +1,23 @@
 # Composer avec UGEROD — UX/UI contract
 
+## Cadrage courant — 19 novembre 2026
+
+Le [ticket #29](https://github.com/ugosansh6/ucoach-mobile/issues/29) conserve le suivi unique de la stabilisation : besoins, couverture réelle, propriétaires, dépendances et preuves. Les règles ci-dessous sont acceptées ; leur présence dans ce contrat ne signifie pas qu'elles sont toutes implémentées ni que le développement a été lancé.
+
+- Conserver les pages et composants existants : UGEROD propose, l'utilisateur garde ou ajuste. Aucun nouvel assistant obligatoire en sept étapes.
+- Maison et Box restent deux lieux distincts. Skill + WOD est proposé par défaut dans chacun, mais la structure reste ajustable depuis Format : retrait/rétablissement du Skill et répartition des durées, sous validation moteur.
+- Orientation, zones privilégiées multiples et cible de mouvement sont séparées. La cible apparaît directement en orientation technique et reste optionnelle pour force/conditionnement.
+- Skill désigne un bloc, pas systématiquement un apprentissage technique : force/maîtrise ou progression spécifique, jusqu'à trois exercices, selon les contrats existants.
+- Le sélecteur guidé explore zone/objectif/famille sans imposer trois menus ; choix et remplacement explicites, prescriptions réelles et détails à la demande. Réutiliser les cartes compactes et l'aperçu sous la mécanique sélectionnée.
+- Mécaniques au choix parmi les compatibles : raisons et droits distingués, ajustement proposé seulement s'il est réellement évalué, aucune mutation silencieuse.
+- Salle garde sa logique séries et cardio facultatif avant/après. Le contrat CARDIO n'est pas remplacé par un WOD.
+- Les autorités moteur existantes déterminent proposition, dosage et faisabilité. L'interface n'invente pas de règles sportives ; le Player n'ajoute pas de volume. Budget, estimation et cap restent distincts.
+- Préparation/Tabata protégé des nouvelles propositions, choix/versions des anciennes séances et réalisé conservés. Adaptations et réparations explicites.
+
+Les sections historiques ci-dessous conservent les principes et preuves utiles. Le cadrage du 19 novembre prévaut sur leurs formulations incompatibles, notamment l'ancienne priorité structurelle par intention, l'assimilation Skill/Technique et toute lecture non ajustable du défaut Maison/Box.
+
+## Principes et historique conservés
+
 > **Lecture historique encadrée — consolidation du 13/11/2026.** Ce contrat du 14/10 reste utile pour les principes d'interaction, mais plusieurs détails ont évolué : voir [PRODUCT_REFERENCE.md](PRODUCT_REFERENCE.md), notamment les décisions du 26–27/10 et la séparation Aujourd'hui / Ma semaine du 12/11. Les choix de blocs enregistrés font autorité ; ne pas ajouter Warm-up/Tabata pour appliquer une ancienne formulation universelle. La date appartient à Ma semaine et le CTA cible a été actualisé en « Valider ma séance ». Ce bandeau ne demande aucune modification d'écran.
 
 Status: LOCKED — 2026-10-14

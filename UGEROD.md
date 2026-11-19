@@ -42,7 +42,25 @@ Le statut des projets Supabase peut changer : le relire au moment utile. Les nom
 
 ## Décisions produit courantes
 
-Décision confirmée le 12/11/2026, à modifier lorsqu'Ugo valide une évolution :
+### Cadrage hebdomadaire accepté le 19 novembre 2026
+
+La composition guidée avec aperçu partagé et ses précisions validées par Ugo font autorité pour **Ma semaine**. Le [ticket #29](https://github.com/ugosansh6/ucoach-mobile/issues/29) est l'index unique des besoins, des responsabilités, des priorités, de la couverture réellement implémentée et des preuves ; aucun backlog parallèle n'est tenu ici. L'inscription puis la consolidation des tickets n'autorisent pas à elles seules le développement.
+
+| Sujet | Règle actuelle |
+| --- | --- |
+| Lieu et préférences | Maison, Box, Salle et Extérieur restent distincts. Orientation, une ou plusieurs zones de travail privilégiées et cible technique facultative sont des préférences séparées, distinctes des douleurs/exclusions. |
+| Maison et Box | Chacun propose Skill + WOD par défaut avec la préparation prévue. La page Format existante permet les ajustements explicites : retirer/rétablir le Skill, réserver un WOD plus long et rééquilibrer les durées. Le défaut n'est pas un verrou. |
+| Skill | Bloc de maîtrise/progression, y compris force, concentré sur deux ou trois exercices maximum. L'apprentissage technique réutilise les progressions existantes ; cible directement visible pour cette orientation, option secondaire pour les autres. |
+| Exercices et mécanique | Exploration guidée via les zones/objectif/familles existantes, choix et remplacement explicites, détails à la demande. Mécaniques compatibles au choix, motifs expliqués et corrections réellement évaluées si possibles. Conserver cartes et aperçu compact déjà livrés. |
+| Salle | Organisation en séries et styles réellement exécutables, cardio facultatif avant ou après le travail musculaire. Cardio et WOD ont des contrats distincts. Le cardio initial ne remplace pas automatiquement la préparation. |
+| Autorité et exécution | Ma semaine transmet les préférences aux autorités moteur existantes. Proposition, aperçu et jour J partagent les contrats ; le Player exécute le dosage, les séries/temps, repos, transitions et scores sans ajouter du volume localement. |
+| Préparation et plans existants | Échauffement et Tabata abdos 4 min restent protégés dans les nouvelles propositions. Les anciens choix, versions, identités et résultats sont conservés ; une réparation/adaptation exige une confirmation explicite. |
+
+Ces règles décrivent la cible acceptée, **partiellement implémentée** : la couverture et le reste de chaque besoin sont dans #29. Les autorités Strength/WOD, la page Format, les cartes et les capacités Player déjà présentes sont conservées. La précédente priorité automatique force→Strength seul / conditionnement→WOD seul ne constitue plus le défaut Maison/Box. Aucune nouvelle règle globale pour Aujourd'hui n'est induite.
+
+### Socle du 12 novembre et précisions du 17 novembre
+
+Les repères suivants restent utiles pour leurs protections et choix explicites ; le cadrage du 19 novembre prévaut sur toute formulation incompatible.
 
 | Parcours | Règle attendue |
 | --- | --- |
