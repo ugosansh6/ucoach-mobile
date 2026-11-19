@@ -342,6 +342,17 @@ export async function getComposerMechanicOptions({
   ];
 }
 
+export async function getComposerWodSelectionContracts(context) {
+  // Ask the existing Composer allowlist first. In particular, do not use all
+  // active catalogue entries: advanced/Premium formats have a separate gate.
+  const options = await getComposerMechanicOptions(context);
+  const keys = [...new Set(options.map((option) => option.key).filter(Boolean))];
+  if (!keys.length) throw new Error('No Composer mechanic contracts available');
+  return Promise.all(keys.map((key) => runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('c4_mechanic_composition_contract', { p_mechanic: key })
+  )));
+}
+
 /**
  * Read-only C2 preview for the recap. These values are indicative until the
  * real day-J check-in and finalization; never write sessions from the preview.

@@ -19,6 +19,7 @@ import {
 import { spacing } from '../constants';
 import { fontFamilies } from '../constants/typography';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
+import { composerWodSelectionLimit, toggleComposerExercise } from '../utils/composerWodSelection';
 import {
   composerDurationSummary,
   composerMovementAction,
@@ -47,6 +48,7 @@ import {
   getComposerArchitectureTargets,
   getComposerExerciseCandidates,
   getComposerMechanicOptions,
+  getComposerWodSelectionContracts,
   getComposerPrescriptionPreview,
   getComposerStrengthAutoPick,
   getComposerStrengthAssessment,
@@ -214,10 +216,6 @@ function directionChoiceForRegion(choice, targetRegion, plannedRegion = null) {
       ? `J’adapte la direction prévue à ta préférence ${regionLabel(targetRegion).toLowerCase()}.`
       : choice.subtitle,
   };
-}
-
-function maxForBlock(type, minutes = 0) {
-  return composerExerciseSlotLimit(type, minutes);
 }
 
 function blockTitle(type, environmentCode = 'BOX') {
@@ -607,6 +605,37 @@ export default function WeekComposerV7() {
   const [strengthAssessmentLoading, setStrengthAssessmentLoading] = useState(false);
   const [strengthAssessmentError, setStrengthAssessmentError] = useState(false);
   const [showAllMechanics, setShowAllMechanics] = useState(false);
+  const [wodSelectionContracts, setWodSelectionContracts] = useState(null);
+  const [wodContractsLoading, setWodContractsLoading] = useState(false);
+  const [wodContractsError, setWodContractsError] = useState(false);
+  const [wodContractsRetry, setWodContractsRetry] = useState(0);
+
+  function maxForBlock(type, minutes = 0) {
+    return type === 'WOD' ? composerWodSelectionLimit(wodSelectionContracts)
+      : composerExerciseSlotLimit(type, minutes);
+  }
+
+  const wodContractMinutes = architecture?.blocks?.find((b) => b.type === 'WOD')?.minutes;
+  const wodContractProbeId = candidateMap.WOD?.[0]?.id;
+  useEffect(() => {
+    if (loading || !wodContractMinutes || !wodContractProbeId) return undefined;
+    let active = true;
+    setWodSelectionContracts(null);
+    setWodContractsLoading(true);
+    setWodContractsError(false);
+    getComposerWodSelectionContracts({
+      wodMinutes: wodContractMinutes, exerciseIds: [wodContractProbeId],
+      environmentCode, focus: intent?.focus,
+    }).then((contracts) => {
+      if (active) setWodSelectionContracts(contracts);
+    }).catch((reason) => {
+      if (active) {
+        console.warn('[Composer] WOD composition contracts unavailable', reason);
+        setWodContractsError(true);
+      }
+    }).finally(() => { if (active) setWodContractsLoading(false); });
+    return () => { active = false; };
+  }, [loading, wodContractMinutes, wodContractProbeId, environmentCode, intent?.focus, wodContractsRetry]);
 
   async function loadEquipmentForEnvironment(code, catalog = equipmentCatalog) {
     try {
@@ -883,7 +912,9 @@ export default function WeekComposerV7() {
         evidence: observations,
         equipmentIds,
         maxPerBlock: Object.fromEntries((architecture.blocks ?? []).map(
-          (block) => [block.type, maxForBlock(block.type, block.minutes)]
+          // Keep current automatic defaults. Raising the manual ceiling must
+          // never silently add exercises to an athlete's initial proposal.
+          (block) => [block.type, composerExerciseSlotLimit(block.type, block.minutes)]
         )),
       });
       // A new or edited structure never erases exercises the athlete picked.
@@ -936,13 +967,7 @@ export default function WeekComposerV7() {
     const max = maxForBlock(type, minutes);
     setSelectionMap((current) => {
       const selected = current[type] ?? [];
-      if (selected.includes(id)) {
-        return { ...current, [type]: selected.filter((value) => value !== id) };
-      }
-      if (selected.length < max) {
-        return { ...current, [type]: [...selected, id] };
-      }
-      return { ...current, [type]: [...selected.slice(0, max - 1), id] };
+      return { ...current, [type]: toggleComposerExercise(selected, id, max) };
     });
   }
 
@@ -1596,11 +1621,18 @@ export default function WeekComposerV7() {
                   : activeSelected.length + ' / ' + maxForBlock(activeBlock.type, activeBlock.minutes) + ' sélectionnés'}
               </Text>
               {activeBlock.type === 'WOD' ? <Text style={styles.sectionSmallHint}>
-                {activeSelected.length >= maxForBlock(activeBlock.type, activeBlock.minutes)
-                  ? 'Limite actuelle du WOD atteinte. Tu peux remplacer un mouvement.'
-                  : 'Ajoute ou remplace un mouvement parmi les exercices compatibles.'}
+                {wodContractsLoading ? 'Vérification des limites par format…'
+                  : wodContractsError ? 'Limites indisponibles : trois mouvements maximum pour les nouveaux ajouts.'
+                    : activeSelected.length >= maxForBlock(activeBlock.type, activeBlock.minutes)
+                      ? 'Limite de sélection atteinte. Tu peux remplacer un mouvement.'
+                      : 'Tu peux ajouter des mouvements. Les formats proposés dépendront de leur nombre.'}
                 {' Le dosage sera précisé avec le format.'}
               </Text> : null}
+              {activeBlock.type === 'WOD' && wodContractsError ? (
+                <Pressable accessibilityRole="button" onPress={() => setWodContractsRetry((value) => value + 1)} style={styles.structureLink}>
+                  <Text style={styles.structureLinkText}>Réessayer le chargement des limites</Text>
+                </Pressable>
+              ) : null}
               {activeBlock.type === 'STRENGTH' ? (
                 <View style={styles.structureExplanation}>
                   <Ionicons name="time-outline" size={18} color={colors.accent} />
