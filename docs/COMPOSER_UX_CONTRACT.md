@@ -257,3 +257,16 @@ For every visible state ask:
 > Does this look like a Coach who has already thought and is proposing something?
 
 If it instead looks like software waiting for the user to configure it, the design is wrong.
+
+## WOD adapter delivered in DEV on 19 November 2026 (#33–#38)
+
+This supersedes the five-format-only implementation note above for **new** compositions:
+
+- `wod_engine_version=C4_COMPOSER_V2` opts a new draft into one shared C2/C3/C4 prescription authority, used by recommendations, preview and Day J. Historical drafts without this marker retain their compiler; explicitly editing their WOD uses the new format confirmation. Saved blocks, IDs, order and started sessions are never silently migrated.
+- The server catalogue exposes active core formats and variants with their existing Free/Premium rights and composition contracts. Capacity comes from **entitled** contracts (currently up to 6 Free / 7 Premium), not a fixed quota of 3. Default exercise choices are unchanged. An incompatible format stays unavailable with an explanation; one real compatible protocol is recommended first and alternatives remain behind `Voir d’autres formats`.
+- Identity is **mechanic + variant** throughout selection, draft, compilation and Player hydration. Couplet ascendant and descendant cannot select each other accidentally.
+- Explicit Composer WOD budgets bypass the old preferred-duration truncation **only in the authenticated V2 context**. Athlete workload, readiness, pain, equipment, technical, complete-cycle and C4 quality gates still apply. Today/default and historical cap behavior are unchanged. No sporting threshold or weighting was raised.
+- Display reserved minutes separately from the calculated estimate and any hard time cap. Show actual rounds/cycles/rest, the per-movement dose, progression or finite volume. Finishing before a budget is legitimate for a finite workload; never add repetitions just to fill it. At Day J, readiness and pain can change compatibility; the user's architecture is not rebuilt to hide a failure.
+- Deck uses the existing safe, persistent card draw before execution; reopening/retrying retains it. Penalty and Buy-in/Cash-out remain overlays, not standalone choices; they are not enabled by this adapter. Running Outdoor is unchanged.
+
+Software verification and its limits: [shared WOD delivery report](COMPOSER_SHARED_WOD_V2.md). Physical iPhone, sound and interactive resume still require device acceptance; DEV availability is not production promotion or ticket closure.

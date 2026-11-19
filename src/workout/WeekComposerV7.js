@@ -22,6 +22,9 @@ import ComposerMuscleSelector from './ComposerMuscleSelector';
 import { composerWodSelectionLimit, toggleComposerExercise } from '../utils/composerWodSelection';
 import {
   composerDurationSummary,
+  composerMechanicIdentity,
+  composerWodTimeSummary,
+  composerPreviewIssue,
   composerMovementAction,
   composerMechanicDescription,
   composerWodProtocol,
@@ -593,6 +596,7 @@ export default function WeekComposerV7() {
   const [recapEditingBlock, setRecapEditingBlock] = useState(null);
   const [expandedExerciseId, setExpandedExerciseId] = useState(null);
   const [mechanic, setMechanic] = useState(null);
+  const [wodEngineVersion, setWodEngineVersion] = useState('C4_COMPOSER_V2');
   const [mechanicOptions, setMechanicOptions] = useState([]);
   const [mechanicIssue, setMechanicIssue] = useState(null);
   const [prescriptionPreview, setPrescriptionPreview] = useState(null);
@@ -624,6 +628,7 @@ export default function WeekComposerV7() {
     setWodContractsLoading(true);
     setWodContractsError(false);
     getComposerWodSelectionContracts({
+      engineVersion: wodEngineVersion,
       wodMinutes: wodContractMinutes, exerciseIds: [wodContractProbeId],
       environmentCode, focus: intent?.focus,
     }).then((contracts) => {
@@ -635,7 +640,7 @@ export default function WeekComposerV7() {
       }
     }).finally(() => { if (active) setWodContractsLoading(false); });
     return () => { active = false; };
-  }, [loading, wodContractMinutes, wodContractProbeId, environmentCode, intent?.focus, wodContractsRetry]);
+  }, [loading, wodContractMinutes, wodContractProbeId, environmentCode, intent?.focus, wodContractsRetry, wodEngineVersion]);
 
   async function loadEquipmentForEnvironment(code, catalog = equipmentCatalog) {
     try {
@@ -691,6 +696,11 @@ export default function WeekComposerV7() {
         if (saved?.planItemId && saved.planItemId === item?.planItemId &&
             Array.isArray(saved.draft?.architecture?.blocks)) {
           const draft = saved.draft;
+          const draftInventory = draft.environment_code === initialEnvironment ? rows
+            : await getUserEnvironmentEquipmentPreset(draft.environment_code);
+          if (!active) return;
+          const draftReference = buildReferenceEquipment(catalog ?? [], draftInventory ?? []);
+          setReferenceEquipment(draftReference);
           const blocks = draft.architecture.blocks;
           const requested = {};
           const exerciseMap = {};
@@ -749,11 +759,16 @@ export default function WeekComposerV7() {
             setCandidateEvidence({});
           }
           setMechanic(draft.mechanic ?? null);
+          setWodEngineVersion(draft.wod_engine_version ?? null);
           if (draft.mechanic?.key) {
             const wod = blocks.find((b) => b.type === 'WOD');
             try {
               const options = await getComposerMechanicOptions({
                 wodMinutes: wod?.minutes,
+                sessionMinutes: draft.duration_minutes, targetRegion: draft.target_region,
+                progressionIntent: draft.progression_intent,
+                equipmentNames: draftReference.filter((e) => (draft.equipment_ids ?? []).includes(String(e.id))).map((e) => e.name),
+                engineVersion: draft.wod_engine_version ?? null,
                 exerciseIds: requested.WOD ?? [],
                 environmentCode: draft.environment_code,
                 focus: draft.intent?.focus,
@@ -996,23 +1011,21 @@ export default function WeekComposerV7() {
       setBusy(true);
       setError('');
       const options = await getComposerMechanicOptions({
+        sessionMinutes: duration, targetRegion,
+        equipmentNames: referenceEquipment.filter((e) => equipmentIds.includes(String(e.id))).map((e) => e.name),
+        progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
+        engineVersion: 'C4_COMPOSER_V2',
         wodMinutes: wodBlock.minutes,
         exerciseIds: selectionMap.WOD ?? [],
         environmentCode,
         focus: intent?.focus,
       });
-      if (!options.some((option) => option.available !== false)) {
-        setMechanicOptions(options);
-        setMechanic(null);
-        setMechanicIssue(null);
-        setError('Aucun format compatible avec les mouvements choisis. Ajoute des mouvements au WOD ou change de structure.');
-        return;
-      }
+      setWodEngineVersion('C4_COMPOSER_V2');
       setMechanicOptions(options);
       setMechanicIssue(null);
-      setMechanic((current) => options.find((option) => option.available !== false && option.key === current?.key)
+      setMechanic((current) => options.find((option) => option.available !== false && composerMechanicIdentity(option) === composerMechanicIdentity(current))
         ?? options.find((option) => option.available !== false));
-      setShowAllMechanics(false);
+      setShowAllMechanics(!options.some((option) => option.available !== false));
       setStep(4);
     } catch (reason) {
       console.warn('[Composer] mechanic recommendation failed', reason);
@@ -1041,6 +1054,7 @@ export default function WeekComposerV7() {
       ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
     return {
       target_date: dateKey,
+      wod_engine_version: wodEngineVersion,
       duration_minutes: duration,
       environment_code: environmentCode,
       equipment_ids: equipmentIds,
@@ -1057,7 +1071,7 @@ export default function WeekComposerV7() {
           exercises: selectedExercises(block.type).map((exercise) => ({ id: exercise.id, name: exercise.name })),
         })),
       },
-      mechanic: mechanic ? { key: mechanic.key, title: mechanic.title } : null,
+      mechanic: mechanic ? { key: mechanic.key, variant_key: mechanic.variant_key ?? null, title: mechanic.title } : null,
       estimated_minutes: estimatedMinutes,
     };
   }
@@ -1093,7 +1107,7 @@ export default function WeekComposerV7() {
       .finally(() => { if (active) setPreviewLoading(false); });
     return () => { active = false; };
   }, [loading, step, architecture, selectionMap, candidateMap, mechanic,
-      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey]);
+      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion]);
 
   const strengthRequest = {
     exercises: (selectionMap.STRENGTH ?? []).map((id) => {
@@ -1705,13 +1719,14 @@ export default function WeekComposerV7() {
                   helper={`${wodBlock?.minutes ?? 0} min prévues · ${selectionMap.WOD?.length ?? 0} mouvements. Un seul format à la fois.`}
                   styles={styles}
                 />
+              {!mechanicOptions.some((o) => o.available !== false) ? <Text style={styles.previewWarning}>Aucun format validé avec ces mouvements et cette durée. Reviens aux mouvements ou à la structure pour les ajuster.</Text> : null}
               <View style={styles.optionList}>
                 {mechanicOptions.filter((option) =>
-                    showAllMechanics || option.key === mechanic?.key || option.recommended
+                    showAllMechanics || composerMechanicIdentity(option) === composerMechanicIdentity(mechanic) || option.recommended
                   ).map((option) => {
-                  const selected = mechanic?.key === option.key;
+                  const selected = composerMechanicIdentity(mechanic) === composerMechanicIdentity(option);
                   return (
-                    <Pressable key={option.key}
+                    <Pressable key={composerMechanicIdentity(option)}
                       accessibilityRole="radio"
                       accessibilityState={{ checked: selected, disabled: option.available === false }}
                       accessibilityLabel={option.title + (option.available === false ? ', indisponible, ' + option.reason : '')}
@@ -1721,7 +1736,7 @@ export default function WeekComposerV7() {
                       <View style={styles.cardTopRow}>
                         <View style={{ flex: 1 }}>
                           {option.available === false || option.recommended || selected ? (
-                            <Text style={styles.cardEyebrow}>{option.available === false ? 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'FORMAT CHOISI'}</Text>
+                            <Text style={styles.cardEyebrow}>{option.available === false ? option.reason_code === 'PREMIUM_REQUIRED' ? 'PREMIUM' : 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'FORMAT CHOISI'}</Text>
                           ) : null}
                           <Text style={styles.cardTitle}>{option.title}</Text>
                           <Text style={styles.cardSubtitle}>{composerMechanicDescription(option)}</Text>
@@ -1737,14 +1752,15 @@ export default function WeekComposerV7() {
               {currentWodPreview ? (
                 <View style={styles.protocolCard}>
                   <Text style={styles.sectionSmallTitle}>APERÇU DU FORMAT CHOISI</Text>
+                  {composerWodTimeSummary(currentWodPreview) ? <Text style={styles.recapDose}>{composerWodTimeSummary(currentWodPreview)}</Text> : null}
                   {composerWodProtocol(currentWodPreview) ? <Text style={styles.recapDose}>{composerWodProtocol(currentWodPreview)}</Text> : null}
                   {(currentWodPreview.exercises ?? []).map((dose) => (
-                    <Text key={dose.id} style={styles.protocolDose}>{dose.name} · {formatPreviewDose(dose, 'WOD')}</Text>
+                    <Text key={dose.id} style={styles.protocolDose}>{dose.name} · {formatPreviewDose(dose, 'WOD', currentWodPreview)}</Text>
                   ))}
                   <Text style={styles.sectionSmallHint}>Dosage prévisionnel, ajustable au check-in du jour J.</Text>
                 </View>
               ) : mechanic ? <Text style={styles.sectionSmallHint}>
-                {previewLoading ? 'Calcul du protocole…' : previewIssue ? 'Ajuste d’abord le bloc de ' + composerBlockDisplayLabel('STRENGTH', environmentCode).toLowerCase() + ' pour obtenir le protocole complet.' : 'Le protocole sera disponible après validation des blocs.'}
+                {previewLoading ? 'Calcul du protocole…' : previewIssue ? composerPreviewIssue(previewIssue, environmentCode) : 'Le protocole sera disponible après validation des blocs.'}
               </Text> : null}
               {mechanicIssue ? <Text style={styles.mechanicIssue}>{mechanicIssue}</Text> : null}
               {mechanicOptions.length > 1 ? (
@@ -1790,7 +1806,7 @@ export default function WeekComposerV7() {
                 <View style={styles.structureExplanation}>
                   <Ionicons name="alert-circle-outline" size={18} color={colors.secondaryAccent} />
                   <Text style={styles.structureExplanationText}>
-                    Le bloc {composerBlockDisplayLabel('STRENGTH', environmentCode)} ne correspond pas au temps prévu : {Math.round(Number(previewIssue.time?.prescribed_seconds ?? 0) / 60)} min estimées, récupérations comprises, pour {previewIssue.block_minutes} min prévues. Reviens ajuster les mouvements ou la structure.
+                    {composerPreviewIssue(previewIssue, environmentCode)}
                   </Text>
                 </View>
               ) : previewError ? (
@@ -1817,9 +1833,8 @@ export default function WeekComposerV7() {
                       if (item.type === 'TABATA') {
                         return <Text style={styles.recapDose}>8 intervalles · 20 s effort / 10 s repos</Text>;
                       }
-                      if (item.type === 'WOD' && prescription.rounds != null) {
-                        const units = prescription.mechanic === 'EMOM' ? 'cycles' : 'tours';
-                        return <Text style={styles.recapDose}>{prescription.rounds} {units}</Text>;
+                      if (item.type === 'WOD') {
+                        return <><Text style={styles.recapDose}>{composerWodTimeSummary(prescription)}</Text><Text style={styles.recapDose}>{composerWodProtocol(prescription)}</Text></>;
                       }
                       return null;
                     })()}
@@ -1830,7 +1845,7 @@ export default function WeekComposerV7() {
                       return (
                         <View key={exercise.id} style={styles.recapExerciseRow}>
                           <Text style={styles.recapExercise}>{exercise.name}</Text>
-                          {dose ? <Text style={styles.recapDose}>{formatPreviewDose(dose, item.type)}</Text> : null}
+                          {dose ? <Text style={styles.recapDose}>{formatPreviewDose(dose, item.type, currentPreview?.blocks?.find((b) => b.type === item.type))}</Text> : null}
                           <Text style={styles.recapExerciseMeta}>{(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
                         </View>
                       );

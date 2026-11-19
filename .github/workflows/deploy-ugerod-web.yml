@@ -50,6 +50,7 @@ jobs:
           node scripts/qa-composer-selection.cjs
           node scripts/qa-composer-wod-selection.cjs
           node scripts/qa-wod-protocol-audit.cjs
+          node scripts/qa-composer-wod-runtime.cjs
       - name: Export Expo web app
         run: npx expo export --platform web --output-dir dist
 

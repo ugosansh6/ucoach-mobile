@@ -10,18 +10,23 @@ export function composerDurationSummary(assessment, budgetMinutes) {
   return `${budgetMinutes} min prévues · environ ${estimate} min estimées, récupérations et installation comprises. ${status}`;
 }
 
-export function formatComposerDose(dose, blockType) {
+export function formatComposerDose(dose, blockType, block = null) {
   if (!dose) return '';
   if (blockType === 'TABATA') return dose.intervals_per_exercise
     ? `${dose.intervals_per_exercise} passages · 20 s effort / 10 s repos`
     : '20 s effort / 10 s repos';
   const parts = [];
   let work = '';
+  if (blockType === 'WOD' && block?.parameters) {
+    const protocolDose = composerProgressionDose(dose, block);
+    if (protocolDose) return protocolDose;
+  }
   if (dose.reps != null && Number.isFinite(Number(dose.reps))) {
     work = `${dose.reps} reps${dose.reps_semantics === 'per_side' ? ' / côté' : ''}`;
   } else if (dose.duration_seconds != null) work = `${dose.duration_seconds} s`;
   else if (dose.distance_meters != null) work = `${dose.distance_meters} m`;
-  if (work) parts.push(dose.sets ? `${dose.sets} × ${work}` : work);
+  const sets = dose.sets ?? (block?.mechanic === 'SETS_REPS' ? block.parameters?.sets : null);
+  if (work) parts.push(sets ? `${sets} × ${work}` : work);
   if (dose.load_kg != null) parts.push(`${dose.load_kg} kg`);
   else if (dose.band_resistance_label) parts.push(`Élastique ${dose.band_resistance_label}`);
   if (dose.rest_seconds && ['STRENGTH', 'SKILL'].includes(blockType)) parts.push(`${dose.rest_seconds} s repos`);
@@ -34,7 +39,13 @@ export function composerMovementAction(count, limit) {
 }
 
 export function composerMechanicDescription(option) {
-  if (option.available === false) return option.reason;
+  if (option.available === false) {
+    const reasons = (option.details ?? []).join(' ');
+    if (/ATHLETE_WORKLOAD|VOLUME_EXCEEDS|TOO_MUCH/.test(reasons)) return 'Le volume de ce protocole dépasse la charge validée pour ton profil. Essaie une durée plus courte ou d’autres mouvements.';
+    if (/TOO_SHORT|FAILURE_TOO_EARLY|UNDERFILLED/.test(reasons)) return 'Ce protocole se terminerait trop tôt pour le temps prévu. Ajuste la durée ou les mouvements.';
+    if (/NO_COMPLETE_CYCLE|PARTIAL_CYCLE/.test(reasons)) return 'La durée ne permet pas un cycle complet avec ces mouvements.';
+    return option.reason;
+  }
   return {
     AMRAP: 'Répète les exercices dans l’ordre jusqu’à la fin du temps.',
     EMOM: 'À chaque minute, passe au mouvement suivant. Récupère sur le temps restant.',
@@ -44,14 +55,87 @@ export function composerMechanicDescription(option) {
   }[option.key] || option.description;
 }
 
+export function composerMechanicIdentity(option) {
+  return option ? `${option.key}:${option.variant_key ?? ''}` : null;
+}
+
+export function composerWodTimeSummary(block) {
+  if (!block?.time) return null;
+  const time = block.time;
+  const semantic = time.duration_semantic;
+  const planned = Number(time.budget_minutes ?? block.minutes);
+  const estimate = Number(time.prescribed_seconds);
+  const estimated = time.prescribed_seconds != null && Number.isFinite(estimate)
+    ? ` · environ ${Math.round(estimate / 60)} min estimées` : '';
+  const p = block.parameters ?? {};
+  if (semantic === 'fixed_duration') {
+    return `${planned} min réservées${estimated}. La durée exécutée suit les cycles complets du protocole.`;
+  }
+  if (semantic === 'time_cap') {
+    const cap = Number(p.cap_seconds ?? p.time_limit_seconds);
+    return `${planned} min réservées${Number.isFinite(cap) ? ` · limite ${cap / 60} min` : ''}${estimated}. Fin possible avant la limite.`;
+  }
+  return `${planned} min réservées${estimated}. La fin dépend du volume à réaliser.`;
+}
+
 export function composerWodProtocol(block) {
   if (!block) return null;
+  const p = block.parameters;
+  if (p) {
+    const rest = p.rest_between_rounds_seconds;
+    switch (block.mechanic) {
+      case 'AMRAP': return `${p.duration_minutes} min · répète les mouvements dans l’ordre`;
+      case 'EMOM': return `${p.cycles} cycles · ${p.station_seconds} s par mouvement`;
+      case 'FOR_TIME': return `${p.rounds} tours · limite ${Number(p.cap_seconds) / 60} min`;
+      case 'CIRCUIT': return `${p.rounds} tours${rest != null ? ` · ${rest} s repos entre les tours` : ''}`;
+      case 'HIIT': return `${p.rounds} tours · ${p.work_seconds} s effort / ${p.rest_seconds} s repos`;
+      case 'LADDER': case 'COUPLET': return `${p.rungs} étapes · ${p.sequence_direction === 'descending' || block.variant_key === 'DESCENDING_COUPLET' ? 'répétitions décroissantes' : 'répétitions croissantes'}`;
+      case 'PYRAMID': return `${p.cycles} cycles · progression ${(p.multipliers ?? []).join(' → ')}`;
+      case 'CHIPPER': return 'Un seul passage · termine le volume de chaque mouvement';
+      case 'REP_TARGET': return `${p.total_rep_target} répétitions au total · volumes répartis par mouvement`;
+      case 'EVERY_X_MINUTES': return `${p.cycles} départs · un départ toutes les ${p.interval_seconds} s`;
+      case 'ODD_EVEN': return `${p.cycles} cycles · mouvements alternés toutes les ${p.station_seconds} s`;
+      case 'PROGRESSIVE_INTERVAL': return `${p.interval_seconds} s par étape · arrêt à l’échec ou à la limite ${Number(p.time_limit_seconds) / 60} min`;
+      case 'SETS_REPS': return `${p.sets} séries · ${p.rest_between_exercises_seconds} s repos`;
+      case 'DECK': return `${p.cards} cartes · 4 mouvements associés aux couleurs des cartes`;
+      default: return null;
+    }
+  }
   const parts = [];
   if (block.rounds != null) parts.push(`${block.rounds} ${block.mechanic === 'EMOM' || block.mechanic === 'HIIT' ? 'cycles' : 'tours'}`);
-  if (block.work_seconds != null && block.rest_seconds != null) {
-    parts.push(`${block.work_seconds} s effort / ${block.rest_seconds} s repos`);
-  }
+  if (block.work_seconds != null && block.rest_seconds != null) parts.push(`${block.work_seconds} s effort / ${block.rest_seconds} s repos`);
   return parts.join(' · ') || null;
+}
+
+function composerProgressionDose(dose, block) {
+  const p = dose.prescription_json ?? {};
+  const overlay = p.mechanic_overlay ?? {};
+  const params = block.parameters;
+  const suffix = p.reps_semantics === 'per_side' ? ' / côté' : '';
+  if (block.mechanic === 'DECK') return `Répétitions données par chaque carte${suffix}`;
+  const base = Number(overlay.start_reps ?? overlay.base_reps ?? p.execution_target_reps ?? p.reps_min);
+  const increment = Number(overlay.increment_reps);
+  if (['LADDER', 'COUPLET', 'PROGRESSIVE_INTERVAL'].includes(block.mechanic) && Number.isFinite(base) && Number.isFinite(increment)) {
+    if (block.mechanic === 'PROGRESSIVE_INTERVAL') return `${base} reps au départ · +${increment} par étape${suffix}`;
+    const descending = params.sequence_direction === 'descending' || block.variant_key === 'DESCENDING_COUPLET';
+    const first = descending ? Number(overlay.first_stage_reps ?? base + (params.rungs - 1) * increment) : base;
+    const last = descending ? base : base + (params.rungs - 1) * increment;
+    return `${first} → ${last} reps · ${descending ? '−' : '+'}${increment} par étape${suffix}`;
+  }
+  if (block.mechanic === 'PYRAMID' && Number.isFinite(base) && Array.isArray(params.multipliers)) {
+    return `${params.multipliers.map((n) => n * base).join(' → ')} reps${suffix}`;
+  }
+  return null;
+}
+
+export function composerPreviewIssue(issue, environmentCode = 'BOX') {
+  if (issue?.block_type === 'WOD') {
+    if (issue.reason === 'PREMIUM_REQUIRED') return 'Ce format nécessite Premium. Choisis un autre format.';
+    if (issue.reason === 'EXERCISE_COUNT') return 'Le nombre de mouvements ne convient pas à ce format. Ajuste les mouvements ou choisis un autre format.';
+    return 'Le WOD ne peut pas être validé avec cette durée et ces mouvements. Ajuste les mouvements, la durée ou le format.';
+  }
+  const label = environmentCode === 'GYM' ? 'Musculation' : 'Renforcement';
+  return `Le bloc ${label} ne correspond pas au temps prévu : ${Math.round(Number(issue?.time?.prescribed_seconds ?? 0) / 60)} min estimées, récupérations comprises, pour ${issue?.block_minutes} min prévues. Reviens ajuster les mouvements ou la structure.`;
 }
 
 export function currentComposerAssessment(result, resultSignature, requestSignature, loading, error) {

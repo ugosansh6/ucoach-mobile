@@ -20,8 +20,8 @@ assert.match(ui,/planningIntentKey/);
 assert.match(ui,/Tabata abdos · 4 min/);
 assert.match(ui,/Échauffement et Tabata restent inclus/);
 assert.match(service,/blocks: \[warmupBlock, tabataBlock, \.\.\.main\]/);
-assert.match(ui,/showAllMechanics \|\| option.key === mechanic\?\.key \|\| option.recommended/);
-assert.match(ui,/Aucun format compatible avec les mouvements choisis/);
+assert.match(ui,/showAllMechanics \|\| composerMechanicIdentity\(option\) === composerMechanicIdentity\(mechanic\) \|\| option.recommended/);
+assert.match(ui,/Aucun format validé avec ces mouvements et cette durée/);
 assert.match(ui,/setMechanicOptions\(options\)/);
 // Format ranking belongs to the RPC. Duration alone must not claim that a
 // circuit was chosen when the server may recommend another format.

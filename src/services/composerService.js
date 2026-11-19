@@ -322,11 +322,20 @@ export function buildComposerArchitectures({ durationMinutes, intentKey, environ
  * exercise shortlist. Never fabricate a mechanic because of duration alone.
  */
 export async function getComposerMechanicOptions({
-  wodMinutes, exerciseIds, environmentCode, focus,
+  wodMinutes, exerciseIds, environmentCode, focus, sessionMinutes = 60,
+  equipmentNames = [], targetRegion = null, progressionIntent = 'MAINTAIN',
+  engineVersion = 'C4_COMPOSER_V2',
 } = {}) {
   const user = await getAuthenticatedUserWithRetry();
   const result = await runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc('week_composer_mechanic_recommendations_v1', {
+    engineVersion === 'C4_COMPOSER_V2' ? supabase.rpc('week_composer_mechanic_recommendations_v2', {
+      p_user_id: user.id,
+      p_context: { block_minutes: wodMinutes, session_minutes: sessionMinutes,
+        exercises: (exerciseIds ?? []).map((id) => ({ id })),
+        environment_code: environmentCode, equipment_names: equipmentNames,
+        focus: focus ?? 'General Fitness', target_region: targetRegion,
+        progression_intent: progressionIntent, readiness: 'normal' },
+    }) : supabase.rpc('week_composer_mechanic_recommendations_v1', {
       p_user_id: user.id,
       p_environment_code: environmentCode,
       p_wod_minutes: wodMinutes,
@@ -343,8 +352,17 @@ export async function getComposerMechanicOptions({
 }
 
 export async function getComposerWodSelectionContracts(context) {
-  // Ask the existing Composer allowlist first. In particular, do not use all
-  // active catalogue entries: advanced/Premium formats have a separate gate.
+  if (context?.engineVersion !== null) {
+    const user = await getAuthenticatedUserWithRetry();
+    const result = await runSupabaseRequestWithAuthRetry(() =>
+      supabase.rpc('week_composer_mechanic_catalog_v2', { p_user_id: user.id }));
+    const contracts = (result?.options ?? []).filter((o) => o.entitled).map((o) => o.contract);
+    if (!contracts.length) throw new Error('No entitled Composer contracts');
+    return contracts;
+  }
+
+  // Historical drafts retain their original five-format contract until the
+  // athlete explicitly edits the WOD and validates a V2 format.
   const options = await getComposerMechanicOptions(context);
   const keys = [...new Set(options.map((option) => option.key).filter(Boolean))];
   if (!keys.length) throw new Error('No Composer mechanic contracts available');

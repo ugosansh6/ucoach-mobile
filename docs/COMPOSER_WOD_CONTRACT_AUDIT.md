@@ -1,5 +1,7 @@
 # Composer : sélection, dose WOD et mécaniques existantes
 
+> Historical baseline before the shared adapter. Current DEV changes and verification: [COMPOSER_SHARED_WOD_V2.md](COMPOSER_SHARED_WOD_V2.md). The five-format-only and no-migration statements below describe the earlier delivery.
+
 Audit ciblé des [#34](https://github.com/ugosansh6/ucoach-mobile/issues/34) et [#37](https://github.com/ugosansh6/ucoach-mobile/issues/37), effectué le 19/11/2026. Les issues restent le suivi de référence ; ce document conserve les mesures et limites de l'audit.
 
 ## Périmètre et preuves
