@@ -388,6 +388,49 @@ function StageHeader({ kicker, title, helper, styles }) {
   );
 }
 
+function ComposerWodPreview({ block, loading, issue, environmentCode, styles, colors }) {
+  const [showDetails, setShowDetails] = useState(false);
+  if (!block) return <Text style={styles.sectionSmallHint}>
+    {loading ? 'Calcul du protocole…' : issue ? composerPreviewIssue(issue, environmentCode) : 'Le protocole sera disponible après validation des blocs.'}
+  </Text>;
+  const p = block.parameters ?? {};
+  const rounds = p.rounds ?? block.rounds;
+  const headline = block.mechanic === 'AMRAP' ? 'Un maximum de tours'
+    : ['FOR_TIME', 'CIRCUIT'].includes(block.mechanic) && rounds != null ? `${rounds} tours à réaliser`
+      : composerWodProtocol(block);
+  const capSeconds = p.cap_seconds ?? p.time_limit_seconds;
+  const timeLabel = capSeconds != null ? `${Number(capSeconds) / 60} min maximum`
+    : `${block.minutes} min prévues`;
+  const estimate = block.time?.prescribed_seconds;
+  const perRound = ['AMRAP', 'FOR_TIME', 'CIRCUIT'].includes(block.mechanic);
+  return <View style={styles.protocolCard}>
+    <View style={styles.previewHeadingRow}>
+      <Text style={styles.sectionSmallTitle}>TON WOD</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Détails de la durée du WOD"
+        accessibilityState={{ expanded: showDetails }} aria-expanded={showDetails} hitSlop={8}
+        onPress={() => setShowDetails((value) => !value)} style={styles.previewInfoButton}>
+        <Ionicons name="information-circle-outline" size={21} color={colors.textSecondary} />
+      </Pressable>
+    </View>
+    {headline ? <Text style={styles.previewHeadline}>{headline}</Text> : null}
+    <View style={styles.previewTimeRow}>
+      <Ionicons name="time-outline" size={16} color={colors.accent} />
+      <Text style={styles.previewTimePrimary}>{timeLabel}</Text>
+      {estimate != null ? <Text style={styles.previewEstimate}>≈ {Math.round(Number(estimate) / 60)} min estimées</Text> : null}
+    </View>
+    {showDetails ? <Text style={styles.previewDetails}>{composerWodTimeSummary(block) || 'Durée prévisionnelle, ajustable le jour J.'}</Text> : null}
+    <Text style={styles.previewListLabel}>{perRound ? 'À chaque tour' : 'Tes mouvements'}</Text>
+    <View>
+      {(block.exercises ?? []).map((dose, index) => <View key={dose.id}
+        style={[styles.previewExerciseRow, index > 0 && styles.previewExerciseDivider]}>
+        <Text style={styles.previewExerciseName}>{dose.name}</Text>
+        <Text style={styles.previewExerciseDose}>{formatPreviewDose(dose, 'WOD', block)}</Text>
+      </View>)}
+    </View>
+    <Text style={styles.previewFootnote}>Prévision ajustable le jour J.</Text>
+  </View>;
+}
+
 function ArchitectureCard({ option, selected, onPress, styles, colors, environmentCode, intentKey }) {
   // Use the backend-owned durations: two complements, main blocks, transitions.
   const segments = [
@@ -1723,10 +1766,12 @@ export default function WeekComposerV7() {
               <View style={styles.optionList}>
                 {mechanicOptions.filter((option) =>
                     showAllMechanics || composerMechanicIdentity(option) === composerMechanicIdentity(mechanic) || option.recommended
-                  ).map((option) => {
+                  ).sort((a, b) => Number(composerMechanicIdentity(b) === composerMechanicIdentity(mechanic))
+                    - Number(composerMechanicIdentity(a) === composerMechanicIdentity(mechanic))).map((option) => {
                   const selected = composerMechanicIdentity(mechanic) === composerMechanicIdentity(option);
                   return (
-                    <Pressable key={composerMechanicIdentity(option)}
+                    <View key={composerMechanicIdentity(option)} style={styles.previewOptionGroup}>
+                    <Pressable
                       accessibilityRole="radio"
                       accessibilityState={{ checked: selected, disabled: option.available === false }}
                       accessibilityLabel={option.title + (option.available === false ? ', indisponible, ' + option.reason : '')}
@@ -1746,22 +1791,13 @@ export default function WeekComposerV7() {
                         </View>
                       </View>
                     </Pressable>
+                    {selected ? <ComposerWodPreview key={composerMechanicIdentity(option)} block={currentWodPreview}
+                      loading={previewLoading} issue={previewIssue} environmentCode={environmentCode}
+                      styles={styles} colors={colors} /> : null}
+                    </View>
                   );
                 })}
               </View>
-              {currentWodPreview ? (
-                <View style={styles.protocolCard}>
-                  <Text style={styles.sectionSmallTitle}>APERÇU DU FORMAT CHOISI</Text>
-                  {composerWodTimeSummary(currentWodPreview) ? <Text style={styles.recapDose}>{composerWodTimeSummary(currentWodPreview)}</Text> : null}
-                  {composerWodProtocol(currentWodPreview) ? <Text style={styles.recapDose}>{composerWodProtocol(currentWodPreview)}</Text> : null}
-                  {(currentWodPreview.exercises ?? []).map((dose) => (
-                    <Text key={dose.id} style={styles.protocolDose}>{dose.name} · {formatPreviewDose(dose, 'WOD', currentWodPreview)}</Text>
-                  ))}
-                  <Text style={styles.sectionSmallHint}>Dosage prévisionnel, ajustable au check-in du jour J.</Text>
-                </View>
-              ) : mechanic ? <Text style={styles.sectionSmallHint}>
-                {previewLoading ? 'Calcul du protocole…' : previewIssue ? composerPreviewIssue(previewIssue, environmentCode) : 'Le protocole sera disponible après validation des blocs.'}
-              </Text> : null}
               {mechanicIssue ? <Text style={styles.mechanicIssue}>{mechanicIssue}</Text> : null}
               {mechanicOptions.length > 1 ? (
                 <Pressable onPress={() => setShowAllMechanics((value) => !value)} style={{ paddingVertical: 14, alignItems: 'center' }}>
@@ -2065,7 +2101,21 @@ function createStyles(colors) {
     structureAddButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 10 },
     structureAddLabel: { fontFamily: fontFamilies.medium, fontSize: 12, color: colors.text },
     mechanicCard: { padding: 14 },
-    protocolCard: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, gap: 8, backgroundColor: colors.surface },
+    previewOptionGroup: { gap: 8 },
+    protocolCard: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    previewHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    previewInfoButton: { minWidth: 40, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
+    previewHeadline: { fontFamily: fontFamilies.bold, fontSize: 20, lineHeight: 27, color: colors.text },
+    previewTimeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7, marginTop: 10, marginBottom: 18 },
+    previewTimePrimary: { fontFamily: fontFamilies.bold, fontSize: 13, lineHeight: 19, color: colors.accent },
+    previewEstimate: { fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+    previewDetails: { fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary, marginBottom: 14 },
+    previewListLabel: { fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 17, color: colors.textSecondary, marginBottom: 5 },
+    previewExerciseRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingVertical: 11 },
+    previewExerciseDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+    previewExerciseName: { flex: 1, minWidth: 0, fontFamily: fontFamilies.medium, fontSize: 14, lineHeight: 21, color: colors.text },
+    previewExerciseDose: { flexShrink: 1, maxWidth: '48%', textAlign: 'right', fontFamily: fontFamilies.bold, fontSize: 14, lineHeight: 21, color: colors.text },
+    previewFootnote: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 17, color: colors.textSecondary, marginTop: 12 },
     protocolDose: { fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 19, color: colors.text },
     mechanicDisabled: { opacity: 0.46 },
     mechanicIssue: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },

@@ -270,3 +270,7 @@ This supersedes the five-format-only implementation note above for **new** compo
 - Deck uses the existing safe, persistent card draw before execution; reopening/retrying retains it. Penalty and Buy-in/Cash-out remain overlays, not standalone choices; they are not enabled by this adapter. Running Outdoor is unchanged.
 
 Software verification and its limits: [shared WOD delivery report](COMPOSER_SHARED_WOD_V2.md). Physical iPhone, sound and interactive resume still require device acceptance; DEV availability is not production promotion or ticket closure.
+
+## Preview placement and hierarchy — 19 November 2026 (#40)
+
+Ugo validated the compact WOD preview and explicitly requested it immediately below the selected mechanic. Keep the selected option first, with its preview directly after the radio card and before complementary options. Use one main protocol instruction, a concise time line, aligned movement/dose rows and a short Day-J note. Reserved-time explanations belong behind an accessible information control. Preserve computed quantities, per-side semantics, loading/stale/error guards and both theme palettes. This is a presentation change, not a new prescription rule.
