@@ -77,7 +77,7 @@ for(const env of ['HOME','BOX','GYM','OUTDOOR']) {
 assert.ok(edited>300,'All C4-target options preserve Tabata and budgets');
 for(const env of ['HOME','BOX','GYM','OUTDOOR']) {
  assert.equal(functions.composerBlockDisplayLabel('WOD',env),'WOD');
- assert.equal(functions.composerBlockDisplayLabel('SKILL',env),'Technique');
+ assert.equal(functions.composerBlockDisplayLabel('SKILL',env),'Skill');
 }
 const tech20=build({durationMinutes:20,intentKey:'TECHNIQUE',environmentCode:'HOME'})[0];
 assert.deepEqual(tech20.blocks.map(b=>b.type),['WARMUP','TABATA','SKILL']);

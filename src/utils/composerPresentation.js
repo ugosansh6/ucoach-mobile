@@ -129,6 +129,19 @@ function composerProgressionDose(dose, block) {
 }
 
 export function composerPreviewIssue(issue, environmentCode = 'BOX') {
+  if (issue?.block_type === 'SKILL') {
+    const reasons = {
+      SKILL_MAX_THREE_EXERCISES: 'Le Skill se concentre sur trois mouvements maximum. Retire un mouvement ou répartis le travail dans un autre bloc.',
+      SKILL_TARGET_UNAVAILABLE: 'Ce parcours technique n’est plus disponible. Choisis un autre mouvement cible.',
+      SKILL_TARGET_NOT_FEASIBLE: 'Ce mouvement cible ne dispose pas d’étape compatible avec ton contexte actuel. Ajuste le matériel ou choisis un autre parcours.',
+      SKILL_LESSON_EXCEEDS_THREE: 'Cette leçon technique demande plus de trois exercices. UGEROD conserve les étapes nécessaires : choisis un autre parcours pour cette séance.',
+      SKILL_LESSON_CHANGED: 'Les exercices choisis ne correspondent plus à la leçon technique. Reviens aux mouvements pour actualiser la proposition ou retire l’objectif technique.',
+      SKILL_CONTEXT_INCOMPATIBLE: 'Un exercice du Skill ne convient pas au matériel, au lieu ou à tes capacités du jour. Ajuste les mouvements ou le contexte.',
+      SKILL_TIME_MISMATCH: 'Le Skill ne tient pas dans le temps réservé, récupérations comprises. Augmente sa durée ou retire un mouvement.',
+      SKILL_TEST_CONFIRMATION_REQUIRED: 'Ce Skill demande un test contrôlé. Une séance de pratique ne peut pas le lancer automatiquement.',
+    };
+    return reasons[issue.reason] ?? 'Le Skill ne peut pas être validé. Ajuste sa durée, ses mouvements ou son objectif technique.';
+  }
   if (issue?.block_type === 'WOD') {
     if (issue.reason === 'PREMIUM_REQUIRED') return 'Ce format nécessite Premium. Choisis un autre format.';
     if (issue.reason === 'EXERCISE_COUNT') return 'Le nombre de mouvements ne convient pas à ce format. Ajuste les mouvements ou choisis un autre format.';

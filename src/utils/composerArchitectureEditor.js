@@ -14,7 +14,7 @@ export const COMPOSER_EDITABLE_BLOCK_TYPES = ['SKILL', 'STRENGTH', 'WOD'];
 export const COMPOSER_MIN_MAIN_MINUTES = 8;
 
 const FIXED_TYPES = ['WARMUP', 'TABATA'];
-const LABELS = { SKILL: 'Technique', STRENGTH: 'Renforcement', WOD: 'WOD' };
+const LABELS = { SKILL: 'Skill', STRENGTH: 'Renforcement', WOD: 'WOD' };
 
 export function composerMainBlocks(architecture) {
   return (architecture?.blocks ?? []).filter((block) =>

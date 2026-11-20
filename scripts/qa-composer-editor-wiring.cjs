@@ -33,6 +33,6 @@ assert.match(ui,/preservedIds/);
 assert.match(ui,/defaults\[block\.type\] = \[\.\.\.previousChoice\]/);
 assert.match(ui,/prescriptionPreview/);
 assert.match(ui,/saveComposerDraft/);
-assert.match(service,/if \(type === 'SKILL'\) return 'Technique';/);
+assert.match(service,/if \(type === 'SKILL'\) return 'Skill';/);
 assert.ok(!ui.includes("'Skill', subtitle:"),'customer-facing Skill label removed');
 console.log('PASS: W11 Composer editor wired to existing preview/save and selections');

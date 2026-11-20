@@ -108,7 +108,7 @@ check('Strength capacity is a backend contract safety ceiling, never a duration 
   for (const minutes of [14, 21, 30, 45, 60]) {
     assert.equal(composerExerciseSlotLimit('STRENGTH', minutes), 8);
   }
-  assert.equal(composerExerciseSlotLimit('SKILL', 45), 2);
+  assert.equal(composerExerciseSlotLimit('SKILL', 45), 3);
   assert.equal(composerExerciseSlotLimit('WOD', 30), 3);
 });
 
@@ -136,8 +136,8 @@ check('Structure cards directly explain Skill versus Strength', () => {
   const strength = { blocks: [{ type: 'STRENGTH' }] };
   const skillCopy = composerArchitecturePurpose(skill);
   const strengthCopy = composerArchitecturePurpose(strength);
-  assert.match(skillCopy, /Technique/);
-  assert.match(skillCopy, /geste/);
+  assert.match(skillCopy, /Skill/);
+  assert.match(skillCopy, /maîtrise/);
   assert.match(strengthCopy, /Force et muscles/);
   assert.match(strengthCopy, /répétitions/);
 });
@@ -162,7 +162,7 @@ check('Display labels vary with environment while canonical block types remain u
   assert.equal(composerBlockDisplayLabel('STRENGTH', 'GYM'), 'Musculation');
   assert.equal(composerBlockDisplayLabel('STRENGTH', 'HOME'), 'Renforcement');
   assert.equal(composerBlockDisplayLabel('STRENGTH', 'BOX'), 'Force');
-  assert.equal(composerBlockDisplayLabel('SKILL', 'BOX'), 'Technique');
+  assert.equal(composerBlockDisplayLabel('SKILL', 'BOX'), 'Skill');
   assert.equal(composerBlockDisplayLabel('WOD', 'GYM'), 'WOD');
   assert.equal(composerBlockDisplayLabel('WOD', 'OUTDOOR'), 'WOD');
   assert.equal(composerArchitectureDisplayTitle(

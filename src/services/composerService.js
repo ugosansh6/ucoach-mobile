@@ -57,10 +57,27 @@ export async function getComposerExerciseCandidates({
   blockType,
   focus,
   targetRegion = null,
+  preferences = null,
   environmentCode = 'HOME',
   equipmentIds = [],
   limit = 8,
 }) {
+  // Adapt the full preference set to the existing single-region catalogue
+  // lookup. Keep its scores/eligibility unchanged; deduplicate by exercise,
+  // taking the best existing match rather than adding new sporting weights.
+  if (preferences) {
+    const normalized = readComposerPreferences(preferences);
+    const regions = normalized.preferred_regions;
+    const lists = await Promise.all((regions.length ? regions : [null]).map((region) =>
+      getComposerExerciseCandidates({ blockType, focus, targetRegion: region,
+        environmentCode, equipmentIds, limit })));
+    const choices = new Map();
+    for (const list of lists) for (const exercise of list) {
+      const previous = choices.get(exercise.id);
+      if (!previous || exercise.score > previous.score) choices.set(exercise.id, exercise);
+    }
+    return [...choices.values()].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+  }
   const role = BLOCK_ROLE[blockType] ?? 'WOD';
   let query = supabase
     .from('exercises')
@@ -150,6 +167,13 @@ export async function getComposerExerciseCandidates({
     .slice(0, Math.max(3, limit));
 }
 
+export async function getComposerSkillProposal(context) {
+  const user = await getAuthenticatedUserWithRetry();
+  return runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_skill_authority_v1', {
+    p_user_id: user.id, p_context: { ...context, propose: true },
+  }));
+}
+
 function wodLabel(minutes) {
   if (minutes <= 15) return 'WOD court';
   if (minutes >= 30) return 'WOD long';
@@ -172,7 +196,7 @@ export function composerBlockDisplayLabel(type, environmentCode = 'BOX') {
     if (env === 'HOME' || env === 'OUTDOOR') return 'Renforcement';
     return 'Force';
   }
-  if (type === 'SKILL') return 'Technique';
+  if (type === 'SKILL') return 'Skill';
   if (type === 'WOD') return 'WOD';
   return String(type ?? '');
 }
@@ -184,7 +208,7 @@ export function composerArchitectureDisplayTitle(option, environmentCode = 'BOX'
   if (!mainBlocks.length) return option?.title ?? 'Séance';
   const labels = mainBlocks.map((item) => composerBlockDisplayLabel(item.type, environmentCode));
   if (labels.length > 1) return labels.join(' + ');
-  return labels[0] + (['Musculation', 'Force', 'Technique'].includes(labels[0]) ? ' seule' : ' seul');
+  return labels[0] + (['Musculation', 'Force'].includes(labels[0]) ? ' seule' : ' seul');
 }
 
 export function composerIntentBlockType(intentKey) {
@@ -224,7 +248,7 @@ export function composerArchitecturePurpose(option, intentKey, environmentCode =
   }
   // A block label or its duration alone cannot establish a physiological goal.
   const descriptions = {
-    SKILL: 'Technique : apprendre ou perfectionner un geste.',
+    SKILL: 'Skill : travailler la maîtrise et progresser sur quelques mouvements.',
     STRENGTH: 'Force et muscles : séries, répétitions et récupération.',
     WOD: 'WOD : le format choisi précisera l’effort et les récupérations.',
   };
@@ -246,7 +270,7 @@ export function composerExerciseSlotLimit(blockType, blockMinutes = 0) {
   if (blockType === 'WARMUP') return 3;
   if (blockType === 'TABATA') return 2;
   if (blockType === 'WOD') return 3;
-  if (blockType === 'SKILL') return 2;
+  if (blockType === 'SKILL') return 3;
   if (blockType === 'STRENGTH') {
     // Eight is the existing Composer draft/compiler payload safety limit,
     // NOT an exercise recommendation. Count/sets/rest are owned by C2/C4.
@@ -515,10 +539,18 @@ export function rankComposerCandidates({
  */
 export function selectComposerDefaultExercises({
   candidateMap = {}, evidence = {}, equipmentIds = [], maxPerBlock = {}, targetRegion = null,
+  fixedSelections = {},
 } = {}) {
   const defaults = {};
   const pickedExerciseIds = new Set();
   const types = Object.keys(candidateMap ?? {});
+  // A curated Skill and explicit user choices are inputs, not candidates to
+  // replace. Unchosen complements must not reclaim those exercise identities.
+  for (const type of types) {
+    if (!Array.isArray(fixedSelections[type])) continue;
+    defaults[type] = [...fixedSelections[type]];
+    for (const id of defaults[type]) pickedExerciseIds.add(id);
+  }
   // Protect the important training blocks first; complements are editable
   // afterwards in the recap, and must not claim all available movements.
   const orderedTypes = [
@@ -527,6 +559,7 @@ export function selectComposerDefaultExercises({
   ];
 
   for (const type of orderedTypes) {
+    if (Object.prototype.hasOwnProperty.call(defaults, type)) continue;
     defaults[type] = [];
     const max = Math.max(0, Math.min(8, Number(maxPerBlock[type] ?? 0) || 0));
     const patterns = new Set();

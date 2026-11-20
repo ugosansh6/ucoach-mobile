@@ -14,6 +14,7 @@ on:
       - 'src/services/composerService.js'
       - 'src/services/workoutService.js'
       - 'scripts/qa-composer-preferences*.cjs'
+      - 'scripts/qa-composer-shared-skill.cjs'
       - '.github/workflows/composer-v8-check.yml'
 
 permissions:
@@ -34,6 +35,7 @@ jobs:
         run: |
           node scripts/qa-composer-preferences.cjs
           node scripts/qa-composer-preferences-ui.cjs
+          node scripts/qa-composer-shared-skill.cjs
       - name: Compile mobile web frontend
         run: npx expo export --platform web
         env:

@@ -65,6 +65,7 @@ import {
   selectComposerDefaultExercises,
   getComposerForLocalDate,
   getComposerSkillTargets,
+  getComposerSkillProposal,
   saveComposerDraft,
 } from '../services/composerService';
 import {
@@ -628,6 +629,7 @@ export default function WeekComposerV7() {
   const [environmentCode, setEnvironmentCode] = useState('HOME');
   const [preferredRegions, setPreferredRegions] = useState([]);
   const [skillTargetPath, setSkillTargetPath] = useState(null);
+  const [skillEngineVersion, setSkillEngineVersion] = useState('C4_COMPOSER_SKILL_V1');
   const [showSkillTarget, setShowSkillTarget] = useState(false);
   const [skillTargets, setSkillTargets] = useState([]);
   const [skillTargetsLoading, setSkillTargetsLoading] = useState(false);
@@ -675,6 +677,9 @@ export default function WeekComposerV7() {
   const [wodContractsLoading, setWodContractsLoading] = useState(false);
   const [wodContractsError, setWodContractsError] = useState(false);
   const [wodContractsRetry, setWodContractsRetry] = useState(0);
+  const latestComposition = useRef(null);
+  latestComposition.current = JSON.stringify({ preferencesSignature, duration, environmentCode,
+    equipmentIds, intent, architecture, selectionMap, skillEngineVersion });
 
   useEffect(() => {
     if (loading || !skillTargetVisible || skillTargets.length > 0) return undefined;
@@ -796,6 +801,7 @@ export default function WeekComposerV7() {
                 blockType: block.type,
                 focus: draft.intent?.focus ?? 'General Fitness',
                 targetRegion: draft.target_region,
+                preferences: readComposerPreferences(draft),
                 environmentCode: draft.environment_code,
                 equipmentIds: draft.equipment_ids ?? [],
                 limit: 30,
@@ -819,6 +825,7 @@ export default function WeekComposerV7() {
           const savedPreferences = readComposerPreferences(draft);
           setPreferredRegions(savedPreferences.preferred_regions);
           setSkillTargetPath(savedPreferences.skill_target_path_key);
+          setSkillEngineVersion(draft.skill_engine_version ?? null);
           setEquipmentIds(Array.isArray(draft.equipment_ids) ? draft.equipment_ids : []);
           setIntent(draft.intent ?? coachIntent);
           setArchitecture(draft.architecture);
@@ -965,6 +972,7 @@ export default function WeekComposerV7() {
 
   async function goToExercises() {
     if (!architecture) return;
+    const requestedComposition = latestComposition.current;
     try {
       setBusy(true);
       setError('');
@@ -973,6 +981,7 @@ export default function WeekComposerV7() {
           blockType: block.type,
           focus: intent?.focus ?? 'General Fitness',
           targetRegion,
+          preferences: composerPreferences,
           environmentCode,
           equipmentIds,
           limit: 30,
@@ -1009,7 +1018,7 @@ export default function WeekComposerV7() {
         maxPerBlock: Object.fromEntries((architecture.blocks ?? []).map(
           // Keep current automatic defaults. Raising the manual ceiling must
           // never silently add exercises to an athlete's initial proposal.
-          (block) => [block.type, composerExerciseSlotLimit(block.type, block.minutes)]
+          (block) => [block.type, block.type === 'SKILL' ? 2 : composerExerciseSlotLimit(block.type, block.minutes)]
         )),
       });
       // A new or edited structure never erases exercises the athlete picked.
@@ -1042,6 +1051,47 @@ export default function WeekComposerV7() {
         setStrengthAssessment(null);
         setStrengthAssessmentError(false);
       }
+      const skill = (architecture.blocks ?? []).find((block) => block.type === 'SKILL');
+      if (skill && skillEngineVersion && !(selectionMap.SKILL ?? []).length) {
+        const proposal = await getComposerSkillProposal({
+          preferences: composerPreferences, session_minutes: duration, block_minutes: skill.minutes,
+          environment_code: environmentCode, focus: intent?.focus ?? 'General Fitness',
+          progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
+          equipment_names: equipmentNames(), readiness: 'normal',
+          exercises: (defaults.SKILL ?? []).map((id) => ({ id })),
+          wod_exercises: (defaults.WOD ?? []).map((id) => ({ exercise_id: id })),
+        });
+        if (proposal?.status !== 'READY') {
+          const failure = new Error('Skill incompatible');
+          failure.userMessage = composerPreviewIssue(proposal);
+          throw failure;
+        }
+        const byId = new Map((candidatesByBlock.SKILL ?? []).map((exercise) => [exercise.id, exercise]));
+        for (const exercise of proposal.exercises ?? []) {
+          if (!byId.has(exercise.id)) byId.set(exercise.id, {
+            ...exercise, description: exercise.instructions, imagePath: exercise.image_path,
+            bodyRegion: exercise.region, movementPattern: exercise.pattern,
+            exerciseFamily: exercise.family,
+          });
+        }
+        candidatesByBlock.SKILL = [...byId.values()];
+        defaults.SKILL = proposal.exercises.map((exercise) => exercise.id);
+        // Reuse the existing complement selection after the actual lesson is
+        // known. Preserve every explicit choice; never duplicate an engine
+        // Skill exercise in a newly proposed Warm-up/Tabata by accident.
+        const fixedSelections = Object.fromEntries(Object.entries(defaults).filter(([type]) =>
+          !['WARMUP', 'TABATA'].includes(type) || (selectionMap[type] ?? []).length));
+        const refreshed = selectComposerDefaultExercises({
+          candidateMap: candidatesByBlock, fixedSelections, evidence: observations,
+          equipmentIds, targetRegion,
+          maxPerBlock: Object.fromEntries((architecture.blocks ?? []).map((block) =>
+            [block.type, composerExerciseSlotLimit(block.type, block.minutes)])),
+        });
+        for (const type of ['WARMUP', 'TABATA']) {
+          if (!(selectionMap[type] ?? []).length && refreshed[type]) defaults[type] = refreshed[type];
+        }
+      }
+      if (requestedComposition !== latestComposition.current) return;
       setCandidateMap(candidatesByBlock);
       setCandidateEvidence(observations);
       setSelectionMap(defaults);
@@ -1051,7 +1101,7 @@ export default function WeekComposerV7() {
       setStep(3);
     } catch (loadError) {
       console.warn('[WeekComposerV7] candidate load failed', loadError);
-      setError('Impossible de charger les mouvements proposés.');
+      setError(loadError.userMessage ?? 'Impossible de charger les mouvements proposés.');
     } finally {
       setBusy(false);
     }
@@ -1064,6 +1114,45 @@ export default function WeekComposerV7() {
       const selected = current[type] ?? [];
       return { ...current, [type]: toggleComposerExercise(selected, id, max) };
     });
+  }
+
+  async function refreshSkillLesson() {
+    const skill = architecture?.blocks?.find((block) => block.type === 'SKILL');
+    if (!skill || !skillEngineVersion || busy) return;
+    const requestedComposition = latestComposition.current;
+    try {
+      setBusy(true);
+      setError('');
+      const proposal = await getComposerSkillProposal({
+        preferences: composerPreferences, session_minutes: duration, block_minutes: skill.minutes,
+        environment_code: environmentCode, focus: intent?.focus ?? 'General Fitness',
+        progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
+        equipment_names: equipmentNames(), readiness: 'normal',
+        exercises: (selectionMap.SKILL ?? []).map((id) => ({ id })),
+        wod_exercises: (selectionMap.WOD ?? []).map((id) => ({ exercise_id: id })),
+      });
+      if (requestedComposition !== latestComposition.current) return;
+      if (proposal?.status !== 'READY') {
+        setError(composerPreviewIssue(proposal));
+        return;
+      }
+      setCandidateMap((previous) => {
+        const byId = new Map((previous.SKILL ?? []).map((exercise) => [exercise.id, exercise]));
+        for (const exercise of proposal.exercises ?? []) byId.set(exercise.id, {
+          ...byId.get(exercise.id), ...exercise, description: exercise.instructions,
+          imagePath: exercise.image_path, bodyRegion: exercise.region,
+          movementPattern: exercise.pattern, exerciseFamily: exercise.family,
+        });
+        return { ...previous, SKILL: [...byId.values()] };
+      });
+      setSelectionMap((previous) => ({ ...previous, SKILL: proposal.exercises.map((exercise) => exercise.id) }));
+      setPreviewSignature(null);
+      setPrescriptionPreview(null);
+    } catch {
+      if (requestedComposition === latestComposition.current) setError('Impossible d’actualiser la leçon technique. Réessaie.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function advanceExerciseBlock() {
@@ -1135,6 +1224,7 @@ export default function WeekComposerV7() {
     return withComposerPreferences({
       target_date: dateKey,
       wod_engine_version: wodEngineVersion,
+      ...(skillEngineVersion ? { skill_engine_version: skillEngineVersion } : {}),
       duration_minutes: duration,
       environment_code: environmentCode,
       equipment_ids: equipmentIds,
@@ -1186,7 +1276,7 @@ export default function WeekComposerV7() {
       .finally(() => { if (active) setPreviewLoading(false); });
     return () => { active = false; };
   }, [loading, step, architecture, selectionMap, candidateMap, mechanic,
-      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion, preferencesSignature]);
+      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion, preferencesSignature, skillEngineVersion]);
 
   const strengthRequest = {
     exercises: (selectionMap.STRENGTH ?? []).map((id) => {
@@ -1723,6 +1813,14 @@ export default function WeekComposerV7() {
                   ? activeSelected.length + ' mouvements retenus'
                   : activeSelected.length + ' / ' + maxForBlock(activeBlock.type, activeBlock.minutes) + ' sélectionnés'}
               </Text>
+              {activeBlock.type === 'SKILL' && skillTargetPath && skillEngineVersion ? (
+                <View>
+                  <Pressable accessibilityRole="button" disabled={busy} onPress={refreshSkillLesson} style={styles.structureLink}>
+                    <Text style={styles.structureLinkText}>{busy ? 'Calcul de la leçon…' : 'Actualiser la leçon pour cet objectif'}</Text>
+                  </Pressable>
+                  <Text style={styles.sectionSmallHint}>Cette action remplace uniquement les exercices du Skill par la proposition adaptée à ton objectif.</Text>
+                </View>
+              ) : null}
               {activeBlock.type === 'WOD' ? <Text style={styles.sectionSmallHint}>
                 {wodContractsLoading ? 'Vérification des limites par format…'
                   : wodContractsError ? 'Limites indisponibles : trois mouvements maximum pour les nouveaux ajouts.'
