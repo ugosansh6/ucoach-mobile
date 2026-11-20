@@ -409,16 +409,22 @@ export async function finalizeComposerWorkoutSession({
       })
     );
   } catch (cause) {
-    const skillIssue = String(cause?.message ?? cause).match(/COMPOSER_SKILL_RECOMPOSITION_REQUIRED_([A-Z0-9_]+)/);
+    const skillIssue = String(cause?.message ?? cause).match(/COMPOSER_(SKILL|CARDIO|WOD)_RECOMPOSITION_REQUIRED_([A-Z0-9_]+)/);
     if (skillIssue) {
-      const error = new Error(composerPreviewIssue({ block_type: 'SKILL', reason: skillIssue[1] }));
+      const error = new Error(composerPreviewIssue({ block_type: skillIssue[1], reason: skillIssue[2] }));
       error.code = 'COMPOSER_NEEDS_RECOMPOSITION';
+      error.blockType = skillIssue[1]; error.reason = skillIssue[2];
       throw error;
     }
     if (String(cause?.message ?? cause).includes('COMPOSER_STRENGTH_RECOMPOSITION_REQUIRED')) {
       const error = new Error('La forme du jour ou le matériel modifie le dosage : la séance personnalisée doit être ajustée dans Ma semaine avant de commencer.');
       error.code = 'COMPOSER_NEEDS_RECOMPOSITION';
+      error.blockType = 'STRENGTH'; error.reason = 'STRENGTH_TIME_MISMATCH';
       throw error;
+    }
+    if (/COMPOSER_(EXERCISE_INCOMPATIBLE|UNKNOWN_EXERCISE|MECHANIC_NOT_EXECUTABLE|DENSITY_EXCEEDS_BUDGET)/.test(String(cause?.message ?? cause))) {
+      const error = new Error('Cette composition ne correspond plus au contexte du jour. Reviens à Ma semaine pour ajuster les mouvements, le matériel ou le format, puis confirme à nouveau.');
+      error.code = 'COMPOSER_NEEDS_RECOMPOSITION'; error.field = 'exercises'; throw error;
     }
     throw cause;
   }

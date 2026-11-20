@@ -1,3 +1,4 @@
+import { composerRecordedInstanceIds } from '../../src/utils/composerPlayerProgress';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -32,6 +33,7 @@ function exerciseHasRecordedResult(exercise) {
 }
 
 function hasRecordedProgress(workout) {
+  if (composerRecordedInstanceIds(workout).length) return true;
   if ((workout?.validatedBlocks ?? []).length > 0) return true;
   if (workout?.wodRuntime?.started || workout?.wodStarted || workout?.wodStartedAt) return true;
   return (workout?.exercises ?? []).some(exerciseHasRecordedResult);

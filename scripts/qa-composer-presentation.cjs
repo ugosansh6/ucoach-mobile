@@ -13,10 +13,10 @@ const presentation = new Function(fs.readFileSync('src/utils/composerPresentatio
 const options = api.buildComposerArchitectures({durationMinutes:60,intentKey:'STRENGTH',environmentCode:'GYM',targets:{warmup_minutes:6}});
 const before = JSON.stringify(options);
 const aligned = options.filter(o => api.composerArchitectureMatchesIntent(o, 'STRENGTH'));
-assert.deepEqual(aligned.map(o=>o.key), ['strength','balanced']);
-assert.deepEqual(options.filter(o => !api.composerArchitectureMatchesIntent(o, 'STRENGTH')).map(o=>o.key), ['technique','skill','conditioning']);
-assert.match(api.composerArchitecturePurpose(aligned[1], 'STRENGTH','GYM'), /31 min dédiées.*WOD · 14 min/);
-assert.match(api.composerArchitecturePurpose(options.find(o=>o.key==='skill'), 'STRENGTH','GYM'), /Structure libre.*priorité change/);
+assert.deepEqual(aligned.map(o=>o.key), options.map(o=>o.key), 'Orientation must not be inferred from a block-time majority');
+assert.deepEqual(options.filter(o => !api.composerArchitectureMatchesIntent(o, 'STRENGTH')), []);
+assert.match(api.composerArchitecturePurpose(aligned[1], 'STRENGTH','GYM'), /Renforcement.*WOD/);
+assert.match(api.composerArchitecturePurpose(options.find(o=>o.key==='skill'), 'STRENGTH','GYM'), /Skill.*maîtrise.*WOD/);
 assert.equal(JSON.stringify(options), before, 'Presentation must not mutate a proposal');
 for (const env of ['HOME','BOX','GYM','OUTDOOR']) for (const intent of ['STRENGTH','TECHNIQUE','CONDITIONING']) for(const durationMinutes of [20,30,45,60,75,90]) {
   const list = api.buildComposerArchitectures({durationMinutes,intentKey:intent,environmentCode:env});

@@ -10,11 +10,11 @@
  * New proposals have protected Warm-up and Tabata (4 min) complements.
  * Older authored drafts stay unchanged even if Tabata is absent.
  */
-export const COMPOSER_EDITABLE_BLOCK_TYPES = ['SKILL', 'STRENGTH', 'WOD'];
+export const COMPOSER_EDITABLE_BLOCK_TYPES = ['SKILL', 'STRENGTH', 'WOD', 'CARDIO'];
 export const COMPOSER_MIN_MAIN_MINUTES = 8;
 
 const FIXED_TYPES = ['WARMUP', 'TABATA'];
-const LABELS = { SKILL: 'Skill', STRENGTH: 'Renforcement', WOD: 'WOD' };
+const LABELS = { SKILL: 'Skill', STRENGTH: 'Renforcement', WOD: 'WOD', CARDIO: 'Cardio' };
 
 export function composerMainBlocks(architecture) {
   return (architecture?.blocks ?? []).filter((block) =>
@@ -22,9 +22,9 @@ export function composerMainBlocks(architecture) {
   );
 }
 
-export function composerAddableBlocks(architecture) {
+export function composerAddableBlocks(architecture, environmentCode = null) {
   const current = new Set(composerMainBlocks(architecture).map((block) => block.type));
-  return COMPOSER_EDITABLE_BLOCK_TYPES.filter((type) => !current.has(type));
+  return COMPOSER_EDITABLE_BLOCK_TYPES.filter((type) => !current.has(type) && (type !== 'CARDIO' || environmentCode === 'GYM'));
 }
 
 function allocateMainMinutes(blocks, total) {

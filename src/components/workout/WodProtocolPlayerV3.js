@@ -301,9 +301,13 @@ function useSecondClock({ started, paused, finished, maxSeconds, initialElapsed,
   const [elapsed, setElapsed] = useState(Math.max(0, numberOr(initialElapsed, 0)));
   useEffect(() => {
     if (!started || paused || finished) return undefined;
+    let lastTickAt = Date.now();
     const timer = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.max(1, Math.floor((now - lastTickAt) / 1000));
+      lastTickAt = now;
       setElapsed((current) => {
-        const next = current + 1;
+        const next = current + delta;
         if (maxSeconds != null && next >= maxSeconds) {
           setTimeout(() => onAutoFinish?.(maxSeconds), 0);
           return maxSeconds;
@@ -399,14 +403,18 @@ export default function WodProtocolPlayerV3({
 
   useEffect(() => {
     if (!executionEnabled || restRemaining <= 0 || paused || finished) return undefined;
+    let lastTickAt = Date.now();
     const timer = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.max(1, Math.floor((now - lastTickAt) / 1000));
+      lastTickAt = now;
       setRestRemaining((current) => {
-        if (current <= 1) {
+        if (current <= delta) {
           playBeep();
           Vibration.vibrate(60);
           return 0;
         }
-        return current - 1;
+        return current - delta;
       });
     }, 1000);
     return () => clearInterval(timer);

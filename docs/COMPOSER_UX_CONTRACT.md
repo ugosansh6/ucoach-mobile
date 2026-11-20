@@ -16,6 +16,20 @@ Le [ticket #29](https://github.com/ugosansh6/ucoach-mobile/issues/29) conserve l
 
 Les sections historiques ci-dessous conservent les principes et preuves utiles. Le cadrage du 19 novembre prévaut sur leurs formulations incompatibles, notamment l'ancienne priorité structurelle par intention, l'assimilation Skill/Technique et toute lecture non ajustable du défaut Maison/Box.
 
+## Raccord du parcours — 20 novembre 2026
+
+Les nouveaux brouillons utilisent les propositions d’architecture serveur fondées sur `c4_session_architecture_targets_v2`. Maison et Box recommandent Skill + WOD quelle que soit l’orientation ; un créneau incompatible ne sélectionne pas une autre structure à la place de l’utilisateur. La structure reste ajustable. Les brouillons précédents gardent leur version et leurs choix.
+
+Le Cardio Salle est un bloc distinct produit par `gym_build_cardio_block_v2`, ajouté ou retiré depuis Format, puis placé avant ou après le renforcement. Il conserve ses prescriptions et identités dans l’aperçu, la compilation et le Player natif ; il ne remplace pas la préparation ni le WOD. Le changement de machine passe actuellement par le matériel et le recalcul du protocole.
+
+Le sélecteur et la bibliothèque partagent les filtres de zone, objectif, famille et favoris. La bibliothèque et les fiches lisent les identifiants et consignes du catalogue réel ; les favoris utilisent les préférences explicites existantes du moteur. Aucun dosage générique ni fiche de remplacement silencieuse n’est affiché pour un identifiant inconnu. Les détails sont accessibles à la demande. Un remplacement vise un mouvement explicitement désigné ; un bloc complet ne remplace plus automatiquement sa dernière ligne.
+
+Le Player consomme les séries, répétitions, maintiens, distances, côtés et repos prescrits. Les maintiens et mouvements par côté du renforcement utilisent le même exécuteur de prescriptions, sans nouveau dosage. Charge facultative initialement vide ; seules les séries confirmées deviennent du réalisé. L’arrêt partiel conserve le détail exécuté.
+
+La progression Composer est sauvegardée séparément des prescriptions, par utilisateur, séance et identité d’instance : cache local, synchronisation serveur avec révision, curseur, séries, saisies, repos et runtimes. Une révision périmée ne peut pas écraser une autre fenêtre. Un ajustement explicite du non-réalisé peut raccorder la sauvegarde si les prescriptions et protocoles déjà commencés restent identiques ; sinon la reprise est refusée avec conservation du réalisé. Une simple recharge n’accepte pas silencieusement un contrat modifié. Une composition déjà générée mais non commencée se modifie par une sauvegarde atomique avec confirmation : ancienne génération conservée comme remplacée, nouveau brouillon réexécutable au prochain lancement. Une séance commencée ou terminée ne passe jamais par ce remplacement. Les séances terminées relisent leurs résultats définitifs.
+
+Vérifications automatisées et DEV détaillées dans #3/#38 ; elles ne remplacent pas la recette complète sur téléphone. Aucun ticket clos par ces changements.
+
 ## Principes et historique conservés
 
 > **Lecture historique encadrée — consolidation du 13/11/2026.** Ce contrat du 14/10 reste utile pour les principes d'interaction, mais plusieurs détails ont évolué : voir [PRODUCT_REFERENCE.md](PRODUCT_REFERENCE.md), notamment les décisions du 26–27/10 et la séparation Aujourd'hui / Ma semaine du 12/11. Les choix de blocs enregistrés font autorité ; ne pas ajouter Warm-up/Tabata pour appliquer une ancienne formulation universelle. La date appartient à Ma semaine et le CTA cible a été actualisé en « Valider ma séance ». Ce bandeau ne demande aucune modification d'écran.

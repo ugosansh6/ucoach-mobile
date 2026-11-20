@@ -1,3 +1,5 @@
+import { composerRecordedInstanceIds } from '../../utils/composerPlayerProgress';
+import { checkpointComposerPlayerProgress } from '../../services/composerPlayerProgressService';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -144,11 +146,15 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
 
   async function applySwap(reason, undo = false) {
     if (!swapExercise?.sessionExerciseId || busy) return;
+    if (composerRecordedInstanceIds(workout).includes(swapExercise.sessionExerciseId)) {
+      Alert.alert('Exercice déjà commencé', 'Le réalisé est conservé. Ajuste uniquement un mouvement qui n’a pas encore commencé.'); return;
+    }
 
     const oldExerciseId = swapExercise.exerciseId ?? swapExercise.id;
 
     try {
       setBusy(true);
+      await checkpointComposerPlayerProgress(workout);
       const result = undo
         ? await swapWorkoutExercise({
             sessionId: workout.sessionId,
@@ -174,6 +180,7 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
       }
 
       const refreshed = await reloadWorkoutSession({
+        confirmComposerProgressRebase: true,
         sessionId: workout.sessionId,
         preparationSnapshot: workout.preparationSnapshot ?? null,
       });

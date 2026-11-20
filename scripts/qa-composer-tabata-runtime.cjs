@@ -8,7 +8,7 @@ const focused = fs.readFileSync('app/workout/session-focused-core.js', 'utf8');
 const start = focused.indexOf('export function FocusedTabata(');
 const end = focused.indexOf('\n  return (', start);
 assert.ok(start >= 0 && end > start, 'FocusedTabata logic not found');
-const createPlayer = new Function('useState', 'useEffect', 'prescriptionObject',
+const createPlayer = new Function('useRef', 'restoreRunningClock', 'useState', 'useEffect', 'prescriptionObject',
   'TABATA_RING_SEGMENTS', 'Alert', 'setInterval', 'clearInterval',
   focused.slice(start, end).replace('export ', '') +
   '\nreturn {rounds,workSeconds,restSeconds,totalSeconds,remaining,resting,finished,' +
@@ -18,7 +18,7 @@ function render({elapsed=0, started=true, paused=false, enabled=true, count=2}={
   const state = [started,paused,elapsed,0];
   const effects = [], results = [], updates = [], timers = [], cleared = [];
   let index = 0;
-  const component = createPlayer(() => {
+  const component = createPlayer(value => ({current:value}), value => value, () => {
     const slot = index++;
     return [state[slot], next => updates.push([slot,
       typeof next === 'function' ? next(state[slot]) : next])];
@@ -59,13 +59,13 @@ for(const args of [{started:false},{enabled:false}]) {
   const value=render(args);value.player.finishTabata();assert.equal(value.results.length,0);
 }
 const tick=render({elapsed:239});
-const cleanup=tick.effects[0]();
+const cleanup=tick.effects[1]();
 assert.equal(tick.timers[0].ms,1000);
 tick.timers[0].callback();
 assert.deepEqual(tick.updates,[[2,240]]);
 cleanup();assert.deepEqual(tick.cleared,[123]);
 for(const args of [{paused:true},{started:false},{enabled:false},{elapsed:240}]) {
-  const value=render(args);value.effects[0]();assert.equal(value.timers.length,0);
+  const value=render(args);value.effects[1]();assert.equal(value.timers.length,0);
 }
 
 const environment=fs.readFileSync('app/workout/environment-session-core.js','utf8');

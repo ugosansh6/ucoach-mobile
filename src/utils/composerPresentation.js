@@ -12,6 +12,7 @@ export function composerDurationSummary(assessment, budgetMinutes) {
 
 export function formatComposerDose(dose, blockType, block = null) {
   if (!dose) return '';
+  if (blockType === 'CARDIO') return dose.text ?? dose.prescription_json?.text ?? 'Protocole cardio';
   if (blockType === 'TABATA') return dose.intervals_per_exercise
     ? `${dose.intervals_per_exercise} passages · 20 s effort / 10 s repos`
     : '20 s effort / 10 s repos';
@@ -142,6 +143,9 @@ export function composerPreviewIssue(issue, environmentCode = 'BOX') {
     };
     return reasons[issue.reason] ?? 'Le Skill ne peut pas être validé. Ajuste sa durée, ses mouvements ou son objectif technique.';
   }
+  if (issue?.block_type === 'CARDIO') return issue.reason === 'CARDIO_EQUIPMENT_REQUIRED'
+    ? 'Aucune machine cardio compatible. Modifie ton matériel ou retire le bloc Cardio.'
+    : 'Le protocole cardio doit être actualisé. Reviens aux mouvements pour le recalculer avec ton contexte.';
   if (issue?.block_type === 'WOD') {
     if (issue.reason === 'PREMIUM_REQUIRED') return 'Ce format nécessite Premium. Choisis un autre format.';
     if (issue.reason === 'EXERCISE_COUNT') return 'Le nombre de mouvements ne convient pas à ce format. Ajuste les mouvements ou choisis un autre format.';

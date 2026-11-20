@@ -1,3 +1,5 @@
+import ExerciseCatalogueControls from '../components/exercises/ExerciseCatalogueControls';
+import { filterExerciseCatalogue } from '../utils/exerciseCatalogue';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -25,7 +27,7 @@ import {
   readComposerPreferences, legacyComposerTargetRegion, composerRegionsLabel,
   composerShowsSkillTarget, withComposerPreferences,
 } from '../utils/composerPreferences';
-import { composerWodSelectionLimit, toggleComposerExercise } from '../utils/composerWodSelection';
+import { composerWodSelectionLimit, chooseComposerExercise } from '../utils/composerWodSelection';
 import {
   composerDurationSummary,
   composerMechanicIdentity,
@@ -55,6 +57,8 @@ import {
   composerArchitectureMatchesIntent,
   composerExerciseSlotLimit,
   getComposerArchitectureTargets,
+  getComposerArchitectureProposal,
+  getComposerCardioProposal,
   getComposerExerciseCandidates,
   getComposerMechanicOptions,
   getComposerWodSelectionContracts,
@@ -72,7 +76,6 @@ import {
 import {
   createAssistedWeekPlanItem,
   getWeekReadContract,
-  updateWeekPlanItemContext,
 } from '../services/weeklyPlanService';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -624,7 +627,13 @@ export default function WeekComposerV7() {
   const [error, setError] = useState('');
   const [step, setStep] = useState(0);
   const [sheet, setSheet] = useState(null);
+  const [savedStructure, setSavedStructure] = useState(null);
   const [exerciseQuery, setExerciseQuery] = useState('');
+  const [replacementId, setReplacementId] = useState(null);
+  const [exerciseRegion, setExerciseRegion] = useState('');
+  const [exerciseFamily, setExerciseFamily] = useState('');
+  const [exerciseFocus, setExerciseFocus] = useState('');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [duration, setDuration] = useState(60);
   const [environmentCode, setEnvironmentCode] = useState('HOME');
@@ -756,7 +765,7 @@ export default function WeekComposerV7() {
           getComposerForLocalDate(dateKey),
         ]);
         if (!active) return;
-        const candidates = (contract?.visibleItems ?? []).filter((item) => item?.recommendedDate === dateKey && !item?.sessionId);
+        const candidates = (contract?.visibleItems ?? []).filter((item) => item?.recommendedDate === dateKey && (!item?.sessionId || item.planItemId === requestedPlanItemId));
         const item = requestedPlanItemId
           ? candidates.find((candidate) => candidate.planItemId === requestedPlanItemId) ?? candidates[0] ?? null
           : candidates[0] ?? null;
@@ -788,6 +797,7 @@ export default function WeekComposerV7() {
           const draftReference = buildReferenceEquipment(catalog ?? [], draftInventory ?? []);
           setReferenceEquipment(draftReference);
           const blocks = draft.architecture.blocks;
+          setSavedStructure(draft.architecture);
           const requested = {};
           const exerciseMap = {};
           for (const block of blocks) {
@@ -869,7 +879,13 @@ export default function WeekComposerV7() {
               setMechanicOptions([draft.mechanic]);
             }
           }
-          setStep(5);
+          const repairBlock = firstParam(params?.repairBlock);
+          if (firstParam(params?.repair) === 'confirmed') {
+            setError('Tes choix sont conservés. Ajuste le bloc concerné puis vérifie l’aperçu avant de confirmer à nouveau.');
+            if (blocks.some((b) => b.type === repairBlock && !['WARMUP','TABATA'].includes(b.type))) {
+              setRecapEditingBlock(repairBlock); setExerciseBlockIndex(0); setStep(3);
+            } else setStep(5);
+          } else setStep(5);
         }
       } catch (loadError) {
         console.warn('[WeekComposerV7] load failed', loadError);
@@ -880,7 +896,7 @@ export default function WeekComposerV7() {
     }
     load();
     return () => { active = false; };
-  }, [dateKey, requestedPlanItemId]);
+  }, [dateKey, requestedPlanItemId, params?.repair, params?.repairBlock]);
 
   async function chooseEnvironment(code) {
     setEnvironmentCode(code);
@@ -923,15 +939,17 @@ export default function WeekComposerV7() {
         : intent.focus === 'Strength' ? 'STRENGTH'
           : intent.focus === 'Conditioning' ? 'CONDITIONING'
             : 'GENERAL_FITNESS';
-      const next = buildComposerArchitectures({
+      const proposal = guidedComposer ? await getComposerArchitectureProposal({ durationMinutes: duration, environmentCode }) : null;
+      const next = proposal?.options ?? buildComposerArchitectures({
         durationMinutes: duration, intentKey: planningIntentKey, environmentCode, targets,
       });
+      if (proposal?.status === 'DEFAULT_UNAVAILABLE') setArchitectureEditError(proposal.reason);
       setArchitectures(next);
-      setArchitecture(next[0] ?? null);
+      setArchitecture(proposal?.status === 'DEFAULT_UNAVAILABLE' ? null : next[0] ?? null);
       setShowOtherArchitectures(false);
       setShowFreeArchitectures(false);
       setShowArchitectureEditor(false);
-      setArchitectureEditError('');
+      if (proposal?.status !== 'DEFAULT_UNAVAILABLE') setArchitectureEditError('');
       setStep(2);
     } catch (loadError) {
       console.warn('[WeekComposerV7] architecture failed', loadError);
@@ -942,6 +960,7 @@ export default function WeekComposerV7() {
   }
 
   function changeArchitecture(action) {
+    if (action.blockType === 'CARDIO' && environmentCode !== 'GYM') return;
     const result = editComposerArchitecture(architecture, action);
     if (!result.ok) {
       setArchitectureEditError(result.error);
@@ -980,6 +999,12 @@ export default function WeekComposerV7() {
       setBusy(true);
       setError('');
       const results = await Promise.all((architecture.blocks ?? []).map(async (block) => {
+        if (block.type === 'CARDIO') {
+          const candidates = await getComposerCardioProposal({ session_minutes: duration, block_minutes: block.minutes,
+            environment_code: environmentCode, equipment_names: equipmentNames(),
+            progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN', target_region: targetRegion });
+          return [block.type, candidates];
+        }
         const candidates = await getComposerExerciseCandidates({
           blockType: block.type,
           focus: intent?.focus ?? 'General Fitness',
@@ -1024,6 +1049,7 @@ export default function WeekComposerV7() {
           (block) => [block.type, block.type === 'SKILL' ? 2 : composerExerciseSlotLimit(block.type, block.minutes)]
         )),
       });
+      if (candidatesByBlock.CARDIO) defaults.CARDIO = candidatesByBlock.CARDIO.map((e) => e.id);
       // A new or edited structure never erases exercises the athlete picked.
       for (const block of architecture.blocks ?? []) {
         const previousChoice = selectionMap[block.type];
@@ -1110,13 +1136,38 @@ export default function WeekComposerV7() {
     }
   }
 
+  function openExercisePicker(id = null) {
+    setReplacementId(id); setExerciseQuery('');
+    const region = preferredRegions.length === 1 ? preferredRegions[0] : '';
+    setExerciseRegion(activeCandidates.some((e) => e.bodyRegion === region) ? region : '');
+    setExerciseFocus(activeCandidates.some((e) => e.trainingFocus === intent?.focus) ? intent.focus : '');
+    setExerciseFamily(''); setFavoritesOnly(false); setSheet('exercise-picker');
+  }
+
+  async function refreshCardioProtocol() {
+    const block = architecture?.blocks?.find((b) => b.type === 'CARDIO');
+    if (!block || busy) return;
+    const signature = latestComposition.current;
+    try {
+      setBusy(true); setError('');
+      const rows = await getComposerCardioProposal({ session_minutes: duration, block_minutes: block.minutes,
+        environment_code: environmentCode, equipment_names: equipmentNames(), target_region: targetRegion,
+        progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN' });
+      if (latestComposition.current !== signature) return;
+      setCandidateMap((current) => ({ ...current, CARDIO: rows }));
+      setSelectionMap((current) => ({ ...current, CARDIO: rows.map((e) => e.id) }));
+    } catch (error) { setError(error.message); } finally { setBusy(false); }
+  }
+
   function chooseExercise(type, id) {
+    if (type === 'CARDIO') { setError('Le protocole cardio dépend du matériel. Modifie le matériel puis recalcule les mouvements pour le changer.'); return; }
     const minutes = architecture?.blocks?.find((block) => block.type === type)?.minutes ?? 0;
     const max = maxForBlock(type, minutes);
     setSelectionMap((current) => {
       const selected = current[type] ?? [];
-      return { ...current, [type]: toggleComposerExercise(selected, id, max) };
+      return { ...current, [type]: chooseComposerExercise(selected, id, max, replacementId) };
     });
+    if (replacementId) { setReplacementId(null); setSheet(null); }
   }
 
   async function refreshSkillLesson() {
@@ -1267,8 +1318,8 @@ export default function WeekComposerV7() {
         if (!active) return;
         setPrescriptionPreview(result?.status === 'PREVIEW' ? result : null);
         setPreviewSignature(result?.status === 'PREVIEW' ? draftSignature : null);
-        setPreviewIssue(result?.status === 'NEEDS_RECOMPOSITION' ? result : null);
-        if (!['PREVIEW', 'NEEDS_RECOMPOSITION'].includes(result?.status)) setPreviewError(true);
+        setPreviewIssue(['NEEDS_RECOMPOSITION','RECOMPOSITION_REQUIRED','UNAVAILABLE'].includes(result?.status) ? result : null);
+        if (!['PREVIEW', 'NEEDS_RECOMPOSITION','RECOMPOSITION_REQUIRED','UNAVAILABLE'].includes(result?.status)) setPreviewError(true);
       })
       .catch((reason) => {
         if (active) {
@@ -1330,7 +1381,7 @@ export default function WeekComposerV7() {
     return () => { active = false; };
   }, [loading, step, strengthRequestSignature]);
 
-  async function addToWeek() {
+  async function addToWeek({ confirmReplacement = false } = {}) {
     try {
       setBusy(true);
       setError('');
@@ -1346,15 +1397,17 @@ export default function WeekComposerV7() {
         target_region: targetRegion,
       };
       let planItemId = selectedItem?.planItemId ?? null;
-      if (planItemId) await updateWeekPlanItemContext({ planItemId, context });
-      else {
+      if (!planItemId) {
         const created = await createAssistedWeekPlanItem({ recommendedDate: dateKey, context });
         planItemId = created?.planItemId ?? null;
+        if (planItemId) setSelectedItem((item) => ({ ...(item ?? {}), planItemId }));
       }
       if (!planItemId) throw new Error('Impossible de créer le créneau de semaine.');
 
       const draft = { ...buildCurrentDraft(), prescription_preview: prescriptionPreview };
-      await saveComposerDraft({ planItemId, draft });
+      const saved = await saveComposerDraft({ planItemId, draft, context, confirmReplacement });
+      if (saved?.status === 'CONFIRM_REPLACEMENT_REQUIRED') { setSheet('confirm-revision'); return; }
+      if (saved?.status !== 'SAVED') throw new Error('La séance n’a pas pu être enregistrée.');
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/planning');
     } catch (saveError) {
@@ -1403,11 +1456,10 @@ export default function WeekComposerV7() {
   const activeSelected = activeBlock ? selectionMap[activeBlock.type] ?? [] : [];
   const selectedCandidateObjects = activeCandidates.filter((exercise) => activeSelected.includes(exercise.id));
   const replacementCandidates = activeCandidates.filter((exercise) => !activeSelected.includes(exercise.id));
-  const filteredExtraCandidates = replacementCandidates.filter((exercise) => {
-    const search = exerciseQuery.trim().toLowerCase();
-    return !search || [exercise.name, exercise.movementPattern, exercise.bodyRegion, ...(exercise.equipmentNames ?? [])]
-      .some((value) => String(value ?? '').toLowerCase().includes(search));
-  });
+  const filteredExtraCandidates = filterExerciseCatalogue(replacementCandidates, {
+    search: exerciseQuery, region: exerciseRegion, family: exerciseFamily, focus: exerciseFocus, favoritesOnly,
+  }, Object.entries(candidateEvidence).filter(([,e]) => e.explicit_preference_state === 'FAVORI').map(([id]) => id));
+
   const wodBlock = architecture?.blocks?.find((block) => block.type === 'WOD') ?? null;
   const estimatedMinutes = architecture?.estimatedMinutes
     ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
@@ -1596,7 +1648,7 @@ export default function WeekComposerV7() {
                 selectedPath={skillTargetPath} options={skillTargets}
                 loading={skillTargetsLoading} error={skillTargetsError}
                 onRetry={() => setSkillTargetsRetry((value) => value + 1)}
-                onOpen={() => setShowSkillTarget(true)} onChange={setSkillTargetPath}
+                onOpen={() => setShowSkillTarget(true)} onChange={(path) => { setSkillTargetPath(path); setSkillEngineVersion('C4_COMPOSER_SKILL_V1'); }}
                 onRemove={() => { setSkillTargetPath(null); setShowSkillTarget(false); }}
                 colors={colors} fontFamilies={fontFamilies}
               /> : null}
@@ -1609,7 +1661,7 @@ export default function WeekComposerV7() {
               <StageHeader
                 kicker="STRUCTURE"
                 title="Voici comment UGEROD construirait ta séance."
-                helper="La structure privilégie ton objectif. Échauffement et transitions sont compris dans la durée. Le Tabata abdos est inclus dans chaque nouvelle séance."
+                helper="Ton objectif guide le contenu et le dosage. Ajuste la structure si besoin. Échauffement et transitions sont compris dans la durée. Le Tabata abdos est inclus dans chaque nouvelle séance."
                 styles={styles}
               />
               <View style={styles.optionList}>
@@ -1757,11 +1809,11 @@ export default function WeekComposerV7() {
                       </View>
                     </View>
                   ))}
-                  {composerAddableBlocks(architecture).length ? (
+                  {composerAddableBlocks(architecture, environmentCode).length ? (
                     <View style={styles.structureAddRow}>
                       <Text style={styles.structureEditorHelp}>Ajouter un bloc</Text>
                       <View style={styles.structureAddActions}>
-                        {composerAddableBlocks(architecture).map((type) => (
+                        {composerAddableBlocks(architecture, environmentCode).map((type) => (
                           <Pressable
                             key={'add-' + type}
                             accessibilityRole="button"
@@ -1778,9 +1830,10 @@ export default function WeekComposerV7() {
                   <Text style={styles.structureEditorHelp}>
                     Même type de bloc plusieurs fois et Course dédiée : extension du Player et du contrat à venir.
                   </Text>
-                  {architectureEditError ? <Text style={styles.errorText}>{architectureEditError}</Text> : null}
+
                 </View>
               ) : null}
+              {architectureEditError ? <Text accessibilityRole="alert" style={styles.errorText}>{architectureEditError}</Text> : null}
               <PrimaryButton label={busy ? 'CHARGEMENT…' : 'CHOISIR LES MOUVEMENTS'} onPress={goToExercises} disabled={!architecture || busy} loading={busy} styles={styles} colors={colors} />
             </View>
           ) : null}
@@ -1864,18 +1917,19 @@ export default function WeekComposerV7() {
                     suggestedAlternative={exercise.warning
                       ? activeCandidates.find((candidate) => !activeSelected.includes(candidate.id)
                         && candidate.movementPattern !== exercise.movementPattern) : null}
-                    onOpenAlternatives={() => { setExerciseQuery(''); setSheet('exercise-picker'); }}
+                    onOpenAlternatives={() => openExercisePicker(exercise.id)}
                     styles={styles}
                     colors={colors}
                   />
                 ))}
               </View>
 
+              {activeBlock.type === 'CARDIO' ? <Pressable disabled={busy} onPress={refreshCardioProtocol} style={styles.structureLink}><Text style={styles.structureLinkText}>Actualiser le protocole cardio avec mon matériel</Text></Pressable> : null}
               {replacementCandidates.length > 0 ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Voir les autres exercices compatibles"
-                  onPress={() => { setExerciseQuery(''); setSheet('exercise-picker'); }}
+                  onPress={() => openExercisePicker()}
                   style={styles.exerciseChangeAction}
                 >
                   <Ionicons name="swap-horizontal-outline" size={20} color={colors.accent} />
@@ -2055,6 +2109,12 @@ export default function WeekComposerV7() {
         </View>
       </ScrollView>
 
+      <SheetShell visible={sheet === 'confirm-revision'} title="Mettre à jour cette séance ?" onClose={() => setSheet(null)} styles={styles} colors={colors}>
+        <Text style={styles.sheetHelp}>La version déjà générée n’a pas commencé. Elle sera conservée comme remplacée et le nouveau contenu sera généré au prochain lancement.</Text>
+        <Text style={styles.sheetHelp}>Actuellement : {composerArchitectureDisplayTitle(savedStructure, environmentCode)}</Text>
+        <Text style={styles.sheetHelp}>Nouveau : {composerArchitectureDisplayTitle(architecture, environmentCode)} · {duration} min</Text>
+        <PrimaryButton label="CONFIRMER LA MISE À JOUR" disabled={busy} onPress={() => addToWeek({ confirmReplacement: true })} styles={styles} colors={colors}/>
+      </SheetShell>
       <SheetShell visible={sheet === 'location'} title="Où tu t’entraînes ?" onClose={() => setSheet(null)} styles={styles} colors={colors}>
         <View style={styles.choiceGrid}>
           {ENVIRONMENTS.map((item) => (
@@ -2124,7 +2184,14 @@ export default function WeekComposerV7() {
         footer={<Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}><Text style={styles.sheetDoneButtonText}>Terminé</Text></Pressable>}
       >
         <Text style={styles.sheetHelp}>Tous restent filtrés par ton environnement, ton matériel et l’objectif de la séance.</Text>
-        {activeSelected.length >= maxForBlock(activeBlock?.type, activeBlock?.minutes) ? <Text style={styles.sheetNotice}>Le bloc est complet : choisir un autre mouvement remplacera le dernier sélectionné.</Text> : null}
+        {activeSelected.length >= maxForBlock(activeBlock?.type, activeBlock?.minutes) ? <Text style={styles.sheetNotice}>Le bloc est complet : choisis le mouvement à remplacer ci-dessous.</Text> : null}
+        {activeSelected.length >= maxForBlock(activeBlock?.type, activeBlock?.minutes) ? <View style={{ gap: 8 }}>
+          {selectedCandidateObjects.map((row) => <Pressable key={row.id} onPress={() => setReplacementId(row.id)} style={styles.extraExerciseRow}><Text style={styles.extraExerciseName}>{replacementId === row.id ? '✓ ' : ''}Remplacer {row.name}</Text></Pressable>)}
+        </View> : null}
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: favoritesOnly }} onPress={() => setFavoritesOnly(!favoritesOnly)} style={styles.extraExerciseRow}><Text style={styles.extraExerciseName}>{favoritesOnly ? '✓ ' : ''}Mes favoris</Text></Pressable>
+        <ExerciseCatalogueControls rows={activeCandidates} colors={colors}
+          filters={{ region: exerciseRegion, family: exerciseFamily, focus: exerciseFocus }}
+          onChange={(filters) => { setExerciseRegion(filters.region ?? ''); setExerciseFamily(filters.family ?? ''); setExerciseFocus(filters.focus ?? ''); }} />
         <TextInput
           value={exerciseQuery}
           onChangeText={setExerciseQuery}
@@ -2139,7 +2206,7 @@ export default function WeekComposerV7() {
           {filteredExtraCandidates.map((exercise) => {
             const selected = activeSelected.includes(exercise.id);
             return (
-              <Pressable key={exercise.id} onPress={() => chooseExercise(activeBlock.type, exercise.id)} style={[styles.extraExerciseRow, selected && styles.extraExerciseRowSelected]}>
+              <Pressable key={exercise.id} disabled={activeSelected.length >= maxForBlock(activeBlock.type, activeBlock.minutes) && !replacementId} onPress={() => chooseExercise(activeBlock.type, exercise.id)} style={[styles.extraExerciseRow, selected && styles.extraExerciseRowSelected]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.extraExerciseName}>{exercise.name}</Text>
                   <Text style={styles.extraExerciseMeta}>{[regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ')}</Text>

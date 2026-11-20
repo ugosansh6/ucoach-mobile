@@ -16,3 +16,13 @@ export function toggleComposerExercise(selected, id, limit) {
   // one movement must preserve every other explicit selection, in order.
   return [...selected.slice(0, -1), id];
 }
+
+// Replacement is always addressed to a visible slot, never inferred as "last".
+export function chooseComposerExercise(selected, id, limit, replacingId = null) {
+  if (replacingId) {
+    if (!selected.includes(replacingId) || selected.includes(id)) return selected;
+    return selected.map((value) => value === replacingId ? id : value);
+  }
+  if (selected.includes(id)) return selected.filter((value) => value !== id);
+  return selected.length < limit ? [...selected, id] : selected;
+}

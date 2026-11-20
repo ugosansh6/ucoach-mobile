@@ -9,6 +9,7 @@ import {
 import {
   recordSessionExecutionEventQuietly,
 } from '../services/observationService';
+import useComposerPlayerPersistence from '../hooks/useComposerPlayerPersistence';
 
 const WorkoutContext = createContext(null);
 
@@ -522,7 +523,7 @@ export function WorkoutProvider({ children }) {
               generatedWorkout?.wodRevealed
             ),
           wodRuntime:
-            current.wodRuntime,
+            generatedWorkout?.composerPlayerProgress?.rebased ? generatedWorkout.wodRuntime : current.wodRuntime,
           executionEvents:
             current.executionEvents,
           sessionStarted:
@@ -583,6 +584,8 @@ export function WorkoutProvider({ children }) {
         };
       });
     }, []);
+
+  useComposerPlayerPersistence(workout, updateWorkout);
 
   const updateExercise =
     useCallback((exerciseId, values) => {

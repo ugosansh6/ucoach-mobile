@@ -81,6 +81,7 @@ export default function GeneratingThemedScreen() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [composerRepair, setComposerRepair] = useState(null);
   const [control, setControl] = useState(null);
   const [activeStep, setActiveStep] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -146,6 +147,7 @@ export default function GeneratingThemedScreen() {
       busyRef.current = true;
       setBusy(true);
       setError('');
+      setComposerRepair(null);
       setControl(null);
       setActiveStep(0);
       setElapsedSeconds(0);
@@ -169,6 +171,9 @@ export default function GeneratingThemedScreen() {
             });
         applyGenerationResult(nextWorkout);
       } catch (generationError) {
+        if (composerPlanItemId && generationError?.code === 'COMPOSER_NEEDS_RECOMPOSITION') {
+          setComposerRepair({ blockType: generationError.blockType ?? '', reason: generationError.reason ?? '' });
+        }
         setError(generationError?.message ?? `Impossible de générer la séance ${label.toLowerCase()}.`);
       } finally {
         busyRef.current = false;
@@ -332,6 +337,13 @@ export default function GeneratingThemedScreen() {
                   ? 'VOIR LA SÉANCE EXISTANTE'
                   : 'REPRENDRE LA SÉANCE'}
               </Text>
+            </Pressable>
+          ) : error && composerRepair ? (
+            <Pressable onPress={() => router.replace({ pathname: '/workout/preparation', params: {
+              entry: 'week_assisted', date: composerLocalDate, planItemId: composerPlanItemId,
+              repair: 'confirmed', repairBlock: composerRepair.blockType,
+            } })} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>AJUSTER MA SÉANCE</Text>
             </Pressable>
           ) : error && !missingOutdoorContext ? (
             <Pressable onPress={() => generate()} disabled={busy} style={styles.primaryButton}>

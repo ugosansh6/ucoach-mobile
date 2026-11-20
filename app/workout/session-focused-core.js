@@ -1,3 +1,4 @@
+import { restoreRunningClock } from '../../src/utils/composerPlayerProgress';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -1102,10 +1103,13 @@ export function FocusedTabata({
   block,
   onBeforeStart,
   onFinish,
+  initialRuntime = null,
+  onRuntimeChange,
   executionEnabled = true,
   styles,
   colors,
 }) {
+  const resumedRuntime = useRef(restoreRunningClock(initialRuntime, initialRuntime?.sampledAt)).current;
   const protocol = prescriptionObject(block?.exercises?.[0])?.protocol ?? {};
   const rounds = Math.max(1, Number(block?.source?.rounds ?? protocol?.rounds ?? 8) || 8);
   const workSeconds = Math.max(1, Number(block?.source?.workSeconds ?? block?.source?.work_seconds ?? protocol?.work_seconds ?? 20) || 20);
@@ -1114,19 +1118,26 @@ export function FocusedTabata({
   const totalSeconds = rounds * cycleSeconds;
   const exerciseCount = Math.max(1, block?.exercises?.length ?? 0);
 
-  const [started, setStarted] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [displayExerciseIndex, setDisplayExerciseIndex] = useState(0);
+  const [started, setStarted] = useState(Boolean(resumedRuntime?.started));
+  const [paused, setPaused] = useState(Boolean(resumedRuntime?.paused));
+  const [elapsed, setElapsed] = useState(Number(resumedRuntime?.elapsedSeconds ?? 0));
+  const [displayExerciseIndex, setDisplayExerciseIndex] = useState(Number(resumedRuntime?.displayExerciseIndex ?? 0));
+
+  useEffect(() => {
+    onRuntimeChange?.({ started, paused, elapsedSeconds: elapsed, totalSeconds, displayExerciseIndex, finished: elapsed >= totalSeconds });
+  }, [started, paused, elapsed, totalSeconds, displayExerciseIndex, onRuntimeChange]);
 
   useEffect(() => {
     if (!executionEnabled || !started || paused || elapsed >= totalSeconds) {
       return undefined;
     }
-    const timer = setInterval(
-      () => setElapsed((current) => Math.min(totalSeconds, current + 1)),
-      1000
-    );
+    let lastTickAt = Date.now();
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.max(1, Math.floor((now - lastTickAt) / 1000));
+      lastTickAt = now;
+      setElapsed((current) => Math.min(totalSeconds, current + delta));
+    }, 1000);
     return () => clearInterval(timer);
   }, [elapsed, executionEnabled, paused, started, totalSeconds]);
 

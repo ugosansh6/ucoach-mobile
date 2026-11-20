@@ -138,7 +138,7 @@ check('Structure cards directly explain Skill versus Strength', () => {
   const strengthCopy = composerArchitecturePurpose(strength);
   assert.match(skillCopy, /Skill/);
   assert.match(skillCopy, /maîtrise/);
-  assert.match(strengthCopy, /Force et muscles/);
+  assert.match(strengthCopy, /Renforcement/);
   assert.match(strengthCopy, /répétitions/);
 });
 

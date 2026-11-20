@@ -1,3 +1,4 @@
+import { checkpointComposerPlayerProgress } from '../../services/composerPlayerProgressService';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -95,6 +96,7 @@ export default function SessionFormatSheet({
       setChanging(option.option_id ?? option.mechanic);
       setError('');
 
+      await checkpointComposerPlayerProgress(workout);
       const result = await changeWorkoutFormat({
         sessionId: workout.sessionId,
         mechanic: option.mechanic,
@@ -102,6 +104,7 @@ export default function SessionFormatSheet({
       });
 
       const refreshed = await reloadWorkoutSession({
+        confirmComposerProgressRebase: true,
         sessionId: workout.sessionId,
         preparationSnapshot:
           workout?.preparationSnapshot ?? null,

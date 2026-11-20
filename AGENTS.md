@@ -38,7 +38,7 @@ Ces responsabilités ne désignent pas plusieurs personnes ou plusieurs agents i
 
 1. Lire [UGEROD.md](UGEROD.md), puis le ticket concerné dans son état actuel. Les anciennes conversations et documents de reprise servent d'archives.
 2. Vérifier la branche distante `ux-navigation-coach-v1`, sa tête, les changements locaux et les travaux en cours. `main` n'est pas la référence de développement actuelle.
-   Instruction explicite d'Ugo du 20/11/2026 : poursuivre sur cette branche habituelle, sans créer de nouvelle branche de développement. Pour le rapatriement du lot Composer courant, le parcours guidé incomplet reste techniquement désactivé pour les nouvelles créations jusqu'au raccord du Player ; ce garde de livraison n'est pas une nouvelle règle produit. Vérifier le déclenchement automatique de la publication web avant envoi.
+   Instruction explicite d'Ugo du 20/11/2026 : poursuivre sur cette branche habituelle, sans créer de nouvelle branche de développement. Le garde temporaire du rapatriement a été levé dans le lot suivant du 20/11 après raccord des producteurs, du Player et de la sauvegarde/reprise ; le statut de recette et les réserves restent dans #29 et #38. Vérifier le déclenchement automatique de la publication web avant envoi.
 3. Lire les contrats et les fichiers/fonctions effectivement concernés. Séparer comportement attendu, comportement observé et hypothèse ; ne pas transformer un ancien compte rendu en preuve actuelle.
 4. Donner un bref constat et poursuivre la demande autorisée. Demander un arbitrage produit manquant, l'accord d'inscription ou de clôture du ticket défini ci-dessous, ou signaler un accès réellement bloquant.
 

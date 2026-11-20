@@ -198,6 +198,7 @@ export function composerBlockDisplayLabel(type, environmentCode = 'BOX') {
   }
   if (type === 'SKILL') return 'Skill';
   if (type === 'WOD') return 'WOD';
+  if (type === 'CARDIO') return 'Cardio';
   return String(type ?? '');
 }
 
@@ -218,42 +219,20 @@ export function composerIntentBlockType(intentKey) {
       : key.includes('CONDITIONING') || key.includes('ENDURANCE') ? 'WOD' : null;
 }
 
-// Reuse #29's existing majority-of-main-time contract. This classifies the
-// proposals for presentation; it neither scores training nor edits a draft.
+// Orientation is a prescription preference, independent from block labels.
 export function composerArchitectureMatchesIntent(option, intentKey) {
-  const expected = composerIntentBlockType(intentKey);
-  if (!expected) return true;
-  const main = (option?.blocks ?? []).filter((b) => !['WARMUP', 'TABATA'].includes(b.type));
-  const total = main.reduce((sum, b) => sum + Number(b.minutes || 0), 0);
-  const dominant = main.filter((b) => b.type === expected)
-    .reduce((sum, b) => sum + Number(b.minutes || 0), 0);
-  return total > 0 && dominant >= total / 2;
+  // Orientation influences prescriptions, never a required majority of block labels.
+  return (option?.blocks ?? []).some((b) => ['SKILL', 'STRENGTH', 'WOD', 'CARDIO'].includes(b.type));
 }
 
 export function composerArchitecturePurpose(option, intentKey, environmentCode = 'BOX') {
-  const main = (option?.blocks ?? []).filter((b) => !['WARMUP', 'TABATA'].includes(b.type));
-  const expected = composerIntentBlockType(intentKey);
-  if (expected && !composerArchitectureMatchesIntent(option, intentKey)) {
-    return 'Structure libre : la priorité change par rapport à ton objectif. Le choix reste possible.';
-  }
-  if (expected) {
-    const labels = { STRENGTH: 'la force', SKILL: 'la technique', WOD: 'le conditioning' };
-    const block = main.find((b) => b.type === expected);
-    const other = main.filter((b) => b.type !== expected)
-      .map((b) => `${composerBlockDisplayLabel(b.type, environmentCode)} · ${b.minutes} min`);
-    return `Priorité à ${labels[expected]} : ${block.minutes} min dédiées.`
-      + (other.length ? ` En complément : ${other.join(', ')}.`
-        : expected === 'WOD' ? ' Le format et le dosage seront précisés ensuite.'
-          : ' Séries et récupérations précisées après le choix des mouvements.');
-  }
-  // A block label or its duration alone cannot establish a physiological goal.
   const descriptions = {
-    SKILL: 'Skill : travailler la maîtrise et progresser sur quelques mouvements.',
-    STRENGTH: 'Force et muscles : séries, répétitions et récupération.',
-    WOD: 'WOD : le format choisi précisera l’effort et les récupérations.',
+    SKILL: 'Skill : maîtrise ou force sur quelques mouvements.',
+    STRENGTH: 'Renforcement : séries, répétitions et récupérations.',
+    WOD: 'WOD : effort organisé selon la mécanique choisie.',
+    CARDIO: 'Cardio : protocole dédié, distinct du WOD.',
   };
-  return main.map((b) => descriptions[b.type]).filter(Boolean).join(' ')
-    || 'Personnalise les blocs de ta séance.';
+  return (option?.blocks ?? []).map((b) => descriptions[b.type]).filter(Boolean).join(' ');
 }
 
 /**
@@ -271,6 +250,7 @@ export function composerExerciseSlotLimit(blockType, blockMinutes = 0) {
   if (blockType === 'TABATA') return 2;
   if (blockType === 'WOD') return 3;
   if (blockType === 'SKILL') return 3;
+  if (blockType === 'CARDIO') return 2;
   if (blockType === 'STRENGTH') {
     // Eight is the existing Composer draft/compiler payload safety limit,
     // NOT an exercise recommendation. Count/sets/rest are owned by C2/C4.
@@ -288,8 +268,8 @@ function block(type, minutes, label = null) {
 }
 
 /**
- * A new Composer proposal is led by the athlete's INTENT, not merely sorted
- * from intent-independent structures. C2/C4 remain authoritative for actual
+ * Historical local proposal helper, retained for legacy contracts.
+ * New guided proposals use week_composer_architectures_v1 with shared C4 targets. C2/C4 remain authoritative for actual
  * movements, prescriptions, mechanics and day-J feasibility.
  *
  * New proposals contain protected Warm-up and Tabata (4 min).
@@ -664,14 +644,15 @@ export async function getComposerPrescriptionPreview({ draft, equipmentNames = [
   );
 }
 
-export async function saveComposerDraft({ planItemId, draft }) {
+export async function saveComposerDraft({ planItemId, draft, context = null, confirmReplacement = false }) {
   if (!planItemId) throw new Error('planItemId is required to save composer draft.');
   const user = await getAuthenticatedUserWithRetry();
   return runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc('week_save_composer_draft_v1', {
+    supabase.rpc('week_save_composer_revision_v1', {
       p_user_id: user.id,
       p_plan_item_id: planItemId,
       p_draft: draft ?? {},
+      p_context: context, p_confirm_replacement: confirmReplacement,
     })
   );
 }
@@ -701,4 +682,25 @@ export async function getComposerForLocalDate(dateKey) {
     preferences: readComposerPreferences(data.composer_draft ?? {}),
     futureContext: data.future_context ?? {},
   };
+}
+
+export async function getComposerArchitectureProposal({ durationMinutes, environmentCode }) {
+  await getAuthenticatedUserWithRetry();
+  return runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_architectures_v1', {
+    p_duration: Number(durationMinutes), p_environment: environmentCode,
+  }));
+}
+
+export async function getComposerCardioProposal(context) {
+  const user = await getAuthenticatedUserWithRetry();
+  const result = await runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_cardio_authority_v1', {
+    p_user_id: user.id, p_context: { ...context, propose: true },
+  }));
+  if (result?.status !== 'READY') throw new Error(result?.reason === 'CARDIO_EQUIPMENT_REQUIRED'
+    ? 'Ajoute une machine cardio disponible dans ton matériel, ou retire le bloc Cardio.'
+    : 'Le cardio doit être recalculé avec ton matériel actuel.');
+  return (result.block.exercises ?? []).map((e) => ({ id: e.exercise_id, name: e.name,
+    prescriptionJson: e.prescription, trackingModes: e.prescription?.tracking_modes ?? [],
+    bodyRegion: null, movementPattern: 'Cardio', trainingFocus: 'Conditioning', equipmentNames: [],
+  }));
 }

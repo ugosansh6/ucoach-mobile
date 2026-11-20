@@ -28,8 +28,8 @@ async function main(){
   const release=fs.readFileSync('src/utils/composerReleasePolicy.js','utf8')
     .replaceAll('export const ','const ').replaceAll('export function ','function ');
   const policy=new Function(release+'\nreturn {composerInitialSkillEngineVersion,composerGuidedPreferencesEnabled};')();
-  assert.equal(policy.composerInitialSkillEngineVersion(),null,'New published drafts must stay on the legacy execution contract');
-  assert.equal(policy.composerGuidedPreferencesEnabled(),false);
+  assert.equal(policy.composerInitialSkillEngineVersion(),'C4_COMPOSER_SKILL_V1','New drafts use the connected execution contract');
+  assert.equal(policy.composerGuidedPreferencesEnabled(),true);
   assert.equal(policy.composerInitialSkillEngineVersion(true),'C4_COMPOSER_SKILL_V1');
   assert.equal(policy.composerGuidedPreferencesEnabled({},true),true);
   assert.equal(policy.composerGuidedPreferencesEnabled({skillEngineVersion:'C4_COMPOSER_SKILL_V1'}),true,'Never downgrade an already authored contract');

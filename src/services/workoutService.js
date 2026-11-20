@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { getCurrentPrimaryGoal } from './goalsService';
 import { composerSessionPreferences } from '../utils/composerPreferences';
+import { hydrateComposerPlayerProgress, isComposerWorkout } from '../utils/composerPlayerProgress';
+import { loadComposerPlayerProgress, flushComposerPlayerProgress } from './composerPlayerProgressService';
 
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -1978,6 +1980,7 @@ export async function getWorkoutFormatOptions(sessionId) {
 export async function reloadWorkoutSession({
   sessionId,
   preparationSnapshot = null,
+  confirmComposerProgressRebase = false,
 }) {
   if (!sessionId) {
     throw new Error(
@@ -2024,10 +2027,13 @@ export async function reloadWorkoutSession({
       preparationSnapshot ?? {}
     );
 
-  const enriched =
+  let enriched =
     await enrichWorkoutExerciseMetadata(
       mappedWorkout
     );
+  if (isComposerWorkout(enriched)) {
+    enriched = hydrateComposerPlayerProgress(enriched, await loadComposerPlayerProgress(sessionId, confirmComposerProgressRebase));
+  }
   const formatChangeCount =
     Number(data?.format_change_count ?? 0);
   const formatChangeLimit = 3;
@@ -2191,6 +2197,7 @@ export async function completeWorkoutSession({
   }
 
   const lifecycle = await getWorkoutSessionLifecycle(sessionId);
+  await flushComposerPlayerProgress(sessionId);
 
   if (!lifecycle?.sessionStarted) {
     throw new Error(

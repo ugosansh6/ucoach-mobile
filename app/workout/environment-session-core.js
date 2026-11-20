@@ -1,3 +1,4 @@
+import { restoreRunningClock, isComposerWorkout } from '../../src/utils/composerPlayerProgress';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -15,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { spacing } from '../../src/constants';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
+import ComposerSkillPlayer from '../../src/components/workout/ComposerSkillPlayer';
+import { flushComposerPlayerProgress } from '../../src/services/composerPlayerProgressService';
 import EnvironmentWodBlock from '../../src/components/workout/EnvironmentWodBlock';
 import { isUserComposedSession, shouldShowWodContent } from '../../src/utils/sessionWodVisibility';
 import { FocusedTabata, createStyles as createFocusedSessionStyles } from './session-focused-core';
@@ -289,30 +292,15 @@ function initialSetDrafts(exercises, block) {
     const existing = exercise?.performanceActualJson?.gym_sets;
     const setCount = getSetCount(exercise, block);
     const defaultReps = prescribedReps(exercise);
-    const defaultLoad = prescribedLoad(exercise);
-
-    if (Array.isArray(existing) && existing.length > 0) {
-      next[key] = {
-        reps:
-          existing.find((set) => set?.reps != null)?.reps != null
-            ? String(existing.find((set) => set?.reps != null).reps)
-            : defaultReps,
-        sets: existing.map((set, index) => ({
-          setIndex: positiveInt(set?.set_index, index + 1),
-          load: set?.load_kg != null ? String(set.load_kg) : defaultLoad,
-          done: set?.status === 'completed' || set?.completed === true,
-        })),
-      };
-      continue;
-    }
-
     next[key] = {
-      reps: defaultReps,
-      sets: Array.from({ length: setCount }, (_, index) => ({
-        setIndex: index + 1,
-        load: defaultLoad,
-        done: false,
-      })),
+      prescriptionKey: JSON.stringify(exercise.prescriptionJson ?? {}),
+      reps: existing?.find?.((row) => row.reps != null)?.reps != null
+        ? String(existing.find((row) => row.reps != null).reps) : defaultReps,
+      sets: Array.from({ length: setCount }, (_, index) => {
+        const row = existing?.find?.((value) => Number(value.set_index) === index + 1);
+        return { setIndex: index + 1, load: row?.load_kg != null ? String(row.load_kg) : '',
+          done: row?.status === 'completed' || row?.completed === true };
+      }),
     };
   }
 
@@ -326,6 +314,7 @@ function SimpleBlock({
   onExerciseComplete,
   onExerciseRefuse,
   onActiveExerciseChange,
+  initialExerciseIndex = 0,
   executionEnabled = true,
 }) {
   const { colors: themeColors, isDark } = useUgerodTheme();
@@ -333,7 +322,7 @@ function SimpleBlock({
     () => createEnvironmentFocusedStyles(themeColors, isDark),
     [themeColors, isDark]
   );
-  const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [exerciseIndex, setExerciseIndex] = useState(() => Math.min(Math.max(0, initialExerciseIndex), Math.max(0, exercises.length - 1)));
   const [detailsOpen, setDetailsOpen] = useState(false);
   const exercise = exercises[exerciseIndex] ?? exercises[0] ?? null;
   const cue = shortCue(exercise);
@@ -541,6 +530,9 @@ function StrengthBlock({
   drafts,
   setDrafts,
   onComplete,
+  onPartial,
+  restRuntime,
+  onRestChange,
   onExerciseRefuse,
   onActiveExerciseChange,
   executionEnabled = true,
@@ -550,6 +542,9 @@ function StrengthBlock({
     () => createGymStyles(themeColors, isDark),
     [themeColors, isDark]
   );
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 500); return () => clearInterval(timer); }, []);
+  const restRemaining = Math.max(0, Math.ceil(((restRuntime?.until ?? 0) - clock) / 1000));
   const mechanic = blockMechanic(block);
   const isCircuit = mechanic === 'CIRCUIT';
   const [activeKey, setActiveKey] = useState(() => exerciseKey(exercises?.[0]) ?? null);
@@ -607,12 +602,16 @@ function StrengthBlock({
   function toggleSet(exercise, setIndex) {
     if (!executionEnabled) return;
     const key = exerciseKey(exercise);
+    const completed = !drafts[key]?.sets?.[setIndex]?.done;
+    const p = exercise.prescriptionJson ?? {};
+    const rest = Number(p.rest_between_sets_seconds ?? p.rest_seconds ?? blockParameters(block).rest_seconds ?? 0);
+    if (completed && rest > 0) onRestChange?.({ until: Date.now() + rest * 1000, sessionExerciseId: key, seconds: rest });
     setDrafts((current) => ({
       ...current,
       [key]: {
         ...(current[key] ?? { reps: '', sets: [] }),
         sets: (current[key]?.sets ?? []).map((row, index) =>
-          index === setIndex ? { ...row, done: !row.done } : row
+          index === setIndex ? { ...row, done: !row.done, reps: row.done ? null : optionalNumber(current[key]?.reps) } : row
         ),
       },
     }));
@@ -650,6 +649,7 @@ function StrengthBlock({
 
   return (
     <>
+      {restRemaining > 0 ? <View style={{ padding: 16, gap: 10 }}><Text style={{ color: themeColors.text, fontSize: 24 }}>Récupération · {restRemaining} s</Text><Pressable onPress={() => onRestChange?.({ ...restRuntime, until: null, shortened: true })}><Text style={{ color: themeColors.accent }}>Écourter le repos</Text></Pressable></View> : null}
       {exercises.map((exercise, exerciseIndex) => {
         const key = exerciseKey(exercise);
         const draft = drafts[key] ?? { reps: '', sets: [] };
@@ -901,6 +901,7 @@ function StrengthBlock({
         <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
         <Text style={gymStyles.primaryButtonText}>VALIDER LE BLOC</Text>
       </Pressable>
+      <Pressable disabled={!executionEnabled} onPress={() => Alert.alert('Arrêter le renforcement ?', 'Seules les séries cochées seront conservées.', [{ text: 'Continuer', style: 'cancel' }, { text: 'Arrêter', onPress: onPartial }])} style={gymStyles.secondaryButton}><Text style={{ color: themeColors.text }}>Arrêter ce bloc ici</Text></Pressable>
     </>
   );
 }
@@ -1163,8 +1164,11 @@ function GymCardioBlock({
   exercises,
   onBeforeStart,
   onComplete,
+  initialRuntime = null,
+  onRuntimeChange,
   executionEnabled = true,
 }) {
+  const resumedRuntime = useRef(restoreRunningClock(initialRuntime, initialRuntime?.sampledAt)).current;
   const { colors: themeColors, isDark } = useUgerodTheme();
   const cardioStyles = useMemo(
     () => createGymCardioStyles(themeColors, isDark),
@@ -1219,28 +1223,34 @@ function GymCardioBlock({
 
   const initialElapsed = positiveInt(machineExercise?.durationSeconds, 0);
   const initialActual = machineExercise?.performanceActualJson ?? {};
-  const [started, setStarted] = useState(initialElapsed > 0);
-  const [paused, setPaused] = useState(false);
-  const [reviewing, setReviewing] = useState(false);
-  const [elapsed, setElapsed] = useState(initialElapsed);
+  const [started, setStarted] = useState(resumedRuntime?.started ?? initialElapsed > 0);
+  const [paused, setPaused] = useState(Boolean(resumedRuntime?.paused));
+  const [reviewing, setReviewing] = useState(Boolean(resumedRuntime?.reviewing));
+  const [elapsed, setElapsed] = useState(Number(resumedRuntime?.elapsedSeconds ?? initialElapsed));
   const [distance, setDistance] = useState(
-    machineExercise?.distanceMeters != null
+    resumedRuntime?.distance ?? (machineExercise?.distanceMeters != null
       ? String(machineExercise.distanceMeters)
       : initialActual?.distance_meters != null
         ? String(initialActual.distance_meters)
-        : ''
+        : '')
   );
   const [calories, setCalories] = useState(
-    initialActual?.calories != null ? String(initialActual.calories) : ''
+    resumedRuntime?.calories ?? (initialActual?.calories != null ? String(initialActual.calories) : '')
   );
+
+  useEffect(() => { onRuntimeChange?.({ started, paused: paused || reviewing, reviewing, elapsedSeconds: elapsed, totalSeconds, distance, calories }); }, [started, paused, reviewing, elapsed, totalSeconds, distance, calories, onRuntimeChange]);
 
   useEffect(() => {
     if (!executionEnabled || !started || paused || reviewing || elapsed >= totalSeconds) {
       return undefined;
     }
 
+    let lastTickAt = Date.now();
     const timer = setInterval(() => {
-      setElapsed((current) => Math.min(totalSeconds, current + 1));
+      const now = Date.now();
+      const delta = Math.max(1, Math.floor((now - lastTickAt) / 1000));
+      lastTickAt = now;
+      setElapsed((current) => Math.min(totalSeconds, current + delta));
     }, 1000);
 
     return () => clearInterval(timer);
@@ -1578,8 +1588,11 @@ function TimedBlock({
   environmentCode,
   onBeforeStart,
   onComplete,
+  initialRuntime = null,
+  onRuntimeChange,
   executionEnabled = true,
 }) {
+  const resumedRuntime = useRef(restoreRunningClock(initialRuntime, initialRuntime?.sampledAt)).current;
   const { colors: themeColors, isDark } = useUgerodTheme();
   const runStyles = useMemo(
     () => createOutdoorRunStyles(themeColors, isDark),
@@ -1605,18 +1618,24 @@ function TimedBlock({
   const repeats = Math.max(1, positiveInt(params?.repeats, 1));
 
   const initialElapsed = positiveInt(exercise?.durationSeconds, 0);
-  const [started, setStarted] = useState(initialElapsed > 0);
-  const [paused, setPaused] = useState(false);
-  const [elapsed, setElapsed] = useState(initialElapsed);
-  const [distance, setDistance] = useState(exercise?.distanceMeters != null ? String(exercise.distanceMeters) : '');
-  const [rpe, setRpe] = useState(exercise?.rpe != null ? String(exercise.rpe) : '');
+  const [started, setStarted] = useState(resumedRuntime?.started ?? initialElapsed > 0);
+  const [paused, setPaused] = useState(Boolean(resumedRuntime?.paused));
+  const [elapsed, setElapsed] = useState(Number(resumedRuntime?.elapsedSeconds ?? initialElapsed));
+  const [distance, setDistance] = useState(resumedRuntime?.distance ?? (exercise?.distanceMeters != null ? String(exercise.distanceMeters) : ''));
+  const [rpe, setRpe] = useState(resumedRuntime?.rpe ?? (exercise?.rpe != null ? String(exercise.rpe) : ''));
+
+  useEffect(() => { onRuntimeChange?.({ started, paused, elapsedSeconds: elapsed, totalSeconds: prescribedSeconds, distance, rpe }); }, [started, paused, elapsed, prescribedSeconds, distance, rpe, onRuntimeChange]);
 
   useEffect(() => {
     if (!executionEnabled || !started || paused || elapsed >= prescribedSeconds) {
       return undefined;
     }
+    let lastTickAt = Date.now();
     const timer = setInterval(() => {
-      setElapsed((current) => Math.min(prescribedSeconds, current + 1));
+      const now = Date.now();
+      const delta = Math.max(1, Math.floor((now - lastTickAt) / 1000));
+      lastTickAt = now;
+      setElapsed((current) => Math.min(prescribedSeconds, current + delta));
     }, 1000);
     return () => clearInterval(timer);
   }, [elapsed, executionEnabled, paused, prescribedSeconds, started]);
@@ -1980,6 +1999,7 @@ export default function EnvironmentSessionCore({
     () => createFocusedSessionStyles(themeColors, isDark),
     [themeColors, isDark]
   );
+  const executionAllowed = sessionStarted && !workout.sessionClosed && !['completed','abandoned'].includes(workout.status);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [formatOpen, setFormatOpen] = useState(false);
   const wodStartPromise = useRef(null);
@@ -2006,7 +2026,7 @@ export default function EnvironmentSessionCore({
     [currentKey, workout.exercises]
   );
 
-  const [setDrafts, setSetDrafts] = useState({});
+  const [setDrafts, setSetDrafts] = useState(() => workout.strengthDrafts ?? {});
 
   const setActiveEnvironmentExercise = useCallback(
     (exercise, exerciseIndex = 0) => {
@@ -2054,6 +2074,8 @@ export default function EnvironmentSessionCore({
   useEffect(() => {
     const firstExercise = currentExercises?.[0] ?? null;
     if (!firstExercise) return;
+    const saved = workout?.playerCursor;
+    if (saved?.blockId === currentKey) return;
     setActiveEnvironmentExercise(firstExercise, 0);
   }, [currentKey, currentExercises, setActiveEnvironmentExercise]);
 
@@ -2085,7 +2107,7 @@ export default function EnvironmentSessionCore({
               exercise?.session_exercise_id ??
               null);
 
-        if (existing && (hasRealizedSet || isActive)) {
+        if (existing && (existing.prescriptionKey === baseline[key]?.prescriptionKey || (!existing.prescriptionKey && (hasRealizedSet || isActive)))) {
           next[key] = existing;
         }
       }
@@ -2115,6 +2137,7 @@ export default function EnvironmentSessionCore({
       .filter(Boolean);
 
     updateWorkout({
+      strengthDrafts: setDrafts,
       environmentPartialProgress: {
         blockId: currentKey,
         sessionExerciseIds: partialSessionExerciseIds,
@@ -2141,10 +2164,11 @@ export default function EnvironmentSessionCore({
     if (!lifecycleReady) {
       throw new Error('Vérification de la séance en cours. Réessaie dans un instant.');
     }
+    if (workout.sessionClosed || ['completed','abandoned'].includes(workout.status)) throw new Error('Cette séance est terminée. Ses résultats sont conservés.');
     if (sessionStarted) return { status: 'IN_PROGRESS' };
 
     throw new Error('Démarre d’abord la séance avec le bouton « Démarrer ma séance ».');
-  }, [lifecycleReady, sessionStarted, workout?.sessionId]);
+  }, [lifecycleReady, sessionStarted, workout?.sessionId, workout?.sessionClosed, workout?.status]);
 
   const wodRevealed = Boolean(
     lifecycleReady &&
@@ -2270,11 +2294,19 @@ export default function EnvironmentSessionCore({
     workout?.wodStartedAt,
   ]);
 
+  const timedRuntimesRef = useRef(workout.timedRuntimes ?? {});
+  timedRuntimesRef.current = workout.timedRuntimes ?? {};
+  const handleTimedRuntimeChange = useCallback((runtime) => updateWorkout({
+    timedRuntimes: { ...timedRuntimesRef.current, [currentKey]: { ...runtime, sampledAt: Date.now() } },
+  }), [updateWorkout, currentKey]);
+
+  const handleTabataRuntimeChange = useCallback((tabataRuntime) => updateWorkout({ tabataRuntime: { ...tabataRuntime, sampledAt: Date.now() } }), [updateWorkout]);
+
   const handleWodRuntimeChange = useCallback((runtime) => {
     if (runtime?.started) {
       wodStartedRef.current = true;
     }
-    updateWorkout({ wodRuntime: runtime });
+    updateWorkout({ wodRuntime: { ...runtime, sampledAt: Date.now() } });
   }, [updateWorkout]);
 
   function writeExerciseUpdates(updatesByKey) {
@@ -2309,7 +2341,7 @@ export default function EnvironmentSessionCore({
     if (!exercise) return;
     if (currentKey === 'warm_up' || currentKey === 'warmup') {
       const round = workout?.warmupRuntime?.sessionId === workout?.sessionId ? Number(workout.warmupRuntime.round ?? 1) : 1;
-      const rounds = Math.max(3, Number(currentBlock?.warmup_rounds) || 3);
+      const rounds = Math.max(1, Number(currentBlock?.warmup_rounds) || 3);
       if (round < rounds) return;
     }
 
@@ -2340,9 +2372,9 @@ export default function EnvironmentSessionCore({
   function completeSimpleBlock(terminalExercise = null, terminalStatus = 'completed') {
     if (currentKey === 'warm_up' || currentKey === 'warmup') {
       const round = workout?.warmupRuntime?.sessionId === workout?.sessionId ? Number(workout.warmupRuntime.round ?? 1) : 1;
-      const rounds = Math.max(3, Number(currentBlock?.warmup_rounds) || 3);
+      const rounds = Math.max(1, Number(currentBlock?.warmup_rounds) || 3);
       if (round < rounds) {
-        updateWorkout({ warmupRuntime: { sessionId: workout.sessionId, round: round + 1 } });
+        updateWorkout({ warmupRuntime: { sessionId: workout.sessionId, round: round + 1 }, playerCursor: { ...workout.playerCursor, exerciseIndex: 0 } });
         return;
       }
     }
@@ -2378,7 +2410,7 @@ export default function EnvironmentSessionCore({
     advanceWithUpdates(updates);
   }
 
-  function completeStrengthBlock() {
+  function completeStrengthBlock(partial = false) {
     const updates = {};
 
     for (const exercise of currentExercises) {
@@ -2414,7 +2446,7 @@ export default function EnvironmentSessionCore({
         ? optionalNumber(draft.reps)
         : null;
 
-      if (repsEnabled && reps == null) {
+      if (repsEnabled && reps == null && rows.some((row) => row.done)) {
         Alert.alert(
           'Répétitions manquantes',
           `Renseigne le nombre de répétitions prévu pour toutes les séries de ${exercise.name}.`
@@ -2424,7 +2456,7 @@ export default function EnvironmentSessionCore({
 
       const completedRows = rows.filter((row) => row.done);
 
-      if (completedRows.length !== rows.length) {
+      if (!partial && completedRows.length !== rows.length) {
         Alert.alert(
           'Séries restantes',
           `Valide les ${rows.length - completedRows.length} série(s) restante(s) de ${exercise.name} avant de terminer le bloc.`
@@ -2435,18 +2467,20 @@ export default function EnvironmentSessionCore({
       const gymSets = completedRows.map((row) => ({
         set_index: row.setIndex,
         status: 'completed',
-        reps,
+        reps: row.reps ?? reps,
         load_kg: row.load.trim() ? numberOr(row.load.replace(',', '.'), null) : null,
         rpe: null,
       }));
 
+      const completionStatus = completedRows.length === rows.length ? 'completed' : completedRows.length ? 'adapted' : 'not_completed';
       updates[key] = {
-        status: 'completed',
-        userExecutionStatus: 'completed',
+        status: completionStatus,
+        userExecutionStatus: completionStatus,
         performanceActualJson: {
           ...(exercise.performanceActualJson ?? {}),
           gym_sets: gymSets,
           source: 'ugerod_gym_player',
+          protocol_completed: completedRows.length === rows.length,
         },
       };
     }
@@ -2634,7 +2668,7 @@ export default function EnvironmentSessionCore({
         title={blockTitle(currentBlock, currentKey.toUpperCase())}
         meta={[
           ['warmup', 'warm_up'].includes(currentKey)
-            ? `Tour ${workout?.warmupRuntime?.sessionId === workout?.sessionId ? workout.warmupRuntime.round ?? 1 : 1} / ${Math.max(3, Number(currentBlock?.warmup_rounds) || 3)}` : null,
+            ? `Tour ${workout?.warmupRuntime?.sessionId === workout?.sessionId ? workout.warmupRuntime.round ?? 1 : 1} / ${Math.max(1, Number(currentBlock?.warmup_rounds) || 3)}` : null,
           currentBlock?.structure ?? currentBlock?.execution_style?.label_fr ?? null,
           Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes) > 0
             ? `${Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes)} min`
@@ -2649,11 +2683,15 @@ export default function EnvironmentSessionCore({
         onStartSession={onStartSession}
         sessionStarted={sessionStarted}
         startBusy={startBusy}
-        showAdjust={showAdjust}
+        showAdjust={showAdjust && executionAllowed}
         showPlanB={showPlanB}
       />
 
       <ScrollView contentContainerStyle={shellStyles.content} showsVerticalScrollIndicator={false}>
+        {workout.progressSaveError ? <View accessibilityRole="alert" style={{ padding: 16, gap: 8 }}>
+          <Text style={{ color: themeColors.text }}>{workout.progressSaveError}</Text>
+          <Pressable onPress={async () => { try { await flushComposerPlayerProgress(workout.sessionId); updateWorkout({ progressSaveError: null }); } catch (error) { Alert.alert('Sauvegarde', error.message); } }}><Text style={{ color: themeColors.accent }}>Réessayer la sauvegarde</Text></Pressable>
+        </View> : null}
         {wodBlock && !wodContentVisible ? (
           <View style={focusedTabataStyles.secretCard}>
               <View style={focusedTabataStyles.secretIcon}>
@@ -2724,29 +2762,33 @@ export default function EnvironmentSessionCore({
           <GymCardioBlock
             key={`${currentKey}:${mechanic}:gym`}
             block={currentBlock}
+            initialRuntime={workout.timedRuntimes?.[currentKey]}
+            onRuntimeChange={handleTimedRuntimeChange}
             exercises={currentExercises}
             onBeforeStart={ensureStarted}
             onComplete={completeTimedBlock}
-            executionEnabled={sessionStarted}
+            executionEnabled={executionAllowed}
           />
         ) : timed ? (
           <TimedBlock
             key={`${currentKey}:${mechanic}`}
             block={currentBlock}
+            initialRuntime={workout.timedRuntimes?.[currentKey]}
+            onRuntimeChange={handleTimedRuntimeChange}
             exercise={currentExercises[0]}
             environmentCode={environmentCode}
             onBeforeStart={wodBlock ? ensureWodStarted : ensureStarted}
             onComplete={completeTimedBlock}
-            executionEnabled={sessionStarted}
+            executionEnabled={executionAllowed}
           />
         ) : canonicalWod ? (
           <EnvironmentWodBlock
             key={`${currentKey}:${mechanic}`}
             block={currentBlock}
             exercises={currentExercises}
-            runtime={workout.wodRuntime ?? null}
+            runtime={restoreRunningClock(workout.wodRuntime, workout.wodRuntime?.sampledAt) ?? null}
             onBeforeStart={ensureWodStarted}
-            executionEnabled={sessionStarted}
+            executionEnabled={executionAllowed}
             onRuntimeChange={handleWodRuntimeChange}
             onComplete={completeWodBlock}
             canChangeFormat={
@@ -2771,21 +2813,45 @@ export default function EnvironmentSessionCore({
               exercises: currentExercises,
             }}
             onBeforeStart={ensureStarted}
+            initialRuntime={workout.tabataRuntime}
+            onRuntimeChange={handleTabataRuntimeChange}
             onFinish={completeEnvironmentTabata}
-            executionEnabled={sessionStarted}
+            executionEnabled={executionAllowed}
             styles={focusedTabataStyles}
             colors={themeColors}
           />
+        ) : ['warm_up','warmup'].includes(currentKey) && Number(currentBlock.warmup_rounds) > 0 ? (
+          <ComposerSkillPlayer key={currentKey} blockType="warmup" blockSets={Number(currentBlock.warmup_rounds)}
+            exercises={currentExercises} runtime={workout.warmupRuntime}
+            onRuntimeChange={(warmupRuntime) => updateWorkout({ warmupRuntime: { ...warmupRuntime, sessionId: workout.sessionId } })}
+            onComplete={advanceWithUpdates} onActiveExerciseChange={setActiveEnvironmentExercise}
+            executionEnabled={executionAllowed} />
+        ) : currentKey === 'skill' ? (
+          <ComposerSkillPlayer exercises={currentExercises} runtime={workout.skillRuntime}
+            onRuntimeChange={(skillRuntime) => updateWorkout({ skillRuntime })}
+            onComplete={advanceWithUpdates} onActiveExerciseChange={setActiveEnvironmentExercise}
+            executionEnabled={executionAllowed} />
+        ) : structuredStrength && isComposerWorkout(workout) && currentExercises.some((e) => {
+          const p = e.prescriptionJson ?? {};
+          return !usesReps(e) || p.reps_semantics === 'per_side';
+        }) ? (
+          <ComposerSkillPlayer key={currentKey} blockType="strength" blockSets={blockParameters(currentBlock).sets} blockRestSeconds={blockParameters(currentBlock).rest_seconds} exercises={currentExercises} runtime={workout.strengthRuntime}
+            onRuntimeChange={(strengthRuntime) => updateWorkout({ strengthRuntime })}
+            onComplete={advanceWithUpdates} onActiveExerciseChange={setActiveEnvironmentExercise}
+            executionEnabled={executionAllowed} />
         ) : structuredStrength ? (
           <StrengthBlock
             block={currentBlock}
             exercises={currentExercises}
+            restRuntime={workout.setRestRuntime}
+            onRestChange={(setRestRuntime) => updateWorkout({ setRestRuntime })}
             drafts={setDrafts}
             setDrafts={setSetDrafts}
-            onComplete={completeStrengthBlock}
+            onComplete={() => completeStrengthBlock(false)}
+            onPartial={() => completeStrengthBlock(true)}
             onExerciseRefuse={markSimpleExerciseRefused}
             onActiveExerciseChange={setActiveEnvironmentExercise}
-            executionEnabled={sessionStarted}
+            executionEnabled={executionAllowed}
           />
         ) : manualGym ? (
           <ManualGymBlock
@@ -2794,18 +2860,19 @@ export default function EnvironmentSessionCore({
             exercises={currentExercises}
             onComplete={advanceWithUpdates}
             onExerciseRefuse={markSimpleExerciseRefused}
-            executionEnabled={sessionStarted}
+            executionEnabled={executionAllowed}
           />
         ) : (
           <SimpleBlock
             key={`${currentKey}:${workout?.warmupRuntime?.round ?? 1}`}
             block={currentBlock}
             exercises={currentExercises}
+            initialExerciseIndex={workout.playerCursor?.blockId === currentKey ? workout.playerCursor.exerciseIndex : 0}
             onComplete={completeSimpleBlock}
             onExerciseComplete={markSimpleExerciseCompleted}
             onExerciseRefuse={markSimpleExerciseRefused}
             onActiveExerciseChange={setActiveEnvironmentExercise}
-            executionEnabled={sessionStarted}
+            executionEnabled={executionAllowed}
           />
         )}
       </ScrollView>

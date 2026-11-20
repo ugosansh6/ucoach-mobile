@@ -1,3 +1,5 @@
+import { composerRecordedInstanceIds } from '../../utils/composerPlayerProgress';
+import { checkpointComposerPlayerProgress } from '../../services/composerPlayerProgressService';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -56,6 +58,7 @@ function getProtectedExerciseIds(workout) {
   return [
     ...new Set([
       ...protectedIds,
+      ...composerRecordedInstanceIds(workout),
       ...(Array.isArray(partialEnvironmentIds)
         ? partialEnvironmentIds.filter(Boolean)
         : []),
@@ -99,6 +102,7 @@ export default function SessionAdaptationSheet({ visible = false, onClose }) {
     setFeedback('');
 
     try {
+      await checkpointComposerPlayerProgress(workout);
       const result = await adaptStartedSession({
         sessionId: workout.sessionId,
         reason: 'MORE_FATIGUED',
@@ -127,6 +131,7 @@ export default function SessionAdaptationSheet({ visible = false, onClose }) {
       }
 
       const refreshed = await reloadWorkoutSession({
+        confirmComposerProgressRebase: true,
         sessionId: workout.sessionId,
         preparationSnapshot:
           workout?.preparationSnapshot ??
