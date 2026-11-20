@@ -8,6 +8,8 @@ Lire [AGENTS.md](AGENTS.md), consulter ce fichier sur la branche de référence,
 
 Lien de démarrage : https://github.com/ugosansh6/ucoach-mobile/blob/ux-navigation-coach-v1/UGEROD.md
 
+Instruction d'Ugo du 20/11/2026 : continuer le développement sur `ux-navigation-coach-v1`, sans créer de nouvelle branche. Les incréments de la PR #47 y sont rapatriés après vérification. La création guidée encore inachevée reste désactivée pour les nouveaux brouillons via `src/utils/composerReleasePolicy.js` ; les contrats déjà enregistrés sont préservés. Ce retour de branche ne vaut pas achèvement des tickets ni validation du Player.
+
 Un nouveau chat doit avoir accès au dépôt et lire ces consignes. Aucun mécanisme installé ici ne charge automatiquement le contexte dans tous les chats et aucun processus de synchronisation ne tourne en arrière-plan.
 
 ## Qui fait quoi

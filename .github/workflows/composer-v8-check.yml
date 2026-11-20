@@ -11,6 +11,7 @@ on:
       - 'src/workout/ComposerSkillTargetSelector.js'
       - 'src/workout/PreparationCheckinV4.js'
       - 'src/utils/composerPreferences.js'
+      - 'src/utils/composerReleasePolicy.js'
       - 'src/services/composerService.js'
       - 'src/services/workoutService.js'
       - 'scripts/qa-composer-preferences*.cjs'

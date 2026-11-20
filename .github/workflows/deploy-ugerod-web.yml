@@ -49,6 +49,9 @@ jobs:
           node scripts/qa-composer-intent-matrix.cjs
           node scripts/qa-composer-selection.cjs
           node scripts/qa-composer-wod-selection.cjs
+          node scripts/qa-composer-preferences.cjs
+          node scripts/qa-composer-preferences-ui.cjs
+          node scripts/qa-composer-shared-skill.cjs
           node scripts/qa-wod-protocol-audit.cjs
           node scripts/qa-composer-wod-runtime.cjs
       - name: Export Expo web app

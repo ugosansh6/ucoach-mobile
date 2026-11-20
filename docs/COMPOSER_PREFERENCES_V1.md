@@ -1,9 +1,10 @@
 # Composer preferences and shared Skill adapter contracts
 
 20 November 2026. Initial transport based on `26b9510`; Skill adapter based on
-`c47c9e4`. Working branch: `feat/composer-preferences-v1`.
-This increment is isolated from the published reference branch until the missing
-engine adapters are ready. The delivery/acceptance state remains in #41 and the
+`c47c9e4`. Working branch: `ux-navigation-coach-v1`, following Ugo's explicit
+20 November instruction to return the work to the usual branch. New guided
+creation remains disabled by `composerReleasePolicy.js` until its missing
+execution adapters are ready. The delivery/acceptance state remains in #41 and the
 single backlog index #29; this file describes the wire contract, not a new backlog.
 
 ## Payload and legacy compatibility
@@ -97,7 +98,7 @@ adapters. The Composer Player still routes Skill to its simplified exercise
 validation. Detailed execution of sets/holds/rest, partial results and resume is
 not certified by backend READY. The full #42 orchestration, default architecture,
 Salle adapter and Player integration/acceptance remain separate work. Keep the
-integration PR isolated until the executable journey is verified.
+new-creation release switch disabled until the executable journey is verified.
 
 ## Verification
 

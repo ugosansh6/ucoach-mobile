@@ -20,6 +20,7 @@ import { spacing } from '../constants';
 import { fontFamilies } from '../constants/typography';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
 import ComposerSkillTargetSelector from './ComposerSkillTargetSelector';
+import { composerInitialSkillEngineVersion, composerGuidedPreferencesEnabled } from '../utils/composerReleasePolicy';
 import {
   readComposerPreferences, legacyComposerTargetRegion, composerRegionsLabel,
   composerShowsSkillTarget, withComposerPreferences,
@@ -629,7 +630,7 @@ export default function WeekComposerV7() {
   const [environmentCode, setEnvironmentCode] = useState('HOME');
   const [preferredRegions, setPreferredRegions] = useState([]);
   const [skillTargetPath, setSkillTargetPath] = useState(null);
-  const [skillEngineVersion, setSkillEngineVersion] = useState('C4_COMPOSER_SKILL_V1');
+  const [skillEngineVersion, setSkillEngineVersion] = useState(composerInitialSkillEngineVersion);
   const [showSkillTarget, setShowSkillTarget] = useState(false);
   const [skillTargets, setSkillTargets] = useState([]);
   const [skillTargetsLoading, setSkillTargetsLoading] = useState(false);
@@ -645,7 +646,8 @@ export default function WeekComposerV7() {
   });
   const targetRegion = legacyComposerTargetRegion(composerPreferences);
   const preferencesSignature = JSON.stringify(composerPreferences);
-  const skillTargetVisible = composerShowsSkillTarget(intent, showSkillTarget, skillTargetPath);
+  const guidedComposer = composerGuidedPreferencesEnabled({ skillEngineVersion, preferredRegions, skillTargetPath });
+  const skillTargetVisible = guidedComposer && composerShowsSkillTarget(intent, showSkillTarget, skillTargetPath);
   const technicalOrientation = ['TECHNIQUE', 'COACH_TECHNIQUE'].includes(intent?.key);
   const [architectures, setArchitectures] = useState([]);
   const [architecture, setArchitecture] = useState(null);
@@ -698,6 +700,7 @@ export default function WeekComposerV7() {
   }, [loading, skillTargetVisible, skillTargetsRetry]);
 
   function maxForBlock(type, minutes = 0) {
+    if (type === 'SKILL' && !skillEngineVersion) return 2;
     return type === 'WOD' ? composerWodSelectionLimit(wodSelectionContracts)
       : composerExerciseSlotLimit(type, minutes);
   }
@@ -981,7 +984,7 @@ export default function WeekComposerV7() {
           blockType: block.type,
           focus: intent?.focus ?? 'General Fitness',
           targetRegion,
-          preferences: composerPreferences,
+          preferences: guidedComposer ? composerPreferences : null,
           environmentCode,
           equipmentIds,
           limit: 30,
@@ -1578,16 +1581,17 @@ export default function WeekComposerV7() {
                 })}
               </View>
               <View style={styles.focusSection}>
-                <Text style={styles.focusTitle}>Zones à privilégier</Text>
-                <Text style={styles.focusHelp}>Choisis une ou plusieurs zones, ou laisse UGEROD équilibrer la séance.</Text>
+                <Text style={styles.focusTitle}>{guidedComposer ? 'Zones à privilégier' : 'Zone à travailler'}</Text>
+                <Text style={styles.focusHelp}>{guidedComposer ? 'Choisis une ou plusieurs zones, ou laisse UGEROD équilibrer la séance.' : 'Choisis une zone sur la silhouette, ou laisse UGEROD équilibrer la séance.'}</Text>
                 <ComposerMuscleSelector
-                  values={preferredRegions}
-                  onChange={setPreferredRegions}
+                  value={targetRegion}
+                  values={guidedComposer ? preferredRegions : undefined}
+                  onChange={guidedComposer ? setPreferredRegions : (region) => setPreferredRegions(region ? [region] : [])}
                   colors={colors}
                   fontFamilies={fontFamilies}
                 />
               </View>
-              <ComposerSkillTargetSelector
+              {guidedComposer ? <ComposerSkillTargetSelector
                 visible={skillTargetVisible} optional={!technicalOrientation}
                 selectedPath={skillTargetPath} options={skillTargets}
                 loading={skillTargetsLoading} error={skillTargetsError}
@@ -1595,7 +1599,7 @@ export default function WeekComposerV7() {
                 onOpen={() => setShowSkillTarget(true)} onChange={setSkillTargetPath}
                 onRemove={() => { setSkillTargetPath(null); setShowSkillTarget(false); }}
                 colors={colors} fontFamilies={fontFamilies}
-              />
+              /> : null}
               <PrimaryButton label={busy ? 'PRÉPARATION…' : 'CHOISIR LA STRUCTURE'} onPress={goToArchitecture} disabled={!intent || busy} loading={busy} styles={styles} colors={colors} />
             </View>
           ) : null}
