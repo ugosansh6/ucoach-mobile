@@ -50,6 +50,19 @@ async function main(){
   assert.deepEqual(defaults.SKILL,['upper'],'The curated Skill must not be overwritten by local defaults');
   assert.deepEqual(defaults.WARMUP,['core'],'New complements must not reclaim the actual lesson exercise');
   assert.deepEqual(lesson,['upper'],'Never mutate the source selection');
+  const presentation = fs.readFileSync('src/utils/composerPresentation.js','utf8').replaceAll('export function ','function ');
+  const {composerPreviewIssue} = new Function(presentation+'\nreturn {composerPreviewIssue};')();
+  const generation = fs.readFileSync('src/services/workoutGenerationService.js','utf8')
+    .replace(/import[\s\S]*?from\s+['"][^'"]+['"];\s*/g,'')
+    .replaceAll('export async function ','async function ').replaceAll('export function ','function ');
+  const finalize = new Function('supabase','getAuthenticatedUserWithRetry','runSupabaseRequestWithAuthRetry','getComposerForLocalDate','composerPreviewIssue',
+    generation+'\nreturn finalizeComposerWorkoutSession;')({},async()=>({id:'synthetic'}),
+      async()=>{throw new Error('COMPOSER_SKILL_RECOMPOSITION_REQUIRED_SKILL_CONTEXT_INCOMPATIBLE');},
+      async()=>({planItemId:'plan',draft:{duration_minutes:45,environment_code:'HOME'}}),composerPreviewIssue);
+  const today=new Date(); const date=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+  await assert.rejects(()=>finalize({planItemId:'plan',localDate:date,preparation:{duration:45,environmentCode:'HOME',painZones:['Aucune']}}),
+    error=>error.code==='COMPOSER_NEEDS_RECOMPOSITION' && /Skill/.test(error.message) && !/COMPOSER_SKILL_/.test(error.message),
+    'Day-J incompatibility must be actionable and must not expose a raw SQL reason');
   console.log('PASS: multi-zone eligibility/scores, order independence, automatic reset, target RPC transport, Skill ceiling and label');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

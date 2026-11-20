@@ -9,6 +9,7 @@ import {
 } from './workoutService';
 import { getCurrentPrimaryGoal } from './goalsService';
 import { getComposerForLocalDate } from './composerService';
+import { composerPreviewIssue } from '../utils/composerPresentation';
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -408,6 +409,12 @@ export async function finalizeComposerWorkoutSession({
       })
     );
   } catch (cause) {
+    const skillIssue = String(cause?.message ?? cause).match(/COMPOSER_SKILL_RECOMPOSITION_REQUIRED_([A-Z0-9_]+)/);
+    if (skillIssue) {
+      const error = new Error(composerPreviewIssue({ block_type: 'SKILL', reason: skillIssue[1] }));
+      error.code = 'COMPOSER_NEEDS_RECOMPOSITION';
+      throw error;
+    }
     if (String(cause?.message ?? cause).includes('COMPOSER_STRENGTH_RECOMPOSITION_REQUIRED')) {
       const error = new Error('La forme du jour ou le matériel modifie le dosage : la séance personnalisée doit être ajustée dans Ma semaine avant de commencer.');
       error.code = 'COMPOSER_NEEDS_RECOMPOSITION';
