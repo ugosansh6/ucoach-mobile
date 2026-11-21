@@ -2,6 +2,10 @@
 
 Socle documentaire du 13/11/2026 ; précédence produit actualisée le 19/11/2026 après consolidation du [backlog hebdomadaire #29](https://github.com/ugosansh6/ucoach-mobile/issues/29). Les résultats de réalisation et les tâches restent dans les issues GitHub, sans backlog parallèle dans ce fichier. L'inscription/consolidation ne lance ni développement ni déploiement. Lire seulement la section utile au chantier.
 
+## Précision Extérieur — 21 novembre 2026
+
+La décision autorisée de raccord Extérieur remplace la proposition générique Renforcement : base **Cardio extérieur**, **Gym / street workout** et **WOD** ajoutables dans l’éditeur intégré. Lieu/terrain/matériel explicites, durée et ordre conservés ; réutilisation des producteurs Outdoor et des autorités partagées, sans règle sportive ajoutée. Les brouillons historiques ne sont pas migrés ; le terrain du jour est transmis à la compilation du nouveau contrat. La distinction durée réservée / durée exacte du protocole reste visible. Cette précision prévaut pour Extérieur sur les anciens libellés ci-dessous. Voir [UGEROD.md](../UGEROD.md) et le suivi [#29](https://github.com/ugosansh6/ucoach-mobile/issues/29).
+
 ## Doctrine commune
 
 - Coach simple en surface, intelligent dans ses décisions ; interface simple par défaut et explications à la demande.

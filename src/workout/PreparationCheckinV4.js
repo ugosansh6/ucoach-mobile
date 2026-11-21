@@ -1,3 +1,5 @@
+import { composerUsesOutdoorEngine } from '../utils/composerOutdoor';
+import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
@@ -49,62 +51,6 @@ const ENVIRONMENTS = [
   { code: 'OUTDOOR', label: 'Extérieur', icon: 'sunny-outline' },
 ];
 
-const OUTDOOR_PLACES = [
-  {
-    code: 'CITY_URBAN',
-    label: 'Ville',
-    surface: null,
-    terrainCodes: ['ROAD', 'GRASS', 'MIXED'],
-  },
-  {
-    code: 'PARK',
-    label: 'Parc',
-    surface: null,
-    terrainCodes: ['GRASS', 'ROAD', 'TRAIL', 'MIXED'],
-  },
-  {
-    code: 'ATHLETICS_TRACK',
-    label: 'Piste d’athlétisme',
-    surface: 'TRACK',
-  },
-  {
-    // Conservé pour les anciennes préparations, mais ce n’est plus présenté
-    // comme un "lieu" : l’herbe appartient désormais à l’étape Terrain.
-    code: 'GRASS_FIELD',
-    label: 'Pelouse / terrain en herbe',
-    surface: 'GRASS',
-    selectable: false,
-  },
-  {
-    code: 'FOREST_PATH',
-    label: 'Forêt',
-    surface: null,
-    terrainCodes: ['TRAIL', 'GRASS', 'MIXED'],
-  },
-  {
-    code: 'MOUNTAIN',
-    label: 'Montagne',
-    surface: null,
-    terrainCodes: ['TRAIL', 'GRASS', 'MIXED'],
-  },
-  {
-    code: 'BEACH',
-    label: 'Plage',
-    surface: 'SAND',
-  },
-  {
-    code: 'STREET_WORKOUT',
-    label: 'Street workout',
-    surface: null,
-    terrainCodes: ['ROAD', 'GRASS', 'MIXED'],
-  },
-  {
-    code: 'OTHER',
-    label: 'Autre',
-    surface: null,
-    terrainCodes: ['GRASS', 'ROAD', 'TRAIL', 'SAND', 'MIXED'],
-  },
-];
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -113,29 +59,6 @@ function localDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-const TERRAIN_OPTIONS = [
-  { code: 'GRASS', label: 'Herbe / sol souple' },
-  { code: 'ROAD', label: 'Sol dur / bitume' },
-  { code: 'TRAIL', label: 'Sentier / irrégulier' },
-  { code: 'SAND', label: 'Sable' },
-  { code: 'MIXED', label: 'Mixte' },
-];
-
-function selectableOutdoorPlaces() {
-  return OUTDOOR_PLACES.filter((item) => item.selectable !== false);
-}
-
-function terrainOptionsForPlace(place) {
-  if (!place || place.surface) return [];
-
-  const allowed = Array.isArray(place.terrainCodes)
-    ? new Set(place.terrainCodes)
-    : null;
-
-  return allowed
-    ? TERRAIN_OPTIONS.filter((item) => allowed.has(item.code))
-    : TERRAIN_OPTIONS;
-}
 
 const READINESS_OPTIONS = [
   {
@@ -731,6 +654,12 @@ export default function PreparationCheckinV4() {
             environmentCode: draft.environment_code ?? future.environment_code ?? 'HOME',
             region: legacyComposerTargetRegion(preferences),
             composerPreferences: preferences,
+            ...(composerUsesOutdoorEngine(draft) ? {
+              outdoorPlaceCode: draft.outdoor_context?.place_code,
+              surfaceCode: draft.outdoor_context?.surface_code,
+              runningAllowed: draft.outdoor_context?.running_allowed ?? true,
+              reliableDistance: draft.outdoor_context?.reliable_distance ?? false,
+            } : {}),
             equipment: plannedEquipment.length > 0 ? plannedEquipment : ['Poids du corps'],
             equipmentEnvironmentCode: draft.environment_code ?? future.environment_code ?? 'HOME',
             equipmentSelectionSource: 'session_override',

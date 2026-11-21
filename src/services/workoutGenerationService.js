@@ -1,3 +1,4 @@
+import { composerOutdoorContext, composerUsesOutdoorEngine } from '../utils/composerOutdoor';
 import { supabase } from '../lib/supabase';
 import {
   getAuthenticatedUserWithRetry,
@@ -398,7 +399,8 @@ export async function finalizeComposerWorkoutSession({
   let result;
   try {
     result = await runSupabaseRequestWithAuthRetry(() =>
-      supabase.rpc('week_compile_composer_day_j_v1', {
+      supabase.rpc(composerUsesOutdoorEngine(planned.draft) ? 'week_compile_composer_outdoor_day_j_v1' : 'week_compile_composer_day_j_v1', {
+        ...(composerUsesOutdoorEngine(planned.draft) ? { p_outdoor_context: composerOutdoorContext(preparation, planned.draft.outdoor_context) } : {}),
         p_user_id: user.id,
         p_plan_item_id: planItemId,
         p_local_date: localDate,

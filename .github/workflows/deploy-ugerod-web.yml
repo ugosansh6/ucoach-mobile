@@ -53,6 +53,7 @@ jobs:
           node scripts/qa-composer-preferences.cjs
           node scripts/qa-composer-preferences-ui.cjs
           node scripts/qa-composer-shared-skill.cjs
+          node scripts/qa-composer-outdoor.cjs
           node scripts/qa-composer-player-progress.cjs
           node scripts/qa-composer-progress-service.cjs
           node scripts/qa-exercise-catalogue.cjs

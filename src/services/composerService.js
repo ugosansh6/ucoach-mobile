@@ -69,6 +69,7 @@ export async function getComposerExerciseCandidates({
   targetRegion = null,
   preferences = null,
   environmentCode = 'HOME',
+  outdoorGym = false,
   equipmentIds = [],
   limit = 8,
 }) {
@@ -80,7 +81,7 @@ export async function getComposerExerciseCandidates({
     const regions = normalized.preferred_regions;
     const lists = await Promise.all((regions.length ? regions : [null]).map((region) =>
       getComposerExerciseCandidates({ blockType, focus, targetRegion: region,
-        environmentCode, equipmentIds, limit })));
+        environmentCode, outdoorGym, equipmentIds, limit })));
     const choices = new Map();
     for (const list of lists) for (const exercise of list) {
       const previous = choices.get(exercise.id);
@@ -114,6 +115,12 @@ export async function getComposerExerciseCandidates({
     const { data, error } = await query;
     if (error) throw error;
     exercises = data;
+  }
+  if (outdoorGym && environmentCode === 'OUTDOOR' && blockType === 'SKILL') {
+    await getAuthenticatedUserWithRetry();
+    const ids = await runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_outdoor_gym_catalog_v1'));
+    const allowed = new Set(ids ?? []);
+    exercises = exercises.filter((exercise) => allowed.has(exercise.id));
   }
   if (!exercises?.length) return [];
 
@@ -261,9 +268,9 @@ export function composerBlockDisplayLabel(type, environmentCode = 'BOX', archite
     return 'Force';
   }
   if (type === 'SKILL' && architecture?.blocks?.some((block) => block.type === 'STRENGTH')) return 'Skill';
-  if (type === 'SKILL') return env === 'GYM' ? 'Musculation' : env === 'OUTDOOR' ? 'Renforcement' : 'Skill';
+  if (type === 'SKILL') return env === 'GYM' ? 'Musculation' : env === 'OUTDOOR' ? 'Gym' : 'Skill';
   if (type === 'WOD') return 'WOD';
-  if (type === 'CARDIO') return 'Cardio';
+  if (type === 'CARDIO') return env === 'OUTDOOR' ? 'Cardio extérieur' : 'Cardio';
   return String(type ?? '');
 }
 
@@ -274,7 +281,8 @@ export function composerArchitectureDisplayTitle(option, environmentCode = 'BOX'
   if (!mainBlocks.length) return option?.title ?? 'Séance';
   const labels = mainBlocks.map((item) => composerBlockDisplayLabel(item.type, environmentCode, option));
   if (labels.length > 1) return labels.join(' + ');
-  return labels[0] + (['Musculation', 'Force'].includes(labels[0]) ? ' seule' : ' seul');
+  if (labels[0] === 'Cardio extérieur') return labels[0];
+  return labels[0] + (['Musculation', 'Force', 'Gym'].includes(labels[0]) ? ' seule' : ' seul');
 }
 
 export function composerIntentBlockType(intentKey) {
@@ -749,10 +757,11 @@ export async function getComposerForLocalDate(dateKey) {
   };
 }
 
-export async function getComposerArchitectureProposal({ durationMinutes, environmentCode }) {
+export async function getComposerArchitectureProposal({ durationMinutes, environmentCode, outdoorContext = null, skillTargetPath = null }) {
   await getAuthenticatedUserWithRetry();
-  const result = await runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_architectures_v1', {
-    p_duration: Number(durationMinutes), p_environment: environmentCode,
+  const result = await runSupabaseRequestWithAuthRetry(() => supabase.rpc(environmentCode === 'OUTDOOR' ? 'week_composer_outdoor_architectures_v1' : 'week_composer_architectures_v1', {
+    p_duration: Number(durationMinutes),
+    ...(environmentCode === 'OUTDOOR' ? { p_context: outdoorContext, p_skill_target: skillTargetPath } : { p_environment: environmentCode }),
   }));
   if (!['READY','DEFAULT_UNAVAILABLE'].includes(result?.status) || !Array.isArray(result.options)) {
     throw new Error('Les répartitions de séance ne sont pas disponibles. Réessaie.');
@@ -765,11 +774,21 @@ export async function getComposerCardioProposal(context) {
   const result = await runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_cardio_authority_v1', {
     p_user_id: user.id, p_context: { ...context, propose: true },
   }));
+  if (result?.status !== 'READY' && context.environment_code === 'OUTDOOR') {
+    const reasons = {
+      OUTDOOR_SURFACE_REQUIRED: 'Précise le lieu et le terrain de ta séance extérieure.',
+      OUTDOOR_CONTEXT_REQUIRED: 'Actualise le contexte extérieur avant de choisir tes mouvements.',
+      OUTDOOR_RUNNING_UNAVAILABLE: 'La course est désactivée. Ajoute Gym ou WOD, puis retire Cardio extérieur dans la structure.',
+      OUTDOOR_RUNNING_CONTEXT_INCOMPATIBLE: 'La course ne convient pas au contexte du jour. Ajuste la structure ou le contexte.',
+    };
+    const error = new Error(reasons[result?.reason] ?? 'Ce protocole de course ne peut pas être exécuté dans ce contexte. Ajuste le terrain ou la structure.');
+    error.userMessage = error.message; throw error;
+  }
   if (result?.status !== 'READY') throw new Error(result?.reason === 'CARDIO_EQUIPMENT_REQUIRED'
     ? 'Ajoute une machine cardio disponible dans ton matériel, ou retire le bloc Cardio.'
     : 'Le cardio doit être recalculé avec ton matériel actuel.');
   return (result.block.exercises ?? []).map((e) => ({ id: e.exercise_id, name: e.name,
-    prescriptionJson: e.prescription, trackingModes: e.prescription?.tracking_modes ?? [],
+    cardioProtocol: result.block, prescriptionJson: e.prescription, trackingModes: e.prescription?.tracking_modes ?? [],
     bodyRegion: null, movementPattern: 'Cardio', trainingFocus: 'Conditioning', equipmentNames: [],
   }));
 }

@@ -9,7 +9,7 @@ const service = fs.readFileSync('src/services/composerService.js', 'utf8');
 assert.match(ui,/editComposerArchitecture\(architecture, action\)/);
 assert.match(ui,/setArchitecture\(result\.architecture\)/);
 assert.match(ui,/composerMainBlocks\(architecture\)\.map/);
-assert.match(ui,/composerAddableBlocks\(architecture, environmentCode, skillTargetPath\)\.map/);
+assert.match(ui,/composerAddableBlocks\(architecture, environmentCode, skillTargetPath, outdoorEngine && outdoorContext.running_allowed\)\.map/);
 assert.match(ui,/kind: 'move', blockType: block\.type/);
 assert.match(ui,/kind: 'remove', blockType: block\.type/);
 assert.match(ui,/kind: 'minutes', blockType: block\.type/);

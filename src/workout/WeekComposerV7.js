@@ -1,3 +1,6 @@
+import ComposerOutdoorCardioPreview from '../components/workout/ComposerOutdoorCardioPreview';
+import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
+import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
 import ExerciseCatalogueControls from '../components/exercises/ExerciseCatalogueControls';
 import { filterExerciseCatalogue } from '../utils/exerciseCatalogue';
 import { Ionicons } from '@expo/vector-icons';
@@ -351,7 +354,7 @@ function DurationControl({ value, onChange, styles, colors }) {
 
 function ChoiceChip({ label, selected, onPress, styles, colors, icon = null }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.choiceChip, selected && styles.choiceChipSelected, pressed && styles.pressed]}>
+    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} style={({ pressed }) => [styles.choiceChip, selected && styles.choiceChipSelected, pressed && styles.pressed]}>
       {icon ? <Ionicons name={icon} size={16} color={selected ? colors.textOnAccent : colors.textSecondary} /> : null}
       <Text style={[styles.choiceChipText, selected && styles.choiceChipTextSelected]}>{label}</Text>
     </Pressable>
@@ -638,6 +641,11 @@ export default function WeekComposerV7() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [duration, setDuration] = useState(60);
   const [environmentCode, setEnvironmentCode] = useState('HOME');
+  const [outdoorEngineVersion, setOutdoorEngineVersion] = useState(COMPOSER_OUTDOOR_VERSION);
+  const [outdoorContext, setOutdoorContext] = useState(() => composerOutdoorContext());
+  const selectedOutdoorPlace = OUTDOOR_PLACES.find((item) => item.code === outdoorContext.place_code);
+  const outdoorEngine = environmentCode === 'OUTDOOR' && outdoorEngineVersion === COMPOSER_OUTDOOR_VERSION;
+  const outdoorTransport = outdoorEngine ? { outdoor_engine_version: outdoorEngineVersion, outdoor_context: outdoorContext } : {};
   const [preferredRegions, setPreferredRegions] = useState([]);
   const [skillTargetPath, setSkillTargetPath] = useState(null);
   const [skillEngineVersion, setSkillEngineVersion] = useState(composerInitialSkillEngineVersion);
@@ -688,7 +696,7 @@ export default function WeekComposerV7() {
   const [wodContractsRetry, setWodContractsRetry] = useState(0);
   const latestComposition = useRef(null);
   latestComposition.current = JSON.stringify({ preferencesSignature, duration, environmentCode,
-    equipmentIds, intent, architecture, selectionMap, skillEngineVersion });
+    equipmentIds, intent, architecture, selectionMap, skillEngineVersion, outdoorContext, outdoorEngineVersion });
 
   useEffect(() => {
     if (loading || !skillTargetVisible || skillTargets.length > 0) return undefined;
@@ -775,6 +783,7 @@ export default function WeekComposerV7() {
         const initialTargetRegion = future.targetRegion ?? item?.plannedContext?.targetRegion ?? null;
         setDuration(DURATIONS.includes(initialDuration) ? initialDuration : 60);
         setEnvironmentCode(initialEnvironment);
+        setOutdoorContext(composerOutdoorContext({ outdoorPlaceCode: future.outdoorPlaceCode, surfaceCode: future.surfaceCode }));
         setPreferredRegions(readComposerPreferences({ target_region: initialTargetRegion }).preferred_regions);
         const rows = await getUserEnvironmentEquipmentPreset(initialEnvironment);
         if (!active) return;
@@ -814,6 +823,7 @@ export default function WeekComposerV7() {
                 targetRegion: draft.target_region,
                 preferences: readComposerPreferences(draft),
                 environmentCode: draft.environment_code,
+                outdoorGym: draft.outdoor_engine_version === COMPOSER_OUTDOOR_VERSION && block.type === 'SKILL' && !readComposerPreferences(draft).skill_target_path_key,
                 equipmentIds: draft.equipment_ids ?? [],
                 limit: 30,
               });
@@ -833,6 +843,8 @@ export default function WeekComposerV7() {
           }
           setDuration(Number(draft.duration_minutes));
           setEnvironmentCode(draft.environment_code);
+          setOutdoorEngineVersion(draft.outdoor_engine_version ?? null);
+          setOutdoorContext(composerOutdoorContext({}, draft.outdoor_context));
           const savedPreferences = readComposerPreferences(draft);
           setPreferredRegions(savedPreferences.preferred_regions);
           setSkillTargetPath(savedPreferences.skill_target_path_key);
@@ -866,6 +878,7 @@ export default function WeekComposerV7() {
                 engineVersion: draft.wod_engine_version ?? null,
                 exerciseIds: requested.WOD ?? [],
                 environmentCode: draft.environment_code,
+                outdoorGym: draft.outdoor_engine_version === COMPOSER_OUTDOOR_VERSION && block.type === 'SKILL' && !readComposerPreferences(draft).skill_target_path_key,
                 focus: draft.intent?.focus,
               });
               if (!active) return;
@@ -895,6 +908,7 @@ export default function WeekComposerV7() {
 
   async function chooseEnvironment(code) {
     setEnvironmentCode(code);
+    if (code !== environmentCode) setOutdoorEngineVersion(COMPOSER_OUTDOOR_VERSION);
     await loadEquipmentForEnvironment(code);
   }
 
@@ -923,6 +937,9 @@ export default function WeekComposerV7() {
 
   async function goToArchitecture() {
     if (!intent) return;
+    if (environmentCode === 'OUTDOOR' && (!outdoorContext.place_code || !outdoorContext.surface_code)) {
+      setError('Précise le lieu et le terrain de ta séance extérieure.'); return;
+    }
     try {
       setBusy(true);
       setError('');
@@ -934,11 +951,12 @@ export default function WeekComposerV7() {
         : intent.focus === 'Strength' ? 'STRENGTH'
           : intent.focus === 'Conditioning' ? 'CONDITIONING'
             : 'GENERAL_FITNESS';
-      const proposal = guidedComposer ? await getComposerArchitectureProposal({ durationMinutes: duration, environmentCode }) : null;
+      const proposal = guidedComposer ? await getComposerArchitectureProposal({ durationMinutes: duration, environmentCode, outdoorContext, skillTargetPath }) : null;
       const proposed = proposal?.options ?? buildComposerArchitectures({
         durationMinutes: duration, intentKey: planningIntentKey, environmentCode, targets,
       });
       const next = proposed.map((option) => composerArchitectureForTarget(option, skillTargetPath));
+      if (environmentCode === 'OUTDOOR') { setOutdoorEngineVersion(COMPOSER_OUTDOOR_VERSION); setSkillEngineVersion('C4_COMPOSER_SKILL_V1'); }
       if (proposal?.status === 'DEFAULT_UNAVAILABLE') setArchitectureEditError(proposal.reason);
       setArchitectures(next);
       setArchitecture(proposal?.status === 'DEFAULT_UNAVAILABLE' ? null : next[0] ?? null);
@@ -953,7 +971,7 @@ export default function WeekComposerV7() {
   }
 
   function changeArchitecture(action) {
-    if (action.blockType === 'CARDIO' && environmentCode !== 'GYM') return;
+    if (action.blockType === 'CARDIO' && !['GYM', 'OUTDOOR'].includes(environmentCode)) return;
     const result = editComposerArchitecture(architecture, action);
     if (!result.ok) {
       setArchitectureEditError(result.error);
@@ -995,7 +1013,7 @@ export default function WeekComposerV7() {
       const results = await Promise.all((architecture.blocks ?? []).map(async (block) => {
         if (block.type === 'CARDIO') {
           const candidates = await getComposerCardioProposal({ session_minutes: duration, block_minutes: block.minutes,
-            environment_code: environmentCode, equipment_names: equipmentNames(),
+            ...outdoorTransport, focus: intent?.focus, environment_code: environmentCode, equipment_names: equipmentNames(),
             progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN', target_region: targetRegion });
           return [block.type, candidates];
         }
@@ -1005,6 +1023,7 @@ export default function WeekComposerV7() {
           targetRegion,
           preferences: guidedComposer ? composerPreferences : null,
           environmentCode,
+          outdoorGym: outdoorEngine && block.type === 'SKILL' && !skillTargetPath,
           equipmentIds,
           limit: 30,
         });
@@ -1078,6 +1097,7 @@ export default function WeekComposerV7() {
       if (skill && skillEngineVersion && !(selectionMap.SKILL ?? []).length) {
         const proposal = await getComposerAutomaticSkillProposal({
           context: {
+            ...outdoorTransport, automatic_selection: outdoorEngine && !skillTargetPath,
             preferences: composerPreferences, session_minutes: duration, block_minutes: skill.minutes,
             environment_code: environmentCode, focus: intent?.focus ?? 'General Fitness',
             progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
@@ -1150,7 +1170,7 @@ export default function WeekComposerV7() {
     try {
       setBusy(true); setError('');
       const rows = await getComposerCardioProposal({ session_minutes: duration, block_minutes: block.minutes,
-        environment_code: environmentCode, equipment_names: equipmentNames(), target_region: targetRegion,
+        ...outdoorTransport, focus: intent?.focus, environment_code: environmentCode, equipment_names: equipmentNames(), target_region: targetRegion,
         progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN' });
       if (latestComposition.current !== signature) return;
       setCandidateMap((current) => ({ ...current, CARDIO: rows }));
@@ -1159,7 +1179,7 @@ export default function WeekComposerV7() {
   }
 
   function chooseExercise(type, id) {
-    if (type === 'CARDIO') { setError('Le protocole cardio dépend du matériel. Modifie le matériel puis recalcule les mouvements pour le changer.'); return; }
+    if (type === 'CARDIO') { setError(outdoorEngine ? 'Le moteur adapte la course à la durée et au contexte extérieur. Reviens au contexte pour les modifier.' : 'Le protocole cardio dépend du matériel. Modifie le matériel puis recalcule les mouvements pour le changer.'); return; }
     const minutes = architecture?.blocks?.find((block) => block.type === type)?.minutes ?? 0;
     const max = maxForBlock(type, minutes);
     setSelectionMap((current) => {
@@ -1177,6 +1197,7 @@ export default function WeekComposerV7() {
       setBusy(true);
       setError('');
       const proposal = await getComposerSkillProposal({
+        ...outdoorTransport,
         preferences: composerPreferences, session_minutes: duration, block_minutes: skill.minutes,
         environment_code: environmentCode, focus: intent?.focus ?? 'General Fitness',
         progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
@@ -1275,6 +1296,7 @@ export default function WeekComposerV7() {
     const estimatedMinutes = architecture?.estimatedMinutes
       ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
     return withComposerPreferences({
+      ...outdoorTransport,
       target_date: dateKey,
       wod_engine_version: wodEngineVersion,
       ...(skillEngineVersion ? { skill_engine_version: skillEngineVersion } : {}),
@@ -1288,7 +1310,7 @@ export default function WeekComposerV7() {
         title: architecture?.title ?? null,
         blocks: (architecture?.blocks ?? []).map((block) => ({
           type: block.type,
-          label: block.label,
+          label: outdoorEngine ? composerBlockDisplayLabel(block.type, environmentCode) : block.label,
           minutes: block.minutes,
           exercises: selectedExercises(block.type).map((exercise) => ({ id: exercise.id, name: exercise.name })),
         })),
@@ -1329,7 +1351,7 @@ export default function WeekComposerV7() {
       .finally(() => { if (active) setPreviewLoading(false); });
     return () => { active = false; };
   }, [loading, step, architecture, selectionMap, candidateMap, mechanic,
-      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion, preferencesSignature, skillEngineVersion]);
+      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion, preferencesSignature, skillEngineVersion, outdoorContext, outdoorEngineVersion]);
 
   const strengthRequest = {
     exercises: (selectionMap.STRENGTH ?? []).map((id) => {
@@ -1393,6 +1415,7 @@ export default function WeekComposerV7() {
         duration_minutes: duration,
         environment_code: environmentCode,
         equipment: equipmentNames(),
+        ...(outdoorEngine ? { surface_code: outdoorContext.surface_code, outdoor_place_code: outdoorContext.place_code } : {}),
         target_region: targetRegion,
       };
       let planItemId = selectedItem?.planItemId ?? null;
@@ -1553,6 +1576,31 @@ export default function WeekComposerV7() {
                   })}
                 </View>
               </View>
+
+              {environmentCode === 'OUTDOOR' ? <View style={styles.contextSection}>
+                <Text style={styles.contextSectionTitle}>TON TERRAIN</Text>
+                <View style={styles.focusWrap}>
+                  {selectableOutdoorPlaces().map((place) => <ChoiceChip key={place.code} label={place.label}
+                    selected={outdoorContext.place_code === place.code}
+                    onPress={() => setOutdoorContext((current) => ({ ...current, place_code: place.code, surface_code: place.surface ?? null }))}
+                    styles={styles} colors={colors} />)}
+                </View>
+                {terrainOptionsForPlace(selectedOutdoorPlace).length ? <>
+                  <Text style={styles.sectionSmallHint}>Sur quel sol vas-tu t’entraîner ?</Text>
+                  <View style={styles.focusWrap}>{terrainOptionsForPlace(selectedOutdoorPlace).map((terrain) => <ChoiceChip
+                    key={terrain.code} label={terrain.label} selected={outdoorContext.surface_code === terrain.code}
+                    onPress={() => setOutdoorContext((current) => ({ ...current, surface_code: terrain.code }))}
+                    styles={styles} colors={colors} />)}</View>
+                </> : null}
+                <Text style={styles.sectionSmallHint}>La course est-elle possible pour cette séance ?</Text>
+                <View style={styles.focusWrap}>
+                  {[true, false].map((value) => <ChoiceChip key={String(value)} label={value ? 'Course possible' : 'Sans course'}
+                    selected={outdoorContext.running_allowed === value}
+                    onPress={() => setOutdoorContext((current) => ({ ...current, running_allowed: value }))}
+                    styles={styles} colors={colors} />)}
+                </View>
+                <Text style={styles.sectionSmallHint}>Le lieu ne déclare aucun matériel à ta place.</Text>
+              </View> : null}
 
               <View style={styles.contextSection}>
                 <Text style={styles.contextSectionTitle}>MATÉRIEL DISPONIBLE</Text>
@@ -1749,11 +1797,11 @@ export default function WeekComposerV7() {
                       </View>
                     </View>
                   ))}
-                  {composerAddableBlocks(architecture, environmentCode, skillTargetPath).length ? (
+                  {composerAddableBlocks(architecture, environmentCode, skillTargetPath, outdoorEngine && outdoorContext.running_allowed).length ? (
                     <View style={styles.structureAddRow}>
                       <Text style={styles.structureEditorHelp}>Ajouter un bloc</Text>
                       <View style={styles.structureAddActions}>
-                        {composerAddableBlocks(architecture, environmentCode, skillTargetPath).map((type) => (
+                        {composerAddableBlocks(architecture, environmentCode, skillTargetPath, outdoorEngine && outdoorContext.running_allowed).map((type) => (
                           <Pressable
                             key={'add-' + type}
                             accessibilityRole="button"
@@ -1860,7 +1908,10 @@ export default function WeekComposerV7() {
                 ))}
               </View>
 
-              {activeBlock.type === 'CARDIO' ? <Pressable disabled={busy} onPress={refreshCardioProtocol} style={styles.structureLink}><Text style={styles.structureLinkText}>Actualiser le protocole cardio avec mon matériel</Text></Pressable> : null}
+              {activeBlock.type === 'CARDIO' ? <Pressable disabled={busy} onPress={refreshCardioProtocol} style={styles.structureLink}><Text style={styles.structureLinkText}>{outdoorEngine ? 'Actualiser le protocole de course' : 'Actualiser le protocole cardio avec mon matériel'}</Text></Pressable> : null}
+              {activeBlock.type === 'CARDIO' && outdoorEngine ? <ComposerOutdoorCardioPreview
+                block={currentPreview?.blocks?.find((block) => block.type === 'CARDIO') ?? activeCandidates[0]?.cardioProtocol}
+                minutes={activeBlock.minutes} styles={styles} /> : null}
               {replacementCandidates.length > 0 ? (
                 <Pressable
                   accessibilityRole="button"

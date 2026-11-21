@@ -132,6 +132,8 @@ function composerProgressionDose(dose, block) {
 export function composerPreviewIssue(issue, environmentCode = 'BOX') {
   if (issue?.block_type === 'SKILL') {
     const reasons = {
+      OUTDOOR_GYM_UNAVAILABLE: 'Aucun exercice Gym extérieur compatible avec le matériel déclaré. Vérifie ton matériel ou utilise un WOD.',
+      OUTDOOR_GYM_CATALOG_REQUIRED: 'Choisis un mouvement dans le catalogue Gym extérieur ou précise un apprentissage technique.',
       SKILL_MAX_THREE_EXERCISES: 'Le Skill se concentre sur trois mouvements maximum. Retire un mouvement ou répartis le travail dans un autre bloc.',
       SKILL_TARGET_UNAVAILABLE: 'Ce parcours technique n’est plus disponible. Choisis un autre mouvement cible.',
       SKILL_TARGET_NOT_FEASIBLE: 'Ce mouvement cible ne dispose pas d’étape compatible avec ton contexte actuel. Ajuste le matériel ou choisis un autre parcours.',
@@ -143,6 +145,12 @@ export function composerPreviewIssue(issue, environmentCode = 'BOX') {
     };
     return reasons[issue.reason] ?? 'Le Skill ne peut pas être validé. Ajuste sa durée, ses mouvements ou son objectif technique.';
   }
+  if (issue?.block_type === 'CARDIO' && String(issue.reason).startsWith('OUTDOOR_')) return ({
+    OUTDOOR_CONTEXT_REQUIRED: 'Précise le contexte extérieur avant de recalculer la course.',
+    OUTDOOR_SURFACE_REQUIRED: 'Précise le lieu et le terrain de ta séance extérieure.',
+    OUTDOOR_RUNNING_UNAVAILABLE: 'La course est désactivée : retire Cardio extérieur et conserve Gym ou WOD.',
+    OUTDOOR_RUNNING_CONTEXT_INCOMPATIBLE: 'La course ne convient pas au contexte du jour. Ajuste la structure ou le contexte.',
+  })[issue.reason] ?? 'Le protocole de course doit être adapté au contexte extérieur.';
   if (issue?.block_type === 'CARDIO') return issue.reason === 'CARDIO_EQUIPMENT_REQUIRED'
     ? 'Aucune machine cardio compatible. Modifie ton matériel ou retire le bloc Cardio.'
     : 'Le protocole cardio doit être actualisé. Reviens aux mouvements pour le recalculer avec ton contexte.';
