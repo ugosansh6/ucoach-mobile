@@ -2,6 +2,12 @@
 
 Ce fichier conserve les repères et décisions durables. Les tâches et leurs preuves vivent dans les [issues GitHub](https://github.com/ugosansh6/ucoach-mobile/issues), sans backlog parallèle. L'assistant maintient ces références pendant le travail ; Ugo décrit son besoin et arbitre les choix produit.
 
+## Éditeur intégré — décision du 21 novembre 2026
+
+La page Structure affiche un seul aperçu de la composition courante, actualisé par l’éditeur « Personnaliser la structure », toujours visible et intégré au fond de page. Les cartes alternatives et le volet de personnalisation sont remplacés par cet éditeur. Les possibilités moteur restent conservées : Skill seul et WOD seul s’obtiennent en retirant l’autre bloc. Le choix de mécanique reste à son étape dédiée.
+
+Échauffement et Tabata sont deux blocs grisés/verrouillés ; aucun n’est injecté dans un ancien brouillon qui l’omettait. Les principaux blocs permettent durée, suppression et ordre selon les capacités existantes ; au moins un bloc principal reste nécessaire et, lorsqu’il est seul, il occupe le budget principal restant. Maison/Box démarrent avec Skill + WOD, Salle avec Musculation. Outdoor utilise la proposition moteur (actuellement Renforcement), sans inventer un contrat Course/Cardio Outdoor. En créneau trop court pour le défaut, le choix d’un format seul reste explicite. Les choix enregistrés ne sont pas remplacés par le défaut à l’ouverture.
+
 ## Précision appliquée — 21 novembre 2026
 
 En Maison et Box, les nouvelles cartes de proposition font varier la répartition Skill + WOD : conseillée, équilibrée, plus de temps pour l’autre bloc lorsque les durées le permettent. Skill seul et WOD seul restent proposés comme alternatives, en plus des répartitions Skill + WOD ; ils ne les remplacent pas. Seules les cartes Force/Renforcement seul sont retirées en Maison et Box. Cette précision explicite d’Ugo remplace le retrait erroné de Skill seul. Le retrait explicite du Skill et les ajustements manuels restent disponibles. Les anciennes compositions enregistrées sont conservées ; Salle et Extérieur gardent leurs alternatives propres. La répartition conseillée lit les champs réels C4 `skill_target_minutes` et `wod_target_minutes`, avec vérification de leur présence.

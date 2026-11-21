@@ -22,5 +22,14 @@ for(const env of ['HOME','BOX']) for(const dark of [false,true]) for(const [key,
  assert.ok(html.includes(title));assert.ok(html.includes('45 min'));assert.doesNotMatch(html,/Force seule|Renforcement seul|Skill \+ WOD/);
  cases++;
 }
-assert.ok(ui.includes('Voir les autres formats et répartitions'));
+assert.ok(!ui.includes('Voir les autres formats et répartitions'));
+assert.ok(ui.includes('Personnaliser la structure'));
+assert.ok(!ui.includes('showArchitectureEditor'));
+assert.ok(ui.includes('<ArchitectureCard option={architecture} summary'));
+for(const env of ['HOME','BOX','GYM','OUTDOOR']) {
+ const option={blocks:[{type:'STRENGTH',minutes:45}],estimatedMinutes:60};
+ const html=renderToStaticMarkup(React.createElement(Card,{option,summary:true,environmentCode:env,styles:{},colors:{accent:'#636e5c'}}));
+ assert.doesNotMatch(html,/role="radio"|MÊME OBJECTIF|CHOIX UGEROD/);
+ assert.match(html,/APERÇU/);
+}
 console.log('PASS '+cases+' actual-card SSR cases in both themes; duration layouts plus Skill seul and WOD seul, explicit Skill removal');

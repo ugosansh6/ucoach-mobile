@@ -443,7 +443,8 @@ function ComposerWodPreview({ block, loading, issue, environmentCode, styles, co
   </View>;
 }
 
-function ArchitectureCard({ option, selected, onPress, styles, colors, environmentCode, intentKey }) {
+function ArchitectureCard({ option, selected, onPress, styles, colors, environmentCode, intentKey, summary = false }) {
+  const Container = summary ? View : Pressable;
   // Use the backend-owned durations: two complements, main blocks, transitions.
   const segments = [
     ...(option.blocks ?? []),
@@ -463,29 +464,27 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
   }
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
+    <Container
+      {...(summary ? {} : { onPress, accessibilityRole: 'radio', accessibilityState: { selected } })}
       accessibilityLabel={composerArchitectureDisplayTitle(option, environmentCode) + ', ' + totalMinutes + ' minutes'}
-      style={({ pressed }) => [
+      style={summary ? [styles.architectureCard, styles.architectureSummary] : ({ pressed }) => [
         styles.architectureCard, selected && styles.cardSelected, pressed && styles.pressed,
       ]}
     >
-      {selected ? <View style={styles.selectedRail} /> : null}
+      {!summary && selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.cardTopRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cardEyebrow}>{!composerArchitectureMatchesIntent(option, intentKey) ? 'STRUCTURE LIBRE' : option.recommended ? 'CHOIX UGEROD' : option.distribution_label ?? 'MÊME OBJECTIF'}</Text>
+          <Text style={styles.cardEyebrow}>{summary ? 'APERÇU' : !composerArchitectureMatchesIntent(option, intentKey) ? 'STRUCTURE LIBRE' : option.recommended ? 'CHOIX UGEROD' : option.distribution_label ?? 'MÊME OBJECTIF'}</Text>
           <Text style={styles.cardTitle}>{composerArchitectureDisplayTitle(option, environmentCode)}</Text>
-          <Text style={styles.architecturePurpose}>{composerArchitecturePurpose(option, intentKey, environmentCode)}</Text>
+          {!summary ? <Text style={styles.architecturePurpose}>{composerArchitecturePurpose(option, intentKey, environmentCode)}</Text> : null}
         </View>
-        <Ionicons
+        {!summary ? <Ionicons
           name={selected ? 'checkmark-circle' : 'ellipse-outline'}
           size={30}
           color={selected ? colors.accent : colors.textMuted}
           accessibilityElementsHidden
           importantForAccessibility="no"
-        />
+        /> : null}
       </View>
       <View style={styles.architectureBlocks}>
         <View style={styles.architectureTimeline}>
@@ -518,7 +517,7 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
         <Ionicons name="time-outline" size={15} color={colors.textSecondary} />
         <Text style={styles.cardFooterText}>{'Durée prévue : ' + totalMinutes + ' min'}</Text>
       </View>
-    </Pressable>
+    </Container>
   );
 }
 
@@ -661,9 +660,6 @@ export default function WeekComposerV7() {
   const technicalOrientation = ['TECHNIQUE', 'COACH_TECHNIQUE'].includes(intent?.key);
   const [architectures, setArchitectures] = useState([]);
   const [architecture, setArchitecture] = useState(null);
-  const [showOtherArchitectures, setShowOtherArchitectures] = useState(false);
-  const [showFreeArchitectures, setShowFreeArchitectures] = useState(false);
-  const [showArchitectureEditor, setShowArchitectureEditor] = useState(false);
   const [architectureEditError, setArchitectureEditError] = useState('');
   const [candidateMap, setCandidateMap] = useState({});
   const [candidateEvidence, setCandidateEvidence] = useState({});
@@ -844,10 +840,7 @@ export default function WeekComposerV7() {
           setIntent(draft.intent ?? coachIntent);
           setArchitecture(draft.architecture);
           setArchitectures([draft.architecture]);
-          setShowArchitectureEditor(false);
-          setShowOtherArchitectures(false);
-          setShowFreeArchitectures(false);
-          setCandidateMap(exerciseMap);
+                      setCandidateMap(exerciseMap);
           setSelectionMap(requested);
           try {
             const observations = await getComposerCandidateEvidence({
@@ -947,9 +940,6 @@ export default function WeekComposerV7() {
       if (proposal?.status === 'DEFAULT_UNAVAILABLE') setArchitectureEditError(proposal.reason);
       setArchitectures(next);
       setArchitecture(proposal?.status === 'DEFAULT_UNAVAILABLE' ? null : next[0] ?? null);
-      setShowOtherArchitectures(false);
-      setShowFreeArchitectures(false);
-      setShowArchitectureEditor(false);
       if (proposal?.status !== 'DEFAULT_UNAVAILABLE') setArchitectureEditError('');
       setStep(2);
     } catch (loadError) {
@@ -1474,8 +1464,6 @@ export default function WeekComposerV7() {
   const allEquipmentSelected = referenceEquipment.length > 0
     && referenceEquipment.every((item) => equipmentIds.includes(item.id));
   const bodyweightOnly = equipmentIds.length === 0;
-  const alignedArchitectures = architectures.filter((option) => composerArchitectureMatchesIntent(option, intentKey));
-  const freeArchitectures = architectures.filter((option) => !composerArchitectureMatchesIntent(option, intentKey));
   const currentPreview = !previewLoading && previewSignature === JSON.stringify(buildCurrentDraft())
     ? prescriptionPreview : null;
   const currentWodPreview = currentPreview?.blocks?.find((b) => b.type === 'WOD');
@@ -1665,96 +1653,33 @@ export default function WeekComposerV7() {
 
           {step === 2 ? (
             <View style={styles.stepWrap}>
-              <StageHeader
-                kicker="STRUCTURE"
-                title="Voici comment UGEROD construirait ta séance."
-                helper="Ton objectif guide le contenu et le dosage. Ajuste la structure si besoin. Échauffement et transitions sont compris dans la durée. Le Tabata abdos est inclus dans chaque nouvelle séance."
-                styles={styles}
-              />
-              <View style={styles.optionList}>
-                {architecture?.key === 'custom' ? (
-                  <ArchitectureCard
-                    option={architecture}
-                    selected
-                    onPress={() => setShowArchitectureEditor(true)}
-                    styles={styles}
-                    colors={colors}
-                    environmentCode={environmentCode}
-                    intentKey={intentKey}
-                  />
-                ) : null}
-                {alignedArchitectures.filter((option, index) =>
-                  architecture?.key !== 'custom' && (showOtherArchitectures || index === 0 || option.key === architecture?.key)
-                  || architecture?.key === 'custom' && showOtherArchitectures && option.key !== 'custom'
-                ).map((option) => (
-                  <ArchitectureCard
-                    key={option.key}
-                    option={option}
-                    selected={architecture?.key === option.key}
-                    onPress={() => {
-                      setArchitecture(option);
-                      setArchitectureEditError('');
-                    }}
-                    styles={styles}
-                    colors={colors}
-                    environmentCode={environmentCode}
-                    intentKey={intentKey}
-                  />
-                ))}
-              </View>
-              {alignedArchitectures.length > 1 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setShowOtherArchitectures((current) => !current)}
-                  style={styles.structureLink}
-                >
-                  <Text style={styles.structureLinkText}>
-                    {showOtherArchitectures ? 'Masquer les alternatives' : ['HOME','BOX'].includes(environmentCode) ? 'Voir les autres formats et répartitions' : 'Voir les alternatives pour cet objectif'}
-                  </Text>
-                  <Ionicons name={showOtherArchitectures ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
-                </Pressable>
-              ) : null}
-              {freeArchitectures.length ? (
-                <>
-                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: showFreeArchitectures }}
-                    onPress={() => setShowFreeArchitectures((value) => !value)} style={styles.structureLink}>
-                    <Text style={styles.structureLinkText}>{showFreeArchitectures ? 'Masquer les structures libres' : 'Composer une autre structure'}</Text>
-                    <Ionicons name={showFreeArchitectures ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
-                  </Pressable>
-                  <View style={styles.optionList}>
-                    {freeArchitectures.filter((option) => showFreeArchitectures || option.key === architecture?.key).map((option) => (
-                      <ArchitectureCard key={option.key} option={option} selected={architecture?.key === option.key}
-                        onPress={() => { setArchitecture(option); setArchitectureEditError(''); }}
-                        styles={styles} colors={colors} environmentCode={environmentCode} intentKey={intentKey} />
-                    ))}
-                  </View>
-                </>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setShowArchitectureEditor((current) => !current);
-                  setArchitectureEditError('');
-                }}
-                style={styles.structureEditorToggle}
-              >
-                <Ionicons name="options-outline" size={20} color={colors.accent} />
-                <Text style={styles.structureLinkText}>Personnaliser ma structure</Text>
-                <Ionicons name={showArchitectureEditor ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
-              </Pressable>
-              {showArchitectureEditor && architecture ? (
+              <StageHeader kicker="STRUCTURE" title="Ta séance." styles={styles} />
+              {architecture ? (
+                <ArchitectureCard option={architecture} summary styles={styles} colors={colors}
+                  environmentCode={environmentCode} intentKey={intentKey} />
+              ) : (
+                <View style={styles.optionList}>
+                  <Text style={styles.structureEditorHelp}>Choisis explicitement un format adapté à ce créneau, ou augmente la durée.</Text>
+                  {architectures.map((option) => (
+                    <Pressable key={option.key} accessibilityRole="button" style={styles.structureAddButton}
+                      onPress={() => { setArchitecture(option); setArchitectureEditError(''); }}>
+                      <Text style={styles.structureAddLabel}>{composerArchitectureDisplayTitle(option, environmentCode)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {architecture ? (
                 <View style={styles.structureEditor}>
-                  <Text style={styles.structureEditorHelp}>
-                    Réorganise les blocs principaux et ajuste leur temps. Échauffement et Tabata restent inclus. UGEROD recalculera les exercices et prescriptions.
-                  </Text>
+                  <Text accessibilityRole="header" style={styles.structureEditorHeading}>Personnaliser la structure</Text>
+                  <Text style={styles.structureEditorHelp}>Ajuste les durées, l’ordre et les blocs de ta séance.</Text>
                   {architecture.blocks.some((b) => b.type === 'WARMUP') ? (
-                    <View style={styles.structureProtected}>
+                    <View accessibilityState={{ disabled: true }} style={styles.structureProtected}>
                       <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
                       <Text style={styles.structureEditorHelp}>Échauffement · {architecture.blocks.find((b) => b.type === 'WARMUP')?.minutes} min</Text>
                     </View>
                   ) : null}
                   {architecture.blocks.some((b) => b.type === 'TABATA') ? (
-                    <View style={styles.structureProtected}>
+                    <View accessibilityState={{ disabled: true }} style={styles.structureProtected}>
                       <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
                       <Text style={styles.structureEditorHelp}>Tabata abdos · 4 min</Text>
                     </View>
@@ -1840,10 +1765,6 @@ export default function WeekComposerV7() {
                       </View>
                     </View>
                   ) : null}
-                  <Text style={styles.structureEditorHelp}>
-                    Même type de bloc plusieurs fois et Course dédiée : extension du Player et du contrat à venir.
-                  </Text>
-
                 </View>
               ) : null}
               {architectureEditError ? <Text accessibilityRole="alert" style={styles.errorText}>{architectureEditError}</Text> : null}
@@ -1952,7 +1873,7 @@ export default function WeekComposerV7() {
                   <Ionicons name="chevron-forward" size={18} color={colors.accent} />
                 </Pressable>
               ) : null}
-              <Pressable accessibilityRole="button" onPress={() => { setShowArchitectureEditor(true); setArchitectureEditError(''); setStep(2); }} style={styles.structureLink}>
+              <Pressable accessibilityRole="button" onPress={() => { setArchitectureEditError(''); setStep(2); }} style={styles.structureLink}>
                 <Text style={styles.structureLinkText}>Ajuster les blocs et leurs durées</Text>
                 <Ionicons name="options-outline" size={18} color={colors.accent} />
               </Pressable>
@@ -2036,7 +1957,6 @@ export default function WeekComposerV7() {
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
-                  setShowArchitectureEditor(true);
                   setArchitectureEditError('');
                   setStep(2);
                 }}
@@ -2315,10 +2235,12 @@ function createStyles(colors) {
     structureLink: { marginVertical: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, minHeight: 38 },
     structureLinkText: { flex: 1, fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.accent },
     structureEditorToggle: { marginTop: 13, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, padding: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 14 },
-    structureEditor: { marginBottom: 18, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 10 },
+    structureEditor: { marginTop: 22, marginBottom: 18, gap: 10 },
+    structureEditorHeading: { fontFamily: fontFamilies.semiBold, fontSize: 16, color: colors.text, marginBottom: 2 },
+    architectureSummary: { backgroundColor: colors.background },
     structureEditorHelp: { flex: 1, fontFamily: fontFamilies.regular, color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
-    structureProtected: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 9, backgroundColor: colors.background },
-    structureEditBlock: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, gap: 10 },
+    structureProtected: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface, opacity: 0.7 },
+    structureEditBlock: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, gap: 10, backgroundColor: colors.background },
     structureEditBlockTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     structureEditTitle: { fontFamily: fontFamilies.bold, fontSize: 14, color: colors.text },
     structureEditMinutes: { fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, textAlign: 'center', color: colors.accent },
