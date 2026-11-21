@@ -46,6 +46,7 @@ jobs:
           node scripts/qa-composer-architecture-editor.cjs
           node scripts/qa-composer-editor-wiring.cjs
           node scripts/qa-composer-presentation.cjs
+          node scripts/qa-composer-distributions-ui.cjs
           node scripts/qa-composer-intent-matrix.cjs
           node scripts/qa-composer-selection.cjs
           node scripts/qa-composer-wod-selection.cjs

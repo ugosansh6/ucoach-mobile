@@ -160,6 +160,7 @@ export function editComposerArchitecture(architecture, action) {
       key: 'custom',
       title: 'Structure personnalisée',
       recommended: false,
+      distribution_label: null,
       blocks: [...complements.map((block) => ({ ...block })), ...next],
       estimatedMinutes: total,
       transitionReserveMinutes: reserve,

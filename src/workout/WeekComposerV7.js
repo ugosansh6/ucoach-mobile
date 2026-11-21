@@ -474,7 +474,7 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
       {selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.cardTopRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cardEyebrow}>{!composerArchitectureMatchesIntent(option, intentKey) ? 'STRUCTURE LIBRE' : option.recommended ? 'CHOIX UGEROD' : 'MÊME OBJECTIF'}</Text>
+          <Text style={styles.cardEyebrow}>{!composerArchitectureMatchesIntent(option, intentKey) ? 'STRUCTURE LIBRE' : option.recommended ? 'CHOIX UGEROD' : option.distribution_label ?? 'MÊME OBJECTIF'}</Text>
           <Text style={styles.cardTitle}>{composerArchitectureDisplayTitle(option, environmentCode)}</Text>
           <Text style={styles.architecturePurpose}>{composerArchitecturePurpose(option, intentKey, environmentCode)}</Text>
         </View>
@@ -1702,7 +1702,7 @@ export default function WeekComposerV7() {
                   style={styles.structureLink}
                 >
                   <Text style={styles.structureLinkText}>
-                    {showOtherArchitectures ? 'Masquer les alternatives' : 'Voir les alternatives pour cet objectif'}
+                    {showOtherArchitectures ? 'Masquer les alternatives' : ['HOME','BOX'].includes(environmentCode) ? 'Voir les autres répartitions Skill / WOD' : 'Voir les alternatives pour cet objectif'}
                   </Text>
                   <Ionicons name={showOtherArchitectures ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
                 </Pressable>

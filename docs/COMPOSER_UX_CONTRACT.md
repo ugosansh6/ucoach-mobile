@@ -1,5 +1,9 @@
 # Composer avec UGEROD — UX/UI contract
 
+## Précision appliquée — 21 novembre 2026
+
+En Maison et Box, les nouvelles cartes de proposition font varier la répartition Skill + WOD : conseillée, équilibrée, plus de temps pour l’autre bloc lorsque les durées le permettent. Les cartes Force/Renforcement seul et Skill seul ne sont plus proposées dans ces lieux. Le retrait explicite du Skill pour un WOD seul et les ajustements manuels restent disponibles. Les anciennes compositions enregistrées sont conservées ; Salle et Extérieur gardent leurs alternatives propres. La répartition conseillée lit les champs réels C4 `skill_target_minutes` et `wod_target_minutes`, avec vérification de leur présence.
+
 ## Cadrage courant — 19 novembre 2026
 
 Le [ticket #29](https://github.com/ugosansh6/ucoach-mobile/issues/29) conserve le suivi unique de la stabilisation : besoins, couverture réelle, propriétaires, dépendances et preuves. Les règles ci-dessous sont acceptées ; leur présence dans ce contrat ne signifie pas qu'elles sont toutes implémentées ni que le développement a été lancé.

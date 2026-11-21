@@ -2,6 +2,10 @@
 
 Ce fichier conserve les repères et décisions durables. Les tâches et leurs preuves vivent dans les [issues GitHub](https://github.com/ugosansh6/ucoach-mobile/issues), sans backlog parallèle. L'assistant maintient ces références pendant le travail ; Ugo décrit son besoin et arbitre les choix produit.
 
+## Précision appliquée — 21 novembre 2026
+
+En Maison et Box, les nouvelles cartes de proposition font varier la répartition Skill + WOD : conseillée, équilibrée, plus de temps pour l’autre bloc lorsque les durées le permettent. Les cartes Force/Renforcement seul et Skill seul ne sont plus proposées dans ces lieux. Le retrait explicite du Skill pour un WOD seul et les ajustements manuels restent disponibles. Les anciennes compositions enregistrées sont conservées ; Salle et Extérieur gardent leurs alternatives propres. La répartition conseillée lit les champs réels C4 `skill_target_minutes` et `wod_target_minutes`, avec vérification de leur présence.
+
 ## Reprendre depuis une nouvelle conversation
 
 Lire [AGENTS.md](AGENTS.md), consulter ce fichier sur la branche de référence, ouvrir le ticket pertinent puis vérifier le code et, si nécessaire, Supabase. Ne pas demander à Ugo un document de reprise si ces sources sont accessibles.

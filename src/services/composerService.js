@@ -686,9 +686,13 @@ export async function getComposerForLocalDate(dateKey) {
 
 export async function getComposerArchitectureProposal({ durationMinutes, environmentCode }) {
   await getAuthenticatedUserWithRetry();
-  return runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_architectures_v1', {
+  const result = await runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_architectures_v1', {
     p_duration: Number(durationMinutes), p_environment: environmentCode,
   }));
+  if (!['READY','DEFAULT_UNAVAILABLE'].includes(result?.status) || !Array.isArray(result.options)) {
+    throw new Error('Les répartitions de séance ne sont pas disponibles. Réessaie.');
+  }
+  return result;
 }
 
 export async function getComposerCardioProposal(context) {
