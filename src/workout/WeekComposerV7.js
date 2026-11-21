@@ -1758,45 +1758,51 @@ export default function WeekComposerV7() {
                         <Text style={styles.structureEditTitle}>
                           {composerBlockDisplayLabel(block.type, environmentCode)}
                         </Text>
-                        <Text style={styles.structureEditMinutes}>{block.minutes} min</Text>
                       </View>
                       <View style={styles.structureEditActions}>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={'Monter le bloc ' + block.type}
-                          disabled={index === 0}
-                          onPress={() => changeArchitecture({ kind: 'move', blockType: block.type, direction: -1 })}
-                          style={[styles.structureIconButton, index === 0 && styles.disabled]}
-                        >
-                          <Ionicons name="arrow-up" size={19} color={colors.accent} />
-                        </Pressable>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={'Descendre le bloc ' + block.type}
-                          disabled={index === mainBlocks.length - 1}
-                          onPress={() => changeArchitecture({ kind: 'move', blockType: block.type, direction: 1 })}
-                          style={[styles.structureIconButton, index === mainBlocks.length - 1 && styles.disabled]}
-                        >
-                          <Ionicons name="arrow-down" size={19} color={colors.accent} />
-                        </Pressable>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={'Réduire la durée du bloc ' + block.type}
-                          disabled={mainBlocks.length < 2}
-                          onPress={() => changeArchitecture({ kind: 'minutes', blockType: block.type, delta: -2 })}
-                          style={[styles.structureIconButton, mainBlocks.length < 2 && styles.disabled]}
-                        >
-                          <Ionicons name="remove" size={20} color={colors.accent} />
-                        </Pressable>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={'Augmenter la durée du bloc ' + block.type}
-                          disabled={mainBlocks.length < 2}
-                          onPress={() => changeArchitecture({ kind: 'minutes', blockType: block.type, delta: 2 })}
-                          style={[styles.structureIconButton, mainBlocks.length < 2 && styles.disabled]}
-                        >
-                          <Ionicons name="add" size={20} color={colors.accent} />
-                        </Pressable>
+                        <View style={styles.structureEditActionGroup}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={'Monter le bloc ' + block.type}
+                            disabled={index === 0}
+                            onPress={() => changeArchitecture({ kind: 'move', blockType: block.type, direction: -1 })}
+                            style={[styles.structureIconButton, index === 0 && styles.disabled]}
+                          >
+                            <Ionicons name="arrow-up" size={19} color={colors.accent} />
+                          </Pressable>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={'Descendre le bloc ' + block.type}
+                            disabled={index === mainBlocks.length - 1}
+                            onPress={() => changeArchitecture({ kind: 'move', blockType: block.type, direction: 1 })}
+                            style={[styles.structureIconButton, index === mainBlocks.length - 1 && styles.disabled]}
+                          >
+                            <Ionicons name="arrow-down" size={19} color={colors.accent} />
+                          </Pressable>
+                        </View>
+                        <View style={styles.structureDurationControl}>
+                          <Text style={styles.structureEditMinutes}>Durée · {block.minutes} min</Text>
+                          <View style={styles.structureEditActionGroup}>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={'Réduire la durée du bloc ' + block.type}
+                              disabled={mainBlocks.length < 2}
+                              onPress={() => changeArchitecture({ kind: 'minutes', blockType: block.type, delta: -2 })}
+                              style={[styles.structureIconButton, mainBlocks.length < 2 && styles.disabled]}
+                            >
+                              <Ionicons name="remove" size={20} color={colors.accent} />
+                            </Pressable>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={'Augmenter la durée du bloc ' + block.type}
+                              disabled={mainBlocks.length < 2}
+                              onPress={() => changeArchitecture({ kind: 'minutes', blockType: block.type, delta: 2 })}
+                              style={[styles.structureIconButton, mainBlocks.length < 2 && styles.disabled]}
+                            >
+                              <Ionicons name="add" size={20} color={colors.accent} />
+                            </Pressable>
+                          </View>
+                        </View>
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={'Retirer le bloc ' + block.type}
@@ -2308,8 +2314,10 @@ function createStyles(colors) {
     structureEditBlock: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, gap: 10 },
     structureEditBlockTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     structureEditTitle: { fontFamily: fontFamilies.bold, fontSize: 14, color: colors.text },
-    structureEditMinutes: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.accent },
-    structureEditActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+    structureEditMinutes: { fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, textAlign: 'center', color: colors.accent },
+    structureEditActions: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' },
+    structureEditActionGroup: { flexDirection: 'row', gap: 6 },
+    structureDurationControl: { alignItems: 'center', gap: 7 },
     structureIconButton: { minWidth: 39, minHeight: 38, padding: 7, borderRadius: 9, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
     structureAddRow: { gap: 8, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border },
     structureAddActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },

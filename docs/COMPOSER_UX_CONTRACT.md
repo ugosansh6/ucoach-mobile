@@ -4,6 +4,8 @@
 
 En Maison et Box, les nouvelles cartes de proposition font varier la répartition Skill + WOD : conseillée, équilibrée, plus de temps pour l’autre bloc lorsque les durées le permettent. Skill seul et WOD seul restent proposés comme alternatives, en plus des répartitions Skill + WOD ; ils ne les remplacent pas. Seules les cartes Force/Renforcement seul sont retirées en Maison et Box. Cette précision explicite d’Ugo remplace le retrait erroné de Skill seul. Le retrait explicite du Skill et les ajustements manuels restent disponibles. Les anciennes compositions enregistrées sont conservées ; Salle et Extérieur gardent leurs alternatives propres. La répartition conseillée lit les champs réels C4 `skill_target_minutes` et `wod_target_minutes`, avec vérification de leur présence.
 
+La personnalisation regroupe la durée de chaque bloc directement au-dessus de ses boutons − / +, avec le libellé « Durée ». Les flèches de déplacement et la suppression restent séparées ; leurs actions et le calcul de répartition ne changent pas (précision UX d’Ugo du 21/11/2026).
+
 ## Cadrage courant — 19 novembre 2026
 
 Le [ticket #29](https://github.com/ugosansh6/ucoach-mobile/issues/29) conserve le suivi unique de la stabilisation : besoins, couverture réelle, propriétaires, dépendances et preuves. Les règles ci-dessous sont acceptées ; leur présence dans ce contrat ne signifie pas qu'elles sont toutes implémentées ni que le développement a été lancé.
