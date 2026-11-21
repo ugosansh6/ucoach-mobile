@@ -16,4 +16,11 @@ for(const env of ['HOME','BOX']) for(const dark of [false,true]) for(const [inde
  const removed=editor.editComposerArchitecture(option,{kind:'remove',blockType:'SKILL'});assert.equal(removed.ok,true);assert.deepEqual(removed.architecture.blocks.map(b=>b.type),['WARMUP','TABATA','WOD']);assert.equal(removed.architecture.blocks[2].minutes,45);assert.equal(removed.architecture.distribution_label,null);
  cases++;
 }
-console.log('PASS '+cases+' actual-card SSR cases in both themes; distinct layouts, labels and explicit Skill removal');
+for(const env of ['HOME','BOX']) for(const dark of [false,true]) for(const [key,type,title] of [['technique','SKILL','Skill seul'],['conditioning','WOD','WOD seul']]){
+ const option={key,title,recommended:false,estimatedMinutes:60,transitionReserveMinutes:5,blocks:[{type:'WARMUP',minutes:6},{type:'TABATA',minutes:4},{type,minutes:45}]};
+ const html=renderToStaticMarkup(React.createElement(Card,{option,environmentCode:env,intentKey:'STRENGTH',selected:true,styles:{},colors:{text:dark?'#fff':'#111',accent:'#636e5c',secondaryAccent:'#ff6b1a'}}));
+ assert.ok(html.includes(title));assert.ok(html.includes('45 min'));assert.doesNotMatch(html,/Force seule|Renforcement seul|Skill \+ WOD/);
+ cases++;
+}
+assert.ok(ui.includes('Voir les autres formats et répartitions'));
+console.log('PASS '+cases+' actual-card SSR cases in both themes; duration layouts plus Skill seul and WOD seul, explicit Skill removal');

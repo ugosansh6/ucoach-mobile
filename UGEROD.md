@@ -4,7 +4,7 @@ Ce fichier conserve les repères et décisions durables. Les tâches et leurs pr
 
 ## Précision appliquée — 21 novembre 2026
 
-En Maison et Box, les nouvelles cartes de proposition font varier la répartition Skill + WOD : conseillée, équilibrée, plus de temps pour l’autre bloc lorsque les durées le permettent. Les cartes Force/Renforcement seul et Skill seul ne sont plus proposées dans ces lieux. Le retrait explicite du Skill pour un WOD seul et les ajustements manuels restent disponibles. Les anciennes compositions enregistrées sont conservées ; Salle et Extérieur gardent leurs alternatives propres. La répartition conseillée lit les champs réels C4 `skill_target_minutes` et `wod_target_minutes`, avec vérification de leur présence.
+En Maison et Box, les nouvelles cartes de proposition font varier la répartition Skill + WOD : conseillée, équilibrée, plus de temps pour l’autre bloc lorsque les durées le permettent. Skill seul et WOD seul restent proposés comme alternatives, en plus des répartitions Skill + WOD ; ils ne les remplacent pas. Seules les cartes Force/Renforcement seul sont retirées en Maison et Box. Cette précision explicite d’Ugo remplace le retrait erroné de Skill seul. Le retrait explicite du Skill et les ajustements manuels restent disponibles. Les anciennes compositions enregistrées sont conservées ; Salle et Extérieur gardent leurs alternatives propres. La répartition conseillée lit les champs réels C4 `skill_target_minutes` et `wod_target_minutes`, avec vérification de leur présence.
 
 ## Reprendre depuis une nouvelle conversation
 

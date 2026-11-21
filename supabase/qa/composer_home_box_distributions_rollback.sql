@@ -11,15 +11,26 @@ begin
     if sums+(o->>'transitionReserveMinutes')::int<>minutes then raise exception 'BUDGET_DRIFT'; end if;
     if env in ('HOME','BOX') then
       if exists(select 1 from jsonb_array_elements(o->'blocks') b where b->>'type'='STRENGTH') then raise exception 'STRENGTH_OPTION_STILL_PROPOSED'; end if;
-      if minutes<>20 then
+      if o->>'key' in ('skill','skill_balanced','skill_reversed') then
         if (select array_agg(b->>'type' order by ord) from jsonb_array_elements(o->'blocks') with ordinality b(b,ord))<>array['WARMUP','TABATA','SKILL','WOD'] then raise exception 'WRONG_HOME_BOX_OPTION'; end if;
         skill:=(o#>>'{blocks,2,minutes}')::int;
         if skill=any(pairs) then raise exception 'DUPLICATE_LAYOUT'; end if;
         pairs:=array_append(pairs,skill);
         if skill<8 or (o#>>'{blocks,3,minutes}')::int<8 then raise exception 'BELOW_EXISTING_FLOOR'; end if;
-      elsif r->>'status'<>'DEFAULT_UNAVAILABLE' or (o->>'recommended')::boolean then raise exception 'SHORT_SILENT_SUBSTITUTE'; end if;
+      else
+        if o->>'key' not in ('conditioning','technique') then raise exception 'UNEXPECTED_STANDALONE'; end if;
+        if (select array_agg(b->>'type' order by ord) from jsonb_array_elements(o->'blocks') with ordinality b(b,ord)) <>
+          array['WARMUP','TABATA',case when o->>'key'='technique' then 'SKILL' else 'WOD' end] then raise exception 'WRONG_STANDALONE'; end if;
+        if (o#>>'{blocks,2,minutes}')::int<>minutes-(o->>'transitionReserveMinutes')::int-(o#>>'{blocks,0,minutes}')::int-4 then raise exception 'WRONG_STANDALONE_BUDGET'; end if;
+        if (o->>'recommended')::boolean then raise exception 'SILENT_STANDALONE_DEFAULT'; end if;
+      end if;
     end if;
    end loop;
+   if env in ('HOME','BOX') then
+     if (select count(*) from jsonb_array_elements(r->'options') x where x->>'key' in ('conditioning','technique'))<>2 then raise exception 'MISSING_STANDALONES'; end if;
+     if minutes=20 and (r->>'status'<>'DEFAULT_UNAVAILABLE' or cardinality(pairs)<>0) then raise exception 'SHORT_SILENT_SUBSTITUTE'; end if;
+     if minutes>20 and r#>>'{options,0,key}'<>'skill' then raise exception 'DEFAULT_CHANGED'; end if;
+   end if;
    if env in ('HOME','BOX') and minutes=60 then
      if (r#>>'{options,0,blocks,2,minutes}')::int<>17 or (r#>>'{options,0,blocks,3,minutes}')::int<>28 then raise exception 'C4_TARGET_FIELD_REGRESSION_%',r; end if;
      if cardinality(pairs)<>3 then raise exception 'MISSING_DURATION_ALTERNATIVES'; end if;

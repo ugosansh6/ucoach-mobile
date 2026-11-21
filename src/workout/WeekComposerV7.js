@@ -1702,7 +1702,7 @@ export default function WeekComposerV7() {
                   style={styles.structureLink}
                 >
                   <Text style={styles.structureLinkText}>
-                    {showOtherArchitectures ? 'Masquer les alternatives' : ['HOME','BOX'].includes(environmentCode) ? 'Voir les autres répartitions Skill / WOD' : 'Voir les alternatives pour cet objectif'}
+                    {showOtherArchitectures ? 'Masquer les alternatives' : ['HOME','BOX'].includes(environmentCode) ? 'Voir les autres formats et répartitions' : 'Voir les alternatives pour cet objectif'}
                   </Text>
                   <Ionicons name={showOtherArchitectures ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
                 </Pressable>
