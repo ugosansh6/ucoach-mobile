@@ -105,3 +105,36 @@ async function testArchitectureTransport(){
  console.log('PASS actual architecture service forwards target/terrain/course to existing module adapter, Salle route unchanged');
 }
 testArchitectureTransport().catch(error=>{console.error(error);process.exitCode=1;});
+
+async function testSavedHydration(){
+ const screen=fs.readFileSync('src/workout/WeekComposerV7.js','utf8'),tree=parser.parse(screen,{sourceType:'module',plugins:['jsx']});
+ function find(node){if(!node||typeof node!=='object')return null;if(node.type==='FunctionDeclaration'&&node.id?.name==='load')return node;for(const v of Object.values(node)){if(Array.isArray(v)){for(const child of v){const r=find(child);if(r)return r;}}else{const r=find(v);if(r)return r;}}return null;}
+ const node=find(tree);assert.ok(node,'Saved draft loader');const logic=screen.slice(node.start,node.end);
+ const preferences=new Function(fs.readFileSync('src/utils/composerPreferences.js','utf8').replaceAll('export ','')+';return readComposerPreferences;')();
+ for(const modern of [true,false]){
+  const state={},cardioCalls=[],formatCalls=[];
+  const blocks=modern?[{type:'WARMUP',minutes:6,exercises:[{id:'EX158'}]},{type:'TABATA',minutes:4,exercises:[{id:'EX087'}]},
+   {type:'CARDIO',minutes:12,exercises:[{id:'EX313',name:'Course'}]},{type:'SKILL',minutes:16,exercises:[{id:'EX411'}]},
+   {type:'WOD',minutes:17,exercises:[{id:'EX006'},{id:'EX033'}]}]:[{type:'STRENGTH',minutes:45,exercises:[{id:'EX033'}]}];
+  const draft={environment_code:'OUTDOOR',duration_minutes:60,equipment_ids:[],intent:{focus:'Conditioning'},architecture:{blocks},
+   ...(modern?{outdoor_engine_version:'COMPOSER_OUTDOOR_V1',outdoor_context:{place_code:'PARK',surface_code:'GRASS',running_allowed:true},skill_engine_version:'C4_COMPOSER_SKILL_V1',mechanic:{key:'AMRAP'},wod_engine_version:'C4_COMPOSER_V2'}:{})};
+  const original=JSON.stringify(draft),protocol={mechanic:'RUN_INTERVALS',duration_minutes:12};
+  const deps={active:true,dateKey:'2026-11-21',requestedPlanItemId:'item',params:{},DURATIONS:[60],COMPOSER_OUTDOOR_VERSION:'COMPOSER_OUTDOOR_V1',
+   getWeekReadContract:async()=>({visibleItems:[{planItemId:'item',recommendedDate:'2026-11-21',plannedContext:{environmentCode:'OUTDOOR'}}]}),
+   getEquipmentCatalog:async()=>[],getComposerForLocalDate:async()=>({planItemId:'item',draft}),getUserEnvironmentEquipmentPreset:async()=>[],buildReferenceEquipment:()=>[],
+   coachIntentFromItem:()=>null,readComposerPreferences:preferences,composerOutdoorContext:outdoor.composerOutdoorContext,firstParam:v=>v,
+   getComposerCardioProposal:async context=>{cardioCalls.push(context);return [{id:'EX313',name:'Course',cardioProtocol:protocol}];},
+   getComposerExerciseCandidates:async({blockType})=>{assert.notEqual(blockType,'CARDIO','Never hydrate a saved Cardio from the WOD exercise catalogue');return blocks.find(b=>b.type===blockType)?.exercises??[];},
+   getComposerCandidateEvidence:async()=>({}),getComposerMechanicOptions:async args=>{formatCalls.push(args);return [{key:'AMRAP'},{key:'EMOM'}];}};
+  for(const setter of new Set(logic.match(/\bset[A-Z]\w*/g)))deps[setter]=value=>{state[setter]=typeof value==='function'?value(state[setter]):value;};
+  await new Function(...Object.keys(deps),logic+';return load();')(...Object.values(deps));
+  assert.equal(state.setError,'');assert.equal(state.setStep,5);assert.equal(JSON.stringify(draft),original,'Reopening must not rewrite saved preferences or exercises');
+  assert.deepEqual(state.setSelectionMap,Object.fromEntries(blocks.map(b=>[b.type,b.exercises.map(e=>e.id)])));
+  if(modern){assert.equal(cardioCalls.length,1);assert.equal(cardioCalls[0].outdoor_context.surface_code,'GRASS');assert.equal(cardioCalls[0].block_minutes,12);
+   assert.deepEqual(state.setCandidateMap.CARDIO.map(e=>e.id),['EX313']);assert.equal(state.setCandidateMap.CARDIO[0].cardioProtocol,protocol);
+   assert.equal(formatCalls.length,1,'All WOD formats must be refreshed on reopen, not hidden by an undefined block variable');assert.equal(state.setMechanicOptions.length,2);
+  }else{assert.equal(cardioCalls.length,0);assert.equal(state.setOutdoorEngineVersion,null);assert.equal(state.setArchitecture,draft.architecture);}
+ }
+ console.log('PASS actual saved-screen loader: course protocol only, all WOD alternatives reloaded, exact selected exercise order and no old-draft migration');
+}
+testSavedHydration().catch(error=>{console.error(error);process.exitCode=1;});

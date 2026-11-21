@@ -817,6 +817,16 @@ export default function WeekComposerV7() {
           // exercises even if their current compatibility has changed.
           const alternatives = await Promise.all(blocks.map(async (block) => {
             try {
+              if (block.type === 'CARDIO') {
+                const choices = await getComposerCardioProposal({
+                  outdoor_engine_version: draft.outdoor_engine_version, outdoor_context: draft.outdoor_context,
+                  session_minutes: draft.duration_minutes, block_minutes: block.minutes,
+                  environment_code: draft.environment_code, focus: draft.intent?.focus,
+                  progression_intent: draft.progression_intent,
+                  equipment_names: draftReference.filter((e) => (draft.equipment_ids ?? []).includes(String(e.id))).map((e) => e.name),
+                });
+                return [block.type, choices];
+              }
               const choices = await getComposerExerciseCandidates({
                 blockType: block.type,
                 focus: draft.intent?.focus ?? 'General Fitness',
@@ -853,7 +863,7 @@ export default function WeekComposerV7() {
           setIntent(draft.intent ?? coachIntent);
           setArchitecture(draft.architecture);
           setArchitectures([draft.architecture]);
-                      setCandidateMap(exerciseMap);
+          setCandidateMap(exerciseMap);
           setSelectionMap(requested);
           try {
             const observations = await getComposerCandidateEvidence({
@@ -878,7 +888,6 @@ export default function WeekComposerV7() {
                 engineVersion: draft.wod_engine_version ?? null,
                 exerciseIds: requested.WOD ?? [],
                 environmentCode: draft.environment_code,
-                outdoorGym: draft.outdoor_engine_version === COMPOSER_OUTDOOR_VERSION && block.type === 'SKILL' && !readComposerPreferences(draft).skill_target_path_key,
                 focus: draft.intent?.focus,
               });
               if (!active) return;
