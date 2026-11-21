@@ -174,6 +174,45 @@ export async function getComposerSkillProposal(context) {
   }));
 }
 
+/**
+ * Validate automatic Skill suggestions with the same authority as the preview.
+ * Only discard a candidate explicitly rejected by that authority, then reuse
+ * the existing ranking. Authored choices and target-path lessons use the
+ * normal proposal API and are never substituted here.
+ */
+export async function getComposerAutomaticSkillProposal({
+  context, candidateMap = {}, defaultSelections = {}, evidence = {},
+  equipmentIds = [], targetRegion = null,
+}) {
+  let exercises = context.exercises ?? [];
+  let candidates = [...(candidateMap.SKILL ?? [])];
+  const max = exercises.length;
+  const fixedSelections = Object.fromEntries(Object.entries(defaultSelections)
+    .filter(([type]) => type !== 'SKILL'));
+  const target = readComposerPreferences(context).skill_target_path_key;
+  const excluded = new Set();
+  while (true) {
+    const proposal = await getComposerSkillProposal({ ...context, exercises });
+    if (proposal?.status === 'READY' || target ||
+        !['SKILL_CONTEXT_INCOMPATIBLE', 'SKILL_TIME_MISMATCH'].includes(proposal?.reason)) return proposal;
+    const rejectedId = proposal.exercise_id;
+    // No arbitrary retries: every retry must remove one rejected automatic
+    // candidate. A malformed response cannot create an unbounded loop.
+    if (!rejectedId || excluded.has(rejectedId) ||
+        !exercises.some((exercise) => exercise.id === rejectedId) ||
+        !candidates.some((exercise) => exercise.id === rejectedId)) return proposal;
+    excluded.add(rejectedId);
+    candidates = candidates.filter((exercise) => exercise.id !== rejectedId);
+    const selection = selectComposerDefaultExercises({
+      candidateMap: { ...candidateMap, SKILL: candidates },
+      fixedSelections, evidence, equipmentIds, targetRegion,
+      maxPerBlock: { SKILL: max },
+    });
+    if (!selection.SKILL?.length) return proposal;
+    exercises = selection.SKILL.map((id) => ({ id }));
+  }
+}
+
 function wodLabel(minutes) {
   if (minutes <= 15) return 'WOD court';
   if (minutes >= 30) return 'WOD long';

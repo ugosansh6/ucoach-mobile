@@ -71,6 +71,7 @@ import {
   getComposerForLocalDate,
   getComposerSkillTargets,
   getComposerSkillProposal,
+  getComposerAutomaticSkillProposal,
   saveComposerDraft,
 } from '../services/composerService';
 import {
@@ -968,6 +969,7 @@ export default function WeekComposerV7() {
     }
     setArchitecture(result.architecture);
     setArchitectureEditError('');
+    setError('');
     // Each type has a single identity in the current Day-J compiler; never
     // retain exercise choices from a block the athlete explicitly removed.
     if (result.removedType) {
@@ -1082,13 +1084,17 @@ export default function WeekComposerV7() {
       }
       const skill = (architecture.blocks ?? []).find((block) => block.type === 'SKILL');
       if (skill && skillEngineVersion && !(selectionMap.SKILL ?? []).length) {
-        const proposal = await getComposerSkillProposal({
-          preferences: composerPreferences, session_minutes: duration, block_minutes: skill.minutes,
-          environment_code: environmentCode, focus: intent?.focus ?? 'General Fitness',
-          progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
-          equipment_names: equipmentNames(), readiness: 'normal',
-          exercises: (defaults.SKILL ?? []).map((id) => ({ id })),
-          wod_exercises: (defaults.WOD ?? []).map((id) => ({ exercise_id: id })),
+        const proposal = await getComposerAutomaticSkillProposal({
+          context: {
+            preferences: composerPreferences, session_minutes: duration, block_minutes: skill.minutes,
+            environment_code: environmentCode, focus: intent?.focus ?? 'General Fitness',
+            progression_intent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
+            equipment_names: equipmentNames(), readiness: 'normal',
+            exercises: (defaults.SKILL ?? []).map((id) => ({ id })),
+            wod_exercises: (defaults.WOD ?? []).map((id) => ({ exercise_id: id })),
+          },
+          candidateMap: candidatesByBlock, defaultSelections: defaults,
+          evidence: observations, equipmentIds, targetRegion,
         });
         if (proposal?.status !== 'READY') {
           const failure = new Error('Skill incompatible');
@@ -1130,6 +1136,7 @@ export default function WeekComposerV7() {
       setStep(3);
     } catch (loadError) {
       console.warn('[WeekComposerV7] candidate load failed', loadError);
+      if (requestedComposition !== latestComposition.current) return;
       setError(loadError.userMessage ?? 'Impossible de charger les mouvements proposés.');
     } finally {
       setBusy(false);

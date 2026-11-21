@@ -6,6 +6,8 @@ En Maison et Box, les nouvelles cartes de proposition font varier la répartitio
 
 La personnalisation regroupe la durée de chaque bloc directement au-dessus de ses boutons − / +, avec le libellé « Durée ». Les flèches de déplacement et la suppression restent séparées ; leurs actions et le calcul de répartition ne changent pas (précision UX d’Ugo du 21/11/2026).
 
+Le réglage explicite des durées est une contrainte pour la génération : une incompatibilité d’exercice ne doit pas rétablir une répartition conseillée. Avant la sélection initiale du Skill, les suggestions automatiques sont validées par l’autorité partagée ; un candidat explicitement refusé est écarté de cette proposition puis le classement existant est réutilisé, avec les mêmes durées. Les choix manuels et les leçons d’un parcours cible ne sont pas remplacés silencieusement. Une impossibilité réelle reste expliquée, sans supprimer les contrôles de sécurité.
+
 ## Cadrage courant — 19 novembre 2026
 
 Le [ticket #29](https://github.com/ugosansh6/ucoach-mobile/issues/29) conserve le suivi unique de la stabilisation : besoins, couverture réelle, propriétaires, dépendances et preuves. Les règles ci-dessous sont acceptées ; leur présence dans ce contrat ne signifie pas qu'elles sont toutes implémentées ni que le développement a été lancé.
