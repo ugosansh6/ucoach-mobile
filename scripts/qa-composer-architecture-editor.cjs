@@ -3,9 +3,9 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const source = fs.readFileSync('src/utils/composerArchitectureEditor.js', 'utf8');
-const { editComposerArchitecture: edit, composerAddableBlocks, composerMainBlocks } =
+const { editComposerArchitecture: edit, composerAddableBlocks, composerMainBlocks, composerArchitectureForTarget } =
   new Function(source.replaceAll('export const ', 'const ').replaceAll('export function ', 'function ') +
-    '\nreturn {editComposerArchitecture,composerAddableBlocks,composerMainBlocks};')();
+    '\nreturn {editComposerArchitecture,composerAddableBlocks,composerMainBlocks,composerArchitectureForTarget};')();
 
 const initial = {
   key: 'balanced', estimatedMinutes: 60, transitionReserveMinutes: 5,
@@ -73,3 +73,18 @@ const legacySnapshot = JSON.stringify(legacy);
 assert.equal(edit(legacy,{kind:'tabata'}).ok,false,'Never silently inject Tabata into older draft');
 assert.equal(JSON.stringify(legacy),legacySnapshot,'Older draft unchanged');
 console.log('PASS: add/remove/reorder, older drafts, time budget and protected Tabata');
+
+for(const env of ['HOME','BOX','GYM','OUTDOOR']) {
+ assert.equal(composerAddableBlocks(initial,env).some(type=>['SKILL','STRENGTH'].includes(type)),false,'Never add a competing training block');
+ const wodOnly={blocks:[{type:'WOD',minutes:45}]};
+ assert.equal(composerAddableBlocks(wodOnly,env).filter(type=>['SKILL','STRENGTH'].includes(type)).length,1);
+ assert.equal(composerAddableBlocks(wodOnly,env,'HANDSTAND_HSPU')[0],'SKILL','Target routes through existing progression authority');
+}
+const targeted=composerArchitectureForTarget(initial,'HANDSTAND_HSPU');
+assert.deepEqual(targeted.blocks.map(b=>b.type),['WARMUP','TABATA','SKILL','WOD']);
+assert.deepEqual(targeted.blocks.map(b=>b.minutes),initial.blocks.map(b=>b.minutes));
+assert.equal(initial.blocks[2].type,'STRENGTH','Original and saved architectures never mutated');
+assert.equal(composerArchitectureForTarget(initial,null),initial);
+assert.equal(composerAddableBlocks(initial,'GYM').includes('CARDIO'),true);
+assert.equal(composerAddableBlocks(initial,'BOX').includes('CARDIO'),false);
+console.log('PASS: one training block, environment labels/routing, explicit target, duration preservation and legacy mixed contracts');

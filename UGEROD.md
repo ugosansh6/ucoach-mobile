@@ -2,6 +2,12 @@
 
 Ce fichier conserve les repères et décisions durables. Les tâches et leurs preuves vivent dans les [issues GitHub](https://github.com/ugosansh6/ucoach-mobile/issues), sans backlog parallèle. L'assistant maintient ces références pendant le travail ; Ugo décrit son besoin et arbitre les choix produit.
 
+## Bloc de travail commun et Mobilité — décision du 21 novembre 2026
+
+La nouvelle composition ne propose plus deux blocs concurrents Skill/Musculation : un seul bloc de travail, nommé Skill en Maison/Box, Musculation en Salle et Renforcement en Outdoor. Le catalogue sélectionnable est commun aux contrats SKILL/STRENGTH : même lecture paginée, sans filtre de rôle ni limite de présélection artificielle ; matériel, environnement, zones et validation des prescriptions restent applicables. Le type historique reste un contrat moteur, pas un second choix utilisateur. Une cible technique explicite est transmise à l’autorité Skill et à ses progressions existantes, y compris en Salle, avec les durées conservées. Les anciennes compositions mixtes restent distinctes et ne sont pas fusionnées silencieusement.
+
+Le futur bloc Mobilité utilise un catalogue dédié à créer et un contrat propre, comme Cardio possède ses exercices dédiés ; il ne remplace pas Skill/Musculation et n’est pas présenté comme jouable sans catalogue ni raccord au Player. Suivi unique et critères : [#28](https://github.com/ugosansh6/ucoach-mobile/issues/28), actualisé sur instruction explicite d’Ugo. Les séances complètes Mobilité/Pilates et routines historiques conservent leurs périmètres distincts.
+
 ## Éditeur intégré — décision du 21 novembre 2026
 
 La page Structure affiche un seul aperçu de la composition courante, actualisé par l’éditeur « Personnaliser la structure », toujours visible et intégré au fond de page. Les cartes alternatives et le volet de personnalisation sont remplacés par cet éditeur. Les possibilités moteur restent conservées : Skill seul et WOD seul s’obtiennent en retirant l’autre bloc. Le choix de mécanique reste à son étape dédiée.

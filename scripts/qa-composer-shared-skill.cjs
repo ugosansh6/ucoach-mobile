@@ -18,7 +18,7 @@ let rpcReply=()=>({status:'READY',exercises:[]});
 function query(table){
   const result = table==='exercises' ? rows : [];
   return {select(){return this;},order(){return this;},limit(){return this;},
-    eq(){return this;},contains(){return this;},in(){return this;},
+    eq(){return this;},contains(){return this;},in(){return this;},range(){return this;},
     then(resolve){resolve({data:result,error:null});}};
 }
 const supabase={from:query,async rpc(name,args){calls.push({name,args});return {data:rpcReply(name,args)};}};
@@ -49,6 +49,21 @@ async function main(){
   assert.deepEqual(multi,reversed,'Preference order must not choose a dominant first zone');
   const automatic=await api.getComposerExerciseCandidates({...base,targetRegion:'Upper',preferences:{preferred_regions:[]}});
   assert.equal(new Set(automatic.map(e=>e.score)).size,1,'Explicit automatic must not revive an old scalar');
+  const catalogueRows=Array.from({length:620},(_,i)=>({id:'catalogue-'+i,name:'Exercise '+i,
+    selection_weight:1,home_friendly:true,usable_for:i%2?['Skill']:['STRENGTH']}));
+  const roleFilters=[];
+  const catalogueSupabase={from(table){let from=0,to=999;return {
+    select(){return this;},order(){return this;},eq(){return this;},in(){return this;},limit(){return this;},
+    contains(column,value){roleFilters.push({column,value});return this;},
+    range(a,b){from=a;to=b;return this;},then(resolve){resolve({data:table==='exercises'?catalogueRows.slice(from,to+1):[],error:null});}};}};
+  const commonApi=new Function('supabase','getAuthenticatedUserWithRetry','runSupabaseRequestWithAuthRetry','readComposerPreferences',
+    service+';return {getComposerExerciseCandidates};')(catalogueSupabase,async()=>({id:'synthetic'}),async fn=>(await fn()).data,readComposerPreferences);
+  const skillCatalogue=await commonApi.getComposerExerciseCandidates({...base,limit:3});
+  const strengthCatalogue=await commonApi.getComposerExerciseCandidates({...base,blockType:'STRENGTH',limit:3});
+  assert.equal(skillCatalogue.length,620,'No shortlist truncation of the selectable training catalogue');
+  assert.deepEqual(skillCatalogue,strengthCatalogue,'Same exercises and ranking for both training contracts');
+  assert.deepEqual(roleFilters,[],'No Skill/Strength role gate on the common training catalogue');
+  console.log('PASS: shared Skill/Strength catalogue, full pagination beyond 500 rows and no type-based restriction');
   const request={preferences:readComposerPreferences({preferred_regions:['Upper','Core'],skill_target_path_key:'HANDSTAND_HSPU'}),
     session_minutes:45,block_minutes:12,environment_code:'BOX',exercises:[{id:'upper'}]};
   await api.getComposerSkillProposal(request);

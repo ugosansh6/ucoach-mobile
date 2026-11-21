@@ -43,6 +43,7 @@ import {
   editComposerArchitecture,
   composerMainBlocks,
   composerAddableBlocks,
+  composerArchitectureForTarget,
 } from '../utils/composerArchitectureEditor';
 import { useUgerodTheme } from '../contexts/UgerodThemeContext';
 import {
@@ -506,7 +507,7 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
             <View key={option.key + '-legend-' + block.type + '-' + index} style={styles.architectureLegendItem}>
               <View style={[styles.architectureLegendDot, { backgroundColor: segmentColor(block.type) }]} />
               <Text style={styles.architectureLegendLabel}>
-                {composerBlockDisplayLabel(block.type, environmentCode)}
+                {composerBlockDisplayLabel(block.type, environmentCode, option)}
                 <Text style={styles.architectureLegendMinutes}>{' · ' + block.minutes + ' min'}</Text>
               </Text>
             </View>
@@ -934,9 +935,10 @@ export default function WeekComposerV7() {
           : intent.focus === 'Conditioning' ? 'CONDITIONING'
             : 'GENERAL_FITNESS';
       const proposal = guidedComposer ? await getComposerArchitectureProposal({ durationMinutes: duration, environmentCode }) : null;
-      const next = proposal?.options ?? buildComposerArchitectures({
+      const proposed = proposal?.options ?? buildComposerArchitectures({
         durationMinutes: duration, intentKey: planningIntentKey, environmentCode, targets,
       });
+      const next = proposed.map((option) => composerArchitectureForTarget(option, skillTargetPath));
       if (proposal?.status === 'DEFAULT_UNAVAILABLE') setArchitectureEditError(proposal.reason);
       setArchitectures(next);
       setArchitecture(proposal?.status === 'DEFAULT_UNAVAILABLE' ? null : next[0] ?? null);
@@ -1688,7 +1690,7 @@ export default function WeekComposerV7() {
                     <View key={'edit-' + block.type} style={styles.structureEditBlock}>
                       <View style={styles.structureEditBlockTitle}>
                         <Text style={styles.structureEditTitle}>
-                          {composerBlockDisplayLabel(block.type, environmentCode)}
+                          {composerBlockDisplayLabel(block.type, environmentCode, architecture)}
                         </Text>
                       </View>
                       <View style={styles.structureEditActions}>
@@ -1747,11 +1749,11 @@ export default function WeekComposerV7() {
                       </View>
                     </View>
                   ))}
-                  {composerAddableBlocks(architecture, environmentCode).length ? (
+                  {composerAddableBlocks(architecture, environmentCode, skillTargetPath).length ? (
                     <View style={styles.structureAddRow}>
                       <Text style={styles.structureEditorHelp}>Ajouter un bloc</Text>
                       <View style={styles.structureAddActions}>
-                        {composerAddableBlocks(architecture, environmentCode).map((type) => (
+                        {composerAddableBlocks(architecture, environmentCode, skillTargetPath).map((type) => (
                           <Pressable
                             key={'add-' + type}
                             accessibilityRole="button"

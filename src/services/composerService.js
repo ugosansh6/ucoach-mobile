@@ -53,6 +53,16 @@ function scoreExercise(exercise, focus, targetRegion) {
   return score;
 }
 
+async function readCompleteComposerCatalogue(query) {
+  const rows = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await query.range(offset, offset + 499);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < 500) return rows;
+  }
+}
+
 export async function getComposerExerciseCandidates({
   blockType,
   focus,
@@ -79,30 +89,45 @@ export async function getComposerExerciseCandidates({
     return [...choices.values()].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   }
   const role = BLOCK_ROLE[blockType] ?? 'WOD';
+  const commonTrainingCatalogue = ['SKILL', 'STRENGTH'].includes(blockType);
   let query = supabase
     .from('exercises')
     .select('id,name,display_name,description,instructions,tips,image_path,exercise_type,difficulty,technical_complexity,movement_pattern,exercise_family,body_region,training_focus,equipment_requirement,selection_weight,usable_for,home_friendly,prescription_type,tabata_eligible,warmup_eligible,warmup_role,wod_role')
     .order('selection_weight', { ascending: false })
-    .limit(targetRegion === 'Back' ? 160 : 80);
+    .order('id', { ascending: true });
+  if (!commonTrainingCatalogue) query = query.limit(targetRegion === 'Back' ? 160 : 80);
 
   if (blockType === 'WARMUP') query = query.eq('warmup_eligible', true);
   else if (blockType === 'TABATA') query = query.eq('tabata_eligible', true);
-  else query = query.contains('usable_for', [role]);
+  else if (!commonTrainingCatalogue) query = query.contains('usable_for', [role]);
 
   if (String(environmentCode).toUpperCase() === 'HOME') {
     query = query.eq('home_friendly', true);
   }
 
-  const { data: exercises, error } = await query;
-  if (error) throw error;
+  let exercises;
+  if (commonTrainingCatalogue) {
+    // Both training contracts explore the same complete catalogue. The shared
+    // authorities still own eligibility and prescription validation.
+    exercises = await readCompleteComposerCatalogue(query);
+  } else {
+    const { data, error } = await query;
+    if (error) throw error;
+    exercises = data;
+  }
   if (!exercises?.length) return [];
 
   const ids = exercises.map((exercise) => exercise.id);
-  const { data: requirements, error: requirementsError } = await supabase
-    .from('exercise_equipment')
-    .select('exercise_id,equipment_id')
-    .in('exercise_id', ids);
-  if (requirementsError) throw requirementsError;
+  const requirementQuery = supabase.from('exercise_equipment')
+    .select('exercise_id,equipment_id').in('exercise_id', ids)
+    .order('exercise_id').order('equipment_id');
+  let requirements;
+  if (commonTrainingCatalogue) requirements = await readCompleteComposerCatalogue(requirementQuery);
+  else {
+    const result = await requirementQuery;
+    if (result.error) throw result.error;
+    requirements = result.data;
+  }
 
   const requiredIds = [...new Set((requirements ?? []).map((row) => String(row.equipment_id)).filter((id) => id && id !== 'E00'))];
   const { data: equipmentRows, error: equipmentError } = requiredIds.length
@@ -164,7 +189,7 @@ export async function getComposerExerciseCandidates({
       backMuscleEvidence: targetRegion === 'Back' ? (backMuscleWeights.get(exercise.id) ?? 0) : null,
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(3, limit));
+    .slice(0, commonTrainingCatalogue ? undefined : Math.max(3, limit));
 }
 
 export async function getComposerSkillProposal(context) {
@@ -225,7 +250,7 @@ function wodLabel(minutes) {
  * These are DISPLAY labels only; STRENGTH, SKILL, WOD and prescription types
  * are never remapped or substituted.
  */
-export function composerBlockDisplayLabel(type, environmentCode = 'BOX') {
+export function composerBlockDisplayLabel(type, environmentCode = 'BOX', architecture = null) {
   const env = String(environmentCode ?? 'BOX').toUpperCase();
   if (type === 'WARMUP') return 'Warm-up';
   if (type === 'TABATA') return 'Tabata';
@@ -235,7 +260,8 @@ export function composerBlockDisplayLabel(type, environmentCode = 'BOX') {
     if (env === 'HOME' || env === 'OUTDOOR') return 'Renforcement';
     return 'Force';
   }
-  if (type === 'SKILL') return 'Skill';
+  if (type === 'SKILL' && architecture?.blocks?.some((block) => block.type === 'STRENGTH')) return 'Skill';
+  if (type === 'SKILL') return env === 'GYM' ? 'Musculation' : env === 'OUTDOOR' ? 'Renforcement' : 'Skill';
   if (type === 'WOD') return 'WOD';
   if (type === 'CARDIO') return 'Cardio';
   return String(type ?? '');
@@ -246,7 +272,7 @@ export function composerArchitectureDisplayTitle(option, environmentCode = 'BOX'
     (item) => !['WARMUP', 'TABATA'].includes(item.type)
   );
   if (!mainBlocks.length) return option?.title ?? 'Séance';
-  const labels = mainBlocks.map((item) => composerBlockDisplayLabel(item.type, environmentCode));
+  const labels = mainBlocks.map((item) => composerBlockDisplayLabel(item.type, environmentCode, option));
   if (labels.length > 1) return labels.join(' + ');
   return labels[0] + (['Musculation', 'Force'].includes(labels[0]) ? ' seule' : ' seul');
 }
