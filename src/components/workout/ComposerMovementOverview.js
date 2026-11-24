@@ -63,7 +63,7 @@ function makeStyles(colors) {
     orientationCircle: { backgroundColor: colors.secondaryAccentSoft },
     summaryValue: { fontFamily: fontFamilies.bold, fontSize: 16, lineHeight: 22, textAlign: 'center', color: colors.text, maxWidth: '100%' },
     tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-    zone: { paddingHorizontal: 11, paddingVertical: 6, overflow: 'hidden', borderRadius: 999, backgroundColor: colors.accentSoft, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.accent },
+    zone: { paddingHorizontal: 11, paddingVertical: 6, overflow: 'hidden', borderRadius: 999, backgroundColor: colors.accentSoft, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     target: { flexDirection: 'row', gap: 6, alignItems: 'center', maxWidth: '100%', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.secondaryAccentSoft },
     targetText: { flexShrink: 1, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.text },
     tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },
