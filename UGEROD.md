@@ -4,7 +4,7 @@ Ce fichier conserve les repères et décisions durables. Les tâches et leurs pr
 
 ## Synthèse Mouvements — décision du 24 novembre 2026
 
-Sur validation d'Ugo, la page Mouvements utilise trois cartes horizontales icône + valeur, sans libellés visibles « Durée / Lieu / Objectif », puis les zones en pastilles et des onglets de blocs plus visibles avec leur durée. Le lien « Ajuster les blocs et leurs durées » est retiré de cette page ; l'étape Structure reste accessible par le parcours existant. Les prescriptions et le moteur sont conservés. La galerie d'exercices par images reste une perspective distincte. Contrat détaillé dans `docs/COMPOSER_UX_CONTRACT.md`, suivi dans #40.
+Sur validation d'Ugo, la page Mouvements utilise trois cartes horizontales icône + valeur, sans libellés visibles « Durée / Lieu / Objectif », puis un quatrième bloc pour les zones ciblées (précision après recette du 24/11) et des onglets de blocs plus visibles avec leur durée. Les cartes d'exercices affichent une vignette, le nom et la prescription courte ; les grosses coches sont retirées, les détails donnent accès au matériel, à la charge et aux actions Remplacer/Retirer. Le lien « Ajuster les blocs et leurs durées » est retiré de cette page ; l'étape Structure reste accessible par le parcours existant. Les prescriptions et le moteur sont conservés. Les vignettes utilisent les images déjà disponibles ou un emplacement neutre ; la galerie d'exercices par images reste une perspective distincte. Contrat détaillé dans `docs/COMPOSER_UX_CONTRACT.md`, suivi dans #40.
 
 ## Extérieur raccordé aux producteurs existants — décision du 21 novembre 2026
 

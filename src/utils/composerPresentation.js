@@ -10,7 +10,7 @@ export function composerDurationSummary(assessment, budgetMinutes) {
   return `${budgetMinutes} min prévues · environ ${estimate} min estimées, récupérations et installation comprises. ${status}`;
 }
 
-export function formatComposerDose(dose, blockType, block = null) {
+export function formatComposerDose(dose, blockType, block = null, { compactCard = false } = {}) {
   if (!dose) return '';
   if (blockType === 'CARDIO') return dose.text ?? dose.prescription_json?.text ?? 'Protocole cardio';
   if (blockType === 'TABATA') return dose.intervals_per_exercise
@@ -27,10 +27,14 @@ export function formatComposerDose(dose, blockType, block = null) {
   } else if (dose.duration_seconds != null) work = `${dose.duration_seconds} s`;
   else if (dose.distance_meters != null) work = `${dose.distance_meters} m`;
   const sets = dose.sets ?? (block?.mechanic === 'SETS_REPS' ? block.parameters?.sets : null);
-  if (work) parts.push(sets ? `${sets} × ${work}` : work);
-  if (dose.load_kg != null) parts.push(`${dose.load_kg} kg`);
-  else if (dose.band_resistance_label) parts.push(`Élastique ${dose.band_resistance_label}`);
-  if (dose.rest_seconds && ['STRENGTH', 'SKILL'].includes(blockType)) parts.push(`${dose.rest_seconds} s repos`);
+  if (work) parts.push(sets ? `${sets}${compactCard ? ` série${Number(sets) === 1 ? '' : 's'}` : ''} × ${work}` : work);
+  if (!compactCard) {
+    if (dose.load_kg != null) parts.push(`${dose.load_kg} kg`);
+    else if (dose.band_resistance_label) parts.push(`Élastique ${dose.band_resistance_label}`);
+  }
+  if (dose.rest_seconds && ['STRENGTH', 'SKILL'].includes(blockType)) {
+    parts.push(compactCard ? `repos ${dose.rest_seconds} s` : `${dose.rest_seconds} s repos`);
+  }
   return parts.join(' · ') || 'Dosage à calibrer';
 }
 

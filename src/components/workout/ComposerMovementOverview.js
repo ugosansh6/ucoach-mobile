@@ -30,8 +30,14 @@ export default function ComposerMovementOverview({ minutes, environment, intent,
         <Text style={styles.summaryValue}>{card.value}</Text>
       </View>)}
     </View>
-    {regions.length || technicalTarget ? <View style={styles.tags}>
-      {regions.map((region) => <Text key={region} style={styles.zone}>{region}</Text>)}
+    {regions.length ? <View accessible accessibilityLabel={`Zones de travail : ${regions.join(', ')}`}
+      style={styles.regionsCard} testID="movement-summary-regions">
+      <View style={styles.iconCircle}>
+        <Ionicons name="body-outline" size={22} color={colors.accent} accessible={false} />
+      </View>
+      <Text style={styles.regionsValue}>{regions.join(' · ')}</Text>
+    </View> : null}
+    {technicalTarget ? <View style={styles.tags}>
       {technicalTarget ? <View style={styles.target}>
         <Ionicons name="sparkles-outline" size={14} color={colors.secondaryAccent} accessible={false} />
         <Text style={styles.targetText}>{technicalTarget}</Text>
@@ -63,7 +69,8 @@ function makeStyles(colors) {
     orientationCircle: { backgroundColor: colors.secondaryAccentSoft },
     summaryValue: { fontFamily: fontFamilies.bold, fontSize: 16, lineHeight: 22, textAlign: 'center', color: colors.text, maxWidth: '100%' },
     tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-    zone: { paddingHorizontal: 11, paddingVertical: 6, overflow: 'hidden', borderRadius: 999, backgroundColor: colors.accentSoft, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+    regionsCard: { padding: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    regionsValue: { flex: 1, minWidth: 0, fontFamily: fontFamilies.semiBold, fontSize: 15, lineHeight: 22, color: colors.text },
     target: { flexDirection: 'row', gap: 6, alignItems: 'center', maxWidth: '100%', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.secondaryAccentSoft },
     targetText: { flexShrink: 1, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.text },
     tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },

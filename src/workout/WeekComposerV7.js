@@ -526,41 +526,36 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
   );
 }
 
-function ExerciseCard({ exercise, doseLabel, selected, expanded, onToggleSelect, onToggleExpand, onOpenAlternatives, suggestedAlternative, styles, colors }) {
+function ExerciseCard({ exercise, dose, doseLabel, selected, expanded, editable = true, onToggleSelect, onToggleExpand, onOpenAlternatives, suggestedAlternative, styles, colors }) {
   const imageUri = /^https?:\/\//i.test(String(exercise.imagePath ?? '')) ? exercise.imagePath : null;
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => { setImageFailed(false); }, [imageUri]);
   const material = (exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps';
-  const compactMeta = [movementLabel(exercise.movementPattern), material].filter(Boolean).join(' · ');
-  const detailMeta = [regionLabel(exercise.bodyRegion), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
+  const detailMeta = [movementLabel(exercise.movementPattern), regionLabel(exercise.bodyRegion), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
+  const load = dose?.load_kg != null
+    ? `${dose.load_kg} kg${dose.load_scope === 'per_implement' ? ' par élément' : ''}`
+    : dose?.band_resistance_label ? `Élastique ${dose.band_resistance_label}` : null;
   return (
-    <View style={[styles.exerciseCard, selected && styles.cardSelected, expanded && styles.exerciseCardExpanded]}>
-      {selected ? <View style={styles.selectedRail} /> : null}
+    <View style={[styles.exerciseCard, expanded && styles.exerciseCardExpanded]} testID={`movement-card-${exercise.id}`}>
       <View style={styles.exerciseMainRow}>
         <Pressable
           onPress={onToggleExpand}
           accessibilityRole="button"
           accessibilityState={{ expanded }}
+          aria-expanded={expanded}
           accessibilityLabel={'Détails de ' + exercise.name}
           style={({ pressed }) => [styles.exerciseInfoButton, pressed && styles.pressed]}
         >
-          <View style={[styles.exerciseGlyph, selected && styles.exerciseGlyphSelected]}>
-            <Ionicons name="barbell-outline" size={18} color={selected ? colors.textOnAccent : colors.accent} />
+          <View style={styles.exerciseThumbnail} testID={`movement-thumbnail-${exercise.id}`}>
+            {imageUri && !imageFailed ? <Image source={{ uri: imageUri }} resizeMode="contain" style={styles.exerciseThumbnailImage}
+              onError={() => setImageFailed(true)} accessible={false} />
+              : <Ionicons name="image-outline" size={25} color={colors.textMuted} accessible={false} />}
           </View>
           <View style={styles.exerciseCopy}>
             <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {compactMeta ? <Text numberOfLines={1} style={styles.exerciseMeta}>{compactMeta}</Text> : null}
             {doseLabel ? <Text style={styles.exerciseDose}>{doseLabel}</Text> : null}
           </View>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
-        </Pressable>
-        <Pressable
-          onPress={onToggleSelect}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: selected }}
-          accessibilityLabel={(selected ? 'Retirer ' : 'Choisir ') + exercise.name}
-          style={[styles.selectCircle, selected && styles.selectCircleSelected]}
-          hitSlop={8}
-        >
-          <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
         </Pressable>
       </View>
 
@@ -577,6 +572,26 @@ function ExerciseCard({ exercise, doseLabel, selected, expanded, onToggleSelect,
       {expanded ? (
         <View style={styles.exerciseDetails}>
           {detailMeta ? <Text style={styles.exerciseDetailMeta}>{detailMeta}</Text> : null}
+          <View style={styles.detailBlock}>
+            <Text style={styles.detailLabel}>MATÉRIEL</Text>
+            <Text style={styles.detailText}>{material}</Text>
+          </View>
+          {load ? <View style={styles.detailBlock}>
+            <Text style={styles.detailLabel}>CHARGE CONSEILLÉE</Text>
+            <Text style={styles.detailText}>{load}</Text>
+          </View> : null}
+          {editable ? <View style={styles.exerciseDetailActions}>
+            {onOpenAlternatives ? <Pressable accessibilityRole="button" accessibilityLabel={`Remplacer ${exercise.name}`}
+              onPress={onOpenAlternatives} style={({ pressed }) => [styles.exerciseDetailAction, pressed && styles.pressed]}>
+              <Ionicons name="swap-horizontal-outline" size={17} color={colors.text} />
+              <Text style={styles.exerciseDetailActionText}>Remplacer</Text>
+            </Pressable> : null}
+            <Pressable accessibilityRole="button" accessibilityLabel={`${selected ? 'Retirer' : 'Choisir'} ${exercise.name}`}
+              onPress={onToggleSelect} style={({ pressed }) => [styles.exerciseDetailAction, pressed && styles.pressed]}>
+              <Ionicons name={selected ? 'trash-outline' : 'add-outline'} size={17} color={colors.textSecondary} />
+              <Text style={styles.exerciseDetailActionText}>{selected ? 'Retirer' : 'Choisir'}</Text>
+            </Pressable>
+          </View> : null}
           {!exercise.warning && exercise.recommendationReason ? (
             <View style={styles.exerciseDetailReason}>
               <Ionicons name="bulb-outline" size={15} color={colors.accent} />
@@ -591,7 +606,6 @@ function ExerciseCard({ exercise, doseLabel, selected, expanded, onToggleSelect,
               <Ionicons name="chevron-forward" size={15} color={colors.accent} />
             </Pressable>
           ) : null}
-          {imageUri ? <Image source={{ uri: imageUri }} resizeMode="cover" style={styles.exerciseImage} /> : null}
           {exercise.description ? (
             <View style={styles.detailBlock}>
               <Text style={styles.detailLabel}>DESCRIPTION</Text>
@@ -1888,25 +1902,31 @@ export default function WeekComposerV7() {
                 </View>
               ) : null}
               <View style={styles.exerciseList}>
-                {selectedCandidateObjects.map((exercise) => (
-                  <ExerciseCard
-                    key={exercise.id}
-                    exercise={exercise}
-                    doseLabel={activeBlock.type === 'STRENGTH'
-                      ? currentStrengthAssessment ? formatPreviewDose(currentStrengthAssessment.exercises?.find((x) => x.id === exercise.id), activeBlock.type) : strengthAssessmentError ? 'Dosage indisponible' : 'Dosage en attente de calcul'
-                      : null}
-                    selected={activeSelected.includes(exercise.id)}
-                    expanded={expandedExerciseId === exercise.id}
-                    onToggleSelect={() => chooseExercise(activeBlock.type, exercise.id)}
-                    onToggleExpand={() => setExpandedExerciseId((current) => current === exercise.id ? null : exercise.id)}
-                    suggestedAlternative={exercise.warning
-                      ? activeCandidates.find((candidate) => !activeSelected.includes(candidate.id)
-                        && candidate.movementPattern !== exercise.movementPattern) : null}
-                    onOpenAlternatives={() => openExercisePicker(exercise.id)}
-                    styles={styles}
-                    colors={colors}
-                  />
-                ))}
+                {selectedCandidateObjects.map((exercise) => {
+                  const dose = activeBlock.type === 'STRENGTH'
+                    ? currentStrengthAssessment?.exercises?.find((item) => item.id === exercise.id) : null;
+                  return (
+                    <ExerciseCard
+                      key={exercise.id}
+                      exercise={exercise}
+                      dose={dose}
+                      doseLabel={activeBlock.type === 'STRENGTH'
+                        ? currentStrengthAssessment ? formatPreviewDose(dose, activeBlock.type, null, { compactCard: true }) : strengthAssessmentError ? 'Dosage indisponible' : 'Dosage en attente de calcul'
+                        : null}
+                      editable={activeBlock.type !== 'CARDIO'}
+                      selected={activeSelected.includes(exercise.id)}
+                      expanded={expandedExerciseId === exercise.id}
+                      onToggleSelect={() => chooseExercise(activeBlock.type, exercise.id)}
+                      onToggleExpand={() => setExpandedExerciseId((current) => current === exercise.id ? null : exercise.id)}
+                      suggestedAlternative={exercise.warning
+                        ? activeCandidates.find((candidate) => !activeSelected.includes(candidate.id)
+                          && candidate.movementPattern !== exercise.movementPattern) : null}
+                      onOpenAlternatives={replacementCandidates.length > 0 ? () => openExercisePicker(exercise.id) : null}
+                      styles={styles}
+                      colors={colors}
+                    />
+                  );
+                })}
               </View>
 
               {activeBlock.type === 'CARDIO' ? <Pressable disabled={busy} onPress={refreshCardioProtocol} style={styles.structureLink}><Text style={styles.structureLinkText}>{outdoorEngine ? 'Actualiser le protocole de course' : 'Actualiser le protocole cardio avec mon matériel'}</Text></Pressable> : null}
@@ -2350,16 +2370,18 @@ function createStyles(colors) {
     exerciseSuggestionsSection: { marginTop: 22 },
     exerciseCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     exerciseCardExpanded: { borderColor: colors.accent },
-    exerciseMainRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 },
-    exerciseInfoButton: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10 },
-    exerciseGlyph: { width: 36, height: 36, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
-    exerciseGlyphSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+    exerciseMainRow: { minHeight: 92, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+    exerciseInfoButton: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+    exerciseThumbnail: { width: 64, height: 64, flexShrink: 0, overflow: 'hidden', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    exerciseThumbnailImage: { width: '100%', height: '100%' },
     exerciseCopy: { flex: 1, minWidth: 0 },
-    exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 16, lineHeight: 20, color: colors.text },
-    exerciseDose: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.accent },
-    exerciseMeta: { marginTop: 3, fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 15, color: colors.textSecondary },
+    exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 17, lineHeight: 23, color: colors.text },
+    exerciseDose: { marginTop: 5, fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 20, color: colors.textSecondary },
     exerciseDetailMeta: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, color: colors.textSecondary },
     exerciseDetailReason: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+    exerciseDetailActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 15 },
+    exerciseDetailAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
+    exerciseDetailActionText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.text },
     selectionCount: { marginBottom: 10, fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.textSecondary },
     exerciseChangeAction: { marginTop: 12, minHeight: 48, paddingHorizontal: 13, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 10 },
     exerciseChangeLabel: { flex: 1, fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.accent },
@@ -2373,7 +2395,6 @@ function createStyles(colors) {
     exerciseSuggestionLinkText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.accent },
     exerciseReason: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 11, lineHeight: 16, color: colors.accent },
     exerciseDetails: { paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: colors.border },
-    exerciseImage: { marginTop: 15, width: '100%', height: 190, borderRadius: 14, backgroundColor: colors.background },
     detailBlock: { marginTop: 15 },
     detailLabel: { fontFamily: fontFamilies.bold, fontSize: 9, letterSpacing: 1, color: colors.accent },
     detailText: { marginTop: 6, fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, color: colors.textSecondary },
