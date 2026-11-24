@@ -1,4 +1,5 @@
 import ComposerOutdoorCardioPreview from '../components/workout/ComposerOutdoorCardioPreview';
+import ComposerMovementOverview, { ComposerMovementTabs } from '../components/workout/ComposerMovementOverview';
 import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
 import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
 import ExerciseCatalogueControls from '../components/exercises/ExerciseCatalogueControls';
@@ -397,7 +398,7 @@ function SheetShell({ visible, title, onClose, children, footer, styles, colors 
 function StageHeader({ kicker, title, helper, styles }) {
   return (
     <View style={styles.stageHeader}>
-      <Text style={styles.kicker}>{kicker}</Text>
+      {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
       <Text style={styles.question}>{title}</Text>
       {helper ? <Text style={styles.helper}>{helper}</Text> : null}
     </View>
@@ -1476,8 +1477,6 @@ export default function WeekComposerV7() {
     ? (architecture?.blocks ?? []).filter((item) => item.type === recapEditingBlock)
     : (architecture?.blocks ?? []).filter((item) => !['WARMUP', 'TABATA'].includes(item.type));
   const intentKey = String(effectiveIntent?.key ?? '').toUpperCase();
-  const structureDiffersFromDominant = architecture
-    && !composerArchitectureMatchesIntent(architecture, intentKey);
   const activeBlock = exerciseBlocks[exerciseBlockIndex] ?? null;
   const activeCandidates = activeBlock ? rankComposerCandidates({
     candidates: candidateMap[activeBlock.type] ?? [],
@@ -1532,7 +1531,14 @@ export default function WeekComposerV7() {
             <Image source={brandIcon} style={styles.brandIcon} resizeMode="contain" />
           </View>
 
-          {step > 0 ? (
+          {step === 3 ? <ComposerMovementOverview
+            minutes={duration}
+            environment={environmentLabel(environmentCode)}
+            intent={effectiveIntent}
+            regions={preferredRegions.map((region) => composerRegionsLabel({ preferred_regions: [region] }))}
+            technicalTarget={skillTargetPath ? skillTargets.find((option) => option.key === skillTargetPath)?.name ?? skillTargetPath : null}
+            colors={colors}
+          /> : step > 0 ? (
             <View style={styles.contextTrail}>
               <View style={styles.contextLine}>
                 <Text style={styles.contextPrimary}>{duration} MIN · {environmentLabel(environmentCode).toUpperCase()}</Text>
@@ -1834,29 +1840,15 @@ export default function WeekComposerV7() {
           {step === 3 && activeBlock ? (
             <View style={styles.stepWrap}>
               <StageHeader
-                kicker={`${blockTitle(activeBlock.type, environmentCode)} · ${activeBlock.minutes} MIN PRÉVUES`}
                 title={recapEditingBlock ? 'Ajuste tes mouvements.' : 'Tes mouvements.'}
                 styles={styles}
               />
-              {structureDiffersFromDominant ? (
-                <View style={styles.structureExplanation}>
-                  <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
-                  <Text style={styles.structureExplanationText}>
-                    {directionBaseLabel(effectiveIntent)} choisi · {composerArchitectureDisplayTitle(architecture, environmentCode)} retenu.
-                  </Text>
-                </View>
-              ) : null}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.blockPositionRow}>
-                {exerciseBlocks.map((item, index) => (
-                  <Pressable
-                    key={`${item.type}-${index}`}
-                    onPress={() => { setExerciseBlockIndex(index); setExpandedExerciseId(null); }}
-                    style={[styles.blockPill, index === exerciseBlockIndex && styles.blockPillSelected]}
-                  >
-                    <Text style={[styles.blockPillText, index === exerciseBlockIndex && styles.blockPillTextSelected]}>{composerBlockDisplayLabel(item.type, environmentCode)}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+              <ComposerMovementTabs
+                blocks={exerciseBlocks.map((item) => ({ ...item, label: composerBlockDisplayLabel(item.type, environmentCode) }))}
+                selectedIndex={exerciseBlockIndex}
+                onSelect={(index) => { setExerciseBlockIndex(index); setExpandedExerciseId(null); }}
+                colors={colors}
+              />
 
               <Text style={styles.selectionCount}>
                 {activeBlock.type === 'STRENGTH'
@@ -1884,7 +1876,7 @@ export default function WeekComposerV7() {
                   <Text style={styles.structureLinkText}>Réessayer le chargement des limites</Text>
                 </Pressable>
               ) : null}
-              {activeBlock.type === 'STRENGTH' ? (
+              {activeBlock.type === 'STRENGTH' && currentStrengthAssessment?.status !== 'READY' ? (
                 <View style={styles.structureExplanation}>
                   <Ionicons name="time-outline" size={18} color={colors.accent} />
                   <Text style={styles.structureExplanationText}>
@@ -1935,11 +1927,6 @@ export default function WeekComposerV7() {
                   <Ionicons name="chevron-forward" size={18} color={colors.accent} />
                 </Pressable>
               ) : null}
-              <Pressable accessibilityRole="button" onPress={() => { setArchitectureEditError(''); setStep(2); }} style={styles.structureLink}>
-                <Text style={styles.structureLinkText}>Ajuster les blocs et leurs durées</Text>
-                <Ionicons name="options-outline" size={18} color={colors.accent} />
-              </Pressable>
-
               <PrimaryButton
                 label={exerciseBlockIndex !== exerciseBlocks.length - 1 ? 'BLOC SUIVANT'
                   : recapEditingBlock && recapEditingBlock !== 'WOD' ? 'REVENIR AU RÉCAPITULATIF'
@@ -2357,11 +2344,6 @@ function createStyles(colors) {
     cardFooterText: { fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
     structureExplanation: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 11, marginBottom: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     structureExplanationText: { flex: 1, fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
-    blockPositionRow: { gap: 8, paddingRight: 10, marginBottom: 16 },
-    blockPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-    blockPillSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-    blockPillText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.textSecondary },
-    blockPillTextSelected: { color: colors.textOnAccent },
     exerciseList: { gap: 10 },
     sectionSmallTitle: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent, marginBottom: 7 },
     sectionSmallHint: { marginBottom: 12, fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 17, color: colors.textSecondary },

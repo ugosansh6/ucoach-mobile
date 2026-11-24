@@ -1,5 +1,13 @@
 # Composer avec UGEROD — UX/UI contract
 
+## Mouvements : synthèse et blocs — décision du 24 novembre 2026
+
+La page Mouvements présente trois cartes horizontales avec une icône et la valeur : durée totale, lieu et orientation courte (par exemple « 60 min », « Salle », « Force »). Aucun libellé visible « Durée / Lieu / Objectif » n'est ajouté ; les noms accessibles conservent le sens pour les lecteurs d'écran. Les zones privilégiées apparaissent en pastilles distinctes et une cible technique explicite reste visible.
+
+Les blocs sont de grands onglets avec leur nom et leurs minutes, dans l'ordre de la composition. Ils remplacent les petites pastilles ; le titre de page ne répète plus le nom du bloc et son budget. Le bandeau Strength garde les états calcul/périmé/erreur et les incompatibilités utiles ; il ne répète pas une durée déjà compatible. Le lien « Ajuster les blocs et leurs durées » est retiré de Mouvements sur demande explicite : l'étape Structure et son éditeur intégré restent présents dans le parcours.
+
+Les prescriptions, sélections, budgets, appels moteur et formats exécutables ne changent pas. Le même composant et les tokens existants servent les deux thèmes. La sélection visuelle d'exercices par images reste une perspective ; elle n'est pas présentée comme livrée par cette modification.
+
 ## Bloc de travail commun et Mobilité — décision du 21 novembre 2026
 
 La nouvelle composition ne propose plus deux blocs concurrents Skill/Musculation : un seul bloc de travail, nommé Skill en Maison/Box, Musculation en Salle et Renforcement en Outdoor. Le catalogue sélectionnable est commun aux contrats SKILL/STRENGTH : même lecture paginée, sans filtre de rôle ni limite de présélection artificielle ; matériel, environnement, zones et validation des prescriptions restent applicables. Le type historique reste un contrat moteur, pas un second choix utilisateur. Une cible technique explicite est transmise à l’autorité Skill et à ses progressions existantes, y compris en Salle, avec les durées conservées. Les anciennes compositions mixtes restent distinctes et ne sont pas fusionnées silencieusement.

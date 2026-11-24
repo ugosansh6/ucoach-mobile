@@ -2,6 +2,10 @@
 
 Ce fichier conserve les repères et décisions durables. Les tâches et leurs preuves vivent dans les [issues GitHub](https://github.com/ugosansh6/ucoach-mobile/issues), sans backlog parallèle. L'assistant maintient ces références pendant le travail ; Ugo décrit son besoin et arbitre les choix produit.
 
+## Synthèse Mouvements — décision du 24 novembre 2026
+
+Sur validation d'Ugo, la page Mouvements utilise trois cartes horizontales icône + valeur, sans libellés visibles « Durée / Lieu / Objectif », puis les zones en pastilles et des onglets de blocs plus visibles avec leur durée. Le lien « Ajuster les blocs et leurs durées » est retiré de cette page ; l'étape Structure reste accessible par le parcours existant. Les prescriptions et le moteur sont conservés. La galerie d'exercices par images reste une perspective distincte. Contrat détaillé dans `docs/COMPOSER_UX_CONTRACT.md`, suivi dans #40.
+
 ## Extérieur raccordé aux producteurs existants — décision du 21 novembre 2026
 
 Sur instruction explicite d’Ugo après analyse, les nouvelles compositions Extérieur partent de **Cardio extérieur**, avec **Gym / street workout** et **WOD** ajoutables. Ceci remplace la proposition générique Renforcement en Extérieur. L’éditeur intégré, le choix de durée, l’ordre, la suppression, les blocs de préparation verrouillés et le choix de mécanique du WOD sont conservés. Une cible technique utilise la Gym et les progressions existantes ; « Sans course » propose directement le WOD plutôt qu’un bloc Cardio inexécutable.
