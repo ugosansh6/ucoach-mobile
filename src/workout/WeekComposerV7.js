@@ -5,6 +5,8 @@ import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/compo
 import ComposerExercisePickerPage from './ComposerExercisePickerPage';
 import { pickerEquipmentMatches, pickerAddSessionEquipment } from '../utils/composerPickerPresentation';
 import ExerciseDetail from '../components/exercises/ExerciseDetail';
+import {getPersonalWorkoutModel} from '../services/personalWorkoutModelService';
+import {canReusePersonalModel} from '../utils/personalWorkoutModels';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -559,6 +561,7 @@ export default function WeekComposerV7() {
   const params = useLocalSearchParams();
   const dateKey = firstParam(params?.date);
   const requestedPlanItemId = firstParam(params?.planItemId) ?? null;
+  const requestedModelId = firstParam(params?.modelId) ?? null;
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
@@ -705,14 +708,16 @@ export default function WeekComposerV7() {
       try {
         setLoading(true);
         setError('');
-        const [contract, catalog, saved] = await Promise.all([
+        const [contract, catalog, saved, imported] = await Promise.all([
           getWeekReadContract({ anchorDate: new Date() }),
           getEquipmentCatalog(),
           getComposerForLocalDate(dateKey),
+          requestedModelId?getPersonalWorkoutModel(requestedModelId):Promise.resolve(null),
         ]);
         if (!active) return;
         const candidates = (contract?.visibleItems ?? []).filter((item) => item?.recommendedDate === dateKey && (!item?.sessionId || item.planItemId === requestedPlanItemId));
-        const item = requestedPlanItemId
+        if(requestedModelId&&!canReusePersonalModel(imported))throw new Error('Ce modèle est introuvable ou doit être complété.');
+        const item = requestedModelId?null:requestedPlanItemId
           ? candidates.find((candidate) => candidate.planItemId === requestedPlanItemId) ?? candidates[0] ?? null
           : candidates[0] ?? null;
         setSelectedItem(item);
@@ -735,9 +740,10 @@ export default function WeekComposerV7() {
 
         // A composition already saved must reopen as the same user-owned
         // composition, not silently start a new coach generation from scratch.
-        if (saved?.planItemId && saved.planItemId === item?.planItemId &&
-            Array.isArray(saved.draft?.architecture?.blocks)) {
-          const draft = saved.draft;
+        if (imported?.draft || (saved?.planItemId && saved.planItemId === item?.planItemId &&
+            Array.isArray(saved.draft?.architecture?.blocks))) {
+          const draft = imported?.draft??saved.draft;
+          if(imported)setSelectedItem({plannedContext:{progressionIntent:draft.progression_intent??'MAINTAIN'}});
           const draftInventory = draft.environment_code === initialEnvironment ? rows
             : await getUserEnvironmentEquipmentPreset(draft.environment_code);
           if (!active) return;
@@ -847,14 +853,14 @@ export default function WeekComposerV7() {
         }
       } catch (loadError) {
         console.warn('[WeekComposerV7] load failed', loadError);
-        if (active) setError('Impossible de charger le Composer pour le moment.');
+        if (active) setError(requestedModelId?'Impossible de charger ce modèle. Reviens à Mes modèles.':'Impossible de charger le Composer pour le moment.');
       } finally {
         if (active) setLoading(false);
       }
     }
     load();
     return () => { active = false; };
-  }, [dateKey, requestedPlanItemId, params?.repair, params?.repairBlock]);
+  }, [dateKey, requestedPlanItemId, requestedModelId, params?.repair, params?.repairBlock]);
 
   async function chooseEnvironment(code) {
     setEnvironmentCode(code);
@@ -1524,7 +1530,7 @@ export default function WeekComposerV7() {
       else router.replace('/(tabs)/planning');
     } catch (saveError) {
       console.warn('[WeekComposerV7] save failed', saveError);
-      setError(saveError?.message ?? 'Impossible d’ajouter cette séance à Ma semaine.');
+      setError(requestedModelId&&/already planned on this day/.test(String(saveError?.message))?'Une séance est déjà planifiée ce jour. Reviens à Mes modèles et choisis un jour libre.':saveError?.message ?? 'Impossible d’ajouter cette séance à Ma semaine.');
     } finally {
       setBusy(false);
     }

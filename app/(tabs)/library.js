@@ -1,4 +1,5 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect,useLocalSearchParams } from 'expo-router';
+import PersonalModelsPage from '../../src/workout/PersonalModelsPage';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, SafeAreaView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +9,11 @@ import { getExercises, getExerciseFavorites, setExerciseFavorite } from '../../s
 import { exerciseRegionLabel, exerciseMovementLabel, filterExerciseCatalogue } from '../../src/utils/exerciseCatalogue';
 import ExerciseCatalogueControls from '../../src/components/exercises/ExerciseCatalogueControls';
 
-export default function LibraryScreen() {
+export default function LibraryScreen(){
+ const params=useLocalSearchParams();const section=Array.isArray(params.section)?params.section[0]:params.section;const importDate=Array.isArray(params.importDate)?params.importDate[0]:params.importDate;
+ return section==='models'?<PersonalModelsPage importDate={importDate} showExercises={()=>router.setParams({section:'exercises'})}/>:<ExerciseLibraryScreen/>;
+}
+function ExerciseLibraryScreen() {
   const { colors }=useUgerodTheme();
   const [rows,setRows]=useState([]),[favorites,setFavorites]=useState([]),[filters,setFilters]=useState({search:'',favoritesOnly:false});
   const [expanded,setExpanded]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[retry,setRetry]=useState(0),[busy,setBusy]=useState(null);
@@ -22,6 +27,7 @@ export default function LibraryScreen() {
   return <SafeAreaView style={{flex:1,backgroundColor:colors.background}}>
     <View style={{padding:22,gap:14}}>
       <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}><Text style={{...text,fontFamily:fontFamilies.display,fontSize:40}}>TES EXERCICES.</Text><Pressable accessibilityLabel="Mon profil" onPress={()=>router.push('/profile')}><Ionicons name="person-circle-outline" size={30} color={colors.text}/></Pressable></View>
+      <View style={{flexDirection:'row',gap:8}}><Pressable accessibilityRole="button" onPress={()=>router.setParams({section:'models'})} style={{flex:1,padding:10,borderRadius:9,borderWidth:1,borderColor:colors.border}}><Text style={{...text,textAlign:'center',fontSize:14}}>Mes modèles</Text></Pressable><View style={{flex:1,padding:10,borderRadius:9,borderWidth:1,borderColor:colors.accent}}><Text style={{...text,color:colors.accent,textAlign:'center',fontSize:14}}>Exercices</Text></View></View>
       <TextInput accessibilityLabel="Rechercher un exercice" placeholder="Mouvement, zone ou matériel…" placeholderTextColor={colors.textSecondary} value={filters.search} onChangeText={search=>setFilters({...filters,search})} style={{...text,padding:14,borderRadius:15,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface}}/>
       <View style={{flexDirection:'row',gap:20,alignItems:'center'}}>
         <Pressable accessibilityRole="checkbox" accessibilityState={{checked:filters.favoritesOnly}} onPress={()=>setFilters({...filters,favoritesOnly:!filters.favoritesOnly})}><Text style={text}>{filters.favoritesOnly?'♥':'♡'} Mes favoris</Text></Pressable>

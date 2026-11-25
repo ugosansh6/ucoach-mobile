@@ -1,0 +1,15 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const h=fs.readFileSync('src/utils/personalWorkoutModels.js','utf8').replaceAll('export function ','function ');
+const a=new Function(h+';return {validModelDate,canReusePersonalModel,personalModelMeta,sortPersonalModels};')();
+assert.equal(a.validModelDate('2026-11-30','2026-11-25'),true);
+assert.equal(a.validModelDate('2026-11-31','2026-11-25'),false);
+assert.equal(a.validModelDate('2026-11-24','2026-11-25'),false);
+const source={origin:'PROGRAM',source_payload:{week_start:1,environment_code:'HOME',frequency_per_week:2,exercises:[{}]}};
+const model={origin:'COMPOSER',draft:{duration_minutes:60,architecture:{blocks:[{exercises:[{},{}]}]},prescription_preview:{status:'PREVIEW'}}};
+assert.equal(a.canReusePersonalModel(source),false);assert.equal(a.canReusePersonalModel(model),true);
+assert.deepEqual(a.personalModelMeta(source),{environment:'Maison',count:1,duration:null,frequency:2});
+assert.equal(a.sortPersonalModels([model,source])[0],source);
+const ui=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');assert.match(ui,/requestedModelId\?null:requestedPlanItemId/);assert.match(ui,/imported\?\.draft\?\?saved.draft/);
+assert.match(fs.readFileSync('src/services/composerService.js','utf8'),/week_save_composer_with_model_v1/);
+assert.match(fs.readFileSync('app/(tabs)/library.js','utf8'),/section==='models'\?<PersonalModelsPage/);
+console.log('PASS personal models routing, date validation, source completeness and ownership-scoped service wiring');

@@ -722,7 +722,7 @@ export async function saveComposerDraft({ planItemId, draft, context = null, con
   if (!planItemId) throw new Error('planItemId is required to save composer draft.');
   const user = await getAuthenticatedUserWithRetry();
   return runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc('week_save_composer_revision_v1', {
+    supabase.rpc('week_save_composer_with_model_v1', {
       p_user_id: user.id,
       p_plan_item_id: planItemId,
       p_draft: draft ?? {},
