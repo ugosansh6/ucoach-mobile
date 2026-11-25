@@ -411,6 +411,14 @@ export async function finalizeComposerWorkoutSession({
       })
     );
   } catch (cause) {
+    // A personal program carries authored doses not supported by the ordinary
+    // Composer editor. Do not route its compatibility errors to that editor.
+    if (planned.draft?.personal_program_version === 'PERSONAL_PROGRAM_V1' &&
+        /COMPOSER_EXERCISE_INCOMPATIBLE_/.test(String(cause?.message ?? cause))) {
+      const error = new Error('Le matériel ou le lieu du jour ne permet pas de réaliser ce programme. Reviens au check-in pour vérifier tes choix. La séance planifiée est conservée.');
+      error.code = 'PERSONAL_PROGRAM_CONTEXT_INCOMPATIBLE';
+      throw error;
+    }
     if (/COMPOSER_MANUAL_/.test(String(cause?.message ?? cause))) {
       const error = new Error('Les paramètres personnalisés doivent être ajustés au contexte du jour. Reviens à Ma semaine pour modifier le dosage ou la mécanique.');
       error.code = 'COMPOSER_NEEDS_RECOMPOSITION'; error.field = 'exercises'; throw error;
