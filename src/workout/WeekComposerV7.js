@@ -3,6 +3,7 @@ import ComposerMovementOverview, { ComposerMovementTabs } from '../components/wo
 import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
 import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
 import ComposerExercisePickerPage from './ComposerExercisePickerPage';
+import { pickerEquipmentMatches } from '../utils/composerPickerPresentation';
 import ExerciseDetail from '../components/exercises/ExerciseDetail';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -1107,7 +1108,7 @@ export default function WeekComposerV7() {
         environmentCode, equipmentIds, manualCatalogue: true,
       });
       if (request !== pickerRequest.current) return;
-      setPickerCatalogue(rows);
+      setPickerCatalogue(rows.filter(row => pickerEquipmentMatches(row, equipmentIds)));
       // Evidence is optional; never restrict exploration if history is unavailable.
       setPickerLoading(false);
       const chunks = [];
@@ -1132,7 +1133,7 @@ export default function WeekComposerV7() {
   }
 
   function selectPickerExercise(exercise) {
-    if (!activeBlock) return;
+    if (!activeBlock || !pickerEquipmentMatches(exercise, equipmentIds)) return;
     const type = activeBlock.type;
     setCandidateMap((old) => ({
       ...old, [type]: (old[type] ?? []).some((row) => row.id === exercise.id)
@@ -1474,8 +1475,8 @@ export default function WeekComposerV7() {
   const activeSelected = activeBlock ? selectionMap[activeBlock.type] ?? [] : [];
   const selectedCandidateObjects = activeSelected.map((id) => activeCandidates.find((exercise) => exercise.id === id)).filter(Boolean);
   const rankedById = new Map(activeCandidates.map((exercise) => [exercise.id, exercise]));
-  const pickerRows = (pickerCatalogue.length ? pickerCatalogue : activeCandidates).map((exercise) => ({
-    ...exercise, ...rankedById.get(exercise.id),
+  const pickerRows = pickerCatalogue.map((exercise) => ({
+    ...rankedById.get(exercise.id), ...exercise,
     recommended: !exercise.missingEquipment?.length && Boolean(rankedById.get(exercise.id)?.recommended),
   })).sort((a, b) => Number(b.recommended) - Number(a.recommended));
   const favoriteIds = Object.entries(candidateEvidence).filter(([,e]) => e.explicit_preference_state === 'FAVORI').map(([id]) => id);
@@ -1510,7 +1511,7 @@ export default function WeekComposerV7() {
 
   if (sheet === 'exercise-picker' && activeBlock) return <ComposerExercisePickerPage
     colors={colors} isDark={isDark} blockLabel={composerBlockDisplayLabel(activeBlock.type, environmentCode)}
-    rows={pickerRows} selectedRows={selectedCandidateObjects} selectedIds={activeSelected} favoriteIds={favoriteIds}
+    rows={pickerRows} equipmentIds={equipmentIds} equipmentSummary={equipmentSummary} selectedRows={selectedCandidateObjects} selectedIds={activeSelected} favoriteIds={favoriteIds}
     capacity={maxForBlock(activeBlock.type, activeBlock.minutes)} replacementId={replacementId} onReplacement={setReplacementId}
     loading={pickerLoading} error={pickerError} onRetry={() => openExercisePicker(replacementId)}
     onSelect={selectPickerExercise} onClose={closeExercisePicker} />;

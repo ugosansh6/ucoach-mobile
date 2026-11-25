@@ -4,13 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { fontFamilies } from '../constants/typography';
 import { exerciseRegionLabel, exerciseMovementLabel } from '../utils/exerciseCatalogue';
-import { pickerZones, pickerTypes, pickerType, pickerZoneMatches, filterPickerRows } from '../utils/composerPickerPresentation';
+import { pickerZones, pickerTypes, pickerType, pickerZoneMatches, filterPickerRows, pickerEquipmentMatches } from '../utils/composerPickerPresentation';
 
-export default function ComposerExercisePickerPage({colors,isDark,blockLabel,rows,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose}) {
+export default function ComposerExercisePickerPage({colors,isDark,blockLabel,rows,equipmentIds=[],equipmentSummary,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose}) {
   const [zone,setZone]=useState(''),[type,setType]=useState(''),[search,setSearch]=useState('');
   const [favoritesOnly,setFavoritesOnly]=useState(false),[view,setView]=useState('hub'),[limit,setLimit]=useState(40);
   const styles=createStyles(colors);
-  const available=rows.filter(row=>!selectedIds.includes(row.id));
+  const available=rows.filter(row=>pickerEquipmentMatches(row,equipmentIds)&&!selectedIds.includes(row.id));
   const filtered=filterPickerRows(available,{zone,type,search,favoritesOnly},favoriteIds);
   const selectedZone=pickerZones.find(z=>z.key===zone),selectedType=pickerTypes.find(t=>t.key===type);
   const atCapacity=selectedIds.length>=capacity;
@@ -32,6 +32,7 @@ export default function ComposerExercisePickerPage({colors,isDark,blockLabel,row
         <View style={{flex:1}}><Text style={styles.kicker}>{blockLabel.toUpperCase()}</Text><Text style={styles.title}>Choisir les exercices.</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={styles.iconButton}><Ionicons name="close" size={22} color={colors.text}/></Pressable>
       </View>
+      <View style={styles.equipmentScope}><Ionicons name="checkmark-circle-outline" size={17} color={colors.accent}/><Text style={[styles.muted,{flex:1}]}>Matériel de la séance : {equipmentSummary && equipmentSummary !== 'Poids du corps' ? 'Poids du corps · '+equipmentSummary : 'Poids du corps'}</Text></View>
       {replacementId?<Text style={styles.muted}>Remplacer : {selectedRows.find(row=>row.id===replacementId)?.name??'mouvement sélectionné'}</Text>:null}
       {atCapacity&&!replacementId?<View style={styles.notice}><Text style={styles.tileTitle}>Bloc complet</Text><Text style={styles.muted}>Choisis le mouvement à remplacer.</Text>
         {selectedRows.map(row=><Pressable key={row.id} onPress={()=>onReplacement(row.id)} style={styles.row}><Text style={styles.rowTitle}>{row.name}</Text><Ionicons name="swap-horizontal-outline" size={20} color={colors.accent}/></Pressable>)}</View>:null}
@@ -45,13 +46,13 @@ export default function ComposerExercisePickerPage({colors,isDark,blockLabel,row
         {(zone||type||favoritesOnly||search)?<Pressable accessibilityRole="button" onPress={()=>{setZone('');setType('');setFavoritesOnly(false);setSearch('');setLimit(40);setView('hub');}} style={styles.pill}><Text style={styles.filterLabel}>Réinitialiser</Text></Pressable>:null}
       </View></>:null}
       {loading?<View style={styles.notice}><ActivityIndicator color={colors.accent}/><Text style={styles.muted}>Chargement du catalogue…</Text></View>:null}
-      {error?<Pressable onPress={onRetry} style={styles.notice}><Text style={styles.tileTitle}>Catalogue complet indisponible · Réessayer</Text></Pressable>:null}
+      {error?<Pressable onPress={onRetry} style={styles.notice}><Text style={styles.tileTitle}>Catalogue indisponible · Réessayer</Text></Pressable>:null}
       {choosingCategory?<><Text style={styles.section}>{view==='zone'?'Zones du corps':'Types d’entraînement'}</Text><View style={styles.grid}>
         {categoryCard({key:'',label:'Tous les exercices',icon:'grid-outline'},available.length,()=>{view==='zone'?setZone(''):setType('');results();},view==='zone'?!zone:!type)}
         {(view==='zone'?pickerZones:pickerTypes).map(item=>categoryCard(item,available.filter(row=>view==='zone'?pickerZoneMatches(row,item.key):pickerType(row)===item.key).length,()=>{view==='zone'?setZone(item.key):setType(item.key);results();},view==='zone'?zone===item.key:type===item.key))}
-      </View></>:!listVisible?<Pressable accessibilityRole="button" style={styles.browse} onPress={results}><View style={styles.tileIcon}><Ionicons name="grid-outline" size={24} color={colors.accent}/></View><View style={{flex:1}}><Text style={styles.tileTitle}>Tous les exercices</Text><Text style={styles.muted}>{available.length} exercices disponibles dans le catalogue</Text></View><Ionicons name="chevron-forward" color={colors.accent} size={20}/></Pressable>:<>
+      </View></>:!listVisible?<Pressable accessibilityRole="button" style={styles.browse} onPress={results}><View style={styles.tileIcon}><Ionicons name="grid-outline" size={24} color={colors.accent}/></View><View style={{flex:1}}><Text style={styles.tileTitle}>Tous les exercices</Text><Text style={styles.muted}>{available.length} exercices compatibles avec ton matériel</Text></View><Ionicons name="chevron-forward" color={colors.accent} size={20}/></Pressable>:<>
         <Text style={styles.section}>{filtered.length} exercice{filtered.length!==1?'s':''}</Text>
-        {!filtered.length&&!loading?<Text style={styles.muted}>Aucun résultat. Modifie tes filtres ou ta recherche.</Text>:null}
+        {!filtered.length&&!loading?<Text style={styles.muted}>Aucun exercice compatible. Modifie tes filtres, ta recherche ou le matériel de la séance.</Text>:null}
         {filtered.slice(0,limit).map(row=><Pressable key={row.id} accessibilityRole="button" accessibilityLabel={'Ajouter '+row.name} disabled={atCapacity&&!replacementId} onPress={()=>onSelect(row)} style={[styles.row,atCapacity&&!replacementId&&{opacity:0.5}]}>
           <View style={styles.thumb}>{/^https?:\/\//i.test(String(row.imagePath??''))?<Image source={{uri:row.imagePath}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>:<Ionicons name="barbell-outline" size={23} color={colors.textSecondary}/>}</View>
           <View style={{flex:1,gap:3}}><Text style={styles.rowTitle}>{row.name}</Text><Text style={styles.muted}>{[exerciseRegionLabel(row.bodyRegion),exerciseMovementLabel(row.movementPattern)].filter(Boolean).join(' · ')}</Text>
@@ -78,6 +79,7 @@ function createStyles(c){return StyleSheet.create({
   tileIcon:{width:42,height:42,borderRadius:12,backgroundColor:c.surfaceElevated??c.background,alignItems:'center',justifyContent:'center'},
   tileTitle:{fontFamily:fontFamilies.bold,fontSize:16,color:c.text},tileFooter:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:4,marginTop:'auto'},
   muted:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:17,color:c.textSecondary},browse:{flexDirection:'row',alignItems:'center',gap:12,padding:14,borderWidth:1,borderColor:c.border,borderRadius:16,backgroundColor:c.surface},
+  equipmentScope:{flexDirection:'row',alignItems:'center',gap:7},
   notice:{gap:8,padding:12,borderWidth:1,borderColor:c.border,borderRadius:12},
   row:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderWidth:1,borderColor:c.border,borderRadius:14,backgroundColor:c.surface},
   rowTitle:{fontFamily:fontFamilies.semiBold,fontSize:16,color:c.text,flexShrink:1},thumb:{width:56,height:56,borderRadius:10,overflow:'hidden',backgroundColor:c.surfaceElevated??c.background,alignItems:'center',justifyContent:'center'},

@@ -38,3 +38,10 @@ export function filterPickerRows(rows,{zone='',type='',search='',favoritesOnly=f
       row.exerciseType,row.trainingFocus,pickerTypes.find(t=>t.key===pickerType(row))?.label,
       ...pickerZones.filter(z=>pickerZoneMatches(row,z.key)).map(z=>z.label),...(row.equipmentNames??[])].join(' ')).includes(q)));
 }
+
+// The session's explicit equipment selection is the only mandatory picker filter.
+// All required items must be present; E00 (bodyweight) is always available.
+export function pickerEquipmentMatches(row, equipmentIds=[]) {
+  const available = new Set(['E00', ...equipmentIds.map(String)]);
+  return Array.isArray(row.equipmentIds) && row.equipmentIds.every(id=>available.has(String(id)));
+}

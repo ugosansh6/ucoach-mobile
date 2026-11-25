@@ -11,10 +11,24 @@ const api=new Function('supabase','getAuthenticatedUserWithRetry','runSupabaseRe
 (async()=>{const result=await api.getExercises();assert.equal(result.length,1);assert.equal(result[0].name,'Real exercise');assert.deepEqual(result[0].equipmentNames,['Haltère']);assert.equal(result[0].sets,undefined);assert.equal(await api.getExerciseById('missing'),null,'No silent Air Squat fallback');assert.deepEqual(await api.getExerciseFavorites(),['one']);assert.deepEqual(await api.getExerciseMuscles('one'),[{id:'M02',priority:'primary'}]);assert.ok(calls.some(c=>c[0]==='exercise_muscles'&&c[1]==='exercise_id'&&c[2]==='one'));assert.equal(await api.setExerciseFavorite('one',true),true);assert.equal(await api.setExerciseFavorite('one',false),false);assert.ok(calls.some(c=>c[0]==='user_exercise_preferences'&&c[1]==='user_id'&&c[2]==='athlete'));console.log('PASS real catalogue adapter, exact detail ID, no fake dosage, authenticated shared favorites and guided filters');})().catch(e=>{console.error(e);process.exitCode=1});
 
 const pickerSrc=fs.readFileSync('src/utils/composerPickerPresentation.js','utf8').replaceAll('export const ','const ').replaceAll('export function ','function ');
-const picker=new Function(pickerSrc+'\nreturn {pickerType,filterPickerRows};')();
+const picker=new Function(pickerSrc+'\nreturn {pickerType,filterPickerRows,pickerEquipmentMatches};')();
 const sample=[{id:'a',name:'Push-ups',originalName:'Pompe classique',bodyRegion:'Upper',exerciseType:'strength'},{id:'b',name:'Tractions',bodyRegion:'Upper',exerciseType:'Gymnastique',isBack:true},{id:'c',name:'Rameur',bodyRegion:'Full Body',exerciseType:'Cardio'},{id:'d',name:'Autre',exerciseType:'new_type'}];
 assert.equal(picker.filterPickerRows(sample).length,4);
 assert.deepEqual(picker.filterPickerRows(sample,{zone:'Upper',type:'skill'}).map(x=>x.id),['b']);
 assert.deepEqual(picker.filterPickerRows(sample,{zone:'Back'}).map(x=>x.id),['b']);
 assert.deepEqual(picker.filterPickerRows(sample,{search:'pompe'}).map(x=>x.id),['a']);
 assert.equal(picker.pickerType(sample[2]),'conditioning');assert.equal(picker.pickerType(sample[3]),'general');
+
+const gearRows=[{id:'push',equipmentIds:[]},{id:'body',equipmentIds:['E00']},{id:'band',equipmentIds:['band']},{id:'bar',equipmentIds:['bar']},{id:'assisted',equipmentIds:['bar','band']},{id:'dips',equipmentIds:['dip']},{id:'bench',equipmentIds:['bench','band']},{id:'unknown'}];
+const compatible=(ids)=>gearRows.filter(row=>picker.pickerEquipmentMatches(row,ids)).map(row=>row.id);
+assert.deepEqual(compatible(['band','bar']),['push','body','band','bar','assisted']);
+assert.deepEqual(compatible(['band']),['push','body','band']);
+assert.deepEqual(compatible([]),['push','body']);
+assert.deepEqual(compatible(['bar']),['push','body','bar']);
+const pickerUI=fs.readFileSync('src/workout/ComposerExercisePickerPage.js','utf8');
+assert.match(pickerUI,/const available=rows.filter\(row=>pickerEquipmentMatches\(row,equipmentIds\)/);
+assert.match(pickerUI,/filterPickerRows\(available,/);
+const composerUI=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
+assert.match(composerUI,/!pickerEquipmentMatches\(exercise, equipmentIds\)/);
+assert.match(composerUI,/const pickerRows = pickerCatalogue.map/);
+console.log('PASS equipment-scoped picker: bodyweight, single and combined gear, exclusion of missing requirements, no fallback to unfiltered candidates');
