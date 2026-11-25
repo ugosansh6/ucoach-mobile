@@ -30,13 +30,15 @@ export default function ComposerSkillPlayer({ exercises, runtime, onRuntimeChang
   function confirm() {
     if (!executionEnabled || !unit || resting) return;
     const parse = (value) => value == null || String(value).trim() === '' ? null : Number(String(value).replace(',', '.'));
-    const actual = parse(state.actual ?? (unit.reps || unit.distance || (unit.test ? '' : Math.floor(elapsed))));
+    const actual = parse(state.actual ?? (unit.reps || unit.distance || unit.count || (unit.test ? '' : Math.floor(elapsed))));
     const load = parse(state.load);
-    if (actual == null || !Number.isFinite(actual) || actual <= 0 || (load != null && (!Number.isFinite(load) || load < 0))) {
+    if (actual == null || !Number.isFinite(actual) || actual <= 0 || (unit.count && !Number.isInteger(actual)) || (load != null && (!Number.isFinite(load) || load < 0))) {
       Alert.alert('Résultat manquant', 'Indique le réalisé avant de confirmer.'); return;
     }
     const row = { reps: unit.reps ? actual : null, duration_seconds: unit.seconds ? actual : null,
       distance_meters: unit.distance ? actual : null, load_kg: load, rest_shortened_before_set: state.restShortened === true,
+      ...(unit.count?{count_actual:actual,count_unit:unit.countUnit}:{}),
+      ...(unit.tempoDown||unit.tempoPause?{tempo:[unit.tempoDown?'descente '+unit.tempoDown+' s':null,unit.tempoPause?'pause '+unit.tempoPause+' s':null].filter(Boolean).join(' · ')}:{}),
       ...(unit.test ? { score: actual, test_metric: unit.metric } : {}) };
     const results = { ...state.results, [unit.key]: row };
     const index = state.index + 1;
@@ -55,7 +57,10 @@ export default function ComposerSkillPlayer({ exercises, runtime, onRuntimeChang
   return <View style={box}>
     <Text style={{ ...text, color: colors.textSecondary }}>{blockType === 'skill' ? 'Skill' : blockType === 'warmup' ? 'Échauffement' : 'Renforcement'} · série {unit.setIndex} / {unit.sets}{unit.side ? ` · côté ${unit.side === 'left' ? 'gauche' : 'droit'}` : ''}</Text>
     <Text style={{ ...text, fontSize: 28, fontWeight: '700' }}>{unit.exercise.name}</Text>
-    <Text style={text}>{unit.test ? 'Tentative · renseigne ton résultat' : unit.reps ? `${unit.reps} répétitions` : unit.seconds ? `${unit.seconds} secondes` : `${unit.distance} mètres`}</Text>
+    <Text style={text}>{unit.test ? 'Tentative · renseigne ton résultat' : unit.reps ? `${unit.reps} répétitions` : unit.seconds ? `${unit.seconds} secondes` : unit.count ? `${unit.count} ${unit.countUnit}` : `${unit.distance} mètres`}</Text>
+    {unit.instruction?<Text style={text}>{unit.instruction}</Text>:null}
+    {unit.tempoDown||unit.tempoPause?<Text style={text}>{unit.tempoDown?'Descente '+unit.tempoDown+' s. ':''}{unit.tempoPause?'Pause '+unit.tempoPause+' s.':''}</Text>:null}
+    {unit.rangeMin!=null?<Text style={text}>Fourchette : {unit.rangeMin}–{unit.rangeMax}</Text>:null}
     {resting ? <>
       <Text style={{ ...text, fontSize: 32 }}>Repos · {Math.ceil((state.restUntil - now) / 1000)} s</Text>
       {button('Écourter le repos', () => change({ restUntil: null, restShortened: true }), !executionEnabled)}
@@ -64,8 +69,8 @@ export default function ComposerSkillPlayer({ exercises, runtime, onRuntimeChang
         <Text accessibilityLiveRegion="polite" style={{ ...text, fontSize: 44 }}>{Math.floor(elapsed)} / {unit.seconds} s</Text>
         {button(state.runningSince ? 'Pause' : elapsed ? 'Reprendre le chrono' : 'Lancer le chrono', () => change({ elapsedSeconds: skillElapsed(state), runningSince: state.runningSince ? null : Date.now() }), !executionEnabled)}
       </> : null}
-      <Text style={text}>Réalisé{unit.reps ? ' · répétitions' : unit.seconds ? ' · secondes' : unit.distance ? ' · mètres' : ' · score'}</Text>
-      <TextInput accessibilityLabel="Résultat de la série" keyboardType="decimal-pad" value={String(state.actual ?? (unit.reps || unit.distance || (unit.test ? '' : Math.floor(elapsed))))} onChangeText={(actual) => change({ actual })} style={{ ...text, borderColor: colors.border, borderWidth: 1, padding: 12, borderRadius: 10 }} editable={executionEnabled} />
+      <Text style={text}>Réalisé{unit.reps ? ' · répétitions' : unit.seconds ? ' · secondes' : unit.distance ? ' · mètres' : unit.count ? ' · '+unit.countUnit : ' · score'}</Text>
+      <TextInput accessibilityLabel="Résultat de la série" keyboardType="decimal-pad" value={String(state.actual ?? (unit.reps || unit.distance || unit.count || (unit.test ? '' : Math.floor(elapsed))))} onChangeText={(actual) => change({ actual })} style={{ ...text, borderColor: colors.border, borderWidth: 1, padding: 12, borderRadius: 10 }} editable={executionEnabled} />
       {(unit.exercise.trackingModes ?? unit.exercise.prescriptionJson?.tracking_modes ?? []).includes('load') ? <TextInput accessibilityLabel="Charge facultative en kilogrammes" placeholder="Charge (kg) · facultatif" placeholderTextColor={colors.textSecondary} keyboardType="decimal-pad" value={state.load ?? ''} onChangeText={(load) => change({ load })} editable={executionEnabled} style={{ ...text, padding: 12, borderColor: colors.border, borderWidth: 1, borderRadius: 10 }} /> : null}
       {button('Confirmer la série réalisée', confirm, !executionEnabled)}
     </>}

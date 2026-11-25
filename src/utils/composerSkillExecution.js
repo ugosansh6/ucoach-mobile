@@ -8,13 +8,15 @@ export function skillExecutionUnits(exercises, { sets: blockSets = null, restSec
     const reps = positive(p.execution_target_reps ?? p.reps ?? p.reps_min);
     const seconds = reps ? null : positive(p.execution_target_duration_seconds ?? p.duration_seconds ?? p.duration_seconds_min);
     const distance = reps || seconds ? null : positive(p.execution_target_distance_meters ?? p.distance_meters ?? p.distance_meters_min);
+    const count=positive(p.execution_target_count);
+    const countUnit=count&&['barreaux','traversées'].includes(p.count_unit)?p.count_unit:null;
     const test = p.test_score_required === true;
-    if (!reps && !seconds && !distance && !test) throw new Error(`Prescription manquante pour ${exercise.name}.`);
+    if (!reps && !seconds && !distance && !countUnit && !test) throw new Error(`Prescription manquante pour ${exercise.name}.`);
     const sides = p.reps_semantics === 'per_side' || p.duration_semantics === 'per_side' ? ['left', 'right'] : [null];
     return Array.from({ length: sets }, (_, index) => sides.map((side, sideIndex) => ({
       key: `${exercise.sessionExerciseId}:${index + 1}:${side ?? 'both'}`,
       sessionExerciseId: exercise.sessionExerciseId, exercise, setIndex: index + 1, sets, side,
-      reps, seconds, distance, test, metric: p.test_metric,
+      reps, seconds, distance, count:countUnit?count:null,countUnit,tempoDown:p.tempo_eccentric_seconds??0,tempoPause:p.tempo_pause_seconds??0,instruction:p.program_instruction,rangeMin:p.target_range_min,rangeMax:p.target_range_max,test, metric: p.test_metric,
       restSeconds: sideIndex === sides.length - 1 ? Number(p.rest_between_sets_seconds ?? p.rest_seconds ?? blockRest ?? 0) : Number(p.rest_between_sides_seconds ?? 0),
     }))).flat();
   });
