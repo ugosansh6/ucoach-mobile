@@ -2457,21 +2457,16 @@ export async function completeWorkoutSession({
     }
   );
 
-  const { data: authData } =
-    await supabase.auth.getUser();
-
-  const userId =
-    authData?.user?.id ?? null;
-
-  if (userId) {
-    await runAnalysis(
-      'directives',
-      'pi_refresh_coaching_directives',
-      {
-        p_user_id: userId,
-      }
-    );
-  }
+  // The authorized weekly finalizer already refreshes the directives and
+  // records failures server-side. The internal PI RPC is not a client API.
+  const weeklyRefresh = analysis.weekly?.pi_refresh_after_weekly_finalize;
+  analysis.directives = weeklyRefresh === true
+    ? { status: 'OK', source: 'weekly_finalize', data_maturity: analysis.weekly.pi_data_maturity ?? null }
+    : {
+        status: weeklyRefresh === false || analysis.weekly?.status === 'ERROR' ? 'ERROR' : 'UNAVAILABLE',
+        source: 'weekly_finalize',
+        message: analysis.weekly?.pi_refresh_error ?? analysis.weekly?.message ?? 'Actualisation des directives non confirmée.',
+      };
 
   return {
     ...(data ?? {}),
