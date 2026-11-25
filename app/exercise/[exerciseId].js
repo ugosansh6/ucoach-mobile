@@ -10,7 +10,7 @@ import { exerciseRegionLabel, exerciseMovementLabel } from '../../src/utils/exer
 const clean=value=>String(value??'').replace(/\\r\\n|\\n|\\r/g,'\n').trim();
 export default function ExerciseDetailScreen() {
   const {exerciseId}=useLocalSearchParams(),{colors}=useUgerodTheme();
-  const [exercise,setExercise]=useState(null),[favorite,setFavorite]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[retry,setRetry]=useState(0),[open,setOpen]=useState(null),[busy,setBusy]=useState(false);
+  const [exercise,setExercise]=useState(null),[favorite,setFavorite]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[retry,setRetry]=useState(0),[open,setOpen]=useState('Description complète'),[busy,setBusy]=useState(false);
   useFocusEffect(useCallback(()=>{let active=true;setLoading(true);setError('');
     Promise.all([getExerciseById(String(exerciseId??'')),getExerciseFavorites()]).then(([row,ids])=>{if(active){setExercise(row);setFavorite(ids.includes(row?.id));}}).catch(()=>{if(active)setError('Impossible de charger cette fiche. Réessaie.');}).finally(()=>{if(active)setLoading(false)});
     return ()=>{active=false};
@@ -25,8 +25,8 @@ export default function ExerciseDetailScreen() {
       <ExerciseArtwork imagePath={exercise.imagePath} colors={colors} hero/>
       <Text style={{...text,color:colors.textSecondary}}>{[exerciseRegionLabel(exercise.bodyRegion),exerciseMovementLabel(exercise.movementPattern),exercise.difficulty].filter(Boolean).join(' · ')}</Text>
       <View style={card}><Text style={{...text,fontFamily:fontFamilies.semiBold}}>Matériel</Text><Text style={text}>{exercise.equipmentNames.join(' · ')||'Poids du corps'}</Text></View>
-      {exercise.description?<Text style={text}>{clean(exercise.description).split(/(?<=[.!?])\s+/)[0]}</Text>:null}
-      {[['Exécution',exercise.instructions],['Conseils',exercise.tips],['Description complète',exercise.description]].filter(([,value])=>Boolean(clean(value))).map(([title,value])=><View key={title} style={card}>
+      
+      {[['Description complète',exercise.description],['Exécution',exercise.instructions],['Conseils',exercise.tips]].filter(([,value])=>Boolean(clean(value))).map(([title,value])=><View key={title} style={card}>
         <Pressable accessibilityRole="button" accessibilityState={{expanded:open===title}} onPress={()=>setOpen(open===title?null:title)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}><Text style={{...text,fontFamily:fontFamilies.semiBold}}>{title}</Text><Ionicons name={open===title?'chevron-up':'chevron-down'} size={20} color={colors.accent}/></Pressable>
         {open===title?<Text style={text}>{clean(value)}</Text>:null}
       </View>)}
