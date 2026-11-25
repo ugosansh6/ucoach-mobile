@@ -60,3 +60,17 @@ export function pickerEquipmentOptions(equipmentIds=[], referenceEquipment=[]) {
       key:id,label:names.get(id)||id,icon:'barbell-outline',
     }))];
 }
+
+// Session-only additions come from the existing environment equipment preset.
+export function pickerAddableEquipment(referenceEquipment=[], equipmentIds=[]) {
+  const active=new Set(['E00',...equipmentIds.map(String)]), seen=new Set();
+  return referenceEquipment.filter(item=>{
+    const id=String(item.id);
+    if(active.has(id)||seen.has(id))return false;
+    seen.add(id);return true;
+  });
+}
+export function pickerAddSessionEquipment(equipmentIds=[], requestedIds=[], referenceEquipment=[]) {
+  const allowed=new Set(pickerAddableEquipment(referenceEquipment,equipmentIds).map(item=>String(item.id)));
+  return [...new Set([...equipmentIds.map(String),...requestedIds.map(String).filter(id=>allowed.has(id))])];
+}

@@ -3,7 +3,7 @@ import ComposerMovementOverview, { ComposerMovementTabs } from '../components/wo
 import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
 import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
 import ComposerExercisePickerPage from './ComposerExercisePickerPage';
-import { pickerEquipmentMatches } from '../utils/composerPickerPresentation';
+import { pickerEquipmentMatches, pickerAddSessionEquipment } from '../utils/composerPickerPresentation';
 import ExerciseDetail from '../components/exercises/ExerciseDetail';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -1108,7 +1108,9 @@ export default function WeekComposerV7() {
         environmentCode, equipmentIds, manualCatalogue: true,
       });
       if (request !== pickerRequest.current) return;
-      setPickerCatalogue(rows.filter(row => pickerEquipmentMatches(row, equipmentIds)));
+      // Keep the raw manual catalogue so an explicit session equipment addition
+      // can reveal newly compatible rows without a new network request.
+      setPickerCatalogue(rows);
       // Evidence is optional; never restrict exploration if history is unavailable.
       setPickerLoading(false);
       const chunks = [];
@@ -1130,6 +1132,12 @@ export default function WeekComposerV7() {
     setPickerLoading(false);
     setReplacementId(null);
     setSheet(null);
+  }
+
+  function addPickerEquipment(ids) {
+    setEquipmentIds(current => pickerAddSessionEquipment(current, ids, referenceEquipment));
+    setPreviewSignature(null); setPrescriptionPreview(null); setPreviewIssue(null);
+    setStrengthAssessmentSignature(null);
   }
 
   function selectPickerExercise(exercise) {
@@ -1477,7 +1485,8 @@ export default function WeekComposerV7() {
   const rankedById = new Map(activeCandidates.map((exercise) => [exercise.id, exercise]));
   const pickerRows = pickerCatalogue.map((exercise) => ({
     ...rankedById.get(exercise.id), ...exercise,
-    recommended: !exercise.missingEquipment?.length && Boolean(rankedById.get(exercise.id)?.recommended),
+    missingEquipment: (exercise.equipmentIds ?? []).filter(id => !equipmentIds.includes(String(id))).map(id => referenceEquipment.find(item => String(item.id) === String(id))?.name ?? id),
+    recommended: pickerEquipmentMatches(exercise, equipmentIds) && Boolean(rankedById.get(exercise.id)?.recommended),
   })).sort((a, b) => Number(b.recommended) - Number(a.recommended));
   const favoriteIds = Object.entries(candidateEvidence).filter(([,e]) => e.explicit_preference_state === 'FAVORI').map(([id]) => id);
   const mainBlocks = composerMainBlocks(architecture);
@@ -1514,7 +1523,7 @@ export default function WeekComposerV7() {
     rows={pickerRows} equipmentIds={equipmentIds} referenceEquipment={referenceEquipment} equipmentSummary={equipmentSummary} selectedRows={selectedCandidateObjects} selectedIds={activeSelected} favoriteIds={favoriteIds}
     capacity={maxForBlock(activeBlock.type, activeBlock.minutes)} replacementId={replacementId} onReplacement={setReplacementId}
     loading={pickerLoading} error={pickerError} onRetry={() => openExercisePicker(replacementId)}
-    onSelect={selectPickerExercise} onClose={closeExercisePicker} />;
+    onSelect={selectPickerExercise} onClose={closeExercisePicker} onAddEquipment={addPickerEquipment} />;
 
   return (
     <SafeAreaView style={styles.screen}>
