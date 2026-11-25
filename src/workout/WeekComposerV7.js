@@ -1598,6 +1598,7 @@ export default function WeekComposerV7() {
   const currentWodPreview = currentPreview?.blocks?.find((b) => b.type === 'WOD');
   const recapTime=composerManualTimeSummary(currentPreview,duration);
   const hasManualEdits=(buildCurrentDraft().architecture?.blocks??[]).some(b=>Object.keys(b.manual_parameters??{}).length>0||b.exercises.some(x=>Object.keys(x.manual_dose??{}).length>0));
+  const recapValidationDisabled=step===5&&(busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY'));
   const activePreviewBlock = currentPreview?.blocks?.find((b) => b.type === activeBlock?.type);
   function movementDose(exercise) {
     return activeBlock?.type === 'STRENGTH' ? currentStrengthAssessment?.exercises?.find((item) => item.id === exercise.id)
@@ -1622,7 +1623,7 @@ export default function WeekComposerV7() {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.pageScroll,step === 5 && styles.recapScroll]}>
+      <ScrollView style={step===5?{flex:1}:undefined} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.pageScroll,step === 5 && styles.recapScroll]}>
         <View style={styles.content}>
           <View style={styles.header}>
             <Pressable
@@ -2121,7 +2122,7 @@ export default function WeekComposerV7() {
               <View style={styles.recapOverview}>
                 <Text accessibilityRole="header" style={styles.recapHeroTitle}>{composerArchitectureDisplayTitle(architecture,environmentCode).toUpperCase()}.</Text>
                 <Text style={styles.recapHeroMeta}>{[environmentLabel(environmentCode),preferredRegions.length?composerRegionsLabel(composerPreferences):null].filter(Boolean).join(' · ')}</Text>
-                {effectiveIntent?<Text style={styles.recapHeroMeta}>{directionBaseLabel(effectiveIntent)}{skillTargetPath?' · '+(skillTargets.find(option=>option.key===skillTargetPath)?.name??skillTargetPath):''}</Text>:null}
+                {effectiveIntent||skillTargetPath?<Text style={styles.recapHeroMeta}>{[effectiveIntent?directionBaseLabel(effectiveIntent):null,skillTargetPath?(skillTargets.find(option=>option.key===skillTargetPath)?.name??skillTargetPath):null].filter(Boolean).join(' · ')}</Text>:null}
                 <View style={styles.recapHeaderRow}>
                   <View style={{flex:1}}><Text style={styles.recapTimeValue}>{recapTime?recapTime.minutes+' min':'—'}</Text><Text style={styles.recapHeroMeta}>Durée estimée</Text></View>
                   <View style={{alignItems:'flex-end'}}><Text style={styles.recapHeroBudget}>{duration} min</Text><Text style={styles.recapHeroMeta}>Durée prévue</Text></View>
@@ -2130,7 +2131,7 @@ export default function WeekComposerV7() {
               </View>
               {recapTime?.overMinutes>0?<Text accessibilityRole="alert" style={styles.recapAdvisoryText}>+{recapTime.overMinutes} min sur la durée prévue · non bloquant</Text>:null}
               <View style={styles.recapHeaderRow}>
-                <Text accessibilityRole="header" style={styles.recapSectionTitle}>Ta séance</Text>
+                <Text accessibilityRole="header" style={styles.recapSectionTitle}>Les blocs</Text>
                 <Pressable accessibilityRole="button" onPress={()=>{setArchitectureEditError('');setStep(2);}} style={styles.recapStructureAction}><Text style={styles.recapEditText}>Modifier la structure</Text></Pressable>
               </View>
               {previewLoading||strengthAssessmentLoading?(
@@ -2199,7 +2200,7 @@ export default function WeekComposerV7() {
         </View>
       </ScrollView>
       {step === 5 ? <View style={styles.recapFooter}>
-        <Pressable accessibilityRole="button" accessibilityState={{disabled:busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY')}} onPress={addToWeek} disabled={busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY')} style={({pressed})=>[styles.recapValidate,(busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY'))&&styles.disabled,pressed&&styles.pressed]}>
+        <Pressable accessibilityRole="button" accessibilityState={{disabled:recapValidationDisabled}} onPress={addToWeek} disabled={recapValidationDisabled} style={({pressed})=>[styles.recapValidate,recapValidationDisabled&&styles.disabled,pressed&&!recapValidationDisabled&&styles.pressed]}>
           {busy?<ActivityIndicator color={colors.background} size="small"/>:null}<Text style={styles.recapValidateText}>{busy?'Enregistrement…':'Valider ma séance'}</Text>
         </Pressable>
       </View>:null}
