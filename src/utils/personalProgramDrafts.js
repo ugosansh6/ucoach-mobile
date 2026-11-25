@@ -1,9 +1,10 @@
+import {validProgramCover} from './programCovers';
 // Program authoring is deliberately separate from exercise prescription and scheduling.
 // References point at existing personal models. No solver, dates or progression is inferred.
 export const PROGRAM_DRAFT_VERSION='PERSONAL_PROGRAM_DRAFT_V1';
 export const PROGRAM_ACCESS_TYPES=['PRIVATE','FREE','PREMIUM'];
 export function newProgramDraft(id){
- return {version:PROGRAM_DRAFT_VERSION,id,title:'',objective:'',author_type:'USER',access:'PRIVATE',status:'DRAFT',phases:[]};
+ return {version:PROGRAM_DRAFT_VERSION,id,title:'',objective:'',author_type:'USER',access:'PRIVATE',status:'DRAFT',cover:null,phases:[]};
 }
 export function newProgramPhase(id){
  return {id,title:'',weeks:'4',sessions:[]};
@@ -33,6 +34,7 @@ export function programDraftIssues(draft,models=[]){
 }
 export function validateStoredProgramDraft(d){
  if(!d||d.version!==PROGRAM_DRAFT_VERSION||d.author_type!=='USER'||d.access!=='PRIVATE'||d.status!=='DRAFT'||typeof d.id!=='string'||typeof d.title!=='string'||typeof d.objective!=='string'||!Array.isArray(d.phases))return false;
+ if(!validProgramCover(d.cover))return false;
  return d.phases.every(p=>p&&typeof p.id==='string'&&typeof p.title==='string'&&typeof p.weeks==='string'&&Array.isArray(p.sessions)&&p.sessions.every(s=>s&&typeof s.modelId==='string'&&typeof s.frequency==='string'));
 }
 export function upsertProgramDraft(rows,draft){
