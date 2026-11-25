@@ -1304,7 +1304,7 @@ export default function WeekComposerV7() {
       setStep(4);
     } catch (reason) {
       console.warn('[Composer] mechanic recommendation failed', reason);
-      setError('Impossible de valider les formats compatibles avec tes mouvements.');
+      setError('Impossible de valider les mécaniques compatibles avec tes mouvements.');
     } finally {
       setBusy(false);
     }
@@ -1989,15 +1989,15 @@ export default function WeekComposerV7() {
           ) : null}
 
           {step === 4 ? (
-            <View style={styles.stepWrap}>
+            <View style={styles.mechanicStepWrap}>
               <StageHeader
-                  kicker="FORMAT DU WOD"
-                  title="Le format de ton WOD."
-                  helper={`${wodBlock?.minutes ?? 0} min prévues · ${selectionMap.WOD?.length ?? 0} mouvements. Un seul format à la fois.`}
-                  styles={styles}
+                  kicker="MÉCANIQUE DU WOD"
+                  title="La mécanique de ton WOD."
+                  helper={`${wodBlock?.minutes ?? 0} min prévues · ${selectionMap.WOD?.length ?? 0} mouvements. Une seule mécanique à la fois.`}
+                  styles={{...styles,stageHeader:styles.mechanicStageHeader,question:styles.mechanicQuestion,helper:styles.mechanicHelper}}
                 />
-              {!mechanicOptions.some((o) => o.available !== false) ? <Text style={styles.previewWarning}>Aucun format validé avec ces mouvements et cette durée. Reviens aux mouvements ou à la structure pour les ajuster.</Text> : null}
-              <View style={styles.optionList}>
+              {!mechanicOptions.some((o) => o.available !== false) ? <Text style={styles.previewWarning}>Aucune mécanique validée avec ces mouvements et cette durée. Reviens aux mouvements ou à la structure pour les ajuster.</Text> : null}
+              <View style={styles.mechanicList}>
                 {mechanicOptions.filter((option) =>
                     showAllMechanics || composerMechanicIdentity(option) === composerMechanicIdentity(mechanic) || option.recommended
                   ).sort((a, b) => Number(composerMechanicIdentity(b) === composerMechanicIdentity(mechanic))
@@ -2011,17 +2011,17 @@ export default function WeekComposerV7() {
                       accessibilityLabel={option.title + (option.available === false ? ', indisponible, ' + option.reason : '')}
                       onPress={() => option.available === false ? setMechanicIssue(option.reason) : (setMechanic(option), setMechanicIssue(null))}
                       style={[styles.simpleCard, styles.mechanicCard, selected && styles.cardSelected, option.available === false && styles.mechanicDisabled]}>
-                      {selected ? <View style={styles.selectedRail} /> : null}
-                      <View style={styles.cardTopRow}>
+                      {selected ? <View style={styles.mechanicSelectedRail} /> : null}
+                      <View style={styles.mechanicTopRow}>
                         <View style={{ flex: 1 }}>
                           {option.available === false || option.recommended || selected ? (
-                            <Text style={styles.cardEyebrow}>{option.available === false ? option.reason_code === 'PREMIUM_REQUIRED' ? 'PREMIUM' : 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'FORMAT CHOISI'}</Text>
+                            <Text style={styles.cardEyebrow}>{option.available === false ? option.reason_code === 'PREMIUM_REQUIRED' ? 'PREMIUM' : 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'MÉCANIQUE CHOISIE'}</Text>
                           ) : null}
-                          <Text style={styles.cardTitle}>{option.title}</Text>
-                          <Text style={styles.cardSubtitle}>{composerMechanicDescription(option)}</Text>
+                          <Text style={styles.mechanicTitle}>{option.title}</Text>
+                          <Text style={styles.mechanicDescription}>{composerMechanicDescription(option)}</Text>
                         </View>
-                        <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
-                          <Ionicons name={option.available === false ? 'lock-closed-outline' : selected ? 'checkmark' : 'ellipse-outline'} size={18} color={option.available === false ? colors.textMuted : selected ? colors.textOnAccent : colors.accent} />
+                        <View style={[styles.mechanicSelectCircle, selected && styles.selectCircleSelected]}>
+                          {option.available === false || selected ? <Ionicons name={option.available === false ? 'lock-closed-outline' : 'checkmark'} size={16} color={option.available === false ? colors.textMuted : colors.textOnAccent} /> : null}
                         </View>
                       </View>
                     </Pressable>
@@ -2034,10 +2034,11 @@ export default function WeekComposerV7() {
               </View>
               {mechanicIssue ? <Text style={styles.mechanicIssue}>{mechanicIssue}</Text> : null}
               {mechanicOptions.length > 1 ? (
-                <Pressable onPress={() => setShowAllMechanics((value) => !value)} style={{ paddingVertical: 14, alignItems: 'center' }}>
-                  <Text style={{ color: colors.accent, fontFamily: fontFamilies.bold, textDecorationLine: 'underline' }}>
-                    {showAllMechanics ? 'Masquer les formats complémentaires' : 'Voir d’autres formats'}
+                <Pressable onPress={() => setShowAllMechanics((value) => !value)} style={styles.mechanicMore}>
+                  <Text style={styles.mechanicMoreText}>
+                    {showAllMechanics ? 'Masquer les mécaniques complémentaires' : 'Voir d’autres mécaniques'}
                   </Text>
+                  <Ionicons name={showAllMechanics ? 'chevron-up' : 'chevron-down'} size={16} color={colors.accent}/>
                 </Pressable>
               ) : null}
               <PrimaryButton label="VOIR LE RÉCAPITULATIF" onPress={() => { setRecapEditingBlock(null); setStep(5); }} disabled={!mechanic} styles={styles} colors={colors} />
@@ -2318,22 +2319,34 @@ function createStyles(colors) {
     structureAddActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
     structureAddButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 10 },
     structureAddLabel: { fontFamily: fontFamilies.medium, fontSize: 12, color: colors.text },
-    mechanicCard: { padding: 14 },
-    previewOptionGroup: { gap: 8 },
-    protocolCard: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    mechanicStepWrap: { marginTop: 18 },
+    mechanicStageHeader: { marginBottom: 12 },
+    mechanicQuestion: { marginTop: 4, fontFamily: fontFamilies.display, fontSize: 26, lineHeight: 30, color: colors.text },
+    mechanicHelper: { marginTop: 6, fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 19, color: colors.textSecondary },
+    mechanicList: { gap: 10 },
+    mechanicCard: { padding: 12, paddingLeft: 14, borderRadius: 12 },
+    mechanicSelectedRail: { position:'absolute', left:0, top:0, bottom:0, width:3, backgroundColor:colors.accent },
+    mechanicTopRow: { flexDirection:'row', alignItems:'center', gap:10 },
+    mechanicTitle: { marginTop:3, fontFamily:fontFamilies.display, fontSize:20, lineHeight:23, color:colors.text },
+    mechanicDescription: { marginTop:4, fontFamily:fontFamilies.regular, fontSize:12, lineHeight:18, color:colors.textSecondary },
+    mechanicSelectCircle: { width:28, height:28, borderRadius:14, borderWidth:1, borderColor:colors.accent, alignItems:'center', justifyContent:'center', backgroundColor:colors.surface, flexShrink:0 },
+    mechanicMore: { minHeight:44, paddingVertical:10, flexDirection:'row', justifyContent:'center', alignItems:'center', gap:6 },
+    mechanicMoreText: { color:colors.accent, fontFamily:fontFamilies.semiBold, fontSize:13 },
+    previewOptionGroup: { gap: 6 },
+    protocolCard: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     previewHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    previewInfoButton: { minWidth: 40, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
-    previewHeadline: { fontFamily: fontFamilies.bold, fontSize: 20, lineHeight: 27, color: colors.text },
-    previewTimeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7, marginTop: 10, marginBottom: 18 },
+    previewInfoButton: { minWidth: 36, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+    previewHeadline: { fontFamily: fontFamilies.semiBold, fontSize: 16, lineHeight: 22, color: colors.text },
+    previewTimeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 7, marginBottom: 12 },
     previewTimePrimary: { fontFamily: fontFamilies.bold, fontSize: 13, lineHeight: 19, color: colors.accent },
     previewEstimate: { fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     previewDetails: { fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary, marginBottom: 14 },
     previewListLabel: { fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 17, color: colors.textSecondary, marginBottom: 5 },
-    previewExerciseRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingVertical: 11 },
+    previewExerciseRow: { gap: 3, paddingVertical: 7 },
     previewExerciseDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-    previewExerciseName: { flex: 1, minWidth: 0, fontFamily: fontFamilies.medium, fontSize: 14, lineHeight: 21, color: colors.text },
-    previewExerciseDose: { flexShrink: 1, maxWidth: '48%', textAlign: 'right', fontFamily: fontFamilies.bold, fontSize: 14, lineHeight: 21, color: colors.text },
-    previewFootnote: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 17, color: colors.textSecondary, marginTop: 12 },
+    previewExerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 14, lineHeight: 19, color: colors.text },
+    previewExerciseDose: { fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
+    previewFootnote: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 17, color: colors.textSecondary, marginTop: 7 },
     protocolDose: { fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 19, color: colors.text },
     mechanicDisabled: { opacity: 0.46 },
     mechanicIssue: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },

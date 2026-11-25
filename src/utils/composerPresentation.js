@@ -159,9 +159,9 @@ export function composerPreviewIssue(issue, environmentCode = 'BOX') {
     ? 'Aucune machine cardio compatible. Modifie ton matériel ou retire le bloc Cardio.'
     : 'Le protocole cardio doit être actualisé. Reviens aux mouvements pour le recalculer avec ton contexte.';
   if (issue?.block_type === 'WOD') {
-    if (issue.reason === 'PREMIUM_REQUIRED') return 'Ce format nécessite Premium. Choisis un autre format.';
-    if (issue.reason === 'EXERCISE_COUNT') return 'Le nombre de mouvements ne convient pas à ce format. Ajuste les mouvements ou choisis un autre format.';
-    return 'Le WOD ne peut pas être validé avec cette durée et ces mouvements. Ajuste les mouvements, la durée ou le format.';
+    if (issue.reason === 'PREMIUM_REQUIRED') return 'Cette mécanique nécessite Premium. Choisis une autre mécanique.';
+    if (issue.reason === 'EXERCISE_COUNT') return 'Le nombre de mouvements ne convient pas à cette mécanique. Ajuste les mouvements ou choisis une autre mécanique.';
+    return 'Le WOD ne peut pas être validé avec cette durée et ces mouvements. Ajuste les mouvements, la durée ou la mécanique.';
   }
   const label = environmentCode === 'GYM' ? 'Musculation' : 'Renforcement';
   return `Le bloc ${label} ne correspond pas au temps prévu : ${Math.round(Number(issue?.time?.prescribed_seconds ?? 0) / 60)} min estimées, récupérations comprises, pour ${issue?.block_minutes} min prévues. Reviens ajuster les mouvements ou la structure.`;

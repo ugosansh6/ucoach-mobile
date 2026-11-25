@@ -9,7 +9,8 @@ const {buildWodProtocolCompletion}=load('src/services/wodProtocolOutcome.js','bu
 const {deriveWodExerciseStatuses}=load('src/services/wodRuntimeStatus.js','deriveWodExerciseStatuses');
 const present=load('src/utils/composerPresentation.js','formatComposerDose,composerWodProtocol,composerWodTimeSummary,composerMechanicIdentity,composerPreviewIssue');
 assert.notEqual(present.composerMechanicIdentity({key:'COUPLET'}),present.composerMechanicIdentity({key:'COUPLET',variant_key:'DESCENDING_COUPLET'}));
-assert.match(present.composerPreviewIssue({block_type:'WOD',reason:'EXERCISE_COUNT'}),/nombre de mouvements/);
+assert.match(present.composerPreviewIssue({block_type:'WOD',reason:'EXERCISE_COUNT'}),/nombre de mouvements.*mécanique/);
+assert.match(present.composerPreviewIssue({block_type:'WOD',reason:'PREMIUM_REQUIRED'}),/mécanique.*Premium/);
 assert.doesNotMatch(present.composerPreviewIssue({block_type:'WOD'}),/Musculation|Renforcement/);
 assert.match(present.composerWodTimeSummary({minutes:40,time:{budget_minutes:40,prescribed_seconds:900,duration_semantic:'time_cap'},parameters:{cap_seconds:2400}}),/limite 40 min.*15 min.*avant/);
 assert.match(present.formatComposerDose({prescription_json:{reps_min:3,mechanic_overlay:{base_reps:3,increment_reps:2}}},'WOD',{mechanic:'COUPLET',variant_key:'DESCENDING_COUPLET',parameters:{rungs:4}}),/9 → 3 reps · −2/);
