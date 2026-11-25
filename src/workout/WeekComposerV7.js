@@ -1299,10 +1299,14 @@ export default function WeekComposerV7() {
       setBusy(true);
       setError('');
       const compatibility=await getComposerExerciseCompatibility({exerciseIds:selectionMap.WOD??[],equipmentIds,environmentCode});
-      const bad=(selectionMap.WOD??[]).filter(id=>!compatibility[id]?.equipment_ok||!compatibility[id]?.environment_ok);
+      const bad=(selectionMap.WOD??[]).filter(id=>!compatibility[id]?.equipment_ok||!compatibility[id]?.environment_ok||compatibility[id]?.wod_role==='prep_only');
       if(bad.length){
-        const names=bad.map(id=>{const exercise=candidateMap.WOD?.find(row=>row.id===id);const status=compatibility[id];return (exercise?.name??id)+' ('+(!status?'référence manquante':!status.equipment_ok?'matériel ou quantité requis':'lieu incompatible')+')';});
-        setError('À ajuster : '+names.join(' · ')+'. Remplace ces mouvements ou ajoute le matériel nécessaire.');
+        const names=bad.map(id=>{const exercise=candidateMap.WOD?.find(row=>row.id===id);const status=compatibility[id];return (exercise?.name??id)+' ('+(!status?'référence manquante':!status.equipment_ok?'matériel ou quantité requis':!status.environment_ok?'lieu incompatible':'réservé à la préparation')+')';});
+        setError('À ajuster : '+names.join(' · ')+'. Remplace ces mouvements ou ajoute le matériel nécessaire. Les mouvements de préparation restent disponibles dans les autres blocs adaptés.');
+        setRecapEditingBlock('WOD');setExerciseBlockIndex(0);setStep(3);return;
+      }
+      if(!(selectionMap.WOD??[]).some(id=>compatibility[id]?.wod_role==='wod')){
+        setError('Ajoute au moins un mouvement d’entraînement au WOD. Les variantes adaptées peuvent compléter le bloc.');
         setRecapEditingBlock('WOD');setExerciseBlockIndex(0);setStep(3);return;
       }
       const options = await getComposerMechanicOptions({

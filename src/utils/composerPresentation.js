@@ -189,6 +189,8 @@ export function composerWodRegionAdvisory(block){
 }
 
 export function composerWodDurationAdvisory(block) {
+  if((block?.time?.advisories??[]).includes('DOSE_ADAPTED_TO_CONTEXT'))return 'UGEROD a réduit le dosage pour conserver tes mouvements et une mécanique réalisable.';
+  if((block?.time?.advisories??[]).includes('DECK_TOO_SHORT_FOR_WOD_BUDGET'))return 'Paquet réduit : la mécanique reste jouable dans le temps prévu.';
   return (block?.time?.advisories??[]).some(code=>['LADDER_ATHLETE_VOLUME_TOO_SHORT_FOR_BUDGET','PROGRESSIVE_EXPECTED_FAILURE_TOO_EARLY_FOR_BUDGET'].includes(code))
     ? 'Le WOD peut se terminer avant la durée prévue. Tu peux conserver ce protocole sans augmenter le volume.' : null;
 }

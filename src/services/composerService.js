@@ -169,6 +169,7 @@ export async function getComposerExerciseCandidates({
     .filter(exercise=>{
       const status=compatibility[exercise.id];
       if(!status?.equipment_ok||!status?.environment_ok)return false;
+      if(blockType==='WOD'&&['prep_only'].includes(status.wod_role??exercise.wod_role))return false;
       return manualCatalogue||targetRegion!=='Back'||backMuscleWeights.has(exercise.id);
     })
     .map((exercise) => ({
@@ -180,6 +181,7 @@ export async function getComposerExerciseCandidates({
       imagePath: exercise.image_path ?? null,
       difficulty: exercise.difficulty ?? null,
       exerciseType: exercise.exercise_type ?? null,
+      wodRole: compatibility[exercise.id].wod_role ?? exercise.wod_role ?? null,
       trainingFocus: exercise.training_focus ?? null,
       ...(manualCatalogue ? { originalName: exercise.name, isBack: backMuscleWeights.has(exercise.id), missingEquipment: [] } : {}),
       equipmentIds: compatibility[exercise.id].equipment_ids ?? [],

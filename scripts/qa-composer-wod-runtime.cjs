@@ -99,3 +99,6 @@ ROLLBACK;
 `;
 assert.ok(process.argv[3], 'Provide output SQL path');fs.writeFileSync(process.argv[3],sql);
 console.log('PASS: '+cases.length+' partial/full real protocol replays generated for completion/history QA');
+
+assert.match(present.composerWodDurationAdvisory({time:{advisories:['DOSE_ADAPTED_TO_CONTEXT']}}),/réduit le dosage/);
+assert.match(present.composerWodDurationAdvisory({time:{advisories:['DECK_TOO_SHORT_FOR_WOD_BUDGET']}}),/Paquet réduit/);
