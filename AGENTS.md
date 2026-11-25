@@ -27,6 +27,16 @@ Ces responsabilités ne désignent pas plusieurs personnes ou plusieurs agents i
 - Les anciens documents de reprise restent des sources historiques. Avant consolidation, distinguer leurs décisions encore valides, faits dépassés, hypothèses et propositions non acceptées. Ne pas publier un document brut sans revue des secrets et données privées.
 - Ne pas annoncer l'historique entièrement consolidé, le backlog entièrement migré ou les sources synchronisées automatiquement sans vérification correspondante. La présence de ces consignes ne démontre pas ces résultats.
 
+## UX writing — pertinence utilisateur, pas traces de conception
+
+Instruction d'Ugo du 25/11/2026, applicable à tous les écrans et aux évolutions futures.
+
+- L'interface est destinée à l'utilisateur final, pas aux agents, développeurs ou participants aux échanges produit. Ne jamais transposer une discussion, une décision de conception, une justification technique, une note de livraison ou une promesse de future évolution en texte visible simplement parce qu'elle a été évoquée pendant le travail.
+- Pour chaque texte ajouté **et chaque texte existant dans un écran retravaillé**, vérifier ce qu'il apporte à l'utilisateur à cet instant : comprendre une information non évidente, décider, agir ou résoudre un problème. Si aucune utilité concrète, le supprimer ; si l'information est déjà exprimée par un titre, une valeur, un contrôle ou une autre phrase, supprimer la répétition. Préférer une formulation courte et naturelle, les détails à la demande et les libellés d'action explicites.
+- Rechercher activement les résidus de conception dans les écrans existants : commentaires sur le fonctionnement interne, rappels de décisions prises avec Ugo, mentions de chantier ou de prochain lot, pédagogie systématique, messages rassurants redondants, doublons de statuts. Les conserver dans les références techniques si nécessaire, pas dans l'interface.
+- Ne pas supprimer au nom de la sobriété les informations nécessaires à la sécurité, aux prescriptions, au consentement, aux états bloquants, aux conflits, à l'accessibilité, à la confidentialité ou aux limitations réelles d'une fonctionnalité. Les rendre concises, contextuelles et actionnables ; ne pas masquer un problème ou suggérer qu'une fonctionnalité indisponible est opérationnelle.
+- Dans toute revue UI, relever les textes sans valeur, proposer leur retrait ou reformulation, puis vérifier que les actions, informations essentielles et états d'erreur restent compréhensibles. Le contrôle est aussi valable pour le contenu généré par le moteur : expliquer seulement ce qui aide réellement l'utilisateur dans son contexte. Une nouvelle règle sportive ou modification fonctionnelle reste soumise à l'arbitrage habituel.
+
 ## Préserver le delivery
 
 - Cette organisation ne change ni le périmètre ni les priorités produit. Le développement autorisé peut continuer pendant la migration documentaire.
