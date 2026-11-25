@@ -1590,7 +1590,7 @@ export default function WeekComposerV7() {
     ? prescriptionPreview : null;
   const currentWodPreview = currentPreview?.blocks?.find((b) => b.type === 'WOD');
   const recapTime=composerManualTimeSummary(currentPreview,duration);
-  const hasManualEdits=Object.keys(manualEdits).length>0;
+  const hasManualEdits=(buildCurrentDraft().architecture?.blocks??[]).some(b=>Object.keys(b.manual_parameters??{}).length>0||b.exercises.some(x=>Object.keys(x.manual_dose??{}).length>0));
   const activePreviewBlock = currentPreview?.blocks?.find((b) => b.type === activeBlock?.type);
   function movementDose(exercise) {
     return activeBlock?.type === 'STRENGTH' ? currentStrengthAssessment?.exercises?.find((item) => item.id === exercise.id)
@@ -2118,7 +2118,7 @@ export default function WeekComposerV7() {
                   <View><Text style={styles.recapExerciseMeta}>Durée estimée</Text><Text style={[styles.recapTimeValue,recapTime?.overMinutes>0&&{color:colors.secondaryAccent}]}>{recapTime?recapTime.minutes+' min':'—'}</Text></View>
                 </View>
                 <View style={styles.recapSegments}>{(architecture?.blocks??[]).map((b,i)=><View key={b.type} style={{flex:b.minutes,backgroundColor:[colors.accent,colors.secondaryAccent,colors.textSecondary,colors.accent,colors.textMuted][i%5],opacity:i===0?.45:i===1?.65:1,borderRadius:3}}/>)}</View>
-                {recapTime?.overMinutes>0?<View style={styles.recapAdvisory}><Ionicons name="time-outline" size={18} color={colors.secondaryAccent}/><Text style={styles.recapAdvisoryText}>Tes modifications dépassent la durée prévue d’environ {recapTime.overMinutes} min. Tu peux conserver cette séance.</Text></View>:null}
+                {recapTime?.overMinutes>0?<View style={styles.recapAdvisory}><Ionicons name="time-outline" size={18} color={colors.secondaryAccent}/><Text style={styles.recapAdvisoryText}>{hasManualEdits?'Tes modifications dépassent':'La séance dépasse'} la durée prévue d’environ {recapTime.overMinutes} min. Tu peux conserver cette séance.</Text></View>:null}
                 {hasManualEdits?<Text style={styles.recapHelp}>Prescription personnalisée · UGEROD conserve tes choix et vérifie le contexte du jour.</Text>:null}
               </View>
               <Text style={styles.recapHelp}>

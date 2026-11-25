@@ -411,6 +411,10 @@ export async function finalizeComposerWorkoutSession({
       })
     );
   } catch (cause) {
+    if (/COMPOSER_MANUAL_/.test(String(cause?.message ?? cause))) {
+      const error = new Error('Les paramètres personnalisés doivent être ajustés au contexte du jour. Reviens à Ma semaine pour modifier le dosage ou la mécanique.');
+      error.code = 'COMPOSER_NEEDS_RECOMPOSITION'; error.field = 'exercises'; throw error;
+    }
     const skillIssue = String(cause?.message ?? cause).match(/COMPOSER_(SKILL|CARDIO|WOD)_RECOMPOSITION_REQUIRED_([A-Z0-9_]+)/);
     if (skillIssue) {
       const error = new Error(composerPreviewIssue({ block_type: skillIssue[1], reason: skillIssue[2] }));
