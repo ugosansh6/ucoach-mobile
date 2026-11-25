@@ -147,7 +147,7 @@ export async function getComposerExerciseCandidates({
   // exercises.body_region. Reuse the authoritative exercise_muscles taxonomy.
   // This keeps the existing Upper/Lower/Core/Full Body categories unchanged.
   let backMuscleWeights = new Map();
-  if (targetRegion === 'Back') {
+  if (targetRegion === 'Back' || manualCatalogue) {
     const { data: links, error: linksError } = await supabase
       .from('exercise_muscles')
       .select('exercise_id,muscle_id,priority')
@@ -186,7 +186,7 @@ export async function getComposerExerciseCandidates({
       difficulty: exercise.difficulty ?? null,
       exerciseType: exercise.exercise_type ?? null,
       trainingFocus: exercise.training_focus ?? null,
-      ...(manualCatalogue ? { missingEquipment: (byExercise.get(exercise.id) ?? []).filter((id) => !available.has(id)).map((id) => equipmentNamesById.get(id) ?? id) } : {}),
+      ...(manualCatalogue ? { originalName: exercise.name, isBack: backMuscleWeights.has(exercise.id), missingEquipment: (byExercise.get(exercise.id) ?? []).filter((id) => !available.has(id)).map((id) => equipmentNamesById.get(id) ?? id) } : {}),
       equipmentIds: (byExercise.get(exercise.id) ?? []).filter((id) => id !== 'E00'),
       equipmentNames: (byExercise.get(exercise.id) ?? [])
         .filter((id) => id !== 'E00')
@@ -256,7 +256,7 @@ function wodLabel(minutes) {
 
 /**
  * Localized structure labels follow the existing environment UX: a gym
- * strength block is shown as Musculation, while BOX/HOME retain Force/Skill.
+ * strength block is shown as Musculation in Salle, Maison and Box; Skill remains distinct.
  * These are DISPLAY labels only; STRENGTH, SKILL, WOD and prescription types
  * are never remapped or substituted.
  */
@@ -266,8 +266,8 @@ export function composerBlockDisplayLabel(type, environmentCode = 'BOX', archite
   if (type === 'TABATA') return 'Tabata';
   if (type === 'TRANSITION') return 'Transitions';
   if (type === 'STRENGTH') {
-    if (env === 'GYM') return 'Musculation';
-    if (env === 'HOME' || env === 'OUTDOOR') return 'Renforcement';
+    if (['GYM', 'HOME', 'BOX'].includes(env)) return 'Musculation';
+    if (env === 'OUTDOOR') return 'Renforcement';
     return 'Force';
   }
   if (type === 'SKILL' && architecture?.blocks?.some((block) => block.type === 'STRENGTH')) return 'Skill';

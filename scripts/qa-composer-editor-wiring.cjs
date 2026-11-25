@@ -37,3 +37,9 @@ assert.match(ui,/saveComposerDraft/);
 assert.match(service,/if \(type === 'SKILL'\) return env === 'GYM' \? 'Musculation'/);
 assert.ok(!ui.includes("'Skill', subtitle:"),'customer-facing Skill label removed');
 console.log('PASS: W11 Composer editor wired to existing preview/save and selections');
+
+assert.match(ui,/composerStrengthOnlyOption\(architecture\)/);
+assert.match(ui,/chooseStrengthOnly\(strengthOnlyOption\)/);
+assert.doesNotMatch(ui,/Travail en séries · jusqu’à 8 mouvements/);
+assert.match(ui,/return <ComposerExercisePickerPage/);
+assert.doesNotMatch(ui,/visible=\{sheet === 'exercise-picker'\}/);

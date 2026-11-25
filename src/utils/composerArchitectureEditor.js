@@ -186,3 +186,16 @@ export function editComposerArchitecture(architecture, action) {
     },
   };
 }
+
+// Expose the existing STRENGTH contract as a genuine solo format. Reuse the
+// current server-provided main budget and complements; no sporting calculation.
+export function composerStrengthOnlyOption(option) {
+  const main = composerMainBlocks(option);
+  if (!main.length) return null;
+  const minutes = main.reduce((sum, block) => sum + Number(block.minutes), 0);
+  if (!Number.isInteger(minutes) || minutes < COMPOSER_MIN_MAIN_MINUTES || minutes > 90) return null;
+  const complements = (option.blocks ?? []).filter(block => FIXED_TYPES.includes(block.type));
+  if (complements.length + main.length !== option.blocks.length) return null;
+  return { ...option, key: 'musculation-seule', title: 'Musculation seule', recommended: false,
+    distribution_label: null, blocks: [...complements, { type: 'STRENGTH', label: 'Musculation', minutes }] };
+}

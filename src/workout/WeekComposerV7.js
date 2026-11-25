@@ -2,8 +2,7 @@ import ComposerOutdoorCardioPreview from '../components/workout/ComposerOutdoorC
 import ComposerMovementOverview, { ComposerMovementTabs } from '../components/workout/ComposerMovementOverview';
 import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
 import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
-import ExerciseCatalogueControls from '../components/exercises/ExerciseCatalogueControls';
-import { filterExerciseCatalogue } from '../utils/exerciseCatalogue';
+import ComposerExercisePickerPage from './ComposerExercisePickerPage';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -47,7 +46,7 @@ import {
   editComposerArchitecture,
   composerMainBlocks,
   composerAddableBlocks,
-  composerArchitectureForTarget,
+  composerArchitectureForTarget, composerStrengthOnlyOption,
 } from '../utils/composerArchitectureEditor';
 import { useUgerodTheme } from '../contexts/UgerodThemeContext';
 import {
@@ -647,12 +646,7 @@ export default function WeekComposerV7() {
   const [step, setStep] = useState(0);
   const [sheet, setSheet] = useState(null);
   const [savedStructure, setSavedStructure] = useState(null);
-  const [exerciseQuery, setExerciseQuery] = useState('');
   const [replacementId, setReplacementId] = useState(null);
-  const [exerciseRegion, setExerciseRegion] = useState('');
-  const [exerciseFamily, setExerciseFamily] = useState('');
-  const [exerciseFocus, setExerciseFocus] = useState('');
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [pickerCatalogue, setPickerCatalogue] = useState([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerError, setPickerError] = useState(false);
@@ -983,6 +977,10 @@ export default function WeekComposerV7() {
         durationMinutes: duration, intentKey: planningIntentKey, environmentCode, targets,
       });
       const next = proposed.map((option) => composerArchitectureForTarget(option, skillTargetPath));
+      if (['HOME', 'BOX'].includes(environmentCode) && !next.some((option) => composerMainBlocks(option).length === 1 && composerMainBlocks(option)[0].type === 'STRENGTH')) {
+        const solo = composerStrengthOnlyOption(next.find((option) => composerMainBlocks(option).length === 1) ?? next[0]);
+        if (solo) next.push(solo);
+      }
       if (environmentCode === 'OUTDOOR') { setOutdoorEngineVersion(COMPOSER_OUTDOOR_VERSION); setSkillEngineVersion('C4_COMPOSER_SKILL_V1'); }
       if (proposal?.status === 'DEFAULT_UNAVAILABLE') setArchitectureEditError(proposal.reason);
       setArchitectures(next);
@@ -1183,9 +1181,7 @@ export default function WeekComposerV7() {
   async function openExercisePicker(id = null) {
     if (!activeBlock || activeBlock.type === 'CARDIO') return;
     const request = ++pickerRequest.current;
-    setReplacementId(id); setExerciseQuery('');
-    setExerciseRegion(''); setExerciseFocus('');
-    setExerciseFamily(''); setFavoritesOnly(false);
+    setReplacementId(id);
     setPickerCatalogue([]); setPickerError(false); setPickerLoading(true);
     setSheet('exercise-picker');
     try {
@@ -1228,21 +1224,17 @@ export default function WeekComposerV7() {
     chooseExercise(type, exercise.id);
   }
 
-  function useStrengthInsteadOfSkill() {
-    if (busy || !architecture || architecture.blocks.some((block) => block.type === 'STRENGTH')) return;
+  function chooseStrengthOnly(option) {
+    if (busy || !option) return;
+    // Explicit format change: retain the preparation and current Strength
+    // choices, or reuse Skill choices as the starting point for recalculation.
     setSkillTargetPath(null); setShowSkillTarget(false);
-    setArchitecture({ ...architecture, key: 'custom', title: 'Structure personnalisée',
-      recommended: false, distribution_label: null,
-      blocks: architecture.blocks.map((block) => block.type === 'SKILL'
-        ? { ...block, type: 'STRENGTH', label: 'Renforcement' } : block) });
-    setSelectionMap((old) => {
-      const { SKILL, ...rest } = old;
-      return { ...rest, STRENGTH: SKILL ?? [] };
-    });
-    setCandidateMap((old) => {
-      const { SKILL, ...rest } = old;
-      return { ...rest, STRENGTH: SKILL ?? [] };
-    });
+    setArchitecture(option);
+    setSelectionMap((old) => ({ WARMUP: old.WARMUP ?? [], TABATA: old.TABATA ?? [],
+      STRENGTH: old.STRENGTH?.length ? old.STRENGTH : old.SKILL ?? [] }));
+    setCandidateMap((old) => ({ WARMUP: old.WARMUP ?? [], TABATA: old.TABATA ?? [],
+      STRENGTH: old.STRENGTH?.length ? old.STRENGTH : old.SKILL ?? [] }));
+    setMechanic(null); setMechanicOptions([]);
     setPreviewSignature(null); setPrescriptionPreview(null); setPreviewIssue(null);
     setStrengthAssessment(null); setArchitectureEditError(''); setError('');
   }
@@ -1569,9 +1561,11 @@ export default function WeekComposerV7() {
     ...exercise, ...rankedById.get(exercise.id),
     recommended: !exercise.missingEquipment?.length && Boolean(rankedById.get(exercise.id)?.recommended),
   })).sort((a, b) => Number(b.recommended) - Number(a.recommended));
-  const filteredExtraCandidates = filterExerciseCatalogue(pickerRows.filter((exercise) => !activeSelected.includes(exercise.id)), {
-    search: exerciseQuery, region: exerciseRegion, family: exerciseFamily, focus: exerciseFocus, favoritesOnly,
-  }, Object.entries(candidateEvidence).filter(([,e]) => e.explicit_preference_state === 'FAVORI').map(([id]) => id));
+  const favoriteIds = Object.entries(candidateEvidence).filter(([,e]) => e.explicit_preference_state === 'FAVORI').map(([id]) => id);
+  const mainBlocks = composerMainBlocks(architecture);
+  const strengthOnlyOption = ['HOME','BOX','GYM'].includes(environmentCode) && mainBlocks.length &&
+    !(mainBlocks.length === 1 && mainBlocks[0].type === 'STRENGTH')
+    ? composerStrengthOnlyOption(architecture) : null;
 
   const wodBlock = architecture?.blocks?.find((block) => block.type === 'WOD') ?? null;
   const estimatedMinutes = architecture?.estimatedMinutes
@@ -1583,6 +1577,13 @@ export default function WeekComposerV7() {
   const currentPreview = !previewLoading && previewSignature === JSON.stringify(buildCurrentDraft())
     ? prescriptionPreview : null;
   const currentWodPreview = currentPreview?.blocks?.find((b) => b.type === 'WOD');
+
+  if (sheet === 'exercise-picker' && activeBlock) return <ComposerExercisePickerPage
+    colors={colors} isDark={isDark} blockLabel={composerBlockDisplayLabel(activeBlock.type, environmentCode)}
+    rows={pickerRows} selectedRows={selectedCandidateObjects} selectedIds={activeSelected} favoriteIds={favoriteIds}
+    capacity={maxForBlock(activeBlock.type, activeBlock.minutes)} replacementId={replacementId} onReplacement={setReplacementId}
+    loading={pickerLoading} error={pickerError} onRetry={() => openExercisePicker(replacementId)}
+    onSelect={selectPickerExercise} onClose={closeExercisePicker} />;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -1786,14 +1787,6 @@ export default function WeekComposerV7() {
                   fontFamilies={fontFamilies}
                 />
               </View>
-              <View style={styles.structureExplanation}>
-                <Ionicons name="bulb-outline" size={18} color={colors.accent} />
-                <Text style={styles.structureExplanationText}>{intent?.focus === 'Strength'
-                  ? 'Pour développer ta force, privilégie des séries maîtrisées et des récupérations suffisantes. Les mouvements exigeants passent en premier.'
-                  : intent?.focus === 'Conditioning'
-                    ? 'Pour améliorer ton conditionnement, combine des mouvements complémentaires et une intensité que tu peux maintenir.'
-                    : 'Pour progresser sur un mouvement, travaille sa technique et ses prérequis, sans sacrifier la qualité au volume.'}</Text>
-              </View>
               {skillTargetPath ? <Pressable onPress={() => { setSkillTargetPath(null); setShowSkillTarget(false); }} style={styles.structureLink}>
                 <Text style={styles.structureLinkText}>Retirer le parcours technique enregistré</Text>
               </Pressable> : null}
@@ -1812,12 +1805,19 @@ export default function WeekComposerV7() {
                   <Text style={styles.structureEditorHelp}>Choisis explicitement un format adapté à ce créneau, ou augmente la durée.</Text>
                   {architectures.map((option) => (
                     <Pressable key={option.key} accessibilityRole="button" style={styles.structureAddButton}
-                      onPress={() => { setArchitecture(option); setArchitectureEditError(''); }}>
+                      onPress={() => { if (composerMainBlocks(option).length === 1 && composerMainBlocks(option)[0].type === 'STRENGTH') chooseStrengthOnly(option); else { setArchitecture(option); setArchitectureEditError(''); } }}>
                       <Text style={styles.structureAddLabel}>{composerArchitectureDisplayTitle(option, environmentCode)}</Text>
                     </Pressable>
                   ))}
                 </View>
               )}
+              {strengthOnlyOption ? (
+                <View style={styles.structureAddRow}>
+                  <Text style={styles.structureEditorHeading}>Autre format</Text>
+                  <ArchitectureCard option={strengthOnlyOption} selected={false} onPress={() => chooseStrengthOnly(strengthOnlyOption)}
+                    styles={styles} colors={colors} environmentCode={environmentCode} intentKey={intentKey} />
+                </View>
+              ) : null}
               {architecture ? (
                 <View style={styles.structureEditor}>
                   <Text accessibilityRole="header" style={styles.structureEditorHeading}>Personnaliser la structure</Text>
@@ -1897,12 +1897,6 @@ export default function WeekComposerV7() {
                       </View>
                     </View>
                   ))}
-                  {['HOME', 'BOX'].includes(environmentCode) && architecture.blocks.some((block) => block.type === 'SKILL')
-                    && !architecture.blocks.some((block) => block.type === 'STRENGTH') ? (
-                    <Pressable accessibilityRole="button" onPress={useStrengthInsteadOfSkill} disabled={busy} style={styles.structureAddButton}>
-                      <Text style={styles.structureAddLabel}>Travail en séries · jusqu’à 8 mouvements</Text>
-                    </Pressable>
-                  ) : null}
                   {skillTargetPath ? <Pressable onPress={() => { setSkillTargetPath(null); setShowSkillTarget(false); setError(''); setPreviewSignature(null); }} style={styles.structureLink}>
                     <Text style={styles.structureLinkText}>Continuer sans parcours technique</Text>
                   </Pressable> : null}
@@ -2267,55 +2261,7 @@ export default function WeekComposerV7() {
         <Pressable onPress={openProfileEquipment} style={styles.inlineLink}><Text style={styles.inlineLinkText}>Modifier mon matériel</Text><Ionicons name="chevron-forward" size={18} color={colors.accent} /></Pressable>
       </SheetShell>
 
-      <SheetShell
-        visible={sheet === 'exercise-picker'}
-        title={`Autres exercices · ${activeBlock ? blockTitle(activeBlock.type, environmentCode) : ''}`}
-        onClose={closeExercisePicker}
-        styles={styles}
-        colors={colors}
-        footer={<Pressable onPress={closeExercisePicker} style={styles.sheetDoneButton}><Text style={styles.sheetDoneButtonText}>Terminé</Text></Pressable>}
-      >
-        <Text style={styles.sheetHelp}>Catalogue complet. Les conseils restent indicatifs ; le moteur vérifie la faisabilité et le dosage avant enregistrement.</Text>
-        {pickerLoading ? <Text style={styles.sheetHelp}>Chargement du catalogue…</Text> : null}
-        {pickerError ? <Pressable onPress={() => openExercisePicker(replacementId)}><Text style={styles.sheetNotice}>Catalogue complet indisponible · Réessayer</Text></Pressable> : null}
-        {activeSelected.length >= maxForBlock(activeBlock?.type, activeBlock?.minutes) ? <Text style={styles.sheetNotice}>Le bloc est complet : choisis le mouvement à remplacer ci-dessous.</Text> : null}
-        {activeSelected.length >= maxForBlock(activeBlock?.type, activeBlock?.minutes) ? <View style={{ gap: 8 }}>
-          {selectedCandidateObjects.map((row) => <Pressable key={row.id} onPress={() => setReplacementId(row.id)} style={styles.extraExerciseRow}><Text style={styles.extraExerciseName}>{replacementId === row.id ? '✓ ' : ''}Remplacer {row.name}</Text></Pressable>)}
-        </View> : null}
-        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: favoritesOnly }} onPress={() => setFavoritesOnly(!favoritesOnly)} style={styles.extraExerciseRow}><Text style={styles.extraExerciseName}>{favoritesOnly ? '✓ ' : ''}Mes favoris</Text></Pressable>
-        <ExerciseCatalogueControls rows={pickerRows} colors={colors}
-          filters={{ region: exerciseRegion, family: exerciseFamily, focus: exerciseFocus }}
-          onChange={(filters) => { setExerciseRegion(filters.region ?? ''); setExerciseFamily(filters.family ?? ''); setExerciseFocus(filters.focus ?? ''); }} />
-        <TextInput
-          value={exerciseQuery}
-          onChangeText={setExerciseQuery}
-          placeholder="Rechercher un mouvement ou du matériel…"
-          placeholderTextColor={colors.textMuted}
-          style={styles.exerciseSearch}
-          autoCorrect={false}
-          accessibilityLabel="Rechercher un exercice"
-        />
-        {filteredExtraCandidates.length === 0 ? <Text style={styles.sheetHelp}>Aucun mouvement ne correspond à cette recherche.</Text> : null}
-        <View style={styles.extraExerciseList}>
-          {filteredExtraCandidates.map((exercise) => {
-            const selected = activeSelected.includes(exercise.id);
-            return (
-              <Pressable key={exercise.id} disabled={activeSelected.length >= maxForBlock(activeBlock.type, activeBlock.minutes) && !replacementId} onPress={() => selectPickerExercise(exercise)} style={[styles.extraExerciseRow, selected && styles.extraExerciseRowSelected]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.extraExerciseName}>{exercise.name}</Text>
-                  <Text style={styles.extraExerciseMeta}>{[regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ')}</Text>
-                  <Text style={styles.extraExerciseMeta}>Matériel : {(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
-                  {exercise.missingEquipment?.length ? <Text style={styles.sheetNotice}>Matériel manquant : {exercise.missingEquipment.join(' · ')}</Text> : null}
-                  {exercise.recommended ? <Text style={styles.exerciseReason}>Recommandé · {exercise.recommendationReason}</Text> : null}
-                </View>
-                <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>
-                  <Ionicons name={selected ? 'checkmark' : 'add'} size={18} color={selected ? colors.textOnAccent : colors.accent} />
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      </SheetShell>
+
     </SafeAreaView>
   );
 }
