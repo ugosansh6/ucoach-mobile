@@ -4,6 +4,7 @@ import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from 
 import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
 import ComposerExercisePickerPage from './ComposerExercisePickerPage';
 import { pickerEquipmentMatches, pickerAddSessionEquipment } from '../utils/composerPickerPresentation';
+import ExerciseArtwork from '../components/exercises/ExerciseArtwork';
 import ExerciseDetail from '../components/exercises/ExerciseDetail';
 import {getPersonalWorkoutModel} from '../services/personalWorkoutModelService';
 import {canReusePersonalModel} from '../utils/personalWorkoutModels';
@@ -1621,7 +1622,7 @@ export default function WeekComposerV7() {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageScroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.pageScroll,step === 5 && styles.recapScroll]}>
         <View style={styles.content}>
           <View style={styles.header}>
             <Pressable
@@ -1643,7 +1644,7 @@ export default function WeekComposerV7() {
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.eyebrow}>{dateLabel(dateKey)}</Text>
-              <Text style={[styles.title, step === 3 && styles.movementHeaderTitle]}>Composer<Text style={styles.dot}>.</Text></Text>
+              <Text style={[styles.title, step === 3 && styles.movementHeaderTitle]}>{step === 5?'Ta séance':'Composer'}<Text style={styles.dot}>.</Text></Text>
             </View>
             <Image source={brandIcon} style={[styles.brandIcon, step === 3 && styles.movementBrandIcon]} resizeMode="contain" />
           </View>
@@ -1655,7 +1656,7 @@ export default function WeekComposerV7() {
             regions={preferredRegions.map((region) => composerRegionsLabel({ preferred_regions: [region] }))}
             technicalTarget={skillTargetPath ? skillTargets.find((option) => option.key === skillTargetPath)?.name ?? skillTargetPath : null}
             colors={colors}
-          /> : step > 0 ? (
+          /> : step > 0 && step !== 5 ? (
             <View style={styles.contextTrail}>
               <View style={styles.contextLine}>
                 <Text style={styles.contextPrimary}>{duration} MIN · {environmentLabel(environmentCode).toUpperCase()}</Text>
@@ -2116,51 +2117,34 @@ export default function WeekComposerV7() {
           ) : null}
 
           {step === 5 ? (
-            <View style={styles.stepWrap}>
-              <StageHeader kicker="RÉCAPITULATIF" title="Ta séance." helper={`${environmentLabel(environmentCode)} · ${composerArchitectureDisplayTitle(architecture,environmentCode)}`} styles={{...styles,stageHeader:styles.mechanicStageHeader,question:styles.mechanicQuestion,helper:styles.mechanicHelper}} />
+            <View style={styles.recapStep}>
               <View style={styles.recapOverview}>
+                <Text accessibilityRole="header" style={styles.recapHeroTitle}>{composerArchitectureDisplayTitle(architecture,environmentCode).toUpperCase()}.</Text>
+                <Text style={styles.recapHeroMeta}>{[environmentLabel(environmentCode),preferredRegions.length?composerRegionsLabel(composerPreferences):null].filter(Boolean).join(' · ')}</Text>
+                {effectiveIntent?<Text style={styles.recapHeroMeta}>{directionBaseLabel(effectiveIntent)}{skillTargetPath?' · '+(skillTargets.find(option=>option.key===skillTargetPath)?.name??skillTargetPath):''}</Text>:null}
                 <View style={styles.recapHeaderRow}>
-                  <View><Text style={styles.recapExerciseMeta}>Durée prévue</Text><Text style={styles.recapTimeValue}>{duration} min</Text></View>
-                  <View><Text style={styles.recapExerciseMeta}>Durée estimée</Text><Text style={[styles.recapTimeValue,recapTime?.overMinutes>0&&{color:colors.secondaryAccent}]}>{recapTime?recapTime.minutes+' min':'—'}</Text></View>
+                  <View style={{flex:1}}><Text style={styles.recapTimeValue}>{recapTime?recapTime.minutes+' min':'—'}</Text><Text style={styles.recapHeroMeta}>Durée estimée</Text></View>
+                  <View style={{alignItems:'flex-end'}}><Text style={styles.recapHeroBudget}>{duration} min</Text><Text style={styles.recapHeroMeta}>Durée prévue</Text></View>
                 </View>
-                <View style={styles.recapSegments}>{(architecture?.blocks??[]).map((b,i)=><View key={b.type} style={{flex:b.minutes,backgroundColor:[colors.accent,colors.secondaryAccent,colors.textSecondary,colors.accent,colors.textMuted][i%5],opacity:i===0?.45:i===1?.65:1,borderRadius:3}}/>)}</View>
-                {recapTime?.overMinutes>0?<View style={styles.recapAdvisory}><Ionicons name="time-outline" size={18} color={colors.secondaryAccent}/><Text style={styles.recapAdvisoryText}>{hasManualEdits?'Tes modifications dépassent':'La séance dépasse'} la durée prévue d’environ {recapTime.overMinutes} min. Tu peux conserver cette séance.</Text></View>:null}
-                {hasManualEdits?<Text style={styles.recapHelp}>Prescription personnalisée · UGEROD conserve tes choix et vérifie le contexte du jour.</Text>:null}
+                <View style={styles.recapSegments} accessible={false}>{(architecture?.blocks??[]).map((b,i)=><View key={b.type} style={{flex:b.minutes,backgroundColor:b.type==='WOD'?colors.secondaryAccent:['#A8B6A0','#D9E3D2','#7E9175','#EFF4EA'][i%4],borderRadius:2}}/>)}</View>
               </View>
-              <Text style={styles.recapHelp}>
-                {(architecture?.blocks ?? []).some((b) => b.type === 'TABATA')
-                  ? 'Échauffement et Tabata inclus. Modifie les prescriptions des blocs d’entraînement si tu le souhaites.'
-                  : 'Échauffement inclus. Modifie les prescriptions des blocs d’entraînement si tu le souhaites.'}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setArchitectureEditError('');
-                  setStep(2);
-                }}
-                style={styles.structureEditorToggle}
-              >
-                <Ionicons name="options-outline" size={20} color={colors.accent} />
-                <Text style={styles.structureLinkText}>Ajouter, retirer ou réorganiser les blocs</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.accent} />
-              </Pressable>
-              {previewLoading ? (
-                <View style={styles.previewState}>
-                  <ActivityIndicator size="small" color={colors.accent} />
-                  <Text style={styles.previewNote}>Calcul des séries, répétitions et récupérations…</Text>
-                </View>
-              ) : prescriptionPreview ? (
-                <Text style={styles.previewNote}>{hasManualEdits?'Tes valeurs personnalisées seront conservées. Les contrôles de sécurité du jour J restent actifs.':'Dosage prévisionnel · le jour J, la forme et les gênes pourront entraîner des ajustements.'}</Text>
-              ) : previewIssue ? (
-                <View style={styles.structureExplanation}>
-                  <Ionicons name="alert-circle-outline" size={18} color={colors.secondaryAccent} />
-                  <Text style={styles.structureExplanationText}>
-                    {previewIssue.manualMessage??composerPreviewIssue(previewIssue, environmentCode)}
-                  </Text>
-                </View>
-              ) : previewError ? (
-                <Text style={styles.previewWarning}>Prévision indisponible : vérifie la connexion avant de valider.</Text>
-              ) : null}
+              {recapTime?.overMinutes>0?<Text accessibilityRole="alert" style={styles.recapAdvisoryText}>+{recapTime.overMinutes} min sur la durée prévue · non bloquant</Text>:null}
+              <View style={styles.recapHeaderRow}>
+                <Text accessibilityRole="header" style={styles.recapSectionTitle}>Ta séance</Text>
+                <Pressable accessibilityRole="button" onPress={()=>{setArchitectureEditError('');setStep(2);}} style={styles.recapStructureAction}><Text style={styles.recapEditText}>Modifier la structure</Text></Pressable>
+              </View>
+              {previewLoading||strengthAssessmentLoading?(
+                <View style={styles.previewState} accessibilityLiveRegion="polite"><ActivityIndicator size="small" color={colors.textSecondary}/><Text style={styles.recapExerciseMeta}>Calcul des prescriptions…</Text></View>
+              ):previewIssue?(
+                <View accessibilityRole="alert" style={styles.recapIssue}><Text style={styles.recapIssueText}>{previewIssue.manualMessage??composerPreviewIssue(previewIssue,environmentCode)}</Text></View>
+              ):previewError||strengthAssessmentError?(
+                <Text accessibilityRole="alert" style={styles.previewWarning}>Calcul indisponible. Vérifie ta connexion.</Text>
+              ):!currentPreview?(
+                <Text accessibilityLiveRegion="polite" style={styles.recapExerciseMeta}>Prescriptions en attente de calcul</Text>
+              ):((architecture?.blocks??[]).some(b=>b.type==='STRENGTH')&&currentStrengthAssessment?.status!=='READY')?(
+                <Text accessibilityRole="alert" style={styles.previewWarning}>Renforcement à ajuster avant validation.</Text>
+              ):null}
+              {currentPreview&&!previewIssue?<Text style={styles.recapExerciseMeta}>{hasManualEdits?'Prescriptions personnalisées · contrôles de sécurité le jour J':'Prescriptions estimées · ajustables le jour J'}</Text>:null}
               {previewIssue&&beforeManualEdit.current?<Pressable onPress={undoManualEdit} style={styles.recapEdit}><Ionicons name="arrow-undo-outline" size={17} color={colors.accent}/><Text style={styles.recapEditText}>Annuler la dernière modification</Text></Pressable>:null}
               {hasManualEdits?<Pressable onPress={resetManualEdits} style={styles.recapEdit}><Ionicons name="refresh-outline" size={17} color={colors.accent}/><Text style={styles.recapEditText}>Rétablir les recommandations UGEROD</Text></Pressable>:null}
               {previewIssue&&!previewIssue.manualMessage ? (
@@ -2171,55 +2155,54 @@ export default function WeekComposerV7() {
                   colors={colors}
                 />
               ) : null}
+
               <View style={styles.recapCard}>
                 {(architecture?.blocks??[]).map((item,index)=>{
                   const block=currentPreview?.blocks?.find(b=>b.type===item.type);
                   const blockFields=composerManualParameterFields(block,wodEngineVersion);
                   const blockTime=block?.time?.prescribed_seconds;
+                  const blockEstimate=blockTime!=null&&Number.isFinite(Number(blockTime))?Math.ceil(Number(blockTime)/60):null;
                   const over=blockTime!=null&&Number(blockTime)>Number(item.minutes)*60;
-                  const icon={WARMUP:'flame-outline',TABATA:'timer-outline',SKILL:'body-outline',STRENGTH:'barbell-outline',WOD:'flash-outline',CARDIO:'heart-outline'}[item.type];
+                  const isWod=item.type==='WOD';
                   const entry=manualEdits[composerManualKey(item.type,mechanic)];
-                  return <View key={'recap-'+item.type} style={styles.recapBlock}>
+                  return <View key={'recap-'+item.type} style={[styles.recapBlock,isWod&&styles.recapWodBlock]}>
                     <View style={styles.recapHeaderRow}>
-                      <View style={styles.recapBlockHeading}><Ionicons name={icon??'fitness-outline'} size={20} color={colors.accent}/><View style={{flex:1}}><Text style={styles.recapBlockTitle}>{String(index+1).padStart(2,'0')} · {composerBlockDisplayLabel(item.type,environmentCode)}</Text>{item.type==='WOD'&&mechanic?<Text style={styles.recapExerciseMeta}>{mechanic.title}</Text>:null}</View></View>
-                      <View style={{alignItems:'flex-end'}}><Text style={styles.recapMinutes}>{item.minutes} min prévues</Text>{blockTime!=null?<Text style={[styles.recapMinutes,over&&{color:colors.secondaryAccent}]}>≈ {Math.ceil(Number(blockTime)/60)} min</Text>:null}</View>
+                      <View style={styles.recapBlockHeading}><Text accessibilityRole="header" style={styles.recapBlockTitle}>{String(index+1).padStart(2,'0')}. {composerBlockDisplayLabel(item.type,environmentCode)}</Text></View>
+                      <View style={{alignItems:'flex-end'}}><Text style={styles.recapMinutes}>{item.minutes} min</Text>{blockEstimate!=null&&blockEstimate!==Number(item.minutes)?<Text style={[styles.recapExerciseMeta,over&&styles.recapAdvisoryText]}>≈ {blockEstimate} min</Text>:null}</View>
                     </View>
                     {item.type==='TABATA'?<Text style={styles.recapDose}>8 intervalles · 20 s effort / 10 s repos</Text>:null}
-                    {item.type==='WOD'&&block?<Text style={styles.recapDose}>{composerWodProtocol(block)}</Text>:null}
-                    {composerWodRegionAdvisory(block)?<Text style={styles.previewDetails}>{composerWodRegionAdvisory(block)}</Text>:null}
-                    {composerWodDurationAdvisory(block)?<Text style={styles.previewDetails}>{composerWodDurationAdvisory(block)}</Text>:null}
-                    {over?<Text style={styles.recapAdvisoryText}>Ce bloc dépasse le temps réservé. Ce n’est pas bloquant.</Text>:null}
-                    {blockFields.length?<Pressable accessibilityRole="button" onPress={()=>openManualEditor(item.type,null,'Paramètres du WOD',blockFields)} style={styles.recapParameterButton}><Ionicons name="options-outline" size={16} color={colors.accent}/><Text style={styles.recapEditText}>{Object.keys(entry?.parameters??{}).length?'Paramètres personnalisés':'Modifier les paramètres'}</Text><Ionicons name="chevron-forward" size={15} color={colors.accent}/></Pressable>:null}
+                    {isWod&&mechanic?<Text style={styles.recapWodTitle}>{mechanic.title}</Text>:null}
+                    {isWod&&block?<Text style={styles.recapDose}>{composerWodProtocol(block)}</Text>:null}
+                    {composerWodRegionAdvisory(block)?<Text style={styles.recapExerciseMeta}>Zones travaillées au-delà de ta cible.</Text>:null}
+                    {composerWodDurationAdvisory(block)?<Text style={styles.recapExerciseMeta}>{composerWodDurationAdvisory(block).replace(' Tu peux conserver ce protocole sans augmenter le volume.','')}</Text>:null}
+                    {blockFields.length?<Pressable accessibilityRole="button" onPress={()=>openManualEditor(item.type,null,'Paramètres du WOD',blockFields)} style={styles.recapParameterButton}><Text style={styles.recapEditText}>{Object.keys(entry?.parameters??{}).length?'Paramètres personnalisés':'Modifier les paramètres'}</Text><Ionicons name="create-outline" size={16} color={colors.textSecondary}/></Pressable>:null}
                     {selectedExercises(item.type).map(exercise=>{
                       const dose=block?.exercises?.find(x=>x.id===exercise.id);
                       const fields=composerManualExerciseFields(item.type,dose,mechanic,{skillTarget:skillTargetPath,wodEngineVersion});
                       const edited=Boolean(Object.keys(entry?.exercises?.[exercise.id]??{}).length);
                       return <View key={exercise.id} style={styles.recapExerciseRow}>
-                        <View style={styles.recapThumb}>{exercise.imagePath?<Image source={{uri:exercise.imagePath}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>:<Ionicons name="image-outline" size={20} color={colors.textMuted}/>}</View>
+                        <ExerciseArtwork imagePath={exercise.imagePath} colors={colors} size={52}/>
                         <View style={{flex:1,minWidth:0}}>
                           <Text style={styles.recapExercise}>{exercise.name}</Text>
-                          {dose?<Text style={styles.recapDose}>{formatPreviewDose(dose,item.type,block,{compactCard:true})}</Text>:null}
+                          {dose?<Text style={styles.recapDose}>{formatPreviewDose(dose,item.type,block,{compactCard:false})}</Text>:null}
                           {edited?<Text style={styles.recapExerciseMeta}>Personnalisé</Text>:null}
                         </View>
-                        {fields.length?<Pressable accessibilityRole="button" accessibilityLabel={'Modifier le dosage de '+exercise.name} onPress={()=>openManualEditor(item.type,exercise.id,exercise.name,fields)} style={styles.recapDoseEdit}><Ionicons name="create-outline" size={19} color={colors.accent}/></Pressable>:null}
+                        {fields.length?<Pressable accessibilityRole="button" accessibilityLabel={'Modifier le dosage de '+exercise.name} onPress={()=>openManualEditor(item.type,exercise.id,exercise.name,fields)} style={styles.recapDoseEdit}><Ionicons name="create-outline" size={19} color={colors.textSecondary}/></Pressable>:null}
                       </View>;
                     })}
-                    <Pressable onPress={()=>editRecapBlock(item.type)} style={styles.recapEdit}><Ionicons name="swap-horizontal-outline" size={16} color={colors.accent}/><Text style={styles.recapEditText}>Modifier {item.type==='WOD'?'les mouvements ou la mécanique':'les mouvements'}</Text></Pressable>
+                    <Pressable accessibilityRole="button" onPress={()=>editRecapBlock(item.type)} style={styles.recapEdit}><Text style={styles.recapEditText}>{isWod?'Modifier le WOD':'Modifier les mouvements'}</Text></Pressable>
                   </View>;
                 })}
               </View>
-              <PrimaryButton
-                label={busy ? 'ENREGISTREMENT…' : 'VALIDER MA SÉANCE'}
-                onPress={addToWeek}
-                disabled={busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY')}
-                loading={busy}
-                styles={styles}
-                colors={colors}
-              />
             </View>
           ) : null}
         </View>
       </ScrollView>
+      {step === 5 ? <View style={styles.recapFooter}>
+        <Pressable accessibilityRole="button" accessibilityState={{disabled:busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY')}} onPress={addToWeek} disabled={busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY')} style={({pressed})=>[styles.recapValidate,(busy || previewLoading || !prescriptionPreview || previewSignature !== JSON.stringify(buildCurrentDraft()) || !!previewIssue || strengthAssessmentLoading || strengthAssessmentError || ((architecture?.blocks ?? []).some((b) => b.type === 'STRENGTH') && currentStrengthAssessment?.status !== 'READY'))&&styles.disabled,pressed&&styles.pressed]}>
+          {busy?<ActivityIndicator color={colors.background} size="small"/>:null}<Text style={styles.recapValidateText}>{busy?'Enregistrement…':'Valider ma séance'}</Text>
+        </Pressable>
+      </View>:null}
 
       {detailExercise ? <ExerciseDetail key={detailExercise.id} visible exercise={detailExercise}
         dose={movementDose(detailExercise)} doseLabel={movementDoseLabel(detailExercise)}
@@ -2232,7 +2215,6 @@ export default function WeekComposerV7() {
       /> : null}
       {doseEditor?<SheetShell visible title={doseEditor.title} onClose={()=>setDoseEditor(null)} styles={styles} colors={colors}
         footer={<PrimaryButton label="APPLIQUER" onPress={()=>applyManualEditor()} disabled={!validComposerManualValues(doseEditor.fields,doseEditor.values)} styles={styles} colors={colors}/>}>
-        <Text style={styles.sheetHelp}>Personnalise la prescription. UGEROD estime la durée, sans bloquer un simple dépassement de temps.</Text>
         {doseEditor.fields.map(f=><View key={f.key} style={styles.manualDoseField}>
           <Text style={styles.recapExercise}>{f.label}</Text>
           <View style={styles.manualDoseControls}>
@@ -2511,35 +2493,45 @@ function createStyles(colors) {
     selectionFooterHint: { fontFamily: fontFamilies.regular, fontSize: 11, color: colors.textSecondary },
     primaryButton: { marginTop: 28, minHeight: 54, borderRadius: 15, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18 },
     primaryButtonText: { fontFamily: fontFamilies.bold, fontSize: 12, letterSpacing: 0.8, color: colors.textOnAccent },
-    recapCard: { gap:10, marginTop:12 },
-    recapOverview:{borderRadius:12,borderWidth:1,borderColor:colors.border,padding:12,gap:10,backgroundColor:colors.surface,marginBottom:12},
-    recapTimeValue:{fontFamily:fontFamilies.bold,fontSize:22,color:colors.text},
-    recapSegments:{height:7,flexDirection:'row',gap:3},
-    recapAdvisory:{flexDirection:'row',gap:8,alignItems:'center'},
-    recapAdvisoryText:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:18,color:colors.secondaryAccent,flexShrink:1},
-    recapBlockHeading:{flex:1,flexDirection:'row',alignItems:'center',gap:8},
-    recapParameterButton:{flexDirection:'row',alignItems:'center',gap:7,paddingVertical:9},
-    recapThumb:{width:45,height:45,borderRadius:8,overflow:'hidden',backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},
+    recapStep:{marginTop:12,gap:14},
+    recapScroll:{paddingBottom:24},
+    recapCard:{gap:18},
+    recapOverview:{borderRadius:18,padding:19,gap:12,backgroundColor:'#263027'},
+    recapHeroTitle:{fontFamily:fontFamilies.display,fontSize:32,lineHeight:36,color:'#FFFFFF'},
+    recapHeroMeta:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:18,color:'#D4DED0'},
+    recapTimeValue:{fontFamily:fontFamilies.display,fontSize:37,lineHeight:42,color:'#FFFFFF'},
+    recapHeroBudget:{fontFamily:fontFamilies.semiBold,fontSize:20,lineHeight:28,color:'#FFFFFF'},
+    recapSegments:{height:5,flexDirection:'row',gap:3},
+    recapSectionTitle:{fontFamily:fontFamilies.semiBold,fontSize:17,color:colors.text},
+    recapStructureAction:{minHeight:44,justifyContent:'center',alignItems:'flex-end'},
+    recapAdvisoryText:{fontFamily:fontFamilies.semiBold,fontSize:12,lineHeight:18,color:colors.text},
+    recapIssue:{paddingVertical:10,borderLeftWidth:3,borderLeftColor:colors.secondaryAccent,paddingLeft:12},
+    recapIssueText:{fontFamily:fontFamilies.medium,fontSize:13,lineHeight:19,color:colors.text},
+    recapBlockHeading:{flex:1,minWidth:0},
+    recapParameterButton:{flexDirection:'row',alignItems:'center',gap:7,minHeight:44,alignSelf:'flex-start'},
     recapDoseEdit:{width:44,height:44,justifyContent:'center',alignItems:'center'},
+    recapFooter:{width:'100%',maxWidth:820,alignSelf:'center',paddingHorizontal:spacing.xl,paddingTop:10,paddingBottom:12,backgroundColor:colors.background,borderTopWidth:1,borderTopColor:colors.border},
+    recapValidate:{minHeight:54,borderRadius:30,backgroundColor:colors.text,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:10,paddingHorizontal:16},
+    recapValidateText:{fontFamily:fontFamilies.bold,fontSize:15,color:colors.background},
     manualDoseField:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,marginVertical:6},
     manualDoseControls:{flexDirection:'row',alignItems:'center',gap:4},
     manualDoseButton:{width:40,height:44,borderRadius:8,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},
     manualDoseInput:{width:58,height:44,borderWidth:1,borderColor:colors.border,borderRadius:8,textAlign:'center',fontFamily:fontFamilies.semiBold,fontSize:16,color:colors.text},
-    recapHelp: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, color: colors.textSecondary, marginBottom: 16 },
     previewState: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12 },
     previewNote: { fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary, marginBottom: 12 },
     previewWarning: { fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.error, marginBottom: 12 },
-    recapDose: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.accent },
-    recapEdit: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', minHeight: 34 },
-    recapEditText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.accent },
-    recapExerciseRow: { flexDirection:'row',alignItems:'center',gap:10,paddingVertical:9,borderTopWidth:1,borderTopColor:colors.border },
+    recapDose: { marginTop: 4, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+    recapEdit: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', minHeight: 44 },
+    recapEditText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.text, textDecorationLine:'underline' },
+    recapExerciseRow: { flexDirection:'row',alignItems:'center',gap:11,paddingVertical:10 },
     recapExerciseMeta: { marginTop: 3, fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
-    recapBlock: { padding:12,borderWidth:1,borderColor:colors.border,borderRadius:12,backgroundColor:colors.surface,gap:4 },
-    recapHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-    recapBlockTitle: { fontFamily:fontFamilies.semiBold,fontSize:15,color:colors.text },
-    recapMinutes: { fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
-    recapExercise: { fontFamily: fontFamilies.medium, fontSize: 13, color: colors.text },
-    recapMechanic: { marginTop: 9, fontFamily: fontFamilies.bold, fontSize: 12, color: colors.secondaryAccent },
+    recapBlock: { paddingBottom:13,borderBottomWidth:1,borderBottomColor:colors.border,gap:5 },
+    recapWodBlock:{padding:15,borderRadius:16,borderBottomWidth:0,backgroundColor:colors.accentSoft},
+    recapWodTitle:{fontFamily:fontFamilies.display,fontSize:29,lineHeight:33,color:colors.text},
+    recapHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems:'center', gap: 12 },
+    recapBlockTitle: { fontFamily:fontFamilies.bold,fontSize:17,lineHeight:23,color:colors.text },
+    recapMinutes: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.text },
+    recapExercise: { fontFamily: fontFamilies.semiBold, fontSize: 15,lineHeight:21,color: colors.text },
     modalRoot: { flex: 1, justifyContent: 'flex-end' },
     modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
     sheetCard: { maxHeight: '82%', borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: colors.surface, paddingBottom: 12 },
