@@ -43,3 +43,9 @@ assert.match(ui,/chooseStrengthOnly\(strengthOnlyOption\)/);
 assert.doesNotMatch(ui,/Travail en séries · jusqu’à 8 mouvements/);
 assert.match(ui,/return <ComposerExercisePickerPage/);
 assert.doesNotMatch(ui,/visible=\{sheet === 'exercise-picker'\}/);
+
+assert.match(ui,/composerSkillWodOption\(architecture, architectures, duration\)/);
+assert.match(ui,/chooseSkillWod\(skillWodOption\)/);
+assert.match(ui,/previousSkillWodChoices.current/);
+assert.match(ui,/restore\?\.selectionMap\.SKILL/);
+assert.match(ui,/restore\?\.selectionMap\.WOD/);

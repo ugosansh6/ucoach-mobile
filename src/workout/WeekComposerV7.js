@@ -48,7 +48,7 @@ import {
   editComposerArchitecture,
   composerMainBlocks,
   composerAddableBlocks,
-  composerArchitectureForTarget, composerStrengthOnlyOption,
+  composerArchitectureForTarget, composerStrengthOnlyOption, composerSkillWodOption,
 } from '../utils/composerArchitectureEditor';
 import { useUgerodTheme } from '../contexts/UgerodThemeContext';
 import {
@@ -600,6 +600,7 @@ export default function WeekComposerV7() {
   const [architectures, setArchitectures] = useState([]);
   const [architecture, setArchitecture] = useState(null);
   const [architectureEditError, setArchitectureEditError] = useState('');
+  const previousSkillWodChoices = useRef(null);
   const [candidateMap, setCandidateMap] = useState({});
   const [candidateEvidence, setCandidateEvidence] = useState({});
   const [selectionMap, setSelectionMap] = useState({});
@@ -901,6 +902,7 @@ export default function WeekComposerV7() {
       }
       if (environmentCode === 'OUTDOOR') { setOutdoorEngineVersion(COMPOSER_OUTDOOR_VERSION); setSkillEngineVersion('C4_COMPOSER_SKILL_V1'); }
       if (proposal?.status === 'DEFAULT_UNAVAILABLE') setArchitectureEditError(proposal.reason);
+      previousSkillWodChoices.current = null;
       setArchitectures(next);
       setArchitecture(proposal?.status === 'DEFAULT_UNAVAILABLE' ? null : next[0] ?? null);
       if (proposal?.status !== 'DEFAULT_UNAVAILABLE') setArchitectureEditError('');
@@ -1152,6 +1154,9 @@ export default function WeekComposerV7() {
 
   function chooseStrengthOnly(option) {
     if (busy || !option) return;
+    if (architecture?.blocks?.some(block => block.type === 'SKILL')) {
+      previousSkillWodChoices.current = { environmentCode, duration, selectionMap, candidateMap };
+    }
     // Explicit format change: retain the preparation and current Strength
     // choices, or reuse Skill choices as the starting point for recalculation.
     setSkillTargetPath(null); setShowSkillTarget(false);
@@ -1163,6 +1168,26 @@ export default function WeekComposerV7() {
     setMechanic(null); setMechanicOptions([]);
     setPreviewSignature(null); setPrescriptionPreview(null); setPreviewIssue(null);
     setStrengthAssessment(null); setArchitectureEditError(''); setError('');
+  }
+
+  function chooseSkillWod(option) {
+    if (busy || !option) return;
+    const previous = previousSkillWodChoices.current;
+    const restore = previous?.environmentCode === environmentCode && previous?.duration === duration ? previous : null;
+    setArchitecture(option);
+    // Do not copy a Musculation prescription or its eight movements into a Skill.
+    // Preserve common blocks and restore previous Skill/WOD choices when available.
+    setSelectionMap(old => ({ WARMUP: old.WARMUP ?? [], TABATA: old.TABATA ?? [],
+      SKILL: old.SKILL?.length ? old.SKILL : restore?.selectionMap.SKILL ?? [],
+      WOD: old.WOD?.length ? old.WOD : restore?.selectionMap.WOD ?? [] }));
+    setCandidateMap(old => ({ WARMUP: old.WARMUP ?? [], TABATA: old.TABATA ?? [],
+      SKILL: old.SKILL?.length ? old.SKILL : restore?.candidateMap.SKILL ?? [],
+      WOD: old.WOD?.length ? old.WOD : restore?.candidateMap.WOD ?? [] }));
+    setSkillTargetPath(null); setShowSkillTarget(false);
+    setMechanic(null); setMechanicOptions([]); setMechanicIssue(null);
+    setPreviewSignature(null); setPrescriptionPreview(null); setPreviewIssue(null);
+    setStrengthAssessment(null); setStrengthAssessmentSignature(null);
+    setArchitectureEditError(''); setError('');
   }
 
   async function refreshCardioProtocol() {
@@ -1493,6 +1518,8 @@ export default function WeekComposerV7() {
   const strengthOnlyOption = ['HOME','BOX','GYM'].includes(environmentCode) && mainBlocks.length &&
     !(mainBlocks.length === 1 && mainBlocks[0].type === 'STRENGTH')
     ? composerStrengthOnlyOption(architecture) : null;
+  const skillWodOption = ['HOME','BOX'].includes(environmentCode)
+    ? composerSkillWodOption(architecture, architectures, duration) : null;
 
   const wodBlock = architecture?.blocks?.find((block) => block.type === 'WOD') ?? null;
   const estimatedMinutes = architecture?.estimatedMinutes
@@ -1751,11 +1778,13 @@ export default function WeekComposerV7() {
                   ))}
                 </View>
               )}
-              {strengthOnlyOption ? (
+              {strengthOnlyOption || skillWodOption ? (
                 <View style={styles.structureAddRow}>
                   <Text style={styles.structureEditorHeading}>Autre format</Text>
-                  <ArchitectureCard option={strengthOnlyOption} selected={false} onPress={() => chooseStrengthOnly(strengthOnlyOption)}
-                    styles={styles} colors={colors} environmentCode={environmentCode} intentKey={intentKey} />
+                  {strengthOnlyOption ? <ArchitectureCard option={strengthOnlyOption} selected={false} onPress={() => chooseStrengthOnly(strengthOnlyOption)}
+                    styles={styles} colors={colors} environmentCode={environmentCode} intentKey={intentKey} /> : null}
+                  {skillWodOption ? <ArchitectureCard option={skillWodOption} selected={false} onPress={() => chooseSkillWod(skillWodOption)}
+                    styles={styles} colors={colors} environmentCode={environmentCode} intentKey={intentKey} /> : null}
                 </View>
               ) : null}
               {architecture ? (

@@ -199,3 +199,41 @@ export function composerStrengthOnlyOption(option) {
   return { ...option, key: 'musculation-seule', title: 'Musculation seule', recommended: false,
     distribution_label: null, blocks: [...complements, { type: 'STRENGTH', label: 'Musculation', minutes }] };
 }
+
+// Reverse the presentation-only solo format switch. Prefer the existing
+// server-proposed Skill + WOD split. A reopened draft may contain only its
+// saved structure; in that case reuse the existing block editor allocation.
+export function composerSkillWodOption(architecture, proposals=[], sessionMinutes=null) {
+  const main=composerMainBlocks(architecture);
+  if (!main.some(b=>b.type==='STRENGTH')) return null;
+  if (main.some(b=>!['STRENGTH','WOD'].includes(b.type))) return null;
+  const complements=(architecture.blocks??[]).filter(b=>FIXED_TYPES.includes(b.type));
+  const budget=main.reduce((sum,b)=>sum+Number(b.minutes),0);
+  if (!Number.isInteger(budget)||budget<COMPOSER_MIN_MAIN_MINUTES*2||
+      complements.length+main.length!==architecture.blocks.length) return null;
+  const sum=budget+complements.reduce((n,b)=>n+Number(b.minutes),0);
+  const total=Number(architecture.estimatedMinutes??sessionMinutes??(sum+Number(architecture.transitionReserveMinutes??0)));
+  const reserve=Number(architecture.transitionReserveMinutes??(total-sum));
+  if (!Number.isInteger(total)||!Number.isInteger(reserve)||reserve<0||sum+reserve!==total) return null;
+  const isMixed=option=>{
+    const blocks=composerMainBlocks(option);
+    return blocks.length===2&&blocks[0].type==='SKILL'&&blocks[1].type==='WOD'
+      && blocks.every(b=>Number.isInteger(Number(b.minutes))&&Number(b.minutes)>=COMPOSER_MIN_MAIN_MINUTES)
+      && blocks.reduce((n,b)=>n+Number(b.minutes),0)===budget;
+  };
+  const proposal=proposals.find(option=>option.recommended&&isMixed(option))??proposals.find(isMixed);
+  const source={...architecture,estimatedMinutes:total,transitionReserveMinutes:reserve,
+    blocks:[...complements,...main.map(b=>b.type==='STRENGTH'?{type:'SKILL',label:'Skill',minutes:b.minutes}:b)]};
+  let next;
+  if(proposal) next=composerMainBlocks(proposal).map(b=>({type:b.type,label:LABELS[b.type],minutes:Number(b.minutes)}));
+  else if(main.some(b=>b.type==='WOD')) {
+    next=composerMainBlocks(source).slice().sort((a,b)=>a.type==='SKILL'?-1:b.type==='SKILL'?1:0);
+  } else {
+    const edited=editComposerArchitecture(source,{kind:'add',blockType:'WOD'});
+    if(!edited.ok)return null;
+    next=composerMainBlocks(edited.architecture);
+  }
+  if(next.some(b=>Number(b.minutes)<COMPOSER_MIN_MAIN_MINUTES))return null;
+  return {...source,key:proposal?.key??'skill-wod',title:'Skill + WOD',recommended:proposal?.recommended??false,
+    distribution_label:proposal?.distribution_label??null,blocks:[...complements.map(b=>({...b})),...next]};
+}

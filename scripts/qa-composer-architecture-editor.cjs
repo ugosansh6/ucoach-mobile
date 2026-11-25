@@ -3,9 +3,9 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const source = fs.readFileSync('src/utils/composerArchitectureEditor.js', 'utf8');
-const { editComposerArchitecture: edit, composerAddableBlocks, composerMainBlocks, composerArchitectureForTarget } =
+const { editComposerArchitecture: edit, composerAddableBlocks, composerMainBlocks, composerArchitectureForTarget, composerStrengthOnlyOption, composerSkillWodOption } =
   new Function(source.replaceAll('export const ', 'const ').replaceAll('export function ', 'function ') +
-    '\nreturn {editComposerArchitecture,composerAddableBlocks,composerMainBlocks,composerArchitectureForTarget};')();
+    '\nreturn {editComposerArchitecture,composerAddableBlocks,composerMainBlocks,composerArchitectureForTarget,composerStrengthOnlyOption,composerSkillWodOption};')();
 
 const initial = {
   key: 'balanced', estimatedMinutes: 60, transitionReserveMinutes: 5,
@@ -88,3 +88,20 @@ assert.equal(composerArchitectureForTarget(initial,null),initial);
 assert.equal(composerAddableBlocks(initial,'GYM').includes('CARDIO'),true);
 assert.equal(composerAddableBlocks(initial,'BOX').includes('CARDIO'),false);
 console.log('PASS: one training block, environment labels/routing, explicit target, duration preservation and legacy mixed contracts');
+
+// Regression: mixed -> solo -> mixed in Maison/Box, including reopened drafts.
+const mixed={key:'mixed',recommended:true,estimatedMinutes:60,transitionReserveMinutes:5,blocks:[{type:'WARMUP',minutes:6},{type:'TABATA',minutes:4},{type:'SKILL',minutes:17},{type:'WOD',minutes:28}]};
+const solo=composerStrengthOnlyOption(mixed);
+const reverse=composerSkillWodOption(solo,[mixed],60);
+assert.deepEqual(reverse.blocks.map(b=>[b.type,b.minutes]),mixed.blocks.map(b=>[b.type,b.minutes]));
+assert.equal(reverse.estimatedMinutes,60);assert.equal(reverse.transitionReserveMinutes,5);
+assert.equal(composerSkillWodOption(reverse,[mixed],60),null);
+const reopened={key:solo.key,blocks:solo.blocks};
+const fallback=composerSkillWodOption(reopened,[reopened],60);
+assert.deepEqual(fallback.blocks.map(b=>b.type),['WARMUP','TABATA','SKILL','WOD']);
+assert.equal(fallback.blocks.reduce((n,b)=>n+b.minutes,0)+fallback.transitionReserveMinutes,60);
+assert.ok(composerMainBlocks(fallback).every(b=>b.minutes>=8));
+const tooShort={blocks:[{type:'WARMUP',minutes:5},{type:'TABATA',minutes:4},{type:'STRENGTH',minutes:8}]};
+assert.equal(composerSkillWodOption(tooShort,[],20),null);
+assert.deepEqual(solo.blocks.map(b=>b.type),['WARMUP','TABATA','STRENGTH']);
+console.log('PASS reversible solo/mixed format selection, original split, saved-draft fallback and duration guards');
