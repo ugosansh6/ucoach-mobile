@@ -29,7 +29,7 @@ import ComposerSkillTargetSelector from './ComposerSkillTargetSelector';
 import { composerInitialSkillEngineVersion, composerGuidedPreferencesEnabled } from '../utils/composerReleasePolicy';
 import {
   readComposerPreferences, legacyComposerTargetRegion, composerRegionsLabel,
-  composerShowsSkillTarget, withComposerPreferences,
+  withComposerPreferences,
 } from '../utils/composerPreferences';
 import { composerWodSelectionLimit, chooseComposerExercise } from '../utils/composerWodSelection';
 import {
@@ -653,6 +653,10 @@ export default function WeekComposerV7() {
   const [exerciseFamily, setExerciseFamily] = useState('');
   const [exerciseFocus, setExerciseFocus] = useState('');
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [pickerCatalogue, setPickerCatalogue] = useState([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState(false);
+  const pickerRequest = useRef(0);
   const [selectedItem, setSelectedItem] = useState(null);
   const [duration, setDuration] = useState(60);
   const [environmentCode, setEnvironmentCode] = useState('HOME');
@@ -680,8 +684,7 @@ export default function WeekComposerV7() {
   const targetRegion = legacyComposerTargetRegion(composerPreferences);
   const preferencesSignature = JSON.stringify(composerPreferences);
   const guidedComposer = composerGuidedPreferencesEnabled({ skillEngineVersion, preferredRegions, skillTargetPath });
-  const skillTargetVisible = guidedComposer && composerShowsSkillTarget(intent, showSkillTarget, skillTargetPath);
-  const technicalOrientation = ['TECHNIQUE', 'COACH_TECHNIQUE'].includes(intent?.key);
+  const skillTargetVisible = guidedComposer && Boolean(showSkillTarget || skillTargetPath);
   const [architectures, setArchitectures] = useState([]);
   const [architecture, setArchitecture] = useState(null);
   const [architectureEditError, setArchitectureEditError] = useState('');
@@ -1179,12 +1182,61 @@ export default function WeekComposerV7() {
     }
   }
 
-  function openExercisePicker(id = null) {
+  async function openExercisePicker(id = null) {
+    if (!activeBlock || activeBlock.type === 'CARDIO') return;
+    const request = ++pickerRequest.current;
     setReplacementId(id); setExerciseQuery('');
-    const region = preferredRegions.length === 1 ? preferredRegions[0] : '';
-    setExerciseRegion(activeCandidates.some((e) => e.bodyRegion === region) ? region : '');
-    setExerciseFocus(activeCandidates.some((e) => e.trainingFocus === intent?.focus) ? intent.focus : '');
-    setExerciseFamily(''); setFavoritesOnly(false); setSheet('exercise-picker');
+    setExerciseRegion(''); setExerciseFocus('');
+    setExerciseFamily(''); setFavoritesOnly(false);
+    setPickerCatalogue([]); setPickerError(false); setPickerLoading(true);
+    setSheet('exercise-picker');
+    try {
+      const rows = await getComposerExerciseCandidates({
+        blockType: activeBlock.type, focus: intent?.focus ?? 'General Fitness',
+        environmentCode, equipmentIds, manualCatalogue: true,
+      });
+      if (request !== pickerRequest.current) return;
+      setPickerCatalogue(rows);
+      // Evidence is optional; never restrict exploration if history is unavailable.
+      const evidence = await getComposerCandidateEvidence({
+        exerciseIds: rows.map((row) => row.id), anchorDate: dateKey,
+        planItemId: selectedItem?.planItemId ?? null,
+      }).catch(() => ({}));
+      if (request === pickerRequest.current) setCandidateEvidence((old) => ({ ...old, ...evidence }));
+    } catch (err) {
+      if (request === pickerRequest.current) setPickerError(true);
+    } finally {
+      if (request === pickerRequest.current) setPickerLoading(false);
+    }
+  }
+
+  function selectPickerExercise(exercise) {
+    if (!activeBlock) return;
+    const type = activeBlock.type;
+    setCandidateMap((old) => ({
+      ...old, [type]: (old[type] ?? []).some((row) => row.id === exercise.id)
+        ? old[type] : [...(old[type] ?? []), exercise],
+    }));
+    chooseExercise(type, exercise.id);
+  }
+
+  function useStrengthInsteadOfSkill() {
+    if (busy || !architecture || architecture.blocks.some((block) => block.type === 'STRENGTH')) return;
+    setSkillTargetPath(null); setShowSkillTarget(false);
+    setArchitecture({ ...architecture, key: 'custom', title: 'Structure personnalisée',
+      recommended: false, distribution_label: null,
+      blocks: architecture.blocks.map((block) => block.type === 'SKILL'
+        ? { ...block, type: 'STRENGTH', label: 'Renforcement' } : block) });
+    setSelectionMap((old) => {
+      const { SKILL, ...rest } = old;
+      return { ...rest, STRENGTH: SKILL ?? [] };
+    });
+    setCandidateMap((old) => {
+      const { SKILL, ...rest } = old;
+      return { ...rest, STRENGTH: SKILL ?? [] };
+    });
+    setPreviewSignature(null); setPrescriptionPreview(null); setPreviewIssue(null);
+    setStrengthAssessment(null); setArchitectureEditError(''); setError('');
   }
 
   async function refreshCardioProtocol() {
@@ -1498,9 +1550,13 @@ export default function WeekComposerV7() {
     selectionMap, candidateMap, evidence: candidateEvidence, equipmentIds,
   }) : [];
   const activeSelected = activeBlock ? selectionMap[activeBlock.type] ?? [] : [];
-  const selectedCandidateObjects = activeCandidates.filter((exercise) => activeSelected.includes(exercise.id));
-  const replacementCandidates = activeCandidates.filter((exercise) => !activeSelected.includes(exercise.id));
-  const filteredExtraCandidates = filterExerciseCatalogue(replacementCandidates, {
+  const selectedCandidateObjects = activeSelected.map((id) => activeCandidates.find((exercise) => exercise.id === id)).filter(Boolean);
+  const rankedById = new Map(activeCandidates.map((exercise) => [exercise.id, exercise]));
+  const pickerRows = (pickerCatalogue.length ? pickerCatalogue : activeCandidates).map((exercise) => ({
+    ...exercise, ...rankedById.get(exercise.id),
+    recommended: !exercise.missingEquipment?.length && Boolean(rankedById.get(exercise.id)?.recommended),
+  })).sort((a, b) => Number(b.recommended) - Number(a.recommended));
+  const filteredExtraCandidates = filterExerciseCatalogue(pickerRows.filter((exercise) => !activeSelected.includes(exercise.id)), {
     search: exerciseQuery, region: exerciseRegion, family: exerciseFamily, focus: exerciseFocus, favoritesOnly,
   }, Object.entries(candidateEvidence).filter(([,e]) => e.explicit_preference_state === 'FAVORI').map(([id]) => id));
 
@@ -1717,15 +1773,17 @@ export default function WeekComposerV7() {
                   fontFamilies={fontFamilies}
                 />
               </View>
-              {guidedComposer ? <ComposerSkillTargetSelector
-                visible={skillTargetVisible} optional={!technicalOrientation}
-                selectedPath={skillTargetPath} options={skillTargets}
-                loading={skillTargetsLoading} error={skillTargetsError}
-                onRetry={() => setSkillTargetsRetry((value) => value + 1)}
-                onOpen={() => setShowSkillTarget(true)} onChange={(path) => { setSkillTargetPath(path); setSkillEngineVersion('C4_COMPOSER_SKILL_V1'); }}
-                onRemove={() => { setSkillTargetPath(null); setShowSkillTarget(false); }}
-                colors={colors} fontFamilies={fontFamilies}
-              /> : null}
+              <View style={styles.structureExplanation}>
+                <Ionicons name="bulb-outline" size={18} color={colors.accent} />
+                <Text style={styles.structureExplanationText}>{intent?.focus === 'Strength'
+                  ? 'Pour développer ta force, privilégie des séries maîtrisées et des récupérations suffisantes. Les mouvements exigeants passent en premier.'
+                  : intent?.focus === 'Conditioning'
+                    ? 'Pour améliorer ton conditionnement, combine des mouvements complémentaires et une intensité que tu peux maintenir.'
+                    : 'Pour progresser sur un mouvement, travaille sa technique et ses prérequis, sans sacrifier la qualité au volume.'}</Text>
+              </View>
+              {skillTargetPath ? <Pressable onPress={() => { setSkillTargetPath(null); setShowSkillTarget(false); }} style={styles.structureLink}>
+                <Text style={styles.structureLinkText}>Retirer le parcours technique enregistré</Text>
+              </Pressable> : null}
               <PrimaryButton label={busy ? 'PRÉPARATION…' : 'CHOISIR LA STRUCTURE'} onPress={goToArchitecture} disabled={!intent || busy} loading={busy} styles={styles} colors={colors} />
             </View>
           ) : null}
@@ -1826,6 +1884,15 @@ export default function WeekComposerV7() {
                       </View>
                     </View>
                   ))}
+                  {['HOME', 'BOX'].includes(environmentCode) && architecture.blocks.some((block) => block.type === 'SKILL')
+                    && !architecture.blocks.some((block) => block.type === 'STRENGTH') ? (
+                    <Pressable accessibilityRole="button" onPress={useStrengthInsteadOfSkill} disabled={busy} style={styles.structureAddButton}>
+                      <Text style={styles.structureAddLabel}>Travail en séries · jusqu’à 8 mouvements</Text>
+                    </Pressable>
+                  ) : null}
+                  {skillTargetPath ? <Pressable onPress={() => { setSkillTargetPath(null); setShowSkillTarget(false); setError(''); setPreviewSignature(null); }} style={styles.structureLink}>
+                    <Text style={styles.structureLinkText}>Continuer sans parcours technique</Text>
+                  </Pressable> : null}
                   {composerAddableBlocks(architecture, environmentCode, skillTargetPath, outdoorEngine && outdoorContext.running_allowed).length ? (
                     <View style={styles.structureAddRow}>
                       <Text style={styles.structureEditorHelp}>Ajouter un bloc</Text>
@@ -1869,6 +1936,15 @@ export default function WeekComposerV7() {
                   ? activeSelected.length + ' mouvements retenus'
                   : activeSelected.length + ' / ' + maxForBlock(activeBlock.type, activeBlock.minutes) + ' sélectionnés'}
               </Text>
+              {activeBlock.type === 'SKILL' && guidedComposer ? <ComposerSkillTargetSelector
+                visible={skillTargetVisible} optional={true}
+                selectedPath={skillTargetPath} options={skillTargets}
+                loading={skillTargetsLoading} error={skillTargetsError}
+                onRetry={() => setSkillTargetsRetry((value) => value + 1)}
+                onOpen={() => setShowSkillTarget(true)} onChange={(path) => { setSkillTargetPath(path); setSkillEngineVersion('C4_COMPOSER_SKILL_V1'); }}
+                onRemove={() => { setSkillTargetPath(null); setShowSkillTarget(false); }}
+                colors={colors} fontFamilies={fontFamilies}
+              /> : null}
               {activeBlock.type === 'SKILL' && skillTargetPath && skillEngineVersion ? (
                 <View>
                   <Pressable accessibilityRole="button" disabled={busy} onPress={refreshSkillLesson} style={styles.structureLink}>
@@ -1921,7 +1997,7 @@ export default function WeekComposerV7() {
                       suggestedAlternative={exercise.warning
                         ? activeCandidates.find((candidate) => !activeSelected.includes(candidate.id)
                           && candidate.movementPattern !== exercise.movementPattern) : null}
-                      onOpenAlternatives={replacementCandidates.length > 0 ? () => openExercisePicker(exercise.id) : null}
+                      onOpenAlternatives={activeBlock.type !== 'CARDIO' ? () => openExercisePicker(exercise.id) : null}
                       styles={styles}
                       colors={colors}
                     />
@@ -1933,10 +2009,10 @@ export default function WeekComposerV7() {
               {activeBlock.type === 'CARDIO' && outdoorEngine ? <ComposerOutdoorCardioPreview
                 block={currentPreview?.blocks?.find((block) => block.type === 'CARDIO') ?? activeCandidates[0]?.cardioProtocol}
                 minutes={activeBlock.minutes} styles={styles} /> : null}
-              {replacementCandidates.length > 0 ? (
+              {activeBlock.type !== 'CARDIO' ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Voir les autres exercices compatibles"
+                  accessibilityLabel="Explorer le catalogue complet"
                   onPress={() => openExercisePicker()}
                   style={styles.exerciseChangeAction}
                 >
@@ -2185,13 +2261,15 @@ export default function WeekComposerV7() {
         colors={colors}
         footer={<Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}><Text style={styles.sheetDoneButtonText}>Terminé</Text></Pressable>}
       >
-        <Text style={styles.sheetHelp}>Tous restent filtrés par ton environnement, ton matériel et l’objectif de la séance.</Text>
+        <Text style={styles.sheetHelp}>Catalogue complet. Les conseils restent indicatifs ; le moteur vérifie la faisabilité et le dosage avant enregistrement.</Text>
+        {pickerLoading ? <Text style={styles.sheetHelp}>Chargement du catalogue…</Text> : null}
+        {pickerError ? <Pressable onPress={() => openExercisePicker(replacementId)}><Text style={styles.sheetNotice}>Catalogue complet indisponible · Réessayer</Text></Pressable> : null}
         {activeSelected.length >= maxForBlock(activeBlock?.type, activeBlock?.minutes) ? <Text style={styles.sheetNotice}>Le bloc est complet : choisis le mouvement à remplacer ci-dessous.</Text> : null}
         {activeSelected.length >= maxForBlock(activeBlock?.type, activeBlock?.minutes) ? <View style={{ gap: 8 }}>
           {selectedCandidateObjects.map((row) => <Pressable key={row.id} onPress={() => setReplacementId(row.id)} style={styles.extraExerciseRow}><Text style={styles.extraExerciseName}>{replacementId === row.id ? '✓ ' : ''}Remplacer {row.name}</Text></Pressable>)}
         </View> : null}
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: favoritesOnly }} onPress={() => setFavoritesOnly(!favoritesOnly)} style={styles.extraExerciseRow}><Text style={styles.extraExerciseName}>{favoritesOnly ? '✓ ' : ''}Mes favoris</Text></Pressable>
-        <ExerciseCatalogueControls rows={activeCandidates} colors={colors}
+        <ExerciseCatalogueControls rows={pickerRows} colors={colors}
           filters={{ region: exerciseRegion, family: exerciseFamily, focus: exerciseFocus }}
           onChange={(filters) => { setExerciseRegion(filters.region ?? ''); setExerciseFamily(filters.family ?? ''); setExerciseFocus(filters.focus ?? ''); }} />
         <TextInput
@@ -2201,18 +2279,19 @@ export default function WeekComposerV7() {
           placeholderTextColor={colors.textMuted}
           style={styles.exerciseSearch}
           autoCorrect={false}
-          accessibilityLabel="Rechercher un exercice compatible"
+          accessibilityLabel="Rechercher un exercice"
         />
-        {filteredExtraCandidates.length === 0 ? <Text style={styles.sheetHelp}>Aucun mouvement compatible ne correspond à cette recherche.</Text> : null}
+        {filteredExtraCandidates.length === 0 ? <Text style={styles.sheetHelp}>Aucun mouvement ne correspond à cette recherche.</Text> : null}
         <View style={styles.extraExerciseList}>
           {filteredExtraCandidates.map((exercise) => {
             const selected = activeSelected.includes(exercise.id);
             return (
-              <Pressable key={exercise.id} disabled={activeSelected.length >= maxForBlock(activeBlock.type, activeBlock.minutes) && !replacementId} onPress={() => chooseExercise(activeBlock.type, exercise.id)} style={[styles.extraExerciseRow, selected && styles.extraExerciseRowSelected]}>
+              <Pressable key={exercise.id} disabled={activeSelected.length >= maxForBlock(activeBlock.type, activeBlock.minutes) && !replacementId} onPress={() => selectPickerExercise(exercise)} style={[styles.extraExerciseRow, selected && styles.extraExerciseRowSelected]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.extraExerciseName}>{exercise.name}</Text>
                   <Text style={styles.extraExerciseMeta}>{[regionLabel(exercise.bodyRegion), movementLabel(exercise.movementPattern), humanize(exercise.difficulty)].filter(Boolean).join(' · ')}</Text>
                   <Text style={styles.extraExerciseMeta}>Matériel : {(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
+                  {exercise.missingEquipment?.length ? <Text style={styles.sheetNotice}>Matériel manquant : {exercise.missingEquipment.join(' · ')}</Text> : null}
                   {exercise.recommended ? <Text style={styles.exerciseReason}>Recommandé · {exercise.recommendationReason}</Text> : null}
                 </View>
                 <View style={[styles.selectCircle, selected && styles.selectCircleSelected]}>

@@ -72,11 +72,12 @@ export async function getComposerExerciseCandidates({
   outdoorGym = false,
   equipmentIds = [],
   limit = 8,
+  manualCatalogue = false,
 }) {
   // Adapt the full preference set to the existing single-region catalogue
   // lookup. Keep its scores/eligibility unchanged; deduplicate by exercise,
   // taking the best existing match rather than adding new sporting weights.
-  if (preferences) {
+  if (preferences && !manualCatalogue) {
     const normalized = readComposerPreferences(preferences);
     const regions = normalized.preferred_regions;
     const lists = await Promise.all((regions.length ? regions : [null]).map((region) =>
@@ -90,7 +91,7 @@ export async function getComposerExerciseCandidates({
     return [...choices.values()].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   }
   const role = BLOCK_ROLE[blockType] ?? 'WOD';
-  const commonTrainingCatalogue = ['SKILL', 'STRENGTH'].includes(blockType);
+  const commonTrainingCatalogue = manualCatalogue || ['SKILL', 'STRENGTH'].includes(blockType);
   let query = supabase
     .from('exercises')
     .select('id,name,display_name,description,instructions,tips,image_path,exercise_type,difficulty,technical_complexity,movement_pattern,exercise_family,body_region,training_focus,equipment_requirement,selection_weight,usable_for,home_friendly,prescription_type,tabata_eligible,warmup_eligible,warmup_role,wod_role')
@@ -102,7 +103,7 @@ export async function getComposerExerciseCandidates({
   else if (blockType === 'TABATA') query = query.eq('tabata_eligible', true);
   else if (!commonTrainingCatalogue) query = query.contains('usable_for', [role]);
 
-  if (String(environmentCode).toUpperCase() === 'HOME') {
+  if (!manualCatalogue && String(environmentCode).toUpperCase() === 'HOME') {
     query = query.eq('home_friendly', true);
   }
 
@@ -116,7 +117,7 @@ export async function getComposerExerciseCandidates({
     if (error) throw error;
     exercises = data;
   }
-  if (outdoorGym && environmentCode === 'OUTDOOR' && blockType === 'SKILL') {
+  if (!manualCatalogue && outdoorGym && environmentCode === 'OUTDOOR' && blockType === 'SKILL') {
     await getAuthenticatedUserWithRetry();
     const ids = await runSupabaseRequestWithAuthRetry(() => supabase.rpc('week_composer_outdoor_gym_catalog_v1'));
     const allowed = new Set(ids ?? []);
@@ -169,6 +170,7 @@ export async function getComposerExerciseCandidates({
 
   return exercises
     .filter((exercise) => {
+      if (manualCatalogue) return true;
       if (targetRegion === 'Back' && !backMuscleWeights.has(exercise.id)) return false;
       const reqs = byExercise.get(exercise.id) ?? [];
       if (reqs.length === 0) return true;
@@ -184,6 +186,7 @@ export async function getComposerExerciseCandidates({
       difficulty: exercise.difficulty ?? null,
       exerciseType: exercise.exercise_type ?? null,
       trainingFocus: exercise.training_focus ?? null,
+      ...(manualCatalogue ? { missingEquipment: (byExercise.get(exercise.id) ?? []).filter((id) => !available.has(id)).map((id) => equipmentNamesById.get(id) ?? id) } : {}),
       equipmentIds: (byExercise.get(exercise.id) ?? []).filter((id) => id !== 'E00'),
       equipmentNames: (byExercise.get(exercise.id) ?? [])
         .filter((id) => id !== 'E00')
