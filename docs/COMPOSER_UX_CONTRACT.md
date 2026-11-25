@@ -1,5 +1,13 @@
 # Composer avec UGEROD — UX/UI contract
 
+## Récapitulatif / validation de séance — décision du 25 novembre 2026
+
+Après validation par Ugo de la proposition graphique, l'étape finale de Ma semaine présente la séance comme un entraînement, non comme un rapport technique. Résumé contrasté (format réel, lieu, zones, orientation/cible et durées), blocs ouverts sur le fond de page séparés par un trait fin, traitement visuel distinct pour le WOD et sa mécanique, lignes d'exercices avec vignette réelle ou emplacement neutre, nom et prescription. Les actions de modification restent accessibles et « Valider ma séance » est fixe en bas de l'écran, hors du défilement. Les deux thèmes conservent les tokens existants ; aucun changement global du dashboard ni de Ma semaine.
+
+Supprimer les textes de remplissage, répétitions, rappels d'arbitrages et pictogrammes purement décoratifs. Conserver les informations nécessaires : durée prévue distincte de l'estimation, protocole Tabata/WOD, charge ou résistance disponible, dosage réel, indication concise d'ajustements possibles le jour J, avertissements pertinents, refus, calcul en cours et états périmés. Un simple dépassement de durée reste non bloquant ; ne pas confondre cette propriété avec une autorisation de valider une prescription invalide.
+
+Conserver sans modification la construction du brouillon, la sélection et l'ordre des blocs, les producteurs, les actions de modification/rétablissement/annulation, les champs éditables, les contrôles d'aperçu et d'enregistrement et le flux de retour à Ma semaine. Aucun dosage ni mécanisme de coaching nouveau. Les données réelles alimentent les valeurs ; les exemples de la maquette ne deviennent pas des prescriptions. Le contrôle de rédaction défini dans AGENTS.md s'applique à toute future revue d'interface.
+
 ## Mouvements : synthèse et blocs — décision du 24 novembre 2026
 
 La page Mouvements présente trois cartes horizontales avec une icône et la valeur : durée totale, lieu et orientation courte (par exemple « 60 min », « Salle », « Force »). Aucun libellé visible « Durée / Lieu / Objectif » n'est ajouté ; les noms accessibles conservent le sens pour les lecteurs d'écran. Après la précision d'Ugo du même jour, les zones privilégiées sont regroupées dans un quatrième bloc du résumé, sous les trois cartes, plutôt qu'en pastilles isolées. Une cible technique explicite reste visible.
