@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { fontFamilies } from '../../src/constants/typography';
 import { getExerciseById, getExerciseFavorites, setExerciseFavorite } from '../../src/services/exerciseService';
+import ExerciseArtwork from '../../src/components/exercises/ExerciseArtwork';
 import { exerciseRegionLabel, exerciseMovementLabel } from '../../src/utils/exerciseCatalogue';
 const clean=value=>String(value??'').replace(/\\r\\n|\\n|\\r/g,'\n').trim();
 export default function ExerciseDetailScreen() {
@@ -15,12 +16,13 @@ export default function ExerciseDetailScreen() {
     return ()=>{active=false};
   },[exerciseId,retry]));
   async function toggle(){setBusy(true);setError('');try{setFavorite(await setExerciseFavorite(exercise.id,!favorite));}catch{setError('Le favori n’a pas pu être enregistré.');}finally{setBusy(false)}}
-  const text={color:colors.text,fontFamily:fontFamilies.regular,fontSize:16,lineHeight:25};
-  const card={padding:18,borderRadius:18,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,gap:10};
-  return <SafeAreaView style={{flex:1,backgroundColor:colors.background}}><ScrollView contentContainerStyle={{padding:22,gap:20}}>
+  const text={color:colors.text,fontFamily:fontFamilies.regular,fontSize:14,lineHeight:22};
+  const card={padding:14,borderRadius:12,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,gap:10};
+  return <SafeAreaView style={{flex:1,backgroundColor:colors.background}}><ScrollView contentContainerStyle={{padding:18,gap:15}}>
     <Pressable accessibilityLabel="Retour aux exercices" onPress={()=>router.back()} style={{alignSelf:'flex-start',paddingVertical:8}}><Ionicons name="arrow-back" size={26} color={colors.text}/></Pressable>
     {loading?<ActivityIndicator color={colors.accent}/>:exercise?<>
-      <Text style={{...text,fontFamily:fontFamilies.display,fontSize:40,lineHeight:44}}>{exercise.name}</Text>
+      <Text style={{...text,fontFamily:fontFamilies.display,fontSize:32,lineHeight:36}}>{exercise.name}</Text>
+      <ExerciseArtwork imagePath={exercise.imagePath} colors={colors} hero/>
       <Text style={{...text,color:colors.textSecondary}}>{[exerciseRegionLabel(exercise.bodyRegion),exerciseMovementLabel(exercise.movementPattern),exercise.difficulty].filter(Boolean).join(' · ')}</Text>
       <View style={card}><Text style={{...text,fontFamily:fontFamilies.semiBold}}>Matériel</Text><Text style={text}>{exercise.equipmentNames.join(' · ')||'Poids du corps'}</Text></View>
       {exercise.description?<Text style={text}>{clean(exercise.description).split(/(?<=[.!?])\s+/)[0]}</Text>:null}
