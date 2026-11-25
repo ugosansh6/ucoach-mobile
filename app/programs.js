@@ -96,7 +96,7 @@ export default function ProgramsScreen(){
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[retry,setRetry]=useState(0),[category,setCategory]=useState('Tous');
  const [groupCovers,setGroupCovers]=useState({}),[groupEdit,setGroupEdit]=useState(null),[coverBusy,setCoverBusy]=useState(false);
  const operation=useRef(false),ownerRef=useRef(null);
- useFocusEffect(useCallback(()=>{let active=true;setLoading(true);setError('');
+ useFocusEffect(useCallback(()=>{let active=true;setLoading(true);setError('');setCoverBusy(false);
   Promise.all([listPersonalWorkoutModels(),listLocalProgramDrafts(),listLocalProgramGroupCovers()]).then(([items,local,groupData])=>{if(!active)return;if(local.ownerId!==groupData.ownerId)throw new Error('Compte changé');if(ownerRef.current&&ownerRef.current!==local.ownerId){setDraft(null);setGroupEdit(null);setCoverBusy(false);}ownerRef.current=local.ownerId;setOwnerId(local.ownerId);setModels(items);setDrafts(local.drafts);setGroupCovers(groupData.covers);}).catch(()=>{if(active){setOwnerId(null);setModels([]);setDrafts([]);setGroupCovers({});setError('Impossible de charger tes programmes. Les brouillons locaux sont conservés.');}}).finally(()=>{if(active)setLoading(false)});
   return ()=>{active=false};
  },[retry]));
