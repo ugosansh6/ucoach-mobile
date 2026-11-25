@@ -5,6 +5,8 @@ import {Ionicons} from '@expo/vector-icons';
 import {useUgerodTheme} from '../contexts/UgerodThemeContext';
 import {fontFamilies} from '../constants/typography';
 import {listPersonalWorkoutModels,renamePersonalWorkoutModel,duplicatePersonalWorkoutModel,deletePersonalWorkoutModel,planPersonalProgram} from '../services/personalWorkoutModelService';
+import ProgramCover from '../components/programs/ProgramCover';
+import {listLocalProgramGroupCovers} from '../services/localProgramDraftService';
 import {getComposerPrescriptionPreview} from '../services/composerService';
 import {modelDateKey,validModelDate,canReusePersonalModel,personalModelMeta,sortPersonalModels,groupPersonalModels,personalProgramRows,buildPersonalProgramDraft,PROGRAM_GEAR,programDoseLabel} from '../utils/personalWorkoutModels';
 import {formatComposerDose,composerWodProtocol} from '../utils/composerPresentation';
@@ -14,6 +16,7 @@ export default function PersonalModelsPage({importDate,showExercises,initialGrou
  const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[retry,setRetry]=useState(0);
  const [selectedId,setSelectedId]=useState(null),[busy,setBusy]=useState(false),[name,setName]=useState(null),[confirm,setConfirm]=useState(false);
  const [groupId,setGroupId]=useState(initialGroup||null);
+ const [groupCovers,setGroupCovers]=useState({});
  const grouping=groupPersonalModels(rows);
  const group=grouping.groups.find(g=>g.id===groupId);
  const operation=useRef(false);
@@ -21,7 +24,8 @@ export default function PersonalModelsPage({importDate,showExercises,initialGrou
  function endOperation(){operation.current=false;setBusy(false);}
  const [date,setDate]=useState(validModelDate(importDate)?importDate:modelDateKey());
  const [programRows,setProgramRows]=useState(null),[gearConfirmed,setGearConfirmed]=useState(false),[surface,setSurface]=useState(null),[preview,setPreview]=useState(null);
- useFocusEffect(useCallback(()=>{let alive=true;setLoading(true);setError('');
+ useFocusEffect(useCallback(()=>{let alive=true;setLoading(true);setError('');setGroupCovers({});
+  listLocalProgramGroupCovers().then(({covers})=>{if(alive)setGroupCovers(covers);}).catch(()=>{});
   listPersonalWorkoutModels().then(items=>{if(alive)setRows(sortPersonalModels(items));}).catch(()=>{if(alive)setError('Impossible de charger tes modèles. Réessaie.');}).finally(()=>{if(alive)setLoading(false);});
   return ()=>{alive=false;};
  },[retry]));
@@ -82,11 +86,11 @@ export default function PersonalModelsPage({importDate,showExercises,initialGrou
  {button('Dupliquer','copy-outline',()=>action(async()=>{const copy=await duplicatePersonalWorkoutModel(selected.id);selectModel(copy);setName(null);setConfirm(false);}))}
  {confirm?<View style={card}><Text style={txt}>Supprimer ce modèle ? Les séances déjà planifiées et l’historique ne seront pas modifiés.</Text>{button('Confirmer la suppression','trash-outline',()=>action(async()=>{await deletePersonalWorkoutModel(selected.id);close();}))}{button('Annuler','close',()=>setConfirm(false))}</View>:button('Supprimer','trash-outline',()=>setConfirm(true))}
  </>:<>
- {group?<><Text style={muted}>{group.subtitle} · {group.models.length} phases</Text>{group.models.map(m=>modelRow(m,true))}</>:<>
+ {group?<><ProgramCover cover={groupCovers[group.id]} fallback={group.id==='street'?'outdoor':'bodyweight'} height={148}/><Text style={muted}>{group.subtitle} · {group.models.length} phases</Text>{group.models.map(m=>modelRow(m,true))}</>:<>
  <Text style={muted}>Retrouve tes séances enregistrées et réutilise-les.</Text>
  {grouping.groups.length?<Text style={{...bold,marginTop:6}}>Mes programmes</Text>:null}
  {grouping.groups.map((g,i)=><Pressable key={g.id} accessibilityRole="button" onPress={()=>setGroupId(g.id)} style={{borderRadius:16,backgroundColor:i===0?c.accent:c.surfacePressed,padding:16,gap:14}}>
-   <View style={{flexDirection:'row',alignItems:'center',gap:12}}><View style={{flex:1,gap:5}}><Text style={{...muted,color:i===0?c.textOnAccent:c.textSecondary}}>{g.subtitle}</Text><Text style={{fontFamily:fontFamilies.display,fontSize:27,color:i===0?c.textOnAccent:c.text}}>{g.title.toUpperCase()}</Text><Text style={{...txt,color:i===0?c.textOnAccent:c.text}}>{g.models.length} modèles</Text></View><Ionicons name={g.icon} size={54} color={i===0?c.textOnAccent:c.accent}/></View>
+   <View style={{flexDirection:'row',alignItems:'center',gap:12}}><View style={{flex:1,gap:5}}><Text style={{...muted,color:i===0?c.textOnAccent:c.textSecondary}}>{g.subtitle}</Text><Text style={{fontFamily:fontFamilies.display,fontSize:27,color:i===0?c.textOnAccent:c.text}}>{g.title.toUpperCase()}</Text><Text style={{...txt,color:i===0?c.textOnAccent:c.text}}>{g.models.length} modèles</Text></View><ProgramCover cover={groupCovers[g.id]} fallback={g.id==='street'?'outdoor':'bodyweight'} width={108} height={76} radius={10}/></View>
    <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',borderTopWidth:1,borderTopColor:i===0?'rgba(255,255,255,0.26)':c.border,paddingTop:10}}><Text style={{...bold,color:i===0?c.textOnAccent:c.text}}>Voir les modèles</Text><Ionicons name="arrow-forward" size={20} color={i===0?c.textOnAccent:c.accent}/></View>
  </Pressable>)}
  <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:8}}><Text style={bold}>Mes séances enregistrées</Text><Pressable accessibilityRole="button" onPress={()=>router.push('/(tabs)/planning')} style={{minHeight:44,justifyContent:'center'}}><Ionicons name="add" size={23} color={c.accent}/></Pressable></View>
