@@ -72,3 +72,24 @@ async function checkPersonalProgramDayJRefusal(){
  console.log('PASS personal program refusal preserves dedicated contract; ordinary Composer repair unchanged');
 }
 checkPersonalProgramDayJRefusal().catch(e=>{console.error(e);process.exitCode=1;});
+
+
+async function verifyCoachDirectiveRefresh(){
+ const source=require('node:fs').readFileSync('src/services/workoutService.js','utf8');
+ const tail=source.slice(source.lastIndexOf('  const analysis = {};'),source.lastIndexOf('\n}'));
+ const make=new Function('weekly',`
+ let calls=[];const console={warn:()=>{}},data={ok:true},sessionId='qa',protocolOutcome=null;
+ const supabase={rpc:async(name)=>{calls.push(name);return name==='d_finalize_weekly_session'?weekly:{data:{status:'OK'}};}};
+ return (async()=>{`+tail.replace('  return {\n    ...(data ?? {}),\n    analysis_after_commit_results:\n      analysis,\n  };','return {analysis,calls};')+`})();
+ `);
+ for(const [input,expected] of [
+  [{data:{status:'OK',pi_refresh_after_weekly_finalize:true,pi_data_maturity:'LOW'}},'OK'],
+  [{data:{status:'OK',pi_refresh_after_weekly_finalize:false,pi_refresh_error:'failed'}},'ERROR'],
+  [{error:{message:'network'}},'ERROR'],[{data:{status:'OK'}},'UNAVAILABLE']
+ ]){
+  const v=await make(input);assert.equal(v.analysis.directives.status,expected);
+  assert.deepEqual(v.calls,['run_capability_live_session','d_finalize_weekly_session']);
+ }
+ console.log('PASS coaching directive status from authorized weekly finalizer, no redundant restricted RPC');
+}
+verifyCoachDirectiveRefresh().catch(e=>{console.error(e);process.exitCode=1;});
