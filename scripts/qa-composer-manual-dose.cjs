@@ -16,5 +16,5 @@ assert.equal(a.composerManualTimeSummary({blocks:[{minutes:45,time:{prescribed_s
 assert.match(a.composerManualError({message:'COMPOSER_MANUAL_INTERVAL_TOO_SHORT'}),/intervalle/);
 const ui=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
 assert.match(ui,/attachComposerManualEdits/);assert.match(ui,/restoreComposerManualEdits\(draft\)/);assert.match(ui,/outdoorEngineVersion,manualEdits\]/);
-assert.match(ui,/Ce n’est pas bloquant/);assert.match(ui,/Annuler la dernière modification/);
+assert.match(ui,/min sur la durée prévue · non bloquant/);assert.match(ui,/Annuler la dernière modification/);
 console.log('PASS manual dose field contracts, draft persistence, mechanic scoping, advisory-only duration, and error recovery');
