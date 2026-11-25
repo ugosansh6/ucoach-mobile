@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Image,
@@ -15,34 +16,21 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import {
-  colors,
   spacing,
   typography,
+  UGEROD_THEME_MODES,
 } from '../../src/constants';
-
-import {
-  getCurrentProfile,
-} from '../../src/services/profileService';
-
-import {
-  getCurrentPrimaryGoal,
-} from '../../src/services/goalsService';
-
-import {
-  signOut,
-} from '../../src/services/authService';
-
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
+import { getCurrentProfile } from '../../src/services/profileService';
+import { getCurrentPrimaryGoal } from '../../src/services/goalsService';
+import { signOut } from '../../src/services/authService';
 import { supabase } from '../../src/lib/supabase';
 
-const backgroundImage = require(
-  '../../assets/backgrounds/welcome-default.jpg'
-);
+const backgroundImage = require('../../assets/backgrounds/welcome-default.jpg');
+const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
+const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
-const brandIcon = require(
-  '../../assets/branding/ugerod-icon.png'
-);
-
-const LEVEL_LABELS = {
+const EXPERIENCE_LABELS = {
   beginner: 'DÉBUTANT',
   intermediate: 'INTERMÉDIAIRE',
   advanced: 'AVANCÉ',
@@ -57,196 +45,359 @@ const GOAL_LABELS = {
   Skill: 'SKILL',
 };
 
+const GENDER_LABELS = {
+  male: 'HOMME',
+  female: 'FEMME',
+  homme: 'HOMME',
+  femme: 'FEMME',
+};
+
+const THEME_OPTIONS = [
+  {
+    value: UGEROD_THEME_MODES.DARK,
+    label: 'SOMBRE',
+    icon: 'moon-outline',
+  },
+  {
+    value: UGEROD_THEME_MODES.LIGHT,
+    label: 'CLAIR',
+    icon: 'sunny-outline',
+  },
+];
+
 export default function ProfileScreen() {
+  const { mode, colors, isDark, setThemeMode } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
+
   const [profile, setProfile] = useState(null);
   const [goal, setGoal] = useState(null);
   const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const [isLoading, setIsLoading] =
-    useState(true);
+  const loadProfile = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setErrorMessage('');
 
-  const [errorMessage, setErrorMessage] =
-    useState('');
+      const [profileData, goalData, userResult] = await Promise.all([
+        getCurrentProfile(),
+        getCurrentPrimaryGoal(),
+        supabase.auth.getUser(),
+      ]);
 
-  const loadProfile = useCallback(
-    async () => {
-      try {
-        setIsLoading(true);
-        setErrorMessage('');
-
-        const [
-          profileData,
-          goalData,
-          userResult,
-        ] = await Promise.all([
-          getCurrentProfile(),
-          getCurrentPrimaryGoal(),
-          supabase.auth.getUser(),
-        ]);
-
-        if (userResult.error) {
-          throw userResult.error;
-        }
-
-        setProfile(profileData);
-        setGoal(goalData);
-        setEmail(
-          userResult.data?.user?.email ?? ''
-        );
-      } catch (error) {
-        console.log(
-          'PROFILE LOAD ERROR',
-          {
-            message: error?.message,
-            code: error?.code,
-            details: error?.details,
-          }
-        );
-
-        setErrorMessage(
-          error?.message ??
-            'Impossible de charger ton profil.'
-        );
-      } finally {
-        setIsLoading(false);
+      if (userResult.error) {
+        throw userResult.error;
       }
-    },
-    []
-  );
 
-  /*
-   * Recharge le profil à chaque retour
-   * sur cet écran.
-   *
-   * Important après modification du niveau,
-   * objectif, fréquence, etc.
-   */
+      setProfile(profileData);
+      setGoal(goalData);
+      setEmail(userResult.data?.user?.email ?? '');
+    } catch (error) {
+      console.log('PROFILE LOAD ERROR', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+      });
+
+      setErrorMessage(
+        error?.message ?? 'Impossible de charger ton profil.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadProfile();
     }, [loadProfile])
   );
 
-  function handleBack() {
-    router.back();
-  }
-
-  function handleEditIdentity() {
-    router.push(
-      '/profile/personal-information'
-    );
-  }
-
-  function handleEditLevel() {
-    router.push('/profile/level');
-  }
-
-  function handleEditGoal() {
-    router.push('/profile/goal');
-  }
-
-  function handleEditFrequency() {
-    router.push('/profile/frequency');
-  }
-
-  function handleEditPrecautions() {
-    router.push('/profile/precautions');
-  }
-
-  function handlePersonalInfo() {
-    router.push(
-      '/profile/personal-information'
-    );
-  }
-
-  function handlePassword() {
-    router.push('/profile/security');
-  }
-
-  function handleHelp() {
-    router.push('/profile/help');
-  }
-
   async function handleLogout() {
     try {
       await signOut();
-
       router.replace('/(auth)/welcome');
     } catch (error) {
-      console.log(
-        'LOGOUT ERROR',
-        {
-          message: error?.message,
-          code: error?.code,
-        }
-      );
+      console.log('LOGOUT ERROR', {
+        message: error?.message,
+        code: error?.code,
+      });
 
       setErrorMessage(
-        error?.message ??
-          'Impossible de te déconnecter.'
+        error?.message ?? 'Impossible de te déconnecter.'
       );
     }
   }
 
-  function handleDeleteAccount() {
-    /*
-     * On ne branche pas encore
-     * la suppression réelle.
-     *
-     * Une suppression de compte devra
-     * également nettoyer / anonymiser
-     * les données liées.
-     */
-    console.log(
-      'Suppression compte à implémenter'
-    );
-  }
+  const firstName = profile?.firstname?.trim()
+    ? profile.firstname.trim().toUpperCase()
+    : 'UTILISATEUR';
 
-  const firstName =
-    profile?.firstname?.trim()
-      ? profile.firstname.trim().toUpperCase()
-      : 'UTILISATEUR';
+  const initial = firstName.charAt(0) || 'U';
 
-  const initial =
-    firstName.charAt(0) || 'U';
-
-  const levelLabel =
-    LEVEL_LABELS[profile?.experience] ??
-    'NON RENSEIGNÉ';
+  const experienceLabel =
+    EXPERIENCE_LABELS[profile?.experience] ?? 'NON RENSEIGNÉ';
 
   const goalLabel =
     GOAL_LABELS[goal?.name] ??
     goal?.name?.toUpperCase() ??
     'NON RENSEIGNÉ';
 
-  const weeklyTarget =
-    profile?.weekly_session_target;
+  const frequencyLabel = profile?.weekly_session_target
+    ? `${profile.weekly_session_target} SÉANCES / SEMAINE`
+    : 'NON RENSEIGNÉ';
 
-  const frequencyLabel =
-    weeklyTarget
-      ? `${weeklyTarget} SÉANCES / SEMAINE`
-      : 'NON RENSEIGNÉ';
+  const precautions = Array.isArray(profile?.default_injured_zones)
+    ? profile.default_injured_zones
+    : [];
 
-  const precautions =
-    Array.isArray(
-      profile?.default_injured_zones
-    )
-      ? profile.default_injured_zones
-      : [];
+  const normalizedGender = String(profile?.gender ?? '')
+    .trim()
+    .toLowerCase();
+
+  const genderLabel = GENDER_LABELS[normalizedGender] ?? null;
+  const personalInfoComplete = Boolean(genderLabel);
+
+  const physicalSummary = [
+    genderLabel,
+    profile?.height ? `${profile.height} CM` : null,
+    profile?.weight ? `${profile.weight} KG` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   if (isLoading) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator
-          size="large"
-          color={colors.primary}
-        />
-
-        <Text style={styles.loadingText}>
-          CHARGEMENT DU PROFIL...
-        </Text>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={styles.loadingText}>CHARGEMENT DU PROFIL...</Text>
       </View>
     );
+  }
+
+  const profileContent = (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={({ pressed }) => [
+              styles.headerButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons name="arrow-back" size={23} color={colors.text} />
+          </Pressable>
+
+          <Text style={styles.headerTitle}>PROFIL</Text>
+
+          <Image
+            source={brandIcon}
+            style={styles.brandIcon}
+            resizeMode="contain"
+          />
+        </View>
+
+        {!!errorMessage && (
+          <View style={styles.errorCard}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={22}
+              color={colors.secondaryAccentStrong}
+            />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        )}
+
+        <Pressable
+          onPress={() => router.push('/profile/personal-information')}
+          style={({ pressed }) => [
+            styles.identityCard,
+            pressed && styles.cardPressed,
+          ]}
+        >
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initial}</Text>
+          </View>
+
+          <View style={styles.identityMain}>
+            <Text style={styles.identityName}>{firstName}</Text>
+            <Text style={styles.identityEmail} numberOfLines={1}>
+              {email || 'EMAIL NON DISPONIBLE'}
+            </Text>
+          </View>
+
+          <View style={styles.editButton}>
+            <Ionicons
+              name="pencil-outline"
+              size={19}
+              color={colors.accentStrong}
+            />
+          </View>
+        </Pressable>
+
+        {!personalInfoComplete && (
+          <Pressable
+            onPress={() => router.push('/profile/personal-information')}
+            style={({ pressed }) => [
+              styles.completionCard,
+              pressed && styles.cardPressed,
+            ]}
+          >
+            <View style={styles.completionIcon}>
+              <Ionicons
+                name="person-add-outline"
+                size={21}
+                color={colors.secondaryAccentStrong}
+              />
+            </View>
+            <View style={styles.completionMain}>
+              <Text style={styles.completionTitle}>PROFIL À COMPLÉTER</Text>
+              <Text style={styles.completionText}>
+                Renseigne ton sexe pour activer les repères de performance concernés.
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={21}
+              color={colors.secondaryAccentStrong}
+            />
+          </Pressable>
+        )}
+
+        <SectionTitle title="PROFIL SPORTIF" styles={styles} />
+
+        <View style={styles.settingsCard}>
+          <ProfileRow
+            icon="fitness-outline"
+            label="EXPÉRIENCE"
+            value={experienceLabel}
+            onPress={() => router.push('/profile/level')}
+            styles={styles}
+            colors={colors}
+          />
+          <ProfileRow
+            icon="flag-outline"
+            label="OBJECTIF"
+            value={goalLabel}
+            onPress={() => router.push('/profile/goal')}
+            styles={styles}
+            colors={colors}
+          />
+          <ProfileRow
+            icon="calendar-outline"
+            label="RYTHME HEBDO"
+            value={frequencyLabel}
+            onPress={() => router.push('/profile/frequency')}
+            styles={styles}
+            colors={colors}
+          />
+          <ProfileRow
+            icon="barbell-outline"
+            label="MATÉRIEL"
+            value="GÉRER MON INVENTAIRE"
+            onPress={() => router.push('/profile/equipment')}
+            styles={styles}
+            colors={colors}
+          />
+          <ProfileRow
+            icon="medical-outline"
+            label="GÊNES À PRENDRE EN COMPTE"
+            value={
+              precautions.length > 0
+                ? precautions.map((item) => item.toUpperCase()).join(', ')
+                : 'AUCUNE'
+            }
+            onPress={() => router.push('/profile/precautions')}
+            last
+            styles={styles}
+            colors={colors}
+          />
+        </View>
+
+        <SectionTitle title="INFORMATIONS" styles={styles} />
+
+        <View style={styles.settingsCard}>
+          <SimpleRow
+            icon="person-circle-outline"
+            label="INFORMATIONS PERSONNELLES"
+            subtitle={physicalSummary || 'Sexe, date de naissance, taille, poids'}
+            value={!personalInfoComplete ? 'À COMPLÉTER' : null}
+            valueTone={!personalInfoComplete ? 'warning' : 'default'}
+            onPress={() => router.push('/profile/personal-information')}
+            styles={styles}
+            colors={colors}
+          />
+          <SimpleRow
+            icon="lock-closed-outline"
+            label="MOT DE PASSE"
+            subtitle="Sécurité du compte"
+            onPress={() => router.push('/profile/security')}
+            styles={styles}
+            colors={colors}
+          />
+          <SimpleRow
+            icon="help-circle-outline"
+            label="AIDE"
+            subtitle="Questions et assistance"
+            onPress={() => router.push('/profile/help')}
+            last
+            styles={styles}
+            colors={colors}
+          />
+        </View>
+
+        <SectionTitle title="PARAMÈTRES" styles={styles} />
+
+        <View style={styles.settingsCard}>
+          <ThemeSetting
+            mode={mode}
+            setThemeMode={setThemeMode}
+            styles={styles}
+            colors={colors}
+          />
+        </View>
+
+        <SectionTitle title="COMPTE" styles={styles} />
+
+        <Pressable
+          onPress={handleLogout}
+          style={({ pressed }) => [
+            styles.logoutButton,
+            pressed && styles.logoutButtonPressed,
+          ]}
+        >
+          <Ionicons
+            name="log-out-outline"
+            size={21}
+            color={isDark ? colors.text : colors.secondaryAccentStrong}
+          />
+          <Text style={styles.logoutText}>SE DÉCONNECTER</Text>
+        </Pressable>
+
+        <View style={styles.versionArea}>
+          <Image
+            source={brandIcon}
+            style={styles.versionLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.versionText}>UGEROD · VERSION 1.0</Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+
+  if (!isDark) {
+    return profileContent;
   }
 
   return (
@@ -265,15 +416,8 @@ export default function ProfileScreen() {
             'rgba(7,9,12,0.88)',
             'rgba(7,9,12,0.99)',
           ]}
-          locations={[
-            0,
-            0.22,
-            0.58,
-            1,
-          ]}
-          style={
-            StyleSheet.absoluteFill
-          }
+          locations={[0, 0.22, 0.58, 1]}
+          style={StyleSheet.absoluteFill}
         />
 
         <LinearGradient
@@ -282,432 +426,19 @@ export default function ProfileScreen() {
             'rgba(7,9,12,0.05)',
             'rgba(7,9,12,0.30)',
           ]}
-          start={{
-            x: 0,
-            y: 0.5,
-          }}
-          end={{
-            x: 1,
-            y: 0.5,
-          }}
-          style={
-            StyleSheet.absoluteFill
-          }
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
         />
 
-        <SafeAreaView
-          style={styles.safeArea}
-        >
-          <ScrollView
-            contentContainerStyle={
-              styles.content
-            }
-            showsVerticalScrollIndicator={
-              false
-            }
-          >
-            {/* HEADER */}
-            <View style={styles.header}>
-              <Pressable
-                onPress={handleBack}
-                hitSlop={12}
-                style={({
-                  pressed,
-                }) => [
-                  styles.backButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="arrow-back"
-                  size={22}
-                  color={
-                    colors.textPrimary
-                  }
-                />
-              </Pressable>
-
-              <View
-                style={styles.headerText}
-              >
-                <Text
-                  style={
-                    styles.headerEyebrow
-                  }
-                >
-                  TON COMPTE
-                </Text>
-
-                <Text
-                  style={
-                    styles.headerTitle
-                  }
-                >
-                  PROFIL
-                  <Text
-                    style={
-                      styles.blueDot
-                    }
-                  >
-                    .
-                  </Text>
-                </Text>
-              </View>
-
-              <Image
-                source={brandIcon}
-                style={styles.brandIcon}
-                resizeMode="contain"
-              />
-            </View>
-
-            {/* ERREUR */}
-            {!!errorMessage && (
-              <View
-                style={styles.errorCard}
-              >
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={20}
-                  color="#FF6B6B"
-                />
-
-                <View
-                  style={
-                    styles.errorMain
-                  }
-                >
-                  <Text
-                    style={
-                      styles.errorTitle
-                    }
-                  >
-                    ERREUR
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.errorText
-                    }
-                  >
-                    {errorMessage}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* IDENTITÉ */}
-            <View
-              style={styles.identityCard}
-            >
-              <View style={styles.avatar}>
-                <Text
-                  style={
-                    styles.avatarText
-                  }
-                >
-                  {initial}
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.identityMain
-                }
-              >
-                <Text
-                  style={
-                    styles.identityName
-                  }
-                >
-                  {firstName}
-                </Text>
-
-                <Text
-                  style={
-                    styles.identityEmail
-                  }
-                >
-                  {email ||
-                    'EMAIL NON DISPONIBLE'}
-                </Text>
-              </View>
-
-              <Pressable
-                onPress={
-                  handleEditIdentity
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.editButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="pencil-outline"
-                  size={18}
-                  color={
-                    colors.primaryLight
-                  }
-                />
-              </Pressable>
-            </View>
-
-            {/* PROFIL SPORTIF */}
-            <View style={styles.section}>
-              <Text
-                style={
-                  styles.sectionTitle
-                }
-              >
-                TON PROFIL SPORTIF
-              </Text>
-
-              <View
-                style={
-                  styles.settingsCard
-                }
-              >
-                <ProfileRow
-                  icon="fitness-outline"
-                  label="NIVEAU"
-                  value={levelLabel}
-                  onPress={
-                    handleEditLevel
-                  }
-                />
-
-                <ProfileRow
-                  icon="flag-outline"
-                  label="OBJECTIF"
-                  value={goalLabel}
-                  onPress={
-                    handleEditGoal
-                  }
-                />
-
-                <ProfileRow
-                  icon="calendar-outline"
-                  label="RYTHME HEBDO"
-                  value={
-                    frequencyLabel
-                  }
-                  onPress={
-                    handleEditFrequency
-                  }
-                />
-
-                <ProfileRow
-                  icon="medical-outline"
-                  label="GÊNES À PRENDRE EN COMPTE"
-                  value={
-                    precautions.length >
-                    0
-                      ? precautions
-                          .map(
-                            (item) =>
-                              item.toUpperCase()
-                          )
-                          .join(', ')
-                      : 'AUCUNE'
-                  }
-                  onPress={
-                    handleEditPrecautions
-                  }
-                  last
-                />
-              </View>
-            </View>
-
-            {/* ADAPTATION */}
-            <View
-              style={
-                styles.adaptationCard
-              }
-            >
-              <View
-                style={
-                  styles.adaptationIcon
-                }
-              >
-                <Ionicons
-                  name="flash-outline"
-                  size={20}
-                  color={
-                    colors.primaryLight
-                  }
-                />
-              </View>
-
-              <View
-                style={
-                  styles.adaptationMain
-                }
-              >
-                <Text
-                  style={
-                    styles.adaptationTitle
-                  }
-                >
-                  TES SÉANCES S’ADAPTENT
-                  AU JOUR J.
-                </Text>
-
-                <Text
-                  style={
-                    styles.adaptationText
-                  }
-                >
-                  Ton matériel, ton temps
-                  disponible et ta forme
-                  sont renseignés avant
-                  chaque entraînement.
-                </Text>
-              </View>
-            </View>
-
-            {/* INFORMATIONS */}
-            <View style={styles.section}>
-              <Text
-                style={
-                  styles.sectionTitle
-                }
-              >
-                INFORMATIONS
-              </Text>
-
-              <View
-                style={
-                  styles.settingsCard
-                }
-              >
-                <SimpleRow
-                  icon="person-circle-outline"
-                  label="INFORMATIONS PERSONNELLES"
-                  subtitle="Âge, taille, poids..."
-                  onPress={
-                    handlePersonalInfo
-                  }
-                />
-
-                <SimpleRow
-                  icon="lock-closed-outline"
-                  label="MOT DE PASSE"
-                  subtitle="Sécurité du compte"
-                  onPress={
-                    handlePassword
-                  }
-                />
-
-                <SimpleRow
-                  icon="help-circle-outline"
-                  label="AIDE"
-                  subtitle="Questions et assistance"
-                  onPress={handleHelp}
-                  last
-                />
-              </View>
-            </View>
-
-            {/* COMPTE */}
-            <View style={styles.section}>
-              <Text
-                style={
-                  styles.sectionTitle
-                }
-              >
-                COMPTE
-              </Text>
-
-              <Pressable
-                onPress={handleLogout}
-                style={({
-                  pressed,
-                }) => [
-                  styles.logoutButton,
-                  pressed &&
-                    styles.logoutButtonPressed,
-                ]}
-              >
-                <Ionicons
-                  name="log-out-outline"
-                  size={20}
-                  color={
-                    colors.textPrimary
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.logoutText
-                  }
-                >
-                  SE DÉCONNECTER
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={
-                  handleDeleteAccount
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.deleteButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={18}
-                  color={
-                    colors.brandRed
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.deleteText
-                  }
-                >
-                  SUPPRIMER MON COMPTE
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* VERSION */}
-            <View
-              style={styles.versionArea}
-            >
-              <Image
-                source={brandIcon}
-                style={
-                  styles.versionLogo
-                }
-                resizeMode="contain"
-              />
-
-              <Text
-                style={
-                  styles.versionText
-                }
-              >
-                UGEROD · VERSION 1.0
-              </Text>
-            </View>
-
-            <View
-              style={styles.bottomSpace}
-            />
-          </ScrollView>
-        </SafeAreaView>
+        {profileContent}
       </ImageBackground>
     </View>
   );
+}
+
+function SectionTitle({ title, styles }) {
+  return <Text style={styles.sectionTitle}>{title}</Text>;
 }
 
 function ProfileRow({
@@ -716,47 +447,26 @@ function ProfileRow({
   value,
   onPress,
   last = false,
+  styles,
+  colors,
 }) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.profileRow,
-        !last &&
-          styles.rowBorder,
-        pressed &&
-          styles.rowPressed,
+        styles.row,
+        !last && styles.rowBorder,
+        pressed && styles.rowPressed,
       ]}
     >
       <View style={styles.rowIcon}>
-        <Ionicons
-          name={icon}
-          size={19}
-          color={
-            colors.primaryLight
-          }
-        />
+        <Ionicons name={icon} size={21} color={colors.accentStrong} />
       </View>
-
       <View style={styles.rowMain}>
-        <Text
-          style={styles.rowLabel}
-        >
-          {label}
-        </Text>
-
-        <Text
-          style={styles.rowValue}
-        >
-          {value}
-        </Text>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.rowValue}>{value}</Text>
       </View>
-
-      <Ionicons
-        name="chevron-forward"
-        size={19}
-        color={colors.textMuted}
-      />
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
     </Pressable>
   );
 }
@@ -765,508 +475,427 @@ function SimpleRow({
   icon,
   label,
   subtitle,
+  value,
+  valueTone = 'default',
   onPress,
   last = false,
+  styles,
+  colors,
 }) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.profileRow,
-        !last &&
-          styles.rowBorder,
-        pressed &&
-          styles.rowPressed,
+        styles.row,
+        !last && styles.rowBorder,
+        pressed && styles.rowPressed,
       ]}
     >
-      <View
-        style={
-          styles.rowIconNeutral
-        }
-      >
-        <Ionicons
-          name={icon}
-          size={19}
-          color={
-            colors.textSecondary
-          }
-        />
+      <View style={styles.rowIcon}>
+        <Ionicons name={icon} size={21} color={colors.accentStrong} />
       </View>
-
       <View style={styles.rowMain}>
-        <Text
-          style={
-            styles.simpleRowLabel
-          }
-        >
-          {label}
-        </Text>
-
-        <Text
-          style={
-            styles.simpleRowSubtitle
-          }
-        >
-          {subtitle}
-        </Text>
+        <View style={styles.simpleRowTitleLine}>
+          <Text style={styles.rowLabel}>{label}</Text>
+          {!!value && (
+            <Text
+              style={[
+                styles.rowBadge,
+                valueTone === 'warning' && styles.rowBadgeWarning,
+              ]}
+            >
+              {value}
+            </Text>
+          )}
+        </View>
+        <Text style={styles.rowSubtitle}>{subtitle}</Text>
       </View>
-
-      <Ionicons
-        name="chevron-forward"
-        size={19}
-        color={colors.textMuted}
-      />
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor:
-      colors.background,
-  },
+function ThemeSetting({ mode, setThemeMode, styles, colors }) {
+  return (
+    <View style={styles.themeRow}>
+      <View style={styles.rowIcon}>
+        <Ionicons name="contrast-outline" size={21} color={colors.accentStrong} />
+      </View>
 
-  loadingScreen: {
-    flex: 1,
-    backgroundColor:
-      colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-  },
+      <View style={styles.themeMain}>
+        <Text style={styles.rowLabel}>APPARENCE</Text>
+        <Text style={styles.rowSubtitle}>
+          Même interface, palette claire ou sombre.
+        </Text>
 
-  loadingText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 11,
-    letterSpacing: 0.8,
-    color:
-      colors.textSecondary,
-  },
+        <View style={styles.themeSegmentedControl}>
+          {THEME_OPTIONS.map((option) => {
+            const selected = mode === option.value;
 
-  background: {
-    flex: 1,
-  },
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => setThemeMode(option.value)}
+                style={({ pressed }) => [
+                  styles.themeSegment,
+                  selected && styles.themeSegmentSelected,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name={option.icon}
+                  size={18}
+                  color={selected ? colors.textOnAccent : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.themeSegmentText,
+                    selected && styles.themeSegmentTextSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+}
 
-  safeArea: {
-    flex: 1,
-  },
-
-  darkOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor:
-      'rgba(0,0,0,0.30)',
-  },
-
-  content: {
-    paddingHorizontal:
-      spacing.xl,
-    paddingTop: 8,
-  },
-
-  header: {
-    minHeight: 74,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor:
-      'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  headerText: {
-    flex: 1,
-  },
-
-  headerEyebrow: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 1,
-    color:
-      colors.textSecondary,
-  },
-
-  headerTitle: {
-    ...typography.display,
-    fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: 1.7,
-    color:
-      colors.textPrimary,
-  },
-
-  blueDot: {
-    color: colors.primary,
-  },
-
-  brandIcon: {
-    width: 46,
-    height: 46,
-  },
-
-  errorCard: {
-    minHeight: 58,
-    marginTop: 8,
-    borderRadius: 14,
-    padding: 12,
-    backgroundColor:
-      'rgba(255,107,107,0.08)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,107,107,0.25)',
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-  },
-
-  errorMain: {
-    flex: 1,
-  },
-
-  errorTitle: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 10,
-    color: '#FF6B6B',
-  },
-
-  errorText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    color:
-      colors.textSecondary,
-    marginTop: 2,
-  },
-
-  identityCard: {
-    minHeight: 104,
-    marginTop: 8,
-    borderRadius: 18,
-    padding: 16,
-    backgroundColor:
-      'rgba(17,21,26,0.92)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.09)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 13,
-  },
-
-  avatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor:
-      colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  avatarText: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 30,
-    lineHeight: 32,
-    color:
-      colors.brandWhite,
-  },
-
-  identityMain: {
-    flex: 1,
-  },
-
-  identityName: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 27,
-    lineHeight: 30,
-    letterSpacing: 1.1,
-    color:
-      colors.textPrimary,
-  },
-
-  identityEmail: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 17,
-    color:
-      colors.textSecondary,
-    marginTop: 2,
-  },
-
-  editButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor:
-      'rgba(8,104,255,0.10)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(8,104,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  section: {
-    marginTop: 28,
-  },
-
-  sectionTitle: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.7,
-    color:
-      colors.textPrimary,
-    marginBottom: 10,
-  },
-
-  settingsCard: {
-    borderRadius: 17,
-    backgroundColor:
-      'rgba(17,21,26,0.92)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
-  },
-
-  profileRow: {
-    minHeight: 76,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor:
-      'rgba(255,255,255,0.06)',
-  },
-
-  rowPressed: {
-    backgroundColor:
-      'rgba(255,255,255,0.03)',
-  },
-
-  rowIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor:
-      'rgba(8,104,255,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  rowIconNeutral: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor:
-      'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  rowMain: {
-    flex: 1,
-  },
-
-  rowLabel: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.7,
-    color:
-      colors.textMuted,
-  },
-
-  rowValue: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 13,
-    lineHeight: 18,
-    letterSpacing: 0.3,
-    color:
-      colors.textPrimary,
-    marginTop: 3,
-  },
-
-  simpleRowLabel: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.3,
-    color:
-      colors.textPrimary,
-  },
-
-  simpleRowSubtitle: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
-    color:
-      colors.textMuted,
-    marginTop: 2,
-  },
-
-  adaptationCard: {
-    minHeight: 92,
-    marginTop: 14,
-    borderRadius: 16,
-    padding: 14,
-    backgroundColor:
-      'rgba(8,104,255,0.08)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(8,104,255,0.23)',
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 11,
-  },
-
-  adaptationIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor:
-      'rgba(8,104,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  adaptationMain: {
-    flex: 1,
-  },
-
-  adaptationTitle: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.5,
-    color:
-      colors.textPrimary,
-  },
-
-  adaptationText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
-    color:
-      colors.textSecondary,
-    marginTop: 4,
-  },
-
-  logoutButton: {
-    minHeight: 56,
-    borderRadius: 14,
-    backgroundColor:
-      'rgba(17,21,26,0.92)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.09)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-  },
-
-  logoutButtonPressed: {
-    backgroundColor:
-      'rgba(25,30,36,0.96)',
-    transform: [
-      {
-        scale: 0.99,
-      },
-    ],
-  },
-
-  logoutText: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.7,
-    color:
-      colors.textPrimary,
-  },
-
-  deleteButton: {
-    minHeight: 52,
-    marginTop: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,59,59,0.22)',
-    backgroundColor:
-      'rgba(255,59,59,0.05)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-
-  deleteText: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 0.7,
-    color:
-      colors.brandRed,
-  },
-
-  versionArea: {
-    marginTop: 36,
-    alignItems: 'center',
-  },
-
-  versionLogo: {
-    width: 38,
-    height: 38,
-    opacity: 0.7,
-  },
-
-  versionText: {
-    fontFamily:
-      'Oswald_500Medium',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.8,
-    color:
-      colors.textMuted,
-    marginTop: 7,
-  },
-
-  bottomSpace: {
-    height: 40,
-  },
-
-  pressed: {
-    opacity: 0.65,
-  },
-});
+function createStyles(colors, isDark) {
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    background: {
+      flex: 1,
+    },
+    darkOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.30)',
+    },
+    safeArea: {
+      flex: 1,
+      backgroundColor: isDark ? 'transparent' : colors.background,
+    },
+    content: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: 48,
+    },
+    loadingScreen: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.background,
+    },
+    loadingText: {
+      ...typography.body,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.textSecondary,
+    },
+    header: {
+      minHeight: 60,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.lg,
+    },
+    headerButton: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.90)' : colors.surface,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
+    },
+    headerTitle: {
+      ...typography.screenTitle,
+      fontSize: 32,
+      lineHeight: 35,
+      color: colors.text,
+    },
+    brandIcon: {
+      width: 38,
+      height: 38,
+    },
+    errorCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderRadius: 16,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+      backgroundColor: colors.errorSoft,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,107,107,0.25)' : colors.warningBorder,
+    },
+    errorText: {
+      ...typography.body,
+      flex: 1,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.secondaryAccentStrong,
+    },
+    identityCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.lg,
+      borderRadius: 22,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.09)' : colors.border,
+      shadowColor: colors.shadow,
+      shadowOpacity: isDark ? 0.18 : 0.06,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 2,
+    },
+    avatar: {
+      width: 58,
+      height: 58,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+    },
+    avatarText: {
+      ...typography.screenTitle,
+      fontSize: 30,
+      lineHeight: 33,
+      color: colors.textOnAccent,
+    },
+    identityMain: {
+      flex: 1,
+      paddingHorizontal: spacing.md,
+    },
+    identityName: {
+      ...typography.cardTitle,
+      fontSize: 20,
+      lineHeight: 26,
+      color: colors.text,
+    },
+    identityEmail: {
+      ...typography.body,
+      marginTop: 3,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.textSecondary,
+    },
+    editButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(8,104,255,0.10)' : colors.accentSoft,
+    },
+    completionCard: {
+      marginTop: spacing.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 18,
+      backgroundColor: colors.warningSoft,
+      borderWidth: 1,
+      borderColor: colors.warningBorder,
+    },
+    completionIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.warningIconBackground,
+    },
+    completionMain: {
+      flex: 1,
+    },
+    completionTitle: {
+      ...typography.label,
+      fontSize: 14,
+      lineHeight: 19,
+      color: colors.secondaryAccentStrong,
+    },
+    completionText: {
+      ...typography.body,
+      marginTop: 2,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.textSecondary,
+    },
+    sectionTitle: {
+      ...typography.sectionTitle,
+      marginTop: 30,
+      marginBottom: 10,
+      fontSize: 20,
+      lineHeight: 26,
+      color: colors.text,
+    },
+    settingsCard: {
+      overflow: 'hidden',
+      borderRadius: 20,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
+    },
+    row: {
+      minHeight: 76,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      gap: 12,
+    },
+    rowPressed: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : colors.surfacePressed,
+    },
+    rowBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border,
+    },
+    rowIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(8,104,255,0.10)' : colors.accentSoft,
+    },
+    rowMain: {
+      flex: 1,
+    },
+    rowLabel: {
+      ...typography.label,
+      fontSize: 14,
+      lineHeight: 19,
+      color: colors.text,
+    },
+    rowValue: {
+      ...typography.body,
+      marginTop: 3,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.textSecondary,
+    },
+    rowSubtitle: {
+      ...typography.body,
+      marginTop: 3,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.textSecondary,
+    },
+    simpleRowTitleLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    rowBadge: {
+      ...typography.caption,
+      fontSize: 12,
+      lineHeight: 17,
+      color: colors.accentStrong,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    rowBadgeWarning: {
+      color: colors.secondaryAccentStrong,
+      backgroundColor: colors.secondaryAccentSoft,
+    },
+    themeRow: {
+      minHeight: 126,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      paddingHorizontal: spacing.md,
+      paddingVertical: 16,
+      gap: 12,
+    },
+    themeMain: {
+      flex: 1,
+    },
+    themeSegmentedControl: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 12,
+    },
+    themeSegment: {
+      minHeight: 46,
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.borderStrong,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.90)' : colors.surface,
+    },
+    themeSegmentSelected: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    themeSegmentText: {
+      ...typography.label,
+      fontSize: 14,
+      lineHeight: 19,
+      color: colors.textSecondary,
+    },
+    themeSegmentTextSelected: {
+      color: colors.textOnAccent,
+    },
+    logoutButton: {
+      minHeight: 54,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.09)' : colors.logoutBorder,
+      backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.secondaryAccentSoft,
+    },
+    logoutButtonPressed: {
+      backgroundColor: isDark ? 'rgba(25,30,36,0.96)' : colors.logoutPressed,
+    },
+    logoutText: {
+      ...typography.button,
+      fontSize: 18,
+      lineHeight: 22,
+      color: isDark ? colors.text : colors.secondaryAccentStrong,
+    },
+    versionArea: {
+      marginTop: 34,
+      alignItems: 'center',
+      gap: 8,
+    },
+    versionLogo: {
+      width: 30,
+      height: 30,
+      opacity: 0.72,
+    },
+    versionText: {
+      ...typography.caption,
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.textMuted,
+    },
+    cardPressed: {
+      opacity: 0.82,
+      transform: [{ scale: 0.995 }],
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+  });
+}

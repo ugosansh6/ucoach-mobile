@@ -1,0 +1,625 @@
+import { supabase } from '../lib/supabase';
+import {
+  getAuthenticatedUserWithRetry,
+  runSupabaseRequestWithAuthRetry,
+} from '../lib/supabaseAuthRetry';
+import { withWeekRemovalTimeout, isConfirmedWeekRemovalRow } from '../utils/weekRemovalRequestGuard';
+
+export function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getMonthStartKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
+}
+
+function normalizeWeekDateInput(value, fieldName) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return getLocalDateKey(value);
+  }
+
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  throw new Error(`${fieldName} must be a Date or a YYYY-MM-DD string.`);
+}
+
+async function getAuthenticatedUserId() {
+  const user = await getAuthenticatedUserWithRetry();
+  return user.id;
+}
+
+export async function getDashboardSnapshot({
+  anchorDate = new Date(),
+  monthDate = anchorDate,
+} = {}) {
+  const userId = await getAuthenticatedUserId();
+
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'e_dashboard_snapshot',
+      {
+        p_user_id: userId,
+        p_anchor_date: getLocalDateKey(anchorDate),
+        p_month_start: getMonthStartKey(monthDate),
+      }
+    )
+  );
+
+  return normalizeDashboardSnapshot(data);
+}
+
+export async function getTrainingConsistency({
+  anchorDate = new Date(),
+  monthsBack = 24,
+} = {}) {
+  const userId = await getAuthenticatedUserId();
+
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'e_training_consistency_history',
+      {
+        p_user_id: userId,
+        p_anchor_date: getLocalDateKey(anchorDate),
+        p_months_back: monthsBack,
+      }
+    )
+  );
+
+  return data ?? {};
+}
+
+const WEEK_READ_TIMEOUT_MS = 12_000;
+
+async function withWeekReadTimeout(operation) {
+  const controller = new AbortController();
+  let timerId;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timerId = setTimeout(() => {
+      controller.abort();
+      const error = new Error('Le chargement de ta semaine prend trop de temps. Réessaie.');
+      error.code = 'WEEK_READ_TIMEOUT';
+      reject(error);
+    }, WEEK_READ_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([operation(controller.signal), timeoutPromise]);
+  } finally {
+    clearTimeout(timerId);
+  }
+}
+
+export async function getWeekReadContract({
+  anchorDate = new Date(),
+} = {}) {
+  return withWeekReadTimeout(async (signal) => {
+    const userId = await getAuthenticatedUserId();
+
+    const data = await runSupabaseRequestWithAuthRetry(() =>
+      supabase.rpc(
+        'week_read_contract_v2',
+        {
+          p_user_id: userId,
+          p_anchor_date: getLocalDateKey(anchorDate),
+        }
+      ).abortSignal(signal)
+    );
+
+    return normalizeWeekReadContract(data);
+  });
+}
+
+export async function moveWeekPlanItem({
+  planItemId,
+  targetDate,
+  anchorDate = new Date(),
+} = {}) {
+  if (!planItemId) {
+    throw new Error('planItemId is required to move a week item.');
+  }
+
+  const userId = await getAuthenticatedUserId();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'week_move_plan_item_v1',
+      {
+        p_user_id: userId,
+        p_plan_item_id: planItemId,
+        p_target_date: normalizeWeekDateInput(targetDate, 'targetDate'),
+        p_anchor_date: normalizeWeekDateInput(anchorDate, 'anchorDate'),
+      }
+    )
+  );
+
+  return normalizeWeekMoveResult(data);
+}
+
+export async function removeWeekPlanItem({
+  planItemId,
+  anchorDate = new Date(),
+} = {}) {
+  if (!planItemId) throw new Error('planItemId is required to remove a week item.');
+
+  let userId = null;
+  let data;
+  try {
+    data = await withWeekRemovalTimeout(async (signal) => {
+      userId = await getAuthenticatedUserId();
+      if (signal.aborted) {
+        const e = new Error('Le retrait a dépassé son délai de réponse.');
+        e.code = 'WEEK_REMOVE_TIMEOUT';
+        throw e;
+      }
+      return runSupabaseRequestWithAuthRetry(() =>
+        supabase.rpc('week_remove_plan_item_v1', {
+          p_user_id: userId,
+          p_plan_item_id: planItemId,
+          p_anchor_date: normalizeWeekDateInput(anchorDate, 'anchorDate'),
+        }).abortSignal(signal)
+      );
+    });
+  } catch (removeError) {
+    if (removeError?.code !== 'WEEK_REMOVE_TIMEOUT' || !userId) throw removeError;
+    try {
+      // Do not automatically replay a destructive mutation after timeout.
+      // A server commit might already have happened; verify via own-row RLS.
+      const row = await withWeekRemovalTimeout(
+        (signal) => runSupabaseRequestWithAuthRetry(() =>
+          supabase.from('user_training_plan_items')
+            .select('id,status,planning_context_json')
+            .eq('id', planItemId)
+            .eq('user_id', userId)
+            .maybeSingle().abortSignal(signal)
+        ),
+        8000
+      );
+      if (isConfirmedWeekRemovalRow(row)) {
+        return { planItemId, removed: true, verifiedAfterTimeout: true };
+      }
+    } catch (verificationError) {
+      console.warn('[MaSemaine] removal verification unavailable', verificationError);
+    }
+    throw removeError;
+  }
+
+  const result = normalizeWeekRemoveResult(data);
+  if (!result.removed || result.planItemId !== planItemId) {
+    const error = new Error('La séance n’a pas été retirée. Réessaie.');
+    error.code = 'WEEK_REMOVE_NOT_CONFIRMED';
+    throw error;
+  }
+  return result;
+}
+
+/**
+ * Recompute the Coach's persisted recommendations only after a confirmed
+ * user removal. This RPC is never part of the removal transaction.
+ */
+export async function replanWeekAfterConfirmedRemoval({
+  planItemId,
+  sessionId = null,
+  anchorDate = new Date(),
+} = {}) {
+  if (!planItemId) throw new Error('planItemId required for post-removal replan');
+  const userId = await getAuthenticatedUserId();
+  const result = await withWeekRemovalTimeout(
+    (signal) => runSupabaseRequestWithAuthRetry(() =>
+      supabase.rpc('week_replan_persisted_coach_plan_v1', {
+        p_user_id: userId,
+        p_anchor_date: normalizeWeekDateInput(anchorDate, 'anchorDate'),
+        p_reason_code: 'USER_REMOVED_WEEK_ITEM',
+        p_trigger_plan_item_id: planItemId,
+        p_trigger_session_id: sessionId,
+      }).abortSignal(signal)
+    ),
+    7000
+  );
+  if (result?.status !== 'REPLAN_EVALUATED') {
+    throw new Error('Post-removal Coach recalculation was not confirmed');
+  }
+  return result;
+}
+
+export async function updateWeekPlanItemContext({
+  planItemId,
+  context = {},
+} = {}) {
+  if (!planItemId) {
+    throw new Error('planItemId is required to update a week item context.');
+  }
+
+  const userId = await getAuthenticatedUserId();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'week_update_plan_item_context_v1',
+      {
+        p_user_id: userId,
+        p_plan_item_id: planItemId,
+        p_context: context ?? {},
+      }
+    )
+  );
+
+  return normalizeWeekContextMutation(data);
+}
+
+export async function createAssistedWeekPlanItem({
+  recommendedDate,
+  context = {},
+} = {}) {
+  const dateKey = normalizeWeekDateInput(recommendedDate, 'recommendedDate');
+  const userId = await getAuthenticatedUserId();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'week_create_assisted_plan_item_v1',
+      {
+        p_user_id: userId,
+        p_recommended_date: dateKey,
+        p_context: context ?? {},
+      }
+    )
+  );
+
+  return {
+    ...normalizeWeekContextMutation(data),
+    created: Boolean(data?.created),
+    sequenceIndex:
+      data?.sequence_index == null
+        ? null
+        : Number(data.sequence_index),
+    weekStart: data?.week_start ?? null,
+    weekEnd: data?.week_end ?? null,
+    provenance: data?.provenance ?? null,
+  };
+}
+
+function normalizeFutureContext(context) {
+  const source = context ?? {};
+  return {
+    version: source.version ?? null,
+    durationMinutes:
+      source.duration_minutes == null
+        ? null
+        : Number(source.duration_minutes),
+    environmentCode: source.environment_code ?? null,
+    equipment: Array.isArray(source.equipment) ? source.equipment : [],
+    surfaceCode: source.surface_code ?? null,
+    outdoorPlaceCode: source.outdoor_place_code ?? null,
+    targetRegion: source.target_region ?? null,
+    source: source.source ?? null,
+    updatedAt: source.updated_at ?? null,
+  };
+}
+
+function normalizeWeekContextMutation(data) {
+  const source = data ?? {};
+  return {
+    contractVersion: source.contract_version ?? null,
+    planItemId: source.plan_item_id ?? null,
+    recommendedDate: source.recommended_date ?? null,
+    futureContext: normalizeFutureContext(source.future_context),
+    semantics: source.semantics ?? {},
+    raw: source,
+  };
+}
+
+function normalizeWeekPresentation(presentation) {
+  const source = presentation ?? {};
+  const why = source.why ?? null;
+  const coachAdvice = source.coach_advice ?? null;
+
+  return {
+    version: source.version ?? null,
+    title: source.title ?? null,
+    titleTokens: Array.isArray(source.title_tokens)
+      ? source.title_tokens
+      : [],
+    description: source.description ?? null,
+    why: why
+      ? {
+          title: why.title ?? 'Pourquoi maintenant ?',
+          text: why.text ?? null,
+        }
+      : null,
+    coachAdvice: coachAdvice
+      ? {
+          type: coachAdvice.type ?? null,
+          text: coachAdvice.text ?? null,
+          evidenceReasonCodes: Array.isArray(coachAdvice.evidence_reason_codes)
+            ? coachAdvice.evidence_reason_codes
+            : [],
+        }
+      : null,
+    exerciseExamples: Array.isArray(source.exercise_examples)
+      ? source.exercise_examples
+      : [],
+    evidence: source.evidence ?? {},
+    semantics: source.semantics ?? {},
+  };
+}
+
+function normalizeWeekReadItem(item) {
+  const source = item ?? {};
+  const provenance = source.provenance ?? {};
+  const projection = source.coach_projection ?? {};
+  const plannedContext = source.planned_context ?? {};
+  const futureContext = plannedContext.future_context ?? {};
+  const sessionSummary = source.session_summary ?? null;
+
+  return {
+    planItemId: source.plan_item_id ?? null,
+    sequenceIndex:
+      source.sequence_index == null
+        ? null
+        : Number(source.sequence_index),
+    recommendedDate: source.recommended_date ?? null,
+    recommendedDateIsSoft:
+      source.recommended_date_is_soft !== false,
+    lifecycleStatus: source.lifecycle_status ?? null,
+    displayState: source.display_state ?? 'PREVUE',
+    surfaceVisibility: source.surface_visibility ?? 'PRIMARY',
+    userDebtCreated: Boolean(source.user_debt_created),
+    sessionId: source.session_id ?? null,
+    sessionStatus: source.session_status ?? null,
+    provenance: {
+      code: provenance.code ?? null,
+      source: provenance.source ?? null,
+    },
+    authority: source.authority ?? {},
+    plannedContext: {
+      durationMinutes:
+        plannedContext.duration_minutes == null
+          ? null
+          : Number(plannedContext.duration_minutes),
+      environmentCode: plannedContext.environment_code ?? null,
+      equipment: Array.isArray(plannedContext.equipment)
+        ? plannedContext.equipment
+        : [],
+      focus: plannedContext.focus ?? null,
+      targetRegion: plannedContext.target_region ?? null,
+      progressionIntent: plannedContext.progression_intent ?? null,
+      futureContext: normalizeFutureContext(futureContext),
+    },
+    sessionSummary: sessionSummary
+      ? {
+          status: sessionSummary.status ?? null,
+          durationMinutes:
+            sessionSummary.duration_minutes == null
+              ? null
+              : Number(sessionSummary.duration_minutes),
+          focus: sessionSummary.focus ?? null,
+          targetRegion: sessionSummary.target_region ?? null,
+          progressionIntent: sessionSummary.progression_intent ?? null,
+          plannedEnvironmentCode:
+            sessionSummary.planned_environment_code ?? null,
+          startedAt: sessionSummary.started_at ?? null,
+          completedAt: sessionSummary.completed_at ?? null,
+        }
+      : null,
+    coachProjection: {
+      slotKind: projection.slot_kind ?? null,
+      priority: projection.priority ?? null,
+      projectionCertainty: projection.projection_certainty ?? null,
+      relationshipToItem: projection.relationship_to_item ?? null,
+      appliesToSessionContent:
+        projection.applies_to_session_content === true,
+      presentation: normalizeWeekPresentation(projection.presentation),
+    },
+  };
+}
+
+function normalizeWeekReadContract(data) {
+  const source = data ?? {};
+  const semantics = source.semantics ?? {};
+  const items = Array.isArray(source.items)
+    ? source.items.map(normalizeWeekReadItem)
+    : [];
+  const contextItems = Array.isArray(source.context_items)
+    ? source.context_items.map(normalizeWeekReadItem)
+    : [];
+
+  return {
+    contractVersion: source.contract_version ?? null,
+    anchorDate: source.anchor_date ?? null,
+    weekStart: source.week_start ?? null,
+    weekEnd: source.week_end ?? null,
+    weekStatus: source.week_status ?? null,
+    weeklySessionTarget:
+      source.weekly_session_target == null
+        ? null
+        : Number(source.weekly_session_target),
+    completedActualCount: Number(source.completed_actual_count ?? 0),
+    planningSlotCount:
+      source.planning_slot_count == null
+        ? items.length + contextItems.length
+        : Number(source.planning_slot_count),
+    items,
+    contextItems,
+    visibleItems: items.filter(
+      (item) =>
+        item.surfaceVisibility !== 'CONTEXT_ONLY' &&
+        item.displayState !== 'CLOSED_SILENT'
+    ),
+    semantics: {
+      recommendedDatesAreSoft:
+        semantics.recommended_dates_are_soft !== false,
+      noSessionDebt: semantics.no_session_debt !== false,
+      plannedIsNotActual: semantics.planned_is_not_actual !== false,
+      futureReadinessIsNotAssumed:
+        semantics.future_readiness_is_not_assumed !== false,
+      weeklyTargetIsNotCompletionScore:
+        semantics.weekly_target_is_not_a_completion_score !== false,
+      coachAdviceIsOptional:
+        semantics.coach_advice_is_optional !== false,
+      frontMustNotInventCoachAdvice:
+        semantics.front_must_not_invent_coach_advice !== false,
+      intentPresentationIsEvidenceBound:
+        semantics.intent_presentation_is_evidence_bound !== false,
+      intentTitleComesFromPersistedPlanPlusConcretePriority:
+        semantics.intent_title_comes_from_persisted_plan_plus_concrete_priority !== false,
+      priorityIsNotAutomaticallyTheTitle:
+        semantics.priority_is_not_automatically_the_title !== false,
+      whyNowIsOptional:
+        semantics.why_now_is_optional !== false,
+      exerciseExamplesRequireRealCandidateData:
+        semantics.exercise_examples_require_real_candidate_data !== false,
+      futureContextExcludesReadinessAndPain:
+        semantics.future_context_excludes_readiness_and_pain !== false,
+      itemsAreSurfaceVisibleOnly:
+        semantics.items_are_surface_visible_only === true,
+      contextItemsNeverRenderAsSessions:
+        semantics.context_items_never_render_as_sessions === true,
+    },
+  };
+}
+
+function normalizeWeekMoveResult(data) {
+  const source = data ?? {};
+
+  return {
+    contractVersion: source.contract_version ?? null,
+    planItemId: source.plan_item_id ?? null,
+    previousDate: source.previous_date ?? null,
+    recommendedDate: source.recommended_date ?? null,
+    weekStart: source.week_start ?? null,
+    weekEnd: source.week_end ?? null,
+    changed: Boolean(source.changed),
+    recommendedDateIsSoft: source.recommended_date_is_soft !== false,
+    hasCollision: Boolean(source.has_collision),
+    collisionCount: Number(source.collision_count ?? 0),
+    collisionPolicy: source.collision_policy ?? 'ALLOW_AND_ADVISE',
+    userDebtCreated: Boolean(source.user_debt_created),
+    contentMutated: Boolean(source.content_mutated),
+    sessionIdentityMutated: Boolean(source.session_identity_mutated),
+    sequenceMutated: Boolean(source.sequence_mutated),
+    refreshWith: source.refresh_with ?? 'week_read_contract_v1',
+    raw: source,
+  };
+}
+
+/**
+ * Apply a server-confirmed removal immediately, independently of the
+ * (potentially slow) weekly coach replan/read refresh. No data is deleted
+ * locally before the server acknowledges removed=true.
+ */
+export function withConfirmedWeekRemoval(contract, planItemId) {
+  if (!contract || !planItemId) return contract;
+  const withoutRemoved = (items) => Array.isArray(items)
+    ? items.filter((item) => item?.planItemId !== planItemId)
+    : [];
+  const wasPlanned = [...(contract.items ?? []), ...(contract.contextItems ?? [])]
+    .some((item) => item?.planItemId === planItemId
+      && !['skipped', 'unrealized'].includes(String(item?.lifecycleStatus ?? '').toLowerCase()));
+  return {
+    ...contract,
+    items: withoutRemoved(contract.items),
+    contextItems: withoutRemoved(contract.contextItems),
+    visibleItems: withoutRemoved(contract.visibleItems),
+    planningSlotCount: Math.max(0,
+      Number(contract.planningSlotCount ?? (contract.items?.length ?? 0))
+      - (wasPlanned ? 1 : 0)),
+  };
+}
+
+function normalizeWeekRemoveResult(data) {
+  const source = data ?? {};
+  return {
+    contractVersion: source.contract_version ?? null,
+    planItemId: source.plan_item_id ?? null,
+    recommendedDate: source.recommended_date ?? null,
+    removed: Boolean(source.removed),
+    sessionAbandoned: Boolean(source.session_abandoned),
+    userDebtCreated: Boolean(source.user_debt_created),
+    contentDeleted: Boolean(source.content_deleted),
+    historyDeleted: Boolean(source.history_deleted),
+    refreshWith: source.refresh_with ?? 'week_read_contract_v2',
+    raw: source,
+  };
+}
+
+function normalizeDashboardSnapshot(data) {
+  const source = data ?? {};
+  const activeSession = source.active_session_today ?? {};
+  const learning = source.profile_learning ?? {};
+
+  return {
+    version: source.version ?? null,
+    anchorDate: source.anchor_date ?? null,
+    weekStart: source.week_start ?? null,
+    weekEnd: source.week_end ?? null,
+    monthStart: source.month_start ?? null,
+    monthEnd: source.month_end ?? null,
+    primaryGoal: source.primary_goal ?? 'General Fitness',
+    coachNote: {
+      headline: source.coach_note?.headline ?? 'LE MOT DU COACH',
+      text: source.coach_note?.text ?? null,
+      category: source.coach_note?.category ?? null,
+      dataConfidence: source.coach_note?.data_confidence ?? 'LOW',
+      preCheckin: source.coach_note?.pre_checkin !== false,
+      spoilerSafe: source.coach_note?.spoiler_safe !== false,
+      usesAi: Boolean(source.coach_note?.uses_ai),
+    },
+    weeklyTarget: Number(source.weekly_session_target ?? 0),
+    completedThisWeek: Number(source.completed_sessions_this_week ?? 0),
+    remainingThisWeek: Number(source.remaining_sessions_this_week ?? 0),
+    weeklyGoalReached: Boolean(source.weekly_goal_reached),
+    consecutiveGoalWeeks: Number(source.consecutive_goal_weeks ?? 0),
+    totalCompletedSessions: Number(source.total_completed_sessions ?? 0),
+    formTrend7d:
+      source.form_trend_7d == null
+        ? null
+        : Number(source.form_trend_7d),
+    formSamples7d: Number(source.form_samples_7d ?? 0),
+    rpeTrend7d:
+      source.rpe_trend_7d == null
+        ? null
+        : Number(source.rpe_trend_7d),
+    weekDays: Array.isArray(source.week_days) ? source.week_days : [],
+    nextPlanItem: source.next_plan_item ?? {},
+    monthSessions: Array.isArray(source.month_sessions)
+      ? source.month_sessions
+      : [],
+    monthlyActivity: Array.isArray(source.monthly_activity)
+      ? source.monthly_activity.map((item) => ({
+          monthStart: item?.month_start ?? null,
+          completedSessions: Number(item?.completed_sessions ?? 0),
+        }))
+      : [],
+    recentSessions: Array.isArray(source.recent_sessions)
+      ? source.recent_sessions
+      : [],
+    stimulusBalance: Array.isArray(source.stimulus_balance)
+      ? source.stimulus_balance
+      : [],
+    activeSessionToday: {
+      sessionId: activeSession?.session_id ?? null,
+      status: activeSession?.status ?? null,
+      startedLocalDate: activeSession?.started_local_date ?? null,
+      startedAt: activeSession?.started_at ?? null,
+      frozenForLocalDay: Boolean(activeSession?.frozen_for_local_day),
+    },
+    profileLearning: {
+      stage: learning?.stage ?? 'NEW',
+      visible: learning?.visible !== false,
+      title: learning?.title ?? 'UGEROD APPREND À TE CONNAÎTRE',
+      text:
+        learning?.text ??
+        'Chaque séance me donne de nouveaux repères pour mieux adapter les suivantes.',
+    },
+    dailySessionRefresh: source.daily_session_refresh ?? {},
+    recommendedDatesAreSoft: source.recommended_dates_are_soft !== false,
+    sessionDebtEnabled: Boolean(source.session_debt_enabled),
+    weeklyScheduleExplanationEnabled: Boolean(
+      source.weekly_schedule_explanation_enabled
+    ),
+    raw: source,
+  };
+}

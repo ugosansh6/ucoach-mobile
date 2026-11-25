@@ -1,5 +1,190 @@
 import { supabase } from '../lib/supabase';
 import { getCurrentPrimaryGoal } from './goalsService';
+import { composerSessionPreferences } from '../utils/composerPreferences';
+import { hydrateComposerPlayerProgress, isComposerWorkout } from '../utils/composerPlayerProgress';
+import { loadComposerPlayerProgress, flushComposerPlayerProgress } from './composerPlayerProgressService';
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, '0');
+  const day = String(
+    date.getDate()
+  ).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+export async function markWorkoutSessionStarted({
+  sessionId,
+  localDate = new Date(),
+}) {
+  if (!sessionId) {
+    return {
+      status: 'NO_SESSION',
+    };
+  }
+
+  const { data, error } = await supabase.rpc(
+    'e_mark_session_started',
+    {
+      p_session_id: sessionId,
+      p_local_date: getLocalDateKey(localDate),
+    }
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const result = data ?? {
+    status: 'UNKNOWN',
+  };
+
+  if (result?.status === 'STALE_SESSION_REQUIRES_RECHECKIN') {
+    return result;
+  }
+
+  if (result?.status !== 'IN_PROGRESS') {
+    throw new Error(
+      result?.status === 'CLOSED'
+        ? 'Cette séance est déjà fermée.'
+        : 'Impossible de démarrer cette séance.'
+    );
+  }
+
+  return result;
+}
+
+export async function markWorkoutWodRevealed({
+  sessionId,
+}) {
+  if (!sessionId) {
+    return { status: 'NO_SESSION' };
+  }
+
+  const { data, error } = await supabase.rpc(
+    'mark_wod_revealed',
+    { p_session_id: sessionId }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ??
+        'Impossible de révéler le WOD.'
+    );
+  }
+
+  const result = data ?? { status: 'UNKNOWN' };
+
+  if (result?.status !== 'WOD_REVEALED') {
+    throw new Error(
+      result?.status === 'SESSION_NOT_STARTED'
+        ? 'Démarre d’abord la séance avant de révéler le WOD.'
+        : result?.reason === 'SESSION_CLOSED'
+          ? 'Cette séance est déjà fermée.'
+          : 'Le backend n’a pas confirmé la révélation du WOD.'
+    );
+  }
+
+  return result;
+}
+
+export async function markWorkoutWodStarted({
+  sessionId,
+}) {
+  if (!sessionId) {
+    return { status: 'NO_SESSION' };
+  }
+
+  const { data, error } = await supabase.rpc(
+    'mark_wod_started',
+    { p_session_id: sessionId }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ??
+        'Impossible de démarrer le WOD.'
+    );
+  }
+
+  const result = data ?? { status: 'UNKNOWN' };
+
+  if (result?.status !== 'WOD_STARTED') {
+    throw new Error(
+      result?.status === 'SESSION_NOT_STARTED'
+        ? 'Démarre d’abord la séance avant de démarrer le WOD.'
+        : result?.status === 'WOD_NOT_REVEALED'
+          ? 'Révèle d’abord le WOD avant de le démarrer.'
+          : result?.reason === 'SESSION_CLOSED'
+            ? 'Cette séance est déjà fermée.'
+            : 'Le backend n’a pas confirmé le démarrage du WOD.'
+    );
+  }
+
+  return result;
+}
+
+export async function getWorkoutSessionLifecycle(sessionId) {
+  if (!sessionId) {
+    return {
+      sessionId: null,
+      status: 'NO_SESSION',
+      sessionStarted: false,
+      sessionClosed: false,
+      wodRevealed: false,
+      wodStarted: false,
+      startedAt: null,
+      wodRevealedAt: null,
+      wodStartedAt: null,
+      lifecycleStage: 'NO_SESSION',
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('id, status, started_at, started_local_date, wod_revealed_at, wod_started_at, completed_at')
+    .eq('id', sessionId)
+    .single();
+
+  if (error) {
+    throw new Error(
+      error?.message ?? 'Impossible de vérifier l’état de la séance.'
+    );
+  }
+
+  const status = String(data?.status ?? 'generated').toLowerCase();
+  const sessionClosed = ['completed', 'abandoned'].includes(status);
+  const sessionStarted =
+    sessionClosed ||
+    status === 'in_progress' ||
+    Boolean(data?.started_at);
+  const wodRevealed = Boolean(data?.wod_revealed_at);
+  const wodStarted = Boolean(data?.wod_started_at);
+
+  let lifecycleStage = 'GENERATED';
+  if (sessionClosed) lifecycleStage = 'COMPLETED';
+  else if (wodStarted) lifecycleStage = 'WOD_STARTED';
+  else if (wodRevealed) lifecycleStage = 'WOD_REVEALED';
+  else if (sessionStarted) lifecycleStage = 'SESSION_STARTED';
+
+  return {
+    sessionId: data?.id ?? sessionId,
+    status,
+    sessionStarted,
+    sessionClosed,
+    wodRevealed,
+    wodStarted,
+    startedAt: data?.started_at ?? null,
+    startedLocalDate: data?.started_local_date ?? null,
+    wodRevealedAt: data?.wod_revealed_at ?? null,
+    wodStartedAt: data?.wod_started_at ?? null,
+    completedAt: data?.completed_at ?? null,
+    lifecycleStage,
+  };
+}
 
 function normalizeEquipmentForBackend(equipment) {
   const values = Array.isArray(equipment)
@@ -45,83 +230,1152 @@ function getTrackingType(trackingModes) {
   return 'bodyweight';
 }
 
-function mapGeneratedWorkout(data, preparation) {
-  const backendBlocks = Array.isArray(data?.blocks)
-    ? data.blocks
-    : [];
+function normalizeMechanic(value) {
+  const mechanic = String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s/-]+/g, '_');
 
-  const exercises = backendBlocks.flatMap((block) =>
-    (block.exercises ?? []).map((exercise) => ({
-      id: exercise.id,
-      exerciseId: exercise.id,
-      block: block.block_key,
-      blockKey: block.block_key,
-      name: exercise.name,
-      prescription: exercise.prescription,
-      prescriptionJson:
-        exercise.prescription_json ?? null,
-      status: 'pending',
-      trackingType: getTrackingType(
-        exercise.tracking_modes
-      ),
-      trackingModes:
-        exercise.tracking_modes ?? [],
-      instructions:
-        exercise.instructions ?? null,
-      tips:
-        exercise.tips ?? null,
-      pattern:
-        exercise.pattern ?? null,
-      region:
-        exercise.region ?? null,
-    }))
+  return mechanic || null;
+}
+
+function humanizeMechanic(value, variant = null) {
+  const mechanic = normalizeMechanic(value);
+  const normalizedVariant = normalizeMechanic(variant);
+
+  if (
+    mechanic === 'PROGRESSIVE_INTERVAL' &&
+    normalizedVariant === 'DEATH_BY'
+  ) {
+    return 'DEATH BY';
+  }
+
+  if (
+    mechanic === 'PROGRESSIVE_INTERVAL' &&
+    normalizedVariant === 'DEATH_BY_COUPLET'
+  ) {
+    return 'DEATH BY COUPLET';
+  }
+
+  if (
+    mechanic === 'COUPLET' &&
+    normalizedVariant === 'ASCENDING_COUPLET'
+  ) {
+    return 'COUPLET ASCENDANT';
+  }
+
+  if (
+    mechanic === 'COUPLET' &&
+    normalizedVariant === 'DESCENDING_COUPLET'
+  ) {
+    return 'COUPLET DESCENDANT';
+  }
+
+  const labels = {
+    AMRAP: 'AMRAP',
+    EMOM: 'EMOM',
+    FOR_TIME: 'FOR TIME',
+    CIRCUIT: 'CIRCUIT',
+    STRENGTH: 'MUSCULATION',
+    SETS_REPS: 'SERIES / REPS',
+    LADDER: 'LADDER',
+    PYRAMID: 'PYRAMIDE',
+    PROGRESSIVE_INTERVAL: 'PROGRESSIF',
+    CHIPPER: 'CHIPPER',
+    EVERY_X_MINUTES: 'EVERY X MIN',
+    ODD_EVEN: 'ODD / EVEN',
+    REP_TARGET: 'REP TARGET',
+    COUPLET: 'COUPLET',
+    DECK: 'DECK-STYLE',
+    HIIT: 'HIIT',
+  };
+
+  return labels[mechanic] ??
+    mechanic?.replaceAll('_', ' ') ??
+    'WOD';
+}
+
+function readPrescriptionObject(exercise) {
+  if (
+    exercise?.prescription_json &&
+    typeof exercise.prescription_json === 'object'
+  ) {
+    return exercise.prescription_json;
+  }
+
+  if (
+    exercise?.prescription &&
+    typeof exercise.prescription === 'object'
+  ) {
+    return stripRpeFromPrescription(exercise.prescription);
+  }
+
+  return {};
+}
+
+function formatNumber(value) {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+
+  return Number.isInteger(numeric)
+    ? String(numeric)
+    : String(
+        Math.round(numeric * 10) / 10
+      );
+}
+
+function formatDurationSeconds(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+
+  const totalSeconds = Math.round(numeric);
+  if (totalSeconds < 60) return `${totalSeconds} sec`;
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0
+    ? `${minutes} min ${seconds} sec`
+    : `${minutes} min`;
+}
+
+function formatDurationRange(minValue, maxValue) {
+  const min = Number(minValue);
+  const max = Number(maxValue);
+  const hasMin = Number.isFinite(min) && min > 0;
+  const hasMax = Number.isFinite(max) && max > 0;
+
+  if (!hasMin && !hasMax) return null;
+  if (hasMin && hasMax && Math.round(min) !== Math.round(max)) {
+    return `${formatDurationSeconds(min)} – ${formatDurationSeconds(max)}`;
+  }
+  return formatDurationSeconds(hasMin ? min : max);
+}
+
+
+function formatRange(
+  minValue,
+  maxValue,
+  suffix
+) {
+  const min = formatNumber(minValue);
+  const max = formatNumber(maxValue);
+
+  if (!min && !max) {
+    return null;
+  }
+
+  if (min && max && min !== max) {
+    return `${min}–${max} ${suffix}`;
+  }
+
+  return `${min ?? max} ${suffix}`;
+}
+
+function stripRpeFromPrescription(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  return value
+    .replace(/\s*[·|•]\s*RPE\s*\d+(?:[.,]\d+)?(?:\s*[–-]\s*\d+(?:[.,]\d+)?)?/gi, '')
+    .replace(/RPE\s*\d+(?:[.,]\d+)?(?:\s*[–-]\s*\d+(?:[.,]\d+)?)?\s*[·|•]?\s*/gi, '')
+    .replace(/\s*[·|•]\s*$/g, '')
+    .replace(/^\s*[·|•]\s*/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function prescriptionSetCount(prescription = {}) {
+  const directSets = formatNumber(
+    prescription.sets
   );
+
+  if (directSets) {
+    return directSets;
+  }
+
+  const mechanic = normalizeMechanic(
+    prescription.block_mechanic ??
+      prescription.mechanic
+  );
+
+  if (
+    mechanic !== 'SETS_REPS' &&
+    mechanic !== 'STRENGTH'
+  ) {
+    return null;
+  }
+
+  return formatNumber(
+    prescription.block_parameters?.sets
+  );
+}
+
+function formatExecutionTargetPrescription(exercise) {
+  const prescription =
+    readPrescriptionObject(exercise);
+
+  const reps = formatNumber(
+    prescription.execution_target_reps
+  );
+  const duration = formatDurationSeconds(
+    prescription.execution_target_duration_seconds
+  );
+  const distance = formatNumber(
+    prescription.execution_target_distance_meters
+  );
+
+  if (!reps && !duration && !distance) {
+    return null;
+  }
+
+  const pieces = [];
+
+  const sets = prescriptionSetCount(
+    prescription
+  );
+
+  if (reps) {
+    const repsLabel = `${reps} ${
+      prescription.reps_semantics ===
+      'per_side'
+        ? 'reps / côté'
+        : 'reps'
+    }`;
+
+    pieces.push(
+      sets
+        ? `${sets} × ${repsLabel}`
+        : repsLabel
+    );
+  } else if (duration) {
+    if (sets) {
+      pieces.push(`${sets} séries`);
+    }
+    pieces.push(duration);
+  } else if (distance) {
+    pieces.push(`${distance} m`);
+  }
+
+  const load = formatNumber(
+    prescription.load_kg
+  );
+
+  if (load) {
+    const scope =
+      prescription.load_scope ===
+      'per_implement'
+        ? ' / haltère'
+        : '';
+
+    pieces.push(
+      `${load} kg${scope}`
+    );
+  }
+
+  const bandResistance =
+    prescription.band_resistance_label;
+
+  if (bandResistance) {
+    const bandPrefix =
+      prescription
+        .band_resistance_semantics ===
+      'assistance'
+        ? 'Assistance'
+        : 'Résistance';
+
+    pieces.push(
+      `${bandPrefix} ${String(
+        bandResistance
+      ).toLocaleLowerCase('fr-FR')}`
+    );
+  }
+
+  return pieces.join(' · ');
+}
+
+function formatMechanicAwarePrescription(prescription = {}) {
+  const overlay =
+    prescription?.mechanic_overlay &&
+    typeof prescription.mechanic_overlay === 'object'
+      ? prescription.mechanic_overlay
+      : {};
+
+  const mechanic = normalizeMechanic(
+    prescription?.mechanic ??
+      prescription?.block_mechanic
+  );
+  const semanticsSuffix =
+    prescription?.reps_semantics === 'per_side'
+      ? ' / côté'
+      : '';
+
+  if (
+    mechanic === 'PYRAMID' ||
+    String(overlay?.type ?? '').toLowerCase() === 'pyramid'
+  ) {
+    const base = Number(
+      overlay?.base_reps ??
+        prescription?.reps_min
+    );
+
+    if (!Number.isFinite(base) || base <= 0) {
+      return null;
+    }
+
+    const multipliers =
+      Array.isArray(overlay?.multipliers) &&
+      overlay.multipliers.length > 0
+        ? overlay.multipliers
+        : [1, 2, 3, 2, 1];
+
+    const sequence = multipliers
+      .map((value) => {
+        const multiplier = Number(value);
+        if (!Number.isFinite(multiplier) || multiplier <= 0) {
+          return null;
+        }
+        return Math.round(base * multiplier);
+      })
+      .filter((value) => Number.isFinite(value));
+
+    if (sequence.length === 0) return null;
+    return `${sequence.join(' → ')} reps${semanticsSuffix}`;
+  }
+
+  if (mechanic === 'HIIT' || String(overlay?.type ?? '').toLowerCase() === 'hiit_station') {
+    const workSeconds = Number(
+      overlay?.work_seconds ??
+        prescription?.block_parameters?.work_seconds ??
+        prescription?.duration_seconds_min
+    );
+    if (Number.isFinite(workSeconds) && workSeconds > 0) {
+      return `${Math.round(workSeconds)} sec de travail`;
+    }
+  }
+
+  if (mechanic === 'DECK' || String(overlay?.type ?? '').toLowerCase() === 'deck_suit') {
+    return 'Répétitions selon la carte';
+  }
+
+  if (
+    mechanic === 'PROGRESSIVE_INTERVAL' ||
+    ['death_by', 'death_by_couplet', 'progressive_generic'].includes(
+      String(overlay?.type ?? '').toLowerCase()
+    )
+  ) {
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+    if (Number.isFinite(startReps) && startReps > 0 && Number.isFinite(increment) && increment > 0) {
+      return `${Math.round(startReps)} → ${Math.round(startReps + increment)} → ${Math.round(startReps + 2 * increment)} → … reps${semanticsSuffix}`;
+    }
+  }
+
+  if (
+    mechanic === 'LADDER' ||
+    String(overlay?.type ?? '').toLowerCase() === 'ascending_ladder'
+  ) {
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+    if (Number.isFinite(startReps) && startReps > 0 && Number.isFinite(increment) && increment > 0) {
+      return `Départ ${Math.round(startReps)} reps${semanticsSuffix} · +${Math.round(increment)} / étape`;
+    }
+  }
+
+  if (mechanic === 'COUPLET') {
+    const overlayType = String(overlay?.type ?? '').toLowerCase();
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+
+    if (Number.isFinite(increment) && increment > 0) {
+      if (overlayType === 'descending_couplet') {
+        return `Progression décroissante · -${Math.round(increment)} reps / étape${semanticsSuffix}`;
+      }
+      if (Number.isFinite(startReps) && startReps > 0) {
+        return `Départ ${Math.round(startReps)} reps${semanticsSuffix} · +${Math.round(increment)} / étape`;
+      }
+    }
+  }
+
+  return null;
+}
+
+function formatPrescription(exercise) {
+  const prescription =
+    readPrescriptionObject(exercise);
+
+  if (
+    prescription.skill_objective_type ===
+    'TEST'
+  ) {
+    const attempts =
+      formatNumber(
+        prescription.test_attempts ??
+          prescription.sets
+      ) ?? '3';
+
+    const metric =
+      prescription.test_metric;
+
+    if (metric === 'load_kg') {
+      return `${attempts} tentatives · meilleure charge propre`;
+    }
+
+    if (metric === 'max_reps') {
+      return `${attempts} tentatives · max reps propres`;
+    }
+
+    if (
+      metric ===
+      'max_duration_seconds'
+    ) {
+      return `${attempts} tentatives · temps max propre`;
+    }
+
+    if (
+      metric ===
+      'max_distance_meters'
+    ) {
+      return `${attempts} tentatives · distance max propre`;
+    }
+
+    return `${attempts} tentatives · meilleure performance propre`;
+  }
+
+  const mechanicAwarePrescription =
+    formatMechanicAwarePrescription(
+      prescription
+    );
+
+  if (mechanicAwarePrescription) {
+    return mechanicAwarePrescription;
+  }
+
+  const executionTarget =
+    formatExecutionTargetPrescription(
+      exercise
+    );
+
+  if (executionTarget) {
+    return executionTarget;
+  }
+
+  if (
+    typeof exercise?.prescription ===
+    'string'
+  ) {
+    return exercise.prescription;
+  }
+
+  if (
+    typeof prescription.text ===
+      'string' &&
+    prescription.text.trim()
+  ) {
+    return stripRpeFromPrescription(prescription.text.trim());
+  }
+
+  const protocol =
+    prescription.protocol;
+
+  if (
+    normalizeMechanic(
+      prescription.mechanic
+    ) === 'TABATA' &&
+    protocol &&
+    typeof protocol === 'object'
+  ) {
+    const work = formatNumber(
+      protocol.work_seconds
+    );
+    const rest = formatNumber(
+      protocol.rest_seconds
+    );
+    const rounds = formatNumber(
+      protocol.rounds
+    );
+
+    if (work && rest && rounds) {
+      return `${rounds} rounds · ${work}s travail / ${rest}s repos`;
+    }
+  }
+
+  const pieces = [];
+
+  const reps = formatRange(
+    prescription.reps_min,
+    prescription.reps_max,
+    prescription.reps_semantics ===
+      'per_side'
+      ? 'reps / côté'
+      : 'reps'
+  );
+
+  const duration = formatDurationRange(
+    prescription.duration_seconds_min,
+    prescription.duration_seconds_max
+  );
+
+  const distance = formatRange(
+    prescription.distance_meters_min,
+    prescription.distance_meters_max,
+    'm'
+  );
+
+  if (reps) {
+    pieces.push(reps);
+  } else if (duration) {
+    pieces.push(duration);
+  } else if (distance) {
+    pieces.push(distance);
+  }
+
+  const load = formatNumber(
+    prescription.load_kg
+  );
+
+  if (load) {
+    const scope =
+      prescription.load_scope ===
+      'per_implement'
+        ? ' / haltère'
+        : '';
+
+    pieces.push(
+      `${load} kg${scope}`
+    );
+  }
+
+  const bandResistance =
+    prescription.band_resistance_label;
+
+  if (bandResistance) {
+    const bandPrefix =
+      prescription
+        .band_resistance_semantics ===
+      'assistance'
+        ? 'Assistance'
+        : 'Résistance';
+
+    pieces.push(
+      `${bandPrefix} ${String(
+        bandResistance
+      ).toLocaleLowerCase('fr-FR')}`
+    );
+  }
+
+  const sets = prescriptionSetCount(
+    prescription
+  );
+
+  if (sets) {
+    const first = pieces[0] ?? null;
+    const isRepPrescription =
+      typeof first === 'string' &&
+      /\breps?\b/i.test(first);
+
+    if (isRepPrescription) {
+      pieces[0] = `${sets} × ${first}`;
+    } else {
+      pieces.unshift(`${sets} séries`);
+    }
+  }
+
+
+  if (pieces.length > 0) {
+    return pieces.join(' · ');
+  }
+
+  if (
+    protocol &&
+    typeof protocol === 'object'
+  ) {
+    const work = formatNumber(
+      protocol.work_seconds
+    );
+    const rest = formatNumber(
+      protocol.rest_seconds
+    );
+    const rounds = formatNumber(
+      protocol.rounds
+    );
+
+    if (work && rest && rounds) {
+      return `${rounds} rounds · ${work}s / ${rest}s`;
+    }
+  }
+
+  return 'Prescription adaptée';
+}
+
+function getBlockMechanic(block) {
+  return normalizeMechanic(
+    block?.mechanic ??
+      block?.mechanic_json
+        ?.mechanic_key ??
+      null
+  );
+}
+
+function getBlockVariant(block) {
+  return (
+    block?.variant_key ??
+    block?.mechanic_json?.variant_key ??
+    block?.mechanic_json?.variant ??
+    null
+  );
+}
+
+function getBlockParameters(block) {
+  if (
+    block?.mechanic_json?.parameters &&
+    typeof block.mechanic_json
+      .parameters === 'object'
+  ) {
+    return block.mechanic_json.parameters;
+  }
+
+  const firstExercise =
+    block?.exercises?.[0];
+
+  const prescription =
+    readPrescriptionObject(
+      firstExercise
+    );
+
+  return (
+    prescription.block_parameters ??
+    prescription.protocol ??
+    {}
+  );
+}
+
+function buildMechanicStructure(
+  block,
+  durationMinutes
+) {
+  if (
+    typeof block?.structure ===
+      'string' &&
+    block.structure.trim()
+  ) {
+    return block.structure.trim();
+  }
+
+  const mechanic =
+    getBlockMechanic(block);
+
+  if (!mechanic) {
+    return null;
+  }
+
+  const variant =
+    getBlockVariant(block);
+
+  const parameters =
+    getBlockParameters(block);
+
+  const duration =
+    Number(durationMinutes);
+
+  const rounds =
+    formatNumber(
+      parameters.rounds ??
+        parameters.total_rounds
+    );
+
+  const intervalSeconds =
+    formatNumber(
+      parameters.interval_seconds
+    );
+
+  const intervalMinutes =
+    formatNumber(
+      parameters.interval_minutes ??
+        parameters.every_minutes
+    );
+
+  const rest =
+    formatNumber(
+      parameters.rest_between_rounds_seconds ??
+        parameters.rest_seconds
+    );
+
+  const timeCap =
+    formatNumber(
+      parameters.time_cap_minutes ??
+        parameters.cap_minutes
+    );
+
+  const targetReps =
+    formatNumber(
+      parameters.target_reps ??
+        parameters.rep_target
+    );
+
+  const baseLabel =
+    humanizeMechanic(
+      mechanic,
+      variant
+    );
+
+  if (mechanic === 'AMRAP') {
+    return Number.isFinite(duration)
+      ? `${baseLabel} ${duration} min`
+      : baseLabel;
+  }
+
+  if (mechanic === 'EMOM') {
+    const cycles =
+      formatNumber(
+        parameters.cycles ??
+          parameters.rounds ??
+          parameters.total_rounds
+      );
+
+    const executionMinutes =
+      formatNumber(
+        parameters.duration_minutes ??
+          duration
+      );
+
+    if (cycles && executionMinutes) {
+      return `${baseLabel} · ${executionMinutes} min · ${cycles} tours complets`;
+    }
+
+    if (executionMinutes) {
+      return `${baseLabel} · ${executionMinutes} min`;
+    }
+
+    return baseLabel;
+  }
+
+  if (
+    mechanic === 'EVERY_X_MINUTES'
+  ) {
+    const every =
+      intervalMinutes ??
+      (intervalSeconds
+        ? formatNumber(
+            Number(intervalSeconds) /
+              60
+          )
+        : null);
+
+    return every
+      ? `${baseLabel} · toutes les ${every} min`
+      : baseLabel;
+  }
+
+  if (mechanic === 'CIRCUIT') {
+    const parts = [baseLabel];
+
+    if (rounds) {
+      parts.push(`${rounds} tours`);
+    }
+
+    if (rest) {
+      parts.push(
+        `${rest}s repos / tour`
+      );
+    }
+
+    return parts.join(' · ');
+  }
+
+  if (mechanic === 'HIIT') {
+    const work = formatNumber(
+      parameters.work_seconds
+    );
+    const intervalRest = formatNumber(
+      parameters.rest_seconds
+    );
+    const count = formatNumber(
+      parameters.exercise_count
+    );
+
+    const parts = [baseLabel];
+
+    if (rounds) {
+      parts.push(`${rounds} tours`);
+    }
+
+    if (count) {
+      parts.push(`${count} exercices`);
+    }
+
+    if (work && intervalRest) {
+      parts.push(`${work}s / ${intervalRest}s`);
+    }
+
+    return parts.join(' · ');
+  }
+
+  if (mechanic === 'STRENGTH' || mechanic === 'SETS_REPS') {
+    return rounds
+      ? `${baseLabel} · ${rounds} séries`
+      : baseLabel;
+  }
+
+  if (mechanic === 'FOR_TIME') {
+    const parts = [baseLabel];
+
+    if (rounds) {
+      parts.push(`${rounds} tours`);
+    }
+
+    if (timeCap) {
+      parts.push(
+        `cap ${timeCap} min`
+      );
+    }
+
+    return parts.join(' · ');
+  }
+
+  if (
+    mechanic === 'REP_TARGET' &&
+    targetReps
+  ) {
+    return `${baseLabel} · objectif ${targetReps} reps`;
+  }
+
+  if (mechanic === 'CHIPPER') {
+    return `${baseLabel} · 1 passage`;
+  }
+
+  if (mechanic === 'ODD_EVEN') {
+    return `${baseLabel} · alternance minutes impaires / paires`;
+  }
+
+  if (
+    mechanic === 'LADDER' ||
+    mechanic === 'PYRAMID' ||
+    mechanic ===
+      'PROGRESSIVE_INTERVAL' ||
+    mechanic === 'COUPLET'
+  ) {
+    return baseLabel;
+  }
+
+  if (mechanic === 'DECK') {
+    return `${baseLabel} · tirage aléatoire encadré`;
+  }
+
+  return Number.isFinite(duration)
+    ? `${baseLabel} · ${duration} min`
+    : baseLabel;
+}
+
+function mapGeneratedWorkout(data, preparation) {
+  const backendBlocks =
+    Array.isArray(data?.blocks)
+      ? data.blocks
+      : [];
+
+  const exercises =
+    backendBlocks.flatMap(
+      (block) =>
+        (block.exercises ?? []).map(
+          (exercise) => {
+            const prescriptionJson =
+              readPrescriptionObject(
+                exercise
+              );
+
+            const trackingModes =
+              Array.isArray(
+                exercise.tracking_modes
+              )
+                ? exercise.tracking_modes
+                : Array.isArray(
+                    prescriptionJson
+                      .tracking_modes
+                  )
+                  ? prescriptionJson
+                      .tracking_modes
+                  : [];
+
+            return {
+              id:
+                exercise.exercise_id ??
+                exercise.id,
+              exerciseId:
+                exercise.exercise_id ??
+                exercise.id,
+              sessionExerciseId:
+                exercise
+                  .session_exercise_id ??
+                null,
+              block: block.block_key,
+              blockKey:
+                block.block_key,
+              name:
+                exercise.name ??
+                'Exercice',
+              family:
+                exercise.family ??
+                null,
+              prescription:
+                formatPrescription(
+                  exercise
+                ),
+              prescriptionJson,
+              expectedOutcome:
+                exercise
+                  .expected_outcome ??
+                null,
+              status: 'pending',
+              trackingType:
+                getTrackingType(
+                  trackingModes
+                ),
+              trackingModes,
+              instructions:
+                exercise.instructions ??
+                null,
+              tips:
+                exercise.tips ?? null,
+              pattern:
+                exercise.pattern ?? null,
+              region:
+                exercise.region ?? null,
+            };
+          }
+        )
+    );
 
   const blocks = {};
 
   for (const block of backendBlocks) {
+    const duration =
+      Number(
+        block.duration_minutes
+      );
+
+    const safeDuration =
+      Number.isFinite(duration)
+        ? duration
+        : null;
+
+    const mechanic =
+      getBlockMechanic(block);
+
+    const variant =
+      getBlockVariant(block);
+
+    const firstPrescription =
+      readPrescriptionObject(
+        block?.exercises?.[0]
+      );
+
+    const blockProtocol =
+      firstPrescription?.protocol &&
+      typeof firstPrescription.protocol === 'object'
+        ? firstPrescription.protocol
+        : {};
+
     blocks[block.block_key] = {
       key: block.block_key,
       title:
-        block.block_name ?? block.block_key,
-      duration:
-        block.duration_minutes ?? null,
+        block.block_name ??
+        block.block_key,
+      duration: safeDuration,
+      required:
+        block.required ?? null,
       objective:
         block.objective ?? null,
       structure:
-        block.structure ?? null,
-      format:
-        block.block_key === 'wod'
-          ? data?.meta?.format ?? null
+        buildMechanicStructure(
+          block,
+          safeDuration
+        ),
+      mechanic,
+      mechanicLabel:
+        mechanic
+          ? humanizeMechanic(
+              mechanic,
+              variant
+            )
+          : null,
+      variant,
+      mechanicJson:
+        block.mechanic_json ??
+        null,
+      parameters:
+        getBlockParameters(block),
+      expectedOutcome:
+        block.expected_outcome ??
+        null,
+      skillContract:
+        block.skill_contract &&
+        typeof block.skill_contract ===
+          'object'
+          ? {
+              ...block.skill_contract,
+              objectiveType:
+                block.skill_contract
+                  .objective_type ??
+                null,
+              objectiveTitle:
+                block.skill_contract
+                  .objective_title ??
+                null,
+              objectiveDescription:
+                block.skill_contract
+                  .objective_description ??
+                null,
+              scoreRequired:
+                Boolean(
+                  block.skill_contract
+                    .score_required
+                ),
+              scoreMetric:
+                block.skill_contract
+                  .score_metric ??
+                null,
+              scoreLabel:
+                block.skill_contract
+                  .score_label ??
+                null,
+              scoreUnit:
+                block.skill_contract
+                  .score_unit ??
+                null,
+            }
           : null,
       rounds:
-        block.rounds ?? null,
+        block.rounds ??
+        blockProtocol.rounds ??
+        null,
       workSeconds:
-        block.work_seconds ?? null,
+        block.work_seconds ??
+        blockProtocol.work_seconds ??
+        null,
       restSeconds:
-        block.rest_seconds ?? null,
+        block.rest_seconds ??
+        blockProtocol.rest_seconds ??
+        null,
       rotationMode:
-        block.rotation_mode ?? null,
+        block.rotation_mode ??
+        blockProtocol.rotation ??
+        null,
     };
   }
+
+  const wodBlock =
+    blocks.wod ??
+    null;
+
+  const plannedDuration =
+    data?.meta?.architecture
+      ?.total_minutes ??
+    data?.stimulus
+      ?.duration_minutes ??
+    data?.meta
+      ?.total_duration_minutes ??
+    preparation?.duration ??
+    45;
+
+  const targetRegion =
+    data?.meta?.target_region ??
+    data?.stimulus?.target_region ??
+    preparation?.region ??
+    null;
 
   return {
     sessionId: data.session_id,
     backendVersion:
       data.version ?? null,
     title:
-      data?.meta?.target_region ??
-      preparation?.region ??
-      'Full Body',
+      targetRegion &&
+      targetRegion !== 'AUTO'
+        ? targetRegion
+        : 'Full Body',
+    focus:
+      data?.meta?.focus ??
+      data?.stimulus?.focus ??
+      null,
     format:
-      data?.meta?.format ?? null,
-    plannedDuration:
-      data?.meta?.total_duration_minutes ??
-      preparation?.duration ??
-      45,
+      wodBlock?.mechanicLabel ??
+      humanizeMechanic(
+        data?.wod_solver
+          ?.quality_gate
+          ?.mechanic ??
+          null
+      ),
+    mechanic:
+      wodBlock?.mechanic ??
+      null,
+    formatVariant:
+      wodBlock?.variant ??
+      null,
+    plannedDuration,
     generatedAt:
       data?.meta?.generated_at ??
       new Date().toISOString(),
+    progressionIntent:
+      data?.meta
+        ?.progression_intent ??
+      data?.stimulus
+        ?.progression_intent ??
+      null,
+    stimulus:
+      data?.stimulus ?? null,
+    wodSolver:
+      data?.wod_solver ?? null,
+    weeklyLoop:
+      data?.meta?.weekly_loop ??
+      data?.weekly_loop ??
+      null,
+    coachNote:
+      data?.meta?.coach_note ??
+      null,
+    resumedExistingSession:
+      Boolean(
+        data?.meta?.resumed_existing_session
+      ),
+    generationControlStatus:
+      data?.generation_control_status ??
+      data?.meta?.generation_control_status ??
+      null,
+    contextRecalculationCount:
+      Number(
+        data?.context_recalculation_count ??
+          data?.meta
+            ?.context_recalculation_count ??
+          0
+      ),
+    contextRecalculationLimit:
+      Number(
+        data?.context_recalculation_limit ??
+          data?.meta
+            ?.context_recalculation_limit ??
+          3
+      ),
+    remainingContextRecalculations:
+      Math.max(
+        0,
+        Number(
+          data?.context_recalculation_limit ??
+            data?.meta
+              ?.context_recalculation_limit ??
+            3
+        ) -
+          Number(
+            data?.context_recalculation_count ??
+              data?.meta
+                ?.context_recalculation_count ??
+              0
+          )
+      ),
+    safetyAdaptation:
+      data?.safety_adaptation ??
+      data?.meta?.safety_adaptation ??
+      null,
     preparationSnapshot: {
       duration:
         preparation?.duration ?? 45,
@@ -144,6 +1398,71 @@ function mapGeneratedWorkout(data, preparation) {
     meta: data?.meta ?? {},
   };
 }
+async function enrichWorkoutExerciseMetadata(workout) {
+  const source = Array.isArray(workout?.exercises)
+    ? workout.exercises
+    : [];
+
+  const ids = [
+    ...new Set(
+      source
+        .map((exercise) => exercise.id)
+        .filter(Boolean)
+    ),
+  ];
+
+  if (ids.length === 0) {
+    return workout;
+  }
+
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('id, description, instructions, tips, image_path')
+    .in('id', ids);
+
+  if (error) {
+    console.warn('Exercise metadata enrichment', error.message);
+    return workout;
+  }
+
+  const metaById = new Map(
+    (data ?? []).map((item) => [
+      item.id,
+      item,
+    ])
+  );
+
+  return {
+    ...workout,
+    exercises: source.map((exercise) => {
+      const meta = metaById.get(exercise.id);
+
+      if (!meta) {
+        return exercise;
+      }
+
+      return {
+        ...exercise,
+        description:
+          meta.description ??
+          exercise.description ??
+          null,
+        instructions:
+          meta.instructions ??
+          exercise.instructions ??
+          null,
+        tips:
+          meta.tips ??
+          exercise.tips ??
+          null,
+        imagePath:
+          meta.image_path ??
+          exercise.imagePath ??
+          null,
+      };
+    }),
+  };
+}
 
 async function resolveFocusForGeneration() {
   try {
@@ -164,7 +1483,7 @@ async function resolveFocusForGeneration() {
   }
 }
 
-export async function generateWorkoutSession(preparation) {
+export async function generateWorkoutSession(preparation, options = {}) {
   const focusOverride =
     await resolveFocusForGeneration();
 
@@ -185,11 +1504,25 @@ export async function generateWorkoutSession(preparation) {
       preparation?.region ?? null,
     format_preference: null,
     focus_override: focusOverride,
+    local_date:
+      getLocalDateKey(),
+    force_recalculate_started:
+      Boolean(
+        options?.forceRecalculateStarted
+      ),
+    protected_session_exercise_ids:
+      Array.isArray(
+        options?.protectedSessionExerciseIds
+      )
+        ? options.protectedSessionExerciseIds.filter(
+            Boolean
+          )
+        : [],
   };
 
   const { data, error } =
     await supabase.functions.invoke(
-      'bright-handler',
+      'coach-handler',
       {
         body: payload,
       }
@@ -217,6 +1550,39 @@ export async function generateWorkoutSession(preparation) {
     throw new Error(data.error);
   }
 
+  if (
+    [
+      'STARTED_SESSION_CONFIRM_REQUIRED',
+      'RECALC_LIMIT_REACHED',
+    ].includes(data?.status)
+  ) {
+    return {
+      controlStatus: data.status,
+      sessionId:
+        data?.session_id ?? null,
+      changedFields:
+        Array.isArray(data?.changed_fields)
+          ? data.changed_fields
+          : [],
+      warningCode:
+        data?.warning_code ?? null,
+      contextRecalculationCount:
+        Number(
+          data?.context_recalculation_count ??
+            0
+        ),
+      contextRecalculationLimit:
+        Number(
+          data?.context_recalculation_limit ??
+            3
+        ),
+      startedAt:
+        data?.started_at ?? null,
+      startedLocalDate:
+        data?.started_local_date ?? null,
+    };
+  }
+
   if (!data?.session_id) {
     throw new Error(
       "La génération n'a pas retourné de session_id."
@@ -232,9 +1598,14 @@ export async function generateWorkoutSession(preparation) {
     );
   }
 
-  return mapGeneratedWorkout(
-    data,
-    preparation
+  const mappedWorkout =
+    mapGeneratedWorkout(
+      data,
+      preparation
+    );
+
+  return enrichWorkoutExerciseMetadata(
+    mappedWorkout
   );
 }
 
@@ -271,15 +1642,195 @@ function parseLoadKg(value) {
     : null;
 }
 
-function normalizeStatus(status) {
-  return status === 'skipped'
+function normalizeUserExecutionStatus(status) {
+  if (status === 'completed') return 'completed';
+  if (status === 'adapted') return 'adapted';
+  return 'not_completed';
+}
+
+function toLegacyStatus(userExecutionStatus) {
+  return userExecutionStatus ===
+    'not_completed'
     ? 'skipped'
     : 'completed';
 }
 
+function normalizeSessionBlockKey(blockKey) {
+  if (blockKey === 'warmup') {
+    return 'warm_up';
+  }
+
+  return blockKey ?? null;
+}
+
+async function resolveSessionExerciseInstances(
+  sessionId,
+  exercises
+) {
+  const allInstancesKnown =
+    exercises.length > 0 &&
+    exercises.every(
+      (exercise) =>
+        Boolean(
+          exercise.sessionExerciseId ??
+            exercise.session_exercise_id
+        )
+    );
+
+  if (allInstancesKnown) {
+    return exercises.map(
+      (exercise) => ({
+        ...exercise,
+        sessionExerciseId:
+          exercise.sessionExerciseId ??
+          exercise.session_exercise_id,
+      })
+    );
+  }
+
+  const { data, error } = await supabase
+    .from('workout_session_exercises')
+    .select('id, exercise_id, block_key, position')
+    .eq('session_id', sessionId)
+    .order('position', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = data ?? [];
+  const usedIds = new Set();
+
+  return exercises.map((exercise) => {
+    const knownInstanceId =
+      exercise.sessionExerciseId ??
+      exercise.session_exercise_id ??
+      null;
+
+    const expectedBlockKey =
+      normalizeSessionBlockKey(
+        exercise.blockKey ?? exercise.block
+      );
+
+    let match = null;
+
+    if (knownInstanceId) {
+      match = rows.find(
+        (row) =>
+          row.id === knownInstanceId &&
+          row.exercise_id === exercise.id &&
+          !usedIds.has(row.id)
+      );
+    }
+
+    if (!match && expectedBlockKey) {
+      match = rows.find(
+        (row) =>
+          row.exercise_id === exercise.id &&
+          row.block_key === expectedBlockKey &&
+          !usedIds.has(row.id)
+      );
+    }
+
+    // Fallback conservateur pour les anciennes séances qui n'avaient pas encore
+    // blockKey côté front. Le Set garantit qu'une instance ne peut pas être
+    // réutilisée deux fois, même si le même exercise_id existe plusieurs fois.
+    if (!match) {
+      match = rows.find(
+        (row) =>
+          row.exercise_id === exercise.id &&
+          !usedIds.has(row.id)
+      );
+    }
+
+    if (!match) {
+      throw new Error(
+        `Impossible de résoudre l'instance de séance pour ${exercise.id}.`
+      );
+    }
+
+    usedIds.add(match.id);
+
+    return {
+      ...exercise,
+      sessionExerciseId: match.id,
+    };
+  });
+}
+
+export async function getWorkoutSwapAvailability(sessionId) {
+  if (!sessionId) {
+    return {
+      sessionId: null,
+      items: {},
+      version: null,
+    };
+  }
+
+  const { data, error } = await supabase.rpc(
+    'get_workout_swap_availability',
+    {
+      p_session_id: sessionId,
+    }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ??
+        'Impossible de vérifier les remplacements disponibles.'
+    );
+  }
+
+  return {
+    sessionId:
+      data?.session_id ?? sessionId,
+    items:
+      data?.items ?? {},
+    version:
+      data?.version ?? null,
+  };
+}
+
+export async function getWorkoutSwapAvailabilityForExercise(sessionId, sessionExerciseId) {
+  if (!sessionId || !sessionExerciseId) {
+    return {
+      sessionId: sessionId ?? null,
+      sessionExerciseId: sessionExerciseId ?? null,
+      item: null,
+      version: null,
+      timingMs: 0,
+    };
+  }
+
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc(
+    'get_workout_swap_availability_for_exercise_v1',
+    { p_session_exercise_id: sessionExerciseId }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ?? 'Impossible de vérifier ce remplacement.'
+    );
+  }
+
+  return {
+    sessionId: data?.session_id ?? sessionId,
+    sessionExerciseId: data?.session_exercise_id ?? sessionExerciseId,
+    item: data?.item ?? data?.items?.[sessionExerciseId] ?? null,
+    version: data?.version ?? null,
+    timingMs: Date.now() - startedAt,
+  };
+}
+
+
 export async function swapWorkoutExercise({
   sessionId,
+  sessionExerciseId,
   currentExerciseId,
+  direction = 'equivalent',
+  undo = false,
+  excludedExerciseIds = [],
 }) {
   if (!sessionId) {
     throw new Error(
@@ -287,9 +1838,9 @@ export async function swapWorkoutExercise({
     );
   }
 
-  if (!currentExerciseId) {
+  if (!sessionExerciseId && !currentExerciseId) {
     throw new Error(
-      "Impossible de changer l'exercice : exercise_id manquant."
+      "Impossible de changer l'exercice : instance de séance manquante."
     );
   }
 
@@ -299,8 +1850,25 @@ export async function swapWorkoutExercise({
       {
         body: {
           session_id: sessionId,
+          session_exercise_id:
+            sessionExerciseId ?? null,
           current_exercise_id:
-            currentExerciseId,
+            currentExerciseId ?? null,
+          direction:
+            ['easier', 'equivalent', 'harder'].includes(
+              direction
+            )
+              ? direction
+              : 'equivalent',
+          undo: Boolean(undo),
+          excluded_exercise_ids:
+            Array.isArray(
+              excludedExerciseIds
+            )
+              ? excludedExerciseIds.filter(
+                  Boolean
+                )
+              : [],
         },
       }
     );
@@ -336,6 +1904,282 @@ export async function swapWorkoutExercise({
   return data;
 }
 
+
+export async function getWorkoutFormatOptions(sessionId) {
+  if (!sessionId) {
+    throw new Error(
+      "Impossible de charger les formats : session_id manquant."
+    );
+  }
+
+  const { data, error } =
+    await supabase.functions.invoke(
+      'change-workout-format',
+      {
+        body: {
+          action: 'OPTIONS',
+          session_id: sessionId,
+        },
+      }
+    );
+
+  if (error) {
+    let detail = null;
+
+    try {
+      detail =
+        await error?.context?.json();
+    } catch {
+      detail = null;
+    }
+
+    throw new Error(
+      detail?.error ??
+        detail?.message ??
+        error?.message ??
+        'Impossible de charger les formats disponibles.'
+    );
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return {
+    sessionId:
+      data?.session_id ?? sessionId,
+    subscriptionTier:
+      data?.subscription_tier ?? 'FREE',
+    currentMechanic:
+      data?.current_mechanic ?? null,
+    currentVariant:
+      data?.current_variant ?? null,
+    wodRevealedAt:
+      data?.wod_revealed_at ?? null,
+    wodStartedAt:
+      data?.wod_started_at ?? null,
+    formatChangeCount:
+      Number(data?.format_change_count ?? 0),
+    formatChangeLimit:
+      Number(data?.format_change_limit ?? 3),
+    remainingFormatChanges:
+      Number(data?.remaining_format_changes ?? 0),
+    formatLocked:
+      Boolean(data?.format_locked),
+    options:
+      Array.isArray(data?.options)
+        ? data.options
+        : [],
+    version:
+      data?.version ?? null,
+    timingMs:
+      Number(data?.timing_ms ?? 0),
+  };
+}
+
+export async function reloadWorkoutSession({
+  sessionId,
+  preparationSnapshot = null,
+  confirmComposerProgressRebase = false,
+}) {
+  if (!sessionId) {
+    throw new Error(
+      "Impossible de recharger la séance : session_id manquant."
+    );
+  }
+
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select(
+      'id, status, generated_workout, planning_context_json, started_at, started_local_date, wod_revealed_at, wod_started_at, format_change_count, context_recalculation_count'
+    )
+    .eq('id', sessionId)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.generated_workout) {
+    throw new Error(
+      "La séance mise à jour est introuvable."
+    );
+  }
+
+  // The existing compiler persists the entire authored draft. Read its exact
+  // preference snapshot on every reload, not just from transient check-in state.
+  const composerPreferences = data.generated_workout.meta?.composer_preferences
+    ?? composerSessionPreferences(data.planning_context_json);
+  const mappedWorkout =
+    mapGeneratedWorkout(
+      {
+        ...data.generated_workout,
+        meta: {
+          ...(data.generated_workout.meta ?? {}),
+          ...(composerPreferences ? { composer_preferences: composerPreferences } : {}),
+        },
+        session_id: sessionId,
+        status:
+          data.status ??
+          data.generated_workout.status ??
+          'generated',
+      },
+      preparationSnapshot ?? {}
+    );
+
+  let enriched =
+    await enrichWorkoutExerciseMetadata(
+      mappedWorkout
+    );
+  if (isComposerWorkout(enriched)) {
+    enriched = hydrateComposerPlayerProgress(enriched, await loadComposerPlayerProgress(sessionId, confirmComposerProgressRebase));
+  }
+  const formatChangeCount =
+    Number(data?.format_change_count ?? 0);
+  const formatChangeLimit = 3;
+
+  const contextRecalculationCount =
+    Number(
+      data?.context_recalculation_count ?? 0
+    );
+  const contextRecalculationLimit = 3;
+
+  return {
+    ...enriched,
+    sessionStarted:
+      data?.status === 'in_progress' ||
+      Boolean(data?.started_at),
+    startedAt:
+      data?.started_at ?? null,
+    startedLocalDate:
+      data?.started_local_date ?? null,
+    contextRecalculationCount,
+    contextRecalculationLimit,
+    remainingContextRecalculations:
+      Math.max(
+        0,
+        contextRecalculationLimit -
+          contextRecalculationCount
+      ),
+    wodRevealed:
+      Boolean(data?.wod_revealed_at),
+    wodRevealedAt:
+      data?.wod_revealed_at ?? null,
+    wodStarted:
+      Boolean(data?.wod_started_at),
+    wodStartedAt:
+      data?.wod_started_at ?? null,
+    formatChangeCount,
+    formatChangeLimit,
+    remainingFormatChanges:
+      Math.max(
+        0,
+        formatChangeLimit -
+          formatChangeCount
+      ),
+    formatLocked:
+      Boolean(data?.wod_started_at) ||
+      formatChangeCount >=
+        formatChangeLimit,
+  };
+}
+
+export async function changeWorkoutFormat({
+  sessionId,
+  mechanic,
+  variantKey = null,
+  overlays = [],
+}) {
+  if (!sessionId) {
+    throw new Error(
+      "Impossible de changer le format : session_id manquant."
+    );
+  }
+
+  if (!mechanic) {
+    throw new Error(
+      "Impossible de changer le format : mécanique manquante."
+    );
+  }
+
+  const { data, error } =
+    await supabase.functions.invoke(
+      'change-workout-format',
+      {
+        body: {
+          session_id: sessionId,
+          mechanic,
+          variant_key:
+            variantKey ?? null,
+          overlays:
+            Array.isArray(overlays)
+              ? overlays
+              : [],
+        },
+      }
+    );
+
+  if (error) {
+    let detail = null;
+
+    try {
+      detail =
+        await error?.context?.json();
+    } catch {
+      detail = null;
+    }
+
+    throw new Error(
+      detail?.error ??
+        detail?.message ??
+        error?.message ??
+        'Impossible de changer le format.'
+    );
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  if (
+    data?.classification ===
+    'PREMIUM_REQUIRED'
+  ) {
+    throw new Error(
+      'Ce format est réservé à UGEROD Premium.'
+    );
+  }
+
+  if (
+    data?.classification ===
+    'NOT_RECOMMENDED'
+  ) {
+    throw new Error(
+      'Ce format n’est pas adapté à cette séance.'
+    );
+  }
+
+  if (
+    data?.classification ===
+    'LOCKED_AFTER_WOD_START'
+  ) {
+    throw new Error(
+      'Le format est verrouillé : le WOD a déjà commencé.'
+    );
+  }
+
+  if (
+    data?.classification ===
+    'LOCKED_AFTER_FORMAT_CHANGE_LIMIT'
+  ) {
+    throw new Error(
+      'La limite de 3 changements de format est atteinte.'
+    );
+  }
+
+  return data;
+}
+
 export async function completeWorkoutSession({
   sessionId,
   exercises,
@@ -343,6 +2187,8 @@ export async function completeWorkoutSession({
   rpe,
   notes,
   loads = {},
+  exerciseFeedback = {},
+  protocolOutcome = null,
 }) {
   if (!sessionId) {
     throw new Error(
@@ -350,15 +2196,43 @@ export async function completeWorkoutSession({
     );
   }
 
-  const sessionExercises = Array.isArray(exercises)
+  const lifecycle = await getWorkoutSessionLifecycle(sessionId);
+  await flushComposerPlayerProgress(sessionId);
+
+  if (!lifecycle?.sessionStarted) {
+    throw new Error(
+      "Impossible d'enregistrer la séance : la séance n'a pas été officiellement démarrée."
+    );
+  }
+
+  const rawSessionExercises = Array.isArray(exercises)
     ? exercises.filter((exercise) => exercise?.id)
     : [];
 
-  if (sessionExercises.length === 0) {
+  const containsWodExecution = rawSessionExercises.some(
+    (exercise) =>
+      String(exercise?.blockKey ?? exercise?.block ?? '')
+        .trim()
+        .toLowerCase() === 'wod'
+  );
+
+  if (containsWodExecution && !lifecycle?.wodStarted) {
+    throw new Error(
+      "Impossible d'enregistrer la séance : le WOD n'a pas été officiellement démarré."
+    );
+  }
+
+  if (rawSessionExercises.length === 0) {
     throw new Error(
       "Impossible d'enregistrer la séance : aucun exercice disponible."
     );
   }
+
+  const sessionExercises =
+    await resolveSessionExerciseInstances(
+      sessionId,
+      rawSessionExercises
+    );
 
   const exerciseIds = [
     ...new Set(
@@ -387,33 +2261,63 @@ export async function completeWorkoutSession({
     const trackingModes =
       metaById.get(exercise.id) ?? [];
 
-    const status = normalizeStatus(
-      exercise.status
-    );
+    const userExecutionStatus =
+      normalizeUserExecutionStatus(
+        exercise.status
+      );
 
-    const isCompleted =
-      status === 'completed';
+    const legacyStatus =
+      toLegacyStatus(
+        userExecutionStatus
+      );
+
+    const isPerformed =
+      userExecutionStatus !==
+      'not_completed';
+
+    const feedbackKey =
+      exercise.sessionExerciseId ??
+      exercise.id;
+
+    const feedback =
+      exerciseFeedback?.[
+        feedbackKey
+      ] ??
+      exerciseFeedback?.[
+        exercise.id
+      ] ??
+      {};
+
+    const reasonCode =
+      feedback.reasonCode ??
+      exercise.executionReasonCode ??
+      null;
 
     const loadValue =
-      loads?.[exercise.id];
+      loads?.[
+        feedbackKey
+      ] ??
+      loads?.[
+        exercise.id
+      ];
 
-    /*
-     * IMPORTANT : le RPE de séance n'est plus copié sur chaque exercice.
-     * hyper-api distingue maintenant la difficulté globale de la séance
-     * du RPE propre à un mouvement. Tant que l'UI ne demande pas de RPE
-     * par exercice, on envoie null ici plutôt qu'une fausse donnée.
-     */
     const exerciseRpe =
       exercise.rpe ??
       exercise.exerciseRpe ??
       null;
 
     return {
+      session_exercise_id:
+        exercise.sessionExerciseId,
       exercise_id: exercise.id,
-      status,
+      status: legacyStatus,
+      user_execution_status:
+        userExecutionStatus,
+      execution_reason_code:
+        reasonCode,
 
       reps_completed:
-        isCompleted &&
+        isPerformed &&
         trackingModes.includes('reps')
           ? exercise.repsCompleted ??
             exercise.reps_completed ??
@@ -421,13 +2325,13 @@ export async function completeWorkoutSession({
           : null,
 
       weight_kg:
-        isCompleted &&
+        isPerformed &&
         trackingModes.includes('load')
           ? parseLoadKg(loadValue)
           : null,
 
       duration_seconds:
-        isCompleted &&
+        isPerformed &&
         trackingModes.includes('time')
           ? exercise.durationSeconds ??
             exercise.duration_seconds ??
@@ -435,7 +2339,7 @@ export async function completeWorkoutSession({
           : null,
 
       distance_meters:
-        isCompleted &&
+        isPerformed &&
         trackingModes.includes('distance')
           ? exercise.distanceMeters ??
             exercise.distance_meters ??
@@ -443,50 +2347,135 @@ export async function completeWorkoutSession({
           : null,
 
       rpe:
-        isCompleted
+        isPerformed
           ? exerciseRpe
           : null,
 
       notes:
         exercise.notes ?? null,
+
+      performance_actual_json:
+        exercise.performanceActualJson ??
+        exercise.performance_actual_json ??
+        null,
     };
   });
 
   const { data, error } =
-    await supabase.functions.invoke(
-      'hyper-api',
+    await supabase.rpc(
+      'complete_workout_session_v2',
       {
-        body: {
-          session_id: sessionId,
-          post_workout_feeling: formAfter,
-          global_rpe: rpe,
-          notes: notes?.trim() || null,
-          exercises: results,
-        },
+        p_session_id: sessionId,
+        p_global_rpe: rpe,
+        p_post_workout_feeling:
+          formAfter,
+        p_notes:
+          notes?.trim() || null,
+        p_exercises: results,
+        p_protocol_outcome:
+          protocolOutcome &&
+          typeof protocolOutcome ===
+            'object'
+            ? protocolOutcome
+            : null,
       }
     );
 
   if (error) {
-    let detail = null;
-
-    try {
-      detail = await error?.context?.json();
-    } catch {
-      detail = null;
-    }
-
-    const detailMessage =
-      detail?.error ??
-      detail?.message ??
+    throw new Error(
       error?.message ??
-      'Erreur inconnue pendant l’enregistrement.';
-
-    throw new Error(detailMessage);
+        "Impossible d'enregistrer la séance."
+    );
   }
 
   if (data?.error) {
     throw new Error(data.error);
   }
 
-  return data;
+  const analysis = {};
+
+  async function runAnalysis(
+    key,
+    rpcName,
+    args
+  ) {
+    const {
+      data: analysisData,
+      error: analysisError,
+    } = await supabase.rpc(
+      rpcName,
+      args
+    );
+
+    if (analysisError) {
+      console.warn(
+        `Post-completion ${rpcName}`,
+        analysisError.message
+      );
+
+      analysis[key] = {
+        status: 'ERROR',
+        message:
+          analysisError.message,
+      };
+      return;
+    }
+
+    analysis[key] =
+      analysisData ?? {
+        status: 'OK',
+      };
+  }
+
+  await runAnalysis(
+    'capability',
+    'run_capability_live_session',
+    {
+      p_session_id: sessionId,
+    }
+  );
+
+  if (
+    protocolOutcome &&
+    typeof protocolOutcome ===
+      'object'
+  ) {
+    await runAnalysis(
+      'protocol',
+      'apply_session_protocol_observation',
+      {
+        p_session_id: sessionId,
+      }
+    );
+  }
+
+  await runAnalysis(
+    'weekly',
+    'd_finalize_weekly_session',
+    {
+      p_session_id: sessionId,
+    }
+  );
+
+  const { data: authData } =
+    await supabase.auth.getUser();
+
+  const userId =
+    authData?.user?.id ?? null;
+
+  if (userId) {
+    await runAnalysis(
+      'directives',
+      'pi_refresh_coaching_directives',
+      {
+        p_user_id: userId,
+      }
+    );
+  }
+
+  return {
+    ...(data ?? {}),
+    analysis_after_commit_results:
+      analysis,
+  };
 }

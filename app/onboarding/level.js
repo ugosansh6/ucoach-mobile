@@ -10,12 +10,7 @@ import {
 } from 'react-native';
 
 import { useOnboarding } from '../../src/contexts/OnboardingContext';
-
-import {
-  colors,
-  spacing,
-  typography,
-} from '../../src/constants';
+import { colors, spacing, typography } from '../../src/constants';
 
 const brandLogo = require('../../assets/branding/ugerod-logo-white.png');
 
@@ -40,16 +35,8 @@ const LEVELS = [
 export default function LevelScreen() {
   const { level, setLevel } = useOnboarding();
 
-  const selectedLevel = level;
-  const setSelectedLevel = setLevel;
-
-  function handleBack() {
-    router.back();
-  }
-
   function handleNext() {
-    if (!selectedLevel) return;
-
+    if (!level) return;
     router.push('/onboarding/goal');
   }
 
@@ -61,28 +48,19 @@ export default function LevelScreen() {
       >
         <View style={styles.header}>
           <Pressable
-            onPress={handleBack}
+            onPress={() => router.back()}
             hitSlop={12}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           >
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
 
-          <Image
-            source={brandLogo}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-
+          <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
           <View style={styles.headerSpacer} />
         </View>
 
         <View style={styles.progressArea}>
-          <Text style={styles.stepText}>ÉTAPE 1 SUR 5</Text>
-
+          <Text style={styles.stepText}>ÉTAPE 1 SUR 6</Text>
           <View style={styles.progressTrack}>
             <View style={styles.progressFill} />
           </View>
@@ -90,23 +68,21 @@ export default function LevelScreen() {
 
         <View style={styles.titleArea}>
           <Text style={styles.title}>
-            TON NIVEAU
-            <Text style={styles.blueDot}>.</Text>
+            TON NIVEAU<Text style={styles.blueDot}>.</Text>
           </Text>
-
           <Text style={styles.subtitle}>
             Cela nous aide à adapter l’intensité et la difficulté de tes séances.
           </Text>
         </View>
 
         <View style={styles.cards}>
-          {LEVELS.map((level) => {
-            const selected = selectedLevel === level.id;
+          {LEVELS.map((item) => {
+            const selected = level === item.id;
 
             return (
               <Pressable
-                key={level.id}
-                onPress={() => setSelectedLevel(level.id)}
+                key={item.id}
+                onPress={() => setLevel(item.id)}
                 style={({ pressed }) => [
                   styles.card,
                   selected && styles.cardSelected,
@@ -121,20 +97,12 @@ export default function LevelScreen() {
                         selected && styles.cardTitleSelected,
                       ]}
                     >
-                      {level.title}
+                      {item.title}
                     </Text>
-
-                    <Text style={styles.cardDescription}>
-                      {level.description}
-                    </Text>
+                    <Text style={styles.cardDescription}>{item.description}</Text>
                   </View>
 
-                  <View
-                    style={[
-                      styles.radio,
-                      selected && styles.radioSelected,
-                    ]}
-                  >
+                  <View style={[styles.radio, selected && styles.radioSelected]}>
                     {selected && <View style={styles.radioDot} />}
                   </View>
                 </View>
@@ -147,20 +115,17 @@ export default function LevelScreen() {
 
         <Pressable
           onPress={handleNext}
-          disabled={!selectedLevel}
+          disabled={!level}
           style={({ pressed }) => [
             styles.primaryButton,
-            !selectedLevel && styles.primaryButtonDisabled,
-            pressed &&
-              selectedLevel &&
-              styles.primaryButtonPressed,
+            !level && styles.primaryButtonDisabled,
+            pressed && level && styles.primaryButtonPressed,
           ]}
         >
           <Text
             style={[
               styles.primaryButtonText,
-              !selectedLevel &&
-                styles.primaryButtonTextDisabled,
+              !level && styles.primaryButtonTextDisabled,
             ]}
           >
             CONTINUER
@@ -172,53 +137,28 @@ export default function LevelScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-
+  screen: { flex: 1, backgroundColor: colors.background },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
   },
-
-  header: {
-    minHeight: 90,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
+  header: { minHeight: 90, flexDirection: 'row', alignItems: 'center' },
   backButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   backIcon: {
     color: colors.textPrimary,
     fontSize: 40,
     lineHeight: 40,
     fontFamily: 'Oswald_400Regular',
   },
-
-  logo: {
-    flex: 1,
-    height: 64,
-    maxWidth: 190,
-    alignSelf: 'center',
-  },
-
-  headerSpacer: {
-    width: 44,
-  },
-
-  progressArea: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.xxl,
-  },
-
+  logo: { flex: 1, height: 64, maxWidth: 190, alignSelf: 'center' },
+  headerSpacer: { width: 44 },
+  progressArea: { marginTop: spacing.sm, marginBottom: spacing.xxl },
   stepText: {
     fontFamily: 'Oswald_600SemiBold',
     fontSize: 12,
@@ -226,24 +166,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 10,
   },
-
   progressTrack: {
     height: 3,
     backgroundColor: colors.surfaceElevated,
     borderRadius: 999,
     overflow: 'hidden',
   },
-
   progressFill: {
-    width: '20%',
+    width: '16.666%',
     height: '100%',
     backgroundColor: colors.primary,
   },
-
-  titleArea: {
-    marginBottom: spacing.xxl,
-  },
-
+  titleArea: { marginBottom: spacing.xxl },
   title: {
     ...typography.display,
     color: colors.textPrimary,
@@ -251,11 +185,7 @@ const styles = StyleSheet.create({
     lineHeight: 46,
     letterSpacing: 2,
   },
-
-  blueDot: {
-    color: colors.primary,
-  },
-
+  blueDot: { color: colors.primary },
   subtitle: {
     fontFamily: 'Oswald_400Regular',
     fontSize: 16,
@@ -264,11 +194,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     maxWidth: 360,
   },
-
-  cards: {
-    gap: spacing.md,
-  },
-
+  cards: { gap: spacing.md },
   card: {
     minHeight: 112,
     backgroundColor: colors.surface,
@@ -278,27 +204,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
   },
-
   cardSelected: {
-    backgroundColor: 'rgba(8, 104, 255, 0.10)',
+    backgroundColor: colors.primaryTransparent,
     borderColor: colors.primary,
   },
-
-  cardPressed: {
-    transform: [{ scale: 0.99 }],
-  },
-
+  cardPressed: { transform: [{ scale: 0.99 }] },
   cardContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
   },
-
-  cardTextArea: {
-    flex: 1,
-  },
-
+  cardTextArea: { flex: 1 },
   cardTitle: {
     fontFamily: 'Oswald_700Bold',
     fontSize: 18,
@@ -306,11 +223,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     letterSpacing: 0.5,
   },
-
-  cardTitleSelected: {
-    color: colors.primaryLight,
-  },
-
+  cardTitleSelected: { color: colors.primaryLight },
   cardDescription: {
     fontFamily: 'Oswald_400Regular',
     fontSize: 14,
@@ -318,7 +231,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 5,
   },
-
   radio: {
     width: 24,
     height: 24,
@@ -328,23 +240,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  radioSelected: {
-    borderColor: colors.primary,
-  },
-
+  radioSelected: { borderColor: colors.primary },
   radioDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
     backgroundColor: colors.primary,
   },
-
-  spacer: {
-    flex: 1,
-    minHeight: spacing.xxl,
-  },
-
+  spacer: { flex: 1, minHeight: spacing.xxl },
   primaryButton: {
     minHeight: 58,
     alignItems: 'center',
@@ -353,16 +256,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: spacing.xl,
   },
-
-  primaryButtonDisabled: {
-    backgroundColor: colors.surfaceElevated,
-  },
-
+  primaryButtonDisabled: { backgroundColor: colors.surfaceElevated },
   primaryButtonPressed: {
     backgroundColor: colors.primaryDark,
     transform: [{ scale: 0.985 }],
   },
-
   primaryButtonText: {
     fontFamily: 'BebasNeue_400Regular',
     fontSize: 20,
@@ -370,12 +268,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     color: colors.brandWhite,
   },
-
-  primaryButtonTextDisabled: {
-    color: colors.textDisabled,
-  },
-
-  pressed: {
-    opacity: 0.65,
-  },
+  primaryButtonTextDisabled: { color: colors.textDisabled },
+  pressed: { opacity: 0.65 },
 });

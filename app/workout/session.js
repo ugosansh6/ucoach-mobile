@@ -1,2572 +1,525 @@
-// session.js — compatible bright-handler v2.4.2\nimport { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useMemo, useState } from 'react';
+import { composerRecordedInstanceIds } from '../../src/utils/composerPlayerProgress';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+
+import SessionCore from './session-core';
+import EnvironmentSessionCore from './environment-session-core';
+import SessionOverviewSheet from '../../src/components/workout/SessionOverviewSheet';
+import SessionWhySheet from '../../src/components/workout/SessionWhySheet';
+import SessionAdaptationSheet from '../../src/components/workout/SessionAdaptationSheet';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
+import { useWorkout } from '../../src/contexts/WorkoutContext';
+import { reloadWorkoutSession } from '../../src/services/workoutService';
+import { hasPlayableSessionBlocks, playerSessionNeedsReload } from '../../src/utils/playerSessionHydration';
 import {
-  Image,
-  ImageBackground,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+  changeWholeWorkoutPlan,
+  changeWorkoutSkillPlan,
+  getWorkoutSessionLifecycle,
+  markWorkoutSessionStarted,
+} from '../../src/services/sessionMutationService';
 
-import {
-  colors,
-  spacing,
-  typography,
-} from '../../src/constants';
+function normalizeBlock(value) {
+  const key = String(value ?? '').trim().toLowerCase();
+  return key === 'warm_up' ? 'warmup' : key;
+}
 
-import {
-  useWorkout,
-} from '../../src/contexts/WorkoutContext';
+function exerciseHasRecordedResult(exercise) {
+  const status = String(exercise?.userExecutionStatus ?? exercise?.status ?? 'pending')
+    .trim()
+    .toLowerCase();
+  return ['completed', 'adapted', 'not_completed', 'skipped'].includes(status);
+}
 
-import {
-  swapWorkoutExercise,
-} from '../../src/services/workoutService';
+function hasRecordedProgress(workout) {
+  if (composerRecordedInstanceIds(workout).length) return true;
+  if ((workout?.validatedBlocks ?? []).length > 0) return true;
+  if (workout?.wodRuntime?.started || workout?.wodStarted || workout?.wodStartedAt) return true;
+  return (workout?.exercises ?? []).some(exerciseHasRecordedResult);
+}
 
-const brandIcon = require('../../assets/branding/ugerod-icon.png');
-const workoutBackground = require('../../assets/backgrounds/welcome-default.jpg');
+function visibleWorkoutFingerprint(workout) {
+  return JSON.stringify({
+    format: workout?.format ?? null,
+    mechanic: workout?.mechanic ?? null,
+    exercises: (workout?.exercises ?? []).map((exercise) => [
+      normalizeBlock(exercise?.blockKey ?? exercise?.block),
+      exercise?.exerciseId ?? exercise?.id ?? null,
+      exercise?.prescription ?? null,
+    ]),
+  });
+}
 
-/*
- * =========================================================
- * INFORMATIONS VISUELLES TEMPORAIRES
- * =========================================================
- *
- * Plus tard elles viendront directement de la table exercises.
- */
+function verifyPlanBReplacement({ sourceWorkout, result, nextWorkout }) {
+  const sourceSessionId = sourceWorkout?.sessionId ?? null;
+  const nextSessionId = nextWorkout?.sessionId ?? null;
+  const returnedSessionId = result?.new_session_id ?? null;
 
-const EXERCISE_DETAILS = {
-  'air-squat': {
-    description:
-      'Descends les hanches en gardant le buste droit et les pieds bien ancrés au sol.',
-    tip:
-      'Genoux dans l’axe des pieds.',
-  },
+  if (!nextSessionId) {
+    throw new Error('Plan B a répondu sans nouvelle séance exploitable.');
+  }
 
-  'shoulder-tap': {
-    description:
-      'En position de planche, touche alternativement chaque épaule avec la main opposée.',
-    tip:
-      'Garde le bassin aussi stable que possible.',
-  },
+  if (sourceSessionId && nextSessionId === sourceSessionId) {
+    throw new Error('Plan B n’a pas remplacé la séance affichée.');
+  }
 
-  'dead-bug': {
-    description:
-      'Allongé sur le dos, alterne bras et jambe opposés tout en gardant le bas du dos au sol.',
-    tip:
-      'Cherche le contrôle plutôt que la vitesse.',
-  },
+  if (returnedSessionId && returnedSessionId !== nextSessionId) {
+    throw new Error('La séance Plan B rechargée ne correspond pas à la proposition créée.');
+  }
 
-  'goblet-squat': {
-    description:
-      'Tiens la charge devant la poitrine et réalise un squat contrôlé.',
-    tip:
-      'Reste solide sur le tronc et garde les talons au sol.',
-  },
+  if (visibleWorkoutFingerprint(sourceWorkout) === visibleWorkoutFingerprint(nextWorkout)) {
+    throw new Error('UGEROD a généré une alternative, mais elle est identique à l’écran. Réessaie.');
+  }
+}
 
-  'push-up': {
-    description:
-      'Descends la poitrine vers le sol en gardant le corps aligné puis repousse.',
-    tip:
-      'Garde les coudes légèrement orientés vers l’arrière.',
-  },
-
-  burpee: {
-    description:
-      'Descends au sol puis reviens debout avec une extension complète.',
-    tip:
-      'Trouve un rythme que tu peux maintenir.',
-  },
-};
-
-/*
- * =========================================================
- * FALLBACK POUR LE MENU DEV
- * =========================================================
- *
- * Si on ouvre directement /workout/session sans passer
- * par Préparation → Génération, on garde une séance de test.
- */
-
-const FALLBACK_EXERCISES = [
-  {
-    id: 'air-squat',
-    block: 'warmup',
-    name: 'Air Squat',
-    prescription: '2 × 12',
-    status: 'pending',
-    trackingType: 'bodyweight',
-  },
-
-  {
-    id: 'shoulder-tap',
-    block: 'warmup',
-    name: 'Shoulder Tap',
-    prescription: '2 × 10 / côté',
-    status: 'pending',
-    trackingType: 'bodyweight',
-  },
-
-  {
-    id: 'dead-bug',
-    block: 'tabata',
-    name: 'Dead Bug',
-    prescription: '20 sec / 10 sec',
-    status: 'pending',
-    trackingType: 'time',
-  },
-
-  {
-    id: 'goblet-squat',
-    block: 'skill',
-    name: 'Goblet Squat',
-    prescription: '4 × 8',
-    status: 'pending',
-    trackingType: 'load',
-  },
-
-  {
-    id: 'goblet-squat-wod',
-    exerciseId: 'goblet-squat',
-    block: 'wod',
-    name: 'Goblet Squat',
-    prescription: '12 reps',
-    status: 'pending',
-    trackingType: 'load',
-  },
-
-  {
-    id: 'push-up',
-    block: 'wod',
-    name: 'Push-up',
-    prescription: '10 reps',
-    status: 'pending',
-    trackingType: 'bodyweight',
-  },
-
-  {
-    id: 'burpee',
-    block: 'wod',
-    name: 'Burpee',
-    prescription: '8 reps',
-    status: 'pending',
-    trackingType: 'bodyweight',
-  },
-];
-
-function getExerciseDetails(exercise) {
-  const referenceId =
-    exercise.exerciseId ??
-    exercise.id;
-
-  return (
-    EXERCISE_DETAILS[
-      referenceId
-    ] ?? {
-      description:
-        'Consulte les consignes de mouvement et réalise chaque répétition avec contrôle.',
-      tip:
-        'Privilégie toujours la qualité du mouvement.',
-    }
+export default function SessionScreen() {
+  const { workout, updateWorkout, setGeneratedWorkout, setGeneratedWorkoutPreservingProgress } = useWorkout();
+  const routeParams = useLocalSearchParams();
+  const routeSessionId = Array.isArray(routeParams?.sessionId)
+    ? routeParams.sessionId[0]
+    : routeParams?.sessionId;
+  const targetSessionId = String(routeSessionId || workout?.sessionId || '').trim();
+  const playerDataReady = Boolean(
+    targetSessionId && targetSessionId === workout?.sessionId && hasPlayableSessionBlocks(workout)
   );
-}
-
-function normalizeBlockTitle(
-  blockId,
-  title,
-  durationMinutes
-) {
-  if (blockId === 'warmup') {
-    return 'WARM-UP';
-  }
-
-  if (blockId === 'tabata') {
-    return durationMinutes >= 8
-      ? '2 TABATAS'
-      : 'TABATA';
-  }
-
-  if (blockId === 'skill') {
-    return 'SKILL';
-  }
-
-  if (blockId === 'wod') {
-    return 'WOD';
-  }
-
-  return title;
-}
-
-function normalizeBlockId(value) {
-  if (value === 'warm_up') {
-    return 'warmup';
-  }
-
-  return value;
-}
-
-function getWorkoutBlock(
-  workout,
-  blockId
-) {
-  const blockData =
-    workout.blocks ?? {};
-
-  if (Array.isArray(blockData)) {
-    return (
-      blockData.find(
-        (block) =>
-          normalizeBlockId(
-            block.block_key ??
-              block.id
-          ) === blockId
-      ) ?? null
-    );
-  }
-
-  if (
-    blockId === 'warmup'
-  ) {
-    return (
-      blockData.warmup ??
-      blockData.warm_up ??
-      null
-    );
-  }
-
-  return (
-    blockData[blockId] ??
-    null
-  );
-}
-
-function readBlockDuration(
-  block,
-  fallback
-) {
-  const raw =
-    block?.duration ??
-    block?.duration_minutes;
-
-  const numeric =
-    Number(raw);
-
-  if (
-    Number.isFinite(numeric) &&
-    numeric >= 0
-  ) {
-    return numeric;
-  }
-
-  return fallback;
-}
-
-function readBlockStructure(
-  block,
-  fallback
-) {
-  return (
-    block?.structure ??
-    fallback
-  );
-}
-
-function getTabataNumber(
-  exercise,
-  index,
-  durationMinutes
-) {
-  const explicit =
-    exercise
-      .prescriptionJson
-      ?.tabata_number ??
-    exercise
-      .prescription_json
-      ?.tabata_number ??
-    exercise.tabataNumber;
-
-  if (
-    Number(explicit) === 1 ||
-    Number(explicit) === 2
-  ) {
-    return Number(explicit);
-  }
-
-  if (
-    durationMinutes >= 8
-  ) {
-    return index < 2 ? 1 : 2;
-  }
-
-  return 1;
-}
-
-function getTabataPosition(
-  exercise,
-  index
-) {
-  const explicit =
-    exercise
-      .prescriptionJson
-      ?.tabata_position ??
-    exercise
-      .prescription_json
-      ?.tabata_position ??
-    exercise.tabataPosition;
-
-  if (
-    explicit === 'A' ||
-    explicit === 'B'
-  ) {
-    return explicit;
-  }
-
-  return index % 2 === 0
-    ? 'A'
-    : 'B';
-}
-
-function buildBlocks(
-  workout,
-  exercises
-) {
-  const plannedDuration =
-    workout.plannedDuration ??
-    45;
-
-  const isDevFallback =
-    !workout.exercises?.length;
-
-  const warmupBlock =
-    getWorkoutBlock(
-      workout,
-      'warmup'
-    );
-
-  const tabataBlock =
-    getWorkoutBlock(
-      workout,
-      'tabata'
-    );
-
-  const skillBlock =
-    getWorkoutBlock(
-      workout,
-      'skill'
-    );
-
-  const wodBlock =
-    getWorkoutBlock(
-      workout,
-      'wod'
-    );
-
-  const warmupDuration =
-    readBlockDuration(
-      warmupBlock,
-      isDevFallback ? 8 : 0
-    );
-
-  const tabataDuration =
-    readBlockDuration(
-      tabataBlock,
-      isDevFallback ? 4 : 0
-    );
-
-  const skillDuration =
-    readBlockDuration(
-      skillBlock,
-      isDevFallback ? 8 : 0
-    );
-
-  /*
-   * IMPORTANT :
-   * la durée du WOD vient d'une seule source de vérité.
-   * On ne recalcule plus "plannedDuration - 20" dans l'UI.
-   */
-  const wodDuration =
-    readBlockDuration(
-      wodBlock,
-      isDevFallback
-        ? Math.max(
-            plannedDuration - 20,
-            10
-          )
-        : 0
-    );
-
-  const definitions = [
-    {
-      id: 'warmup',
-      source: warmupBlock,
-      title:
-        warmupBlock?.title ??
-        warmupBlock?.block_name ??
-        'WARM-UP',
-      duration:
-        warmupDuration,
-      structure:
-        readBlockStructure(
-          warmupBlock,
-          isDevFallback
-            ? '2 PASSAGES COURTS'
-            : ''
-        ),
-    },
-
-    {
-      id: 'tabata',
-      source: tabataBlock,
-      title:
-        tabataBlock?.title ??
-        tabataBlock?.block_name ??
-        'TABATA',
-      duration:
-        tabataDuration,
-      structure:
-        readBlockStructure(
-          tabataBlock,
-          tabataDuration >= 8
-            ? '2 TABATAS DE 4 MIN · 20S / 10S'
-            : '1 TABATA DE 4 MIN · 20S / 10S'
-        ),
-    },
-
-    {
-      id: 'skill',
-      source: skillBlock,
-      title:
-        skillBlock?.title ??
-        skillBlock?.block_name ??
-        'SKILL',
-      duration:
-        skillDuration,
-      structure:
-        readBlockStructure(
-          skillBlock,
-          isDevFallback
-            ? '4 SÉRIES'
-            : ''
-        ),
-    },
-
-    {
-      id: 'wod',
-      source: wodBlock,
-      title:
-        wodBlock?.title ??
-        wodBlock?.block_name ??
-        'WOD',
-      duration:
-        wodDuration,
-      structure:
-        readBlockStructure(
-          wodBlock,
-          `${
-            wodBlock?.format ??
-            workout.format ??
-            'AMRAP'
-          } ${wodDuration} MIN`
-        ),
-    },
-  ];
-
-  return definitions
-    .map(
-      (definition) => {
-        const blockExercises =
-          exercises
-            .filter(
-              (exercise) =>
-                normalizeBlockId(
-                  exercise.block
-                ) ===
-                definition.id
-            )
-            .map(
-              (
-                exercise,
-                index
-              ) => {
-                const details =
-                  getExerciseDetails(
-                    exercise
-                  );
-
-                const normalized = {
-                  ...exercise,
-
-                  name:
-                    exercise.name.toUpperCase(),
-
-                  description:
-                    exercise.instructions ??
-                    exercise.description ??
-                    details.description,
-
-                  tip:
-                    exercise.tips ??
-                    exercise.tip ??
-                    details.tip,
-                };
-
-                if (
-                  definition.id ===
-                  'tabata'
-                ) {
-                  normalized.tabataNumber =
-                    getTabataNumber(
-                      exercise,
-                      index,
-                      definition.duration
-                    );
-
-                  normalized.tabataPosition =
-                    getTabataPosition(
-                      exercise,
-                      index
-                    );
-                }
-
-                return normalized;
-              }
-            );
-
-        return {
-          ...definition,
-
-          title:
-            normalizeBlockTitle(
-              definition.id,
-              definition.title,
-              definition.duration
-            ),
-
-          durationMinutes:
-            definition.duration,
-
-          duration:
-            `${definition.duration} MIN`,
-
-          exercises:
-            blockExercises,
-        };
-      }
-    )
-    /*
-     * Skill et Tabata peuvent maintenant être absents.
-     * Un bloc sans exercice n'est donc jamais affiché dans le parcours réel.
-     */
-    .filter(
-      (block) =>
-        block.exercises.length > 0 &&
-        block.durationMinutes > 0
-    );
-}
-
-
-function getTrackingType(
-  trackingModes
-) {
-  const modes =
-    Array.isArray(
-      trackingModes
-    )
-      ? trackingModes
-      : [];
-
-  if (
-    modes.includes('load')
-  ) {
-    return 'load';
-  }
-
-  if (
-    modes.includes(
-      'distance'
-    )
-  ) {
-    return 'distance';
-  }
-
-  if (
-    modes.includes('time')
-  ) {
-    return 'time';
-  }
-
-  return 'bodyweight';
-}
-
-export default function WorkoutSessionScreen() {
-  const {
-    workout,
-    updateWorkout,
-    updateExercise,
-  } = useWorkout();
-
-  /*
-   * Si l'écran est ouvert directement depuis le menu DEV,
-   * on utilise FALLBACK_EXERCISES.
-   *
-   * Dans le vrai parcours utilisateur, workout.exercises
-   * contient la séance créée dans generating.js.
-   */
-  const sourceExercises =
-    workout.exercises?.length > 0
-      ? workout.exercises
-      : FALLBACK_EXERCISES;
-
-  const plannedDuration =
-    workout.plannedDuration ??
-    45;
-
-  const workoutTitle =
-    workout.title ??
-    'FULL BODY';
-
-  const workoutFormat =
-    workout.format ??
-    'AMRAP';
-
-  const blockDefinitions =
-    useMemo(
-      () =>
-        buildBlocks(
-          workout,
-          sourceExercises
-        ),
-      [
-        workout,
-        sourceExercises,
-      ]
-    );
-
-  /*
-   * Les blocs validés restent une logique d'interface.
-   * Les décisions exercice par exercice sont quant à elles
-   * enregistrées directement dans WorkoutContext.
-   */
-  const [
-    validatedBlocks,
-    setValidatedBlocks,
-  ] = useState([]);
-
-  const [
-    expandedBlocks,
-    setExpandedBlocks,
-  ] = useState(() =>
-    blockDefinitions.reduce(
-      (
-        accumulator,
-        block,
-        index
-      ) => ({
-        ...accumulator,
-        [block.id]:
-          index === 0,
-      }),
-      {}
-    )
-  );
-
-  const [
-    expandedExercises,
-    setExpandedExercises,
-  ] = useState({});
-
-  const [
-    swappingExerciseId,
-    setSwappingExerciseId,
-  ] = useState(null);
-
-  const [
-    swapError,
-    setSwapError,
-  ] = useState('');
-
-  const blocks = useMemo(
+  const [playerReload, setPlayerReload] = useState({ status: 'pending', sessionId: null, error: null });
+  const [playerRetry, setPlayerRetry] = useState(0);
+  const { colors, isDark } = useUgerodTheme();
+  const styles = useMemo(() => createStyles(), []);
+
+  const [planBOpen, setPlanBOpen] = useState(false);
+  const [busyAction, setBusyAction] = useState(null);
+  const [overviewOpen, setOverviewOpen] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
+  const [whyReturnToOverview, setWhyReturnToOverview] = useState(false);
+  const [adaptationOpen, setAdaptationOpen] = useState(false);
+  const [startBusy, setStartBusy] = useState(false);
+  const [lifecycleReady, setLifecycleReady] = useState(false);
+  const [lifecycleSessionId, setLifecycleSessionId] = useState(null);
+  const overviewShownForSessionRef = useRef(null);
+
+  const environmentCode = useMemo(
     () =>
-      blockDefinitions.map(
-        (block) => ({
-          ...block,
-
-          validated:
-            validatedBlocks.includes(
-              block.id
-            ),
-        })
-      ),
+      String(
+        workout?.meta?.environment_code ??
+          workout?.meta?.environmentCode ??
+          workout?.preparationSnapshot?.environmentCode ??
+          ''
+      )
+        .trim()
+        .toUpperCase(),
     [
-      blockDefinitions,
-      validatedBlocks,
+      workout?.meta?.environmentCode,
+      workout?.meta?.environment_code,
+      workout?.preparationSnapshot?.environmentCode,
     ]
   );
 
-  const wodUnlocked =
-    useMemo(() => {
-      const previousBlockIds =
-        blocks
-          .filter(
-            (block) =>
-              block.id !== 'wod'
-          )
-          .map(
-            (block) =>
-              block.id
-          );
-
-      return previousBlockIds.every(
-        (blockId) =>
-          validatedBlocks.includes(
-            blockId
-          )
-      );
-    }, [
-      blocks,
-      validatedBlocks,
-    ]);
-
-  function handleBack() {
-    router.back();
-  }
-
-  function toggleBlock(blockId) {
-    if (
-      blockId === 'wod' &&
-      !wodUnlocked
-    ) {
-      return;
+  // #3: Composer and other persisted sessions must be reloadable by identity.
+  // A browser refresh can reset WorkoutContext; never open the classic player
+  // with empty blocks or select/re-generate another session to hide this failure.
+  useEffect(() => {
+    let cancelled = false;
+    if (!targetSessionId) {
+      setPlayerReload({
+        status: 'error', sessionId: null,
+        error: 'Aucune séance à reprendre. Reviens à la préparation.',
+      });
+      return () => { cancelled = true; };
+    }
+    if (!playerSessionNeedsReload(workout, targetSessionId)) {
+      setPlayerReload({ status: 'ready', sessionId: targetSessionId, error: null });
+      return () => { cancelled = true; };
     }
 
-    setExpandedBlocks(
-      (current) => ({
-        ...current,
-
-        [blockId]:
-          !current[blockId],
-      })
-    );
-  }
-
-  function toggleExerciseDetails(
-    exerciseId
-  ) {
-    setExpandedExercises(
-      (current) => ({
-        ...current,
-
-        [exerciseId]:
-          !current[exerciseId],
-      })
-    );
-  }
-
-  function cycleExerciseStatus(
-    blockId,
-    exerciseId
-  ) {
-    if (
-      validatedBlocks.includes(
-        blockId
-      )
-    ) {
-      return;
-    }
-
-    const exercise =
-      sourceExercises.find(
-        (item) =>
-          item.id === exerciseId
-      );
-
-    if (!exercise) {
-      return;
-    }
-
-    let nextStatus =
-      'skipped';
-
-    if (
-      exercise.status ===
-      'skipped'
-    ) {
-      nextStatus =
-        'completed';
-    }
-
-    if (
-      exercise.status ===
-      'completed'
-    ) {
-      nextStatus =
-        'pending';
-    }
-
-    /*
-     * Cas parcours normal :
-     * l'exercice existe dans WorkoutContext.
-     */
-    if (
-      workout.exercises?.some(
-        (item) =>
-          item.id === exerciseId
-      )
-    ) {
-      updateExercise(
-        exerciseId,
-        {
-          status:
-            nextStatus,
-        }
-      );
-
-      return;
-    }
-
-    /*
-     * Cas menu DEV :
-     * on initialise la séance de fallback dans le contexte
-     * avant d'enregistrer la modification.
-     */
-    const initializedExercises =
-      sourceExercises.map(
-        (item) =>
-          item.id === exerciseId
-            ? {
-                ...item,
-                status:
-                  nextStatus,
-              }
-            : item
-      );
-
-    updateWorkout({
-      sessionId:
-        'dev-active-session',
-
-      status: 'generated',
-
-      title:
-        workoutTitle,
-
-      format:
-        workoutFormat,
-
-      plannedDuration,
-
-      exercises:
-        initializedExercises,
-    });
-  }
-
-  async function handleSwap(
-    blockId,
-    exerciseId
-  ) {
-    if (
-      swappingExerciseId ||
-      validatedBlocks.includes(
-        blockId
-      )
-    ) {
-      return;
-    }
-
-    if (!workout.sessionId) {
-      setSwapError(
-        "Impossible de changer l'exercice : séance backend introuvable."
-      );
-
-      return;
-    }
-
-    setSwapError('');
-    setSwappingExerciseId(
-      exerciseId
-    );
-
-    try {
-      const data =
-        await swapWorkoutExercise({
-          sessionId:
-            workout.sessionId,
-          currentExerciseId:
-            exerciseId,
+    setPlayerReload({ status: 'loading', sessionId: targetSessionId, error: null });
+    reloadWorkoutSession({
+      sessionId: targetSessionId,
+      preparationSnapshot: workout?.preparationSnapshot ?? null,
+    }).then((restored) => {
+      if (cancelled) return;
+      if (restored?.sessionId !== targetSessionId || !hasPlayableSessionBlocks(restored)) {
+        setPlayerReload({
+          status: 'error', sessionId: targetSessionId,
+          error: 'La séance existe, mais ses blocs exécutables sont introuvables. Tes choix ont été conservés.',
         });
+        return;
+      }
+      // Rehydrate rather than rebuild: preserve already recorded local progress.
+      setGeneratedWorkoutPreservingProgress(restored);
+      setPlayerReload({ status: 'ready', sessionId: targetSessionId, error: null });
+    }).catch((error) => {
+      if (cancelled) return;
+      console.warn('[Player] session hydration failed', error);
+      setPlayerReload({
+        status: 'error', sessionId: targetSessionId,
+        error: 'Impossible de recharger ta séance. Réessaie ou reviens à la préparation.',
+      });
+    });
+    return () => { cancelled = true; };
+  }, [targetSessionId, playerDataReady, playerRetry, setGeneratedWorkoutPreservingProgress]);
 
-      const substitute =
-        data.substitute;
+  // Le backend est l'autorité du cycle de vie. On hydrate explicitement l'état
+  // avant d'autoriser un player local à enregistrer une exécution ou à révéler le WOD.
+  useEffect(() => {
+    let cancelled = false;
+    const sessionId = workout?.sessionId ?? null;
 
-      updateExercise(
-        exerciseId,
-        {
-          id:
-            substitute.id,
+    setLifecycleReady(false);
+    setLifecycleSessionId(null);
 
-          exerciseId:
-            substitute.id,
-
-          name:
-            substitute.name,
-
-          prescription:
-            substitute.prescription,
-
-          prescriptionJson:
-            substitute.prescription_json ??
-            null,
-
-          instructions:
-            substitute.instructions ??
-            null,
-
-          tips:
-            substitute.tips ??
-            null,
-
-          pattern:
-            substitute.pattern ??
-            null,
-
-          region:
-            substitute.region ??
-            null,
-
-          trackingModes:
-            substitute.tracking_modes ??
-            [],
-
-          trackingType:
-            getTrackingType(
-              substitute.tracking_modes
-            ),
-
-          status:
-            'pending',
-        }
-      );
-
-      setExpandedExercises(
-        (current) => {
-          const next = {
-            ...current,
-          };
-
-          delete next[
-            exerciseId
-          ];
-
-          return next;
-        }
-      );
-    } catch (error) {
-      setSwapError(
-        error?.message ??
-          "Impossible de changer cet exercice."
-      );
-    } finally {
-      setSwappingExerciseId(
-        null
-      );
-    }
-  }
-
-  function canValidateBlock(
-    block
-  ) {
-    return block.exercises.every(
-      (exercise) =>
-        exercise.status !==
-        'pending'
-    );
-  }
-
-  function validateBlock(
-    blockId
-  ) {
-    const block = blocks.find(
-      (item) =>
-        item.id === blockId
-    );
-
-    if (!block) {
-      return;
+    if (!sessionId) {
+      return () => {
+        cancelled = true;
+      };
     }
 
-    if (
-      !canValidateBlock(block)
-    ) {
-      return;
-    }
+    getWorkoutSessionLifecycle(sessionId)
+      .then((lifecycle) => {
+        if (cancelled || lifecycle?.sessionId !== sessionId) return;
 
-    /*
-     * FIN DU WOD
-     */
-    if (
-      blockId === 'wod'
-    ) {
-      const allValidated = [
-        ...validatedBlocks,
-        'wod',
-      ];
-
-      setValidatedBlocks(
-        allValidated
-      );
-
-      updateWorkout({
-        status:
-          'awaiting_completion',
-
-        validatedBlocks:
-          allValidated,
+        updateWorkout({
+          sessionStarted: Boolean(lifecycle?.sessionStarted),
+          sessionClosed: Boolean(lifecycle?.sessionClosed),
+          lifecycleStage: lifecycle?.lifecycleStage ?? null,
+          status: lifecycle?.status ?? workout?.status ?? 'generated',
+          startedAt: lifecycle?.startedAt ?? null,
+          startedLocalDate: lifecycle?.startedLocalDate ?? null,
+          wodRevealed: Boolean(lifecycle?.wodRevealed),
+          wodRevealedAt: lifecycle?.wodRevealedAt ?? null,
+          wodStarted: Boolean(lifecycle?.wodStarted),
+          wodStartedAt: lifecycle?.wodStartedAt ?? null,
+          ...(lifecycle?.wodStarted
+            ? {}
+            : {
+                wodRuntime: workout?.wodRuntime?.started ? null : workout?.wodRuntime ?? null,
+              }),
+        });
+        setLifecycleSessionId(sessionId);
+        setLifecycleReady(true);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn('Session lifecycle hydration', error);
+        // Fail closed: tant que le backend n'a pas confirmé l'état, aucun player
+        // ne peut enregistrer d'exécution et le WOD reste masqué.
+        setLifecycleSessionId(null);
+        setLifecycleReady(false);
       });
 
-      router.push(
-        '/workout/completion'
-      );
+    return () => {
+      cancelled = true;
+    };
+  }, [workout?.sessionId]);
 
-      return;
-    }
+  const lifecycleReadyForCurrentSession = Boolean(
+    lifecycleReady &&
+      workout?.sessionId &&
+      lifecycleSessionId === workout.sessionId
+  );
 
-    const nextValidated = [
-      ...validatedBlocks,
-      blockId,
-    ];
+  const authoritativeSessionStarted = Boolean(
+    lifecycleReadyForCurrentSession &&
+      workout?.sessionStarted &&
+      !workout?.sessionClosed
+  );
 
-    setValidatedBlocks(
-      nextValidated
+  // GYM et OUTDOOR conservent leurs runtimes spécialisés (séries, cardio, course),
+  // mais leur shell et leurs actions sont alignés sur le Player commun.
+  // Composer may include a native Strength block at HOME/BOX as well as WOD.
+  // The classic Functional Fitness player has a fixed block list without
+  // Strength, while the environment player reads the actual persisted blocks.
+  const usesSpecializedEnvironmentRuntime =
+    ['GYM', 'OUTDOOR'].includes(environmentCode) ||
+    String(workout?.meta?.source ?? '').toLowerCase() === 'w11_composer' ||
+    (workout?.rawBlocks ?? []).some((block) =>
+      ['strength', 'gym', 'street_gym', 'cardio', 'conditioning'].includes(
+        normalizeBlock(block?.block_key ?? block?.blockKey)
+      )
+    ) ||
+    (workout?.exercises ?? []).some((exercise) =>
+      ['strength', 'gym', 'street_gym', 'cardio', 'conditioning'].includes(
+        normalizeBlock(exercise?.blockKey ?? exercise?.block)
+      )
     );
+  const progressRecorded = hasRecordedProgress(workout);
+  const hasResumeCursor = Boolean(
+    authoritativeSessionStarted &&
+    workout?.playerCursor?.blockId &&
+      (!workout?.playerCursor?.sessionId || workout.playerCursor.sessionId === workout?.sessionId)
+  );
 
-    updateWorkout({
-      validatedBlocks:
-        nextValidated,
-    });
+  const hasSkill = useMemo(
+    () =>
+      (workout?.exercises ?? []).some(
+        (exercise) => normalizeBlock(exercise?.blockKey ?? exercise?.block) === 'skill'
+      ) ||
+      (workout?.rawBlocks ?? []).some(
+        (block) => normalizeBlock(block?.block_key ?? block?.blockKey) === 'skill'
+      ),
+    [workout?.exercises, workout?.rawBlocks]
+  );
 
-    const currentIndex =
-      blocks.findIndex(
-        (item) =>
-          item.id === blockId
-      );
+  // UI rule shared by every environment. Backend remains authoritative on whether
+  // an actual alternative can be produced.
+  const canRegeneratePlanB =
+    Boolean(workout?.sessionId) &&
+    lifecycleReadyForCurrentSession &&
+    !workout?.sessionClosed &&
+    !authoritativeSessionStarted &&
+    !progressRecorded;
+  const showPlanBEntry = canRegeneratePlanB;
+  const canChangeSkill = canRegeneratePlanB && hasSkill;
 
-    const nextBlock =
-      blocks[
-        currentIndex + 1
-      ];
+  useEffect(() => {
+    if (!playerDataReady || !workout?.sessionId || overviewShownForSessionRef.current === workout.sessionId) return;
+    overviewShownForSessionRef.current = workout.sessionId;
+    if (!progressRecorded && !hasResumeCursor) setOverviewOpen(true);
+  }, [hasResumeCursor, playerDataReady, progressRecorded, workout?.sessionId]);
 
-    if (nextBlock) {
-      setExpandedBlocks(
-        (current) => ({
-          ...current,
+  useEffect(() => {
+    if ((progressRecorded || authoritativeSessionStarted) && planBOpen) setPlanBOpen(false);
+  }, [authoritativeSessionStarted, planBOpen, progressRecorded]);
 
-          [blockId]:
-            false,
+  function openPlanBFromOverview() {
+    if (busyAction || !canRegeneratePlanB) return;
+    setPlanBOpen(true);
+  }
 
-          [nextBlock.id]:
-            true,
-        })
-      );
+  function openWhyFromOverview() {
+    // Avoid stacking two full-screen Modals on React Native Web / iOS Safari.
+    // Close the overview first, then open the Coach sheet on the next frame.
+    setPlanBOpen(false);
+    setWhyReturnToOverview(true);
+    setOverviewOpen(false);
+    requestAnimationFrame(() => setWhyOpen(true));
+  }
+
+  function openWhyFromPlayer() {
+    setWhyReturnToOverview(false);
+    setWhyOpen(true);
+  }
+
+  function closeWhy() {
+    setWhyOpen(false);
+
+    if (whyReturnToOverview) {
+      setWhyReturnToOverview(false);
+      requestAnimationFrame(() => setOverviewOpen(true));
     }
+  }
+
+  async function startSessionExplicitly() {
+    if (!workout?.sessionId || authoritativeSessionStarted || startBusy) return;
+
+    try {
+      setStartBusy(true);
+      const result = await markWorkoutSessionStarted({ sessionId: workout.sessionId });
+
+      if (result?.status === 'STALE_SESSION_REQUIRES_RECHECKIN') {
+        Alert.alert(
+          'Check-in à refaire',
+          'Ton contexte a trop changé depuis la génération. Reviens au check-in avant de démarrer.'
+        );
+        router.replace('/workout/preparation');
+        return;
+      }
+
+      updateWorkout({
+        sessionStarted: true,
+        status: 'in_progress',
+        startedAt: result?.started_at ?? workout?.startedAt ?? new Date().toISOString(),
+        startedLocalDate: result?.started_local_date ?? workout?.startedLocalDate ?? null,
+      });
+      setLifecycleSessionId(workout.sessionId);
+      setLifecycleReady(true);
+      setPlanBOpen(false);
+    } catch (error) {
+      Alert.alert(
+        'Impossible de démarrer la séance',
+        error?.message ?? 'Réessaie dans quelques secondes.'
+      );
+    } finally {
+      setStartBusy(false);
+    }
+  }
+
+  async function applySkillPlanB(action) {
+    if (busyAction) return { ok: false, error: 'Une modification est déjà en cours.' };
+    if (!canChangeSkill) {
+      return { ok: false, error: 'Plan B n’est plus disponible une fois la séance commencée.' };
+    }
+
+    const sourceWorkout = workout;
+
+    try {
+      setBusyAction(action);
+      const { result, workout: nextWorkout } = await changeWorkoutSkillPlan({
+        sessionId: sourceWorkout.sessionId,
+        action,
+        preparationSnapshot: sourceWorkout.preparationSnapshot ?? null,
+      });
+
+      verifyPlanBReplacement({ sourceWorkout, result, nextWorkout });
+      setGeneratedWorkout({ ...nextWorkout, playerCursor: null });
+      setPlanBOpen(false);
+      setOverviewOpen(true);
+
+      Alert.alert(
+        'Plan B appliqué',
+        action === 'SKIP_SKILL'
+          ? 'Le Skill a été retiré et ta séance a été réorganisée.'
+          : 'Un nouveau Skill a été préparé.'
+      );
+      return { ok: true };
+    } catch (error) {
+      console.warn('Plan B Skill', error);
+      return {
+        ok: false,
+        error: error?.message ?? 'UGEROD n’a pas trouvé d’alternative Skill cohérente.',
+      };
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function applyWholePlanB() {
+    if (busyAction) return { ok: false, error: 'Une modification est déjà en cours.' };
+    if (!canRegeneratePlanB) {
+      return { ok: false, error: 'Plan B n’est plus disponible une fois la séance commencée.' };
+    }
+
+    const sourceWorkout = workout;
+
+    try {
+      setBusyAction('ALTERNATE_SESSION');
+      const { result, workout: nextWorkout } = await changeWholeWorkoutPlan({
+        sessionId: sourceWorkout.sessionId,
+        preparationSnapshot: sourceWorkout.preparationSnapshot ?? null,
+      });
+
+      verifyPlanBReplacement({ sourceWorkout, result, nextWorkout });
+      setGeneratedWorkout({ ...nextWorkout, playerCursor: null });
+      setPlanBOpen(false);
+      setOverviewOpen(true);
+
+      Alert.alert('Plan B appliqué', 'Une nouvelle séance a été préparée avec le même check-in.');
+      return { ok: true };
+    } catch (error) {
+      console.warn('Plan B session', error);
+      return {
+        ok: false,
+        error: error?.message ?? 'UGEROD n’a pas trouvé d’autre séance suffisamment différente.',
+      };
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  const commonPlayerActions = {
+    onOpenOverview: () => {
+      setPlanBOpen(false);
+      setOverviewOpen(true);
+    },
+    onOpenPlanB: () => {
+      if (!canRegeneratePlanB) return;
+      setOverviewOpen(true);
+      setPlanBOpen(true);
+    },
+    onOpenWhy: openWhyFromPlayer,
+    onOpenAdjust: () => {
+      if (!authoritativeSessionStarted) return;
+      setAdaptationOpen(true);
+    },
+    onStartSession: startSessionExplicitly,
+    startBusy,
+    lifecycleReady: lifecycleReadyForCurrentSession,
+    sessionStarted: authoritativeSessionStarted,
+    showAdjust: authoritativeSessionStarted,
+    showPlanB: showPlanBEntry,
+  };
+
+  if (!playerDataReady || playerReload.status !== 'ready' ||
+      playerReload.sessionId !== targetSessionId) {
+    const failed = playerReload.status === 'error';
+    return (
+      <View style={[styles.root, {
+        backgroundColor: colors.background,
+        alignItems: 'center', justifyContent: 'center', padding: 24,
+      }]}>
+        {failed ? null : <ActivityIndicator color={colors.accent} size="large" />}
+        <Text style={{ color: colors.text, textAlign: 'center', marginTop: 20 }}>
+          {failed ? playerReload.error : 'Chargement de ta séance enregistrée…'}
+        </Text>
+        {failed && targetSessionId ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setPlayerRetry((value) => value + 1)}
+            style={{ padding: 14, marginTop: 16 }}
+          >
+            <Text style={{ color: colors.accent, fontWeight: '700' }}>RÉESSAYER</Text>
+          </Pressable>
+        ) : null}
+        {failed ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.replace('/workout/preparation')}
+            style={{ padding: 14, marginTop: 8 }}
+          >
+            <Text style={{ color: colors.text }}>Revenir au check-in</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
   }
 
   return (
-    <View style={styles.screen}>
-      <ImageBackground
-        source={
-          workoutBackground
-        }
-        style={styles.background}
-        resizeMode="cover"
-      >
-        {/* VOILE NOIR */}
-        <View
-          style={
-            styles.darkOverlay
-          }
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {usesSpecializedEnvironmentRuntime ? (
+        <EnvironmentSessionCore
+          environmentCode={environmentCode}
+          {...commonPlayerActions}
         />
+      ) : (
+        <SessionCore {...commonPlayerActions} />
+      )}
 
-        {/* DÉGRADÉ VERTICAL */}
-        <LinearGradient
-          colors={[
-            'rgba(6,8,11,0.58)',
-            'rgba(6,8,11,0.72)',
-            'rgba(6,8,11,0.88)',
-            'rgba(6,8,11,0.98)',
-          ]}
-          locations={[
-            0,
-            0.25,
-            0.62,
-            1,
-          ]}
-          style={
-            StyleSheet.absoluteFill
-          }
-        />
+      <SessionOverviewSheet
+        key={`session-overview:${workout?.sessionId ?? 'none'}`}
+        visible={overviewOpen}
+        onClose={() => {
+          setPlanBOpen(false);
+          setOverviewOpen(false);
+        }}
+        showPlanB={canRegeneratePlanB}
+        onPlanB={openPlanBFromOverview}
+        onOpenWhy={openWhyFromOverview}
+        planBOpen={planBOpen}
+        canRegeneratePlanB={canRegeneratePlanB}
+        canChangeSkill={canChangeSkill}
+        hasSkill={hasSkill}
+        progressRecorded={progressRecorded}
+        lifecycleReady={lifecycleReadyForCurrentSession}
+        busyAction={busyAction}
+        onClosePlanB={() => setPlanBOpen(false)}
+        onAlternateSkill={() => applySkillPlanB('ALTERNATE_SKILL')}
+        onSkipSkill={() => applySkillPlanB('SKIP_SKILL')}
+        onAlternateSession={applyWholePlanB}
+      />
 
-        {/* DÉGRADÉ LATÉRAL */}
-        <LinearGradient
-          colors={[
-            'rgba(6,8,11,0.48)',
-            'rgba(6,8,11,0.05)',
-            'rgba(6,8,11,0.28)',
-          ]}
-          start={{
-            x: 0,
-            y: 0.5,
-          }}
-          end={{
-            x: 1,
-            y: 0.5,
-          }}
-          style={
-            StyleSheet.absoluteFill
-          }
-        />
-
-        <SafeAreaView
-          style={
-            styles.safeArea
-          }
-        >
-          <ScrollView
-            contentContainerStyle={
-              styles.content
-            }
-            showsVerticalScrollIndicator={
-              false
-            }
-          >
-            {/* HEADER */}
-            <View
-              style={
-                styles.header
-              }
-            >
-              <Pressable
-                onPress={
-                  handleBack
-                }
-                hitSlop={12}
-                style={({
-                  pressed,
-                }) => [
-                  styles.backButton,
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="arrow-back"
-                  size={22}
-                  color={
-                    colors.textPrimary
-                  }
-                />
-              </Pressable>
-
-              <View
-                style={
-                  styles.headerText
-                }
-              >
-                <Text
-                  style={
-                    styles.headerEyebrow
-                  }
-                >
-                  {workoutTitle}
-                </Text>
-
-                <Text
-                  style={
-                    styles.headerTitle
-                  }
-                >
-                  TON WOD
-
-                  <Text
-                    style={
-                      styles.blueDot
-                    }
-                  >
-                    .
-                  </Text>
-                </Text>
-              </View>
-
-              <Image
-                source={
-                  brandIcon
-                }
-                style={
-                  styles.brandIcon
-                }
-                resizeMode="contain"
-              />
-            </View>
-
-            {/* RÉSUMÉ */}
-            <View
-              style={
-                styles.summaryCard
-              }
-            >
-              <View>
-                <Text
-                  style={
-                    styles.summaryLabel
-                  }
-                >
-                  DURÉE PRÉVUE
-                </Text>
-
-                <Text
-                  style={
-                    styles.summaryDuration
-                  }
-                >
-                  {
-                    plannedDuration
-                  } MIN
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.summaryRight
-                }
-              >
-                <Text
-                  style={
-                    styles.summaryLabel
-                  }
-                >
-                  {blocks.length} BLOCS ·{' '}
-                  {workoutFormat}
-                </Text>
-
-                <View
-                  style={
-                    styles.tricolor
-                  }
-                >
-                  <View
-                    style={
-                      styles.tricolorBlue
-                    }
-                  />
-
-                  <View
-                    style={
-                      styles.tricolorWhite
-                    }
-                  />
-
-                  <View
-                    style={
-                      styles.tricolorRed
-                    }
-                  />
-                </View>
-              </View>
-            </View>
-
-            {/* ERREUR SWAP */}
-            {swapError ? (
-              <View
-                style={
-                  styles.swapErrorCard
-                }
-              >
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={19}
-                  color={
-                    colors.brandRed
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.swapErrorText
-                  }
-                >
-                  {swapError}
-                </Text>
-              </View>
-            ) : null}
-
-            {/* BLOCS */}
-            <View
-              style={styles.blocks}
-            >
-              {blocks.map(
-                (block) => {
-                  const isWod =
-                    block.id ===
-                    'wod';
-
-                  const locked =
-                    isWod &&
-                    !wodUnlocked;
-
-                  const expanded =
-                    expandedBlocks[
-                      block.id
-                    ];
-
-                  const canValidate =
-                    canValidateBlock(
-                      block
-                    );
-
-                  return (
-                    <View
-                      key={
-                        block.id
-                      }
-                      style={[
-                        styles.block,
-
-                        block.validated &&
-                          styles.blockValidated,
-
-                        locked &&
-                          styles.blockLocked,
-                      ]}
-                    >
-                      {/* HEADER BLOC */}
-                      <Pressable
-                        onPress={() =>
-                          toggleBlock(
-                            block.id
-                          )
-                        }
-                        style={
-                          styles.blockHeader
-                        }
-                      >
-                        <BlockStatus
-                          validated={
-                            block.validated
-                          }
-                          locked={
-                            locked
-                          }
-                        />
-
-                        <View
-                          style={
-                            styles.blockHeaderText
-                          }
-                        >
-                          <View
-                            style={
-                              styles.blockTitleRow
-                            }
-                          >
-                            <Text
-                              style={[
-                                styles.blockTitle,
-
-                                locked &&
-                                  styles.blockTitleLocked,
-                              ]}
-                            >
-                              {
-                                block.title
-                              }
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.blockDuration
-                              }
-                            >
-                              {
-                                block.duration
-                              }
-                            </Text>
-                          </View>
-
-                          {!locked && (
-                            <Text
-                              style={
-                                styles.blockStructure
-                              }
-                            >
-                              {
-                                block.structure
-                              }
-                            </Text>
-                          )}
-
-                          {locked && (
-                            <Text
-                              style={
-                                styles.blockLockedText
-                              }
-                            >
-                              VALIDE LES
-                              BLOCS
-                              PRÉCÉDENTS
-                              POUR
-                              LE DÉCOUVRIR
-                            </Text>
-                          )}
-                        </View>
-
-                        <Ionicons
-                          name={
-                            locked
-                              ? 'lock-closed-outline'
-                              : expanded
-                                ? 'chevron-up'
-                                : 'chevron-down'
-                          }
-                          size={20}
-                          color={
-                            locked
-                              ? colors.textMuted
-                              : colors.textSecondary
-                          }
-                        />
-                      </Pressable>
-
-                      {/* CONTENU */}
-                      {expanded &&
-                        !locked && (
-                          <View
-                            style={
-                              styles.blockContent
-                            }
-                          >
-                            <View
-                              style={
-                                styles.structureBanner
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.structureBannerLabel
-                                }
-                              >
-                                STRUCTURE
-                              </Text>
-
-                              <Text
-                                style={
-                                  styles.structureBannerValue
-                                }
-                              >
-                                {
-                                  block.structure
-                                }
-                              </Text>
-                            </View>
-
-                            {block.exercises.map(
-                              (
-                                exercise,
-                                index
-                              ) => {
-                                const detailsExpanded =
-                                  expandedExercises[
-                                    exercise
-                                      .id
-                                  ];
-
-                                const showTabataGroup =
-                                  block.id ===
-                                    'tabata' &&
-                                  (
-                                    index === 0 ||
-                                    block
-                                      .exercises[
-                                        index - 1
-                                      ]
-                                      ?.tabataNumber !==
-                                      exercise
-                                        .tabataNumber
-                                  );
-
-                                return (
-                                  <View
-                                    key={
-                                      exercise.id
-                                    }
-                                  >
-                                    {showTabataGroup && (
-                                      <View
-                                        style={
-                                          styles.tabataGroupHeader
-                                        }
-                                      >
-                                        <Text
-                                          style={
-                                            styles.tabataGroupTitle
-                                          }
-                                        >
-                                          TABATA{' '}
-                                          {
-                                            exercise
-                                              .tabataNumber
-                                          }
-                                        </Text>
-
-                                        <Text
-                                          style={
-                                            styles.tabataGroupMeta
-                                          }
-                                        >
-                                          4 MIN · 8 ROUNDS · A / B
-                                        </Text>
-                                      </View>
-                                    )}
-
-                                    <View
-                                      style={[
-                                        styles.exerciseWrapper,
-
-                                        index !==
-                                          block
-                                            .exercises
-                                            .length -
-                                            1 &&
-                                          styles.exerciseBorder,
-                                      ]}
-                                    >
-                                      <View
-                                        style={
-                                          styles.exerciseRow
-                                        }
-                                      >
-                                      {/* STATUT */}
-                                      <Pressable
-                                        onPress={() =>
-                                          cycleExerciseStatus(
-                                            block.id,
-                                            exercise.id
-                                          )
-                                        }
-                                        disabled={
-                                          block.validated
-                                        }
-                                        style={[
-                                          styles.exerciseStatus,
-
-                                          exercise.status ===
-                                            'skipped' &&
-                                            styles.exerciseStatusSkipped,
-
-                                          exercise.status ===
-                                            'completed' &&
-                                            styles.exerciseStatusCompleted,
-                                        ]}
-                                      >
-                                        {exercise.status ===
-                                          'skipped' && (
-                                          <Ionicons
-                                            name="close"
-                                            size={
-                                              16
-                                            }
-                                            color={
-                                              colors.brandWhite
-                                            }
-                                          />
-                                        )}
-
-                                        {exercise.status ===
-                                          'completed' && (
-                                          <Ionicons
-                                            name="checkmark"
-                                            size={
-                                              16
-                                            }
-                                            color={
-                                              colors.brandWhite
-                                            }
-                                          />
-                                        )}
-                                      </Pressable>
-
-                                      {/* EXERCICE */}
-                                      <Pressable
-                                        onPress={() =>
-                                          toggleExerciseDetails(
-                                            exercise.id
-                                          )
-                                        }
-                                        style={
-                                          styles.exerciseMain
-                                        }
-                                      >
-                                        {block.id ===
-                                          'tabata' &&
-                                          exercise.tabataPosition && (
-                                            <Text
-                                              style={
-                                                styles.tabataPosition
-                                              }
-                                            >
-                                              EXERCICE{' '}
-                                              {
-                                                exercise
-                                                  .tabataPosition
-                                              }
-                                            </Text>
-                                          )}
-
-                                        <Text
-                                          style={
-                                            styles.exerciseName
-                                          }
-                                        >
-                                          {
-                                            exercise.name
-                                          }
-                                        </Text>
-
-                                        <Text
-                                          style={
-                                            styles.exercisePrescription
-                                          }
-                                        >
-                                          {
-                                            exercise.prescription
-                                          }
-                                        </Text>
-                                      </Pressable>
-
-                                      {/* SWAP */}
-                                      {exercise.status ===
-                                        'pending' &&
-                                        !block.validated && (
-                                          <Pressable
-                                            onPress={() =>
-                                              handleSwap(
-                                                block.id,
-                                                exercise.id
-                                              )
-                                            }
-                                            disabled={
-                                              Boolean(
-                                                swappingExerciseId
-                                              )
-                                            }
-                                            hitSlop={
-                                              8
-                                            }
-                                            style={({
-                                              pressed,
-                                            }) => [
-                                              styles.swapButton,
-
-                                              swappingExerciseId ===
-                                                exercise.id &&
-                                                styles.swapButtonLoading,
-
-                                              pressed &&
-                                                !swappingExerciseId &&
-                                                styles.pressed,
-                                            ]}
-                                          >
-                                            <Ionicons
-                                              name={
-                                                swappingExerciseId ===
-                                                exercise.id
-                                                  ? 'hourglass-outline'
-                                                  : 'swap-horizontal-outline'
-                                              }
-                                              size={
-                                                20
-                                              }
-                                              color={
-                                                colors.primaryLight
-                                              }
-                                            />
-                                          </Pressable>
-                                        )}
-
-                                      <Pressable
-                                        onPress={() =>
-                                          toggleExerciseDetails(
-                                            exercise.id
-                                          )
-                                        }
-                                        hitSlop={
-                                          8
-                                        }
-                                      >
-                                        <Ionicons
-                                          name={
-                                            detailsExpanded
-                                              ? 'chevron-up'
-                                              : 'chevron-down'
-                                          }
-                                          size={
-                                            17
-                                          }
-                                          color={
-                                            colors.textMuted
-                                          }
-                                        />
-                                      </Pressable>
-                                    </View>
-
-                                    {/* DÉTAIL */}
-                                    {detailsExpanded && (
-                                      <View
-                                        style={
-                                          styles.exerciseDetails
-                                        }
-                                      >
-                                        <View
-                                          style={
-                                            styles.exerciseImagePlaceholder
-                                          }
-                                        >
-                                          <Ionicons
-                                            name="image-outline"
-                                            size={
-                                              28
-                                            }
-                                            color={
-                                              colors.textMuted
-                                            }
-                                          />
-
-                                          <Text
-                                            style={
-                                              styles.imagePlaceholderText
-                                            }
-                                          >
-                                            VISUEL
-                                            EXERCICE
-                                          </Text>
-                                        </View>
-
-                                        <Text
-                                          style={
-                                            styles.exerciseDescription
-                                          }
-                                        >
-                                          {
-                                            exercise.description
-                                          }
-                                        </Text>
-
-                                        <View
-                                          style={
-                                            styles.tipRow
-                                          }
-                                        >
-                                          <Ionicons
-                                            name="information-circle-outline"
-                                            size={
-                                              18
-                                            }
-                                            color={
-                                              colors.primaryLight
-                                            }
-                                          />
-
-                                          <Text
-                                            style={
-                                              styles.tipText
-                                            }
-                                          >
-                                            {
-                                              exercise.tip
-                                            }
-                                          </Text>
-                                        </View>
-                                      </View>
-                                    )}
-                                    </View>
-                                  </View>
-                                );
-                              }
-                            )}
-
-                            {!block.validated && (
-                              <Text
-                                style={
-                                  styles.statusHint
-                                }
-                              >
-                                Appuie
-                                sur le
-                                cercle :
-                                ✕ non
-                                réalisé
-                                · ✓
-                                réalisé
-                              </Text>
-                            )}
-
-                            <Pressable
-                              onPress={() =>
-                                validateBlock(
-                                  block.id
-                                )
-                              }
-                              disabled={
-                                !canValidate ||
-                                block.validated
-                              }
-                              style={({
-                                pressed,
-                              }) => [
-                                styles.validateButton,
-
-                                block.validated &&
-                                  styles.validateButtonDone,
-
-                                !canValidate &&
-                                  !block.validated &&
-                                  styles.validateButtonDisabled,
-
-                                pressed &&
-                                  canValidate &&
-                                  !block.validated &&
-                                  styles.validateButtonPressed,
-                              ]}
-                            >
-                              {block.validated ? (
-                                <>
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={
-                                      20
-                                    }
-                                    color={
-                                      colors.primaryLight
-                                    }
-                                  />
-
-                                  <Text
-                                    style={
-                                      styles.validateButtonDoneText
-                                    }
-                                  >
-                                    BLOC
-                                    VALIDÉ
-                                  </Text>
-                                </>
-                              ) : (
-                                <Text
-                                  style={[
-                                    styles.validateButtonText,
-
-                                    !canValidate &&
-                                      styles.validateButtonTextDisabled,
-                                  ]}
-                                >
-                                  {block.id ===
-                                    'warmup' &&
-                                    'VALIDER LE WARM-UP'}
-
-                                  {block.id ===
-                                    'tabata' &&
-                                    'VALIDER LE TABATA'}
-
-                                  {block.id ===
-                                    'skill' &&
-                                    'VALIDER LE SKILL'}
-
-                                  {block.id ===
-                                    'wod' &&
-                                    'TERMINER LA SÉANCE'}
-                                </Text>
-                              )}
-                            </Pressable>
-                          </View>
-                        )}
-                    </View>
-                  );
-                }
-              )}
-            </View>
-
-            <View
-              style={
-                styles.bottomSpace
-              }
-            />
-          </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+      <SessionWhySheet visible={whyOpen} onClose={closeWhy} />
+      <SessionAdaptationSheet
+        visible={adaptationOpen}
+        onClose={() => setAdaptationOpen(false)}
+      />
     </View>
   );
 }
 
-function BlockStatus({
-  validated,
-  locked,
-}) {
-  if (locked) {
-    return (
-      <View
-        style={
-          styles.blockStatusLocked
-        }
-      >
-        <Ionicons
-          name="lock-closed"
-          size={13}
-          color={
-            colors.textMuted
-          }
-        />
-      </View>
-    );
-  }
-
-  if (validated) {
-    return (
-      <View
-        style={
-          styles.blockStatusValidated
-        }
-      >
-        <Ionicons
-          name="checkmark"
-          size={17}
-          color={
-            colors.brandWhite
-          }
-        />
-      </View>
-    );
-  }
-
-  return (
-    <View
-      style={
-        styles.blockStatusPending
-      }
-    />
-  );
+function createStyles() {
+  return StyleSheet.create({
+    root: { flex: 1 },
+  });
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor:
-      colors.background,
-  },
-
-  background: {
-    flex: 1,
-  },
-
-  safeArea: {
-    flex: 1,
-  },
-
-  darkOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor:
-      'rgba(0,0,0,0.30)',
-  },
-
-  content: {
-    paddingHorizontal:
-      spacing.xl,
-    paddingTop: spacing.sm,
-  },
-
-  /* HEADER */
-
-  header: {
-    minHeight: 74,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor:
-      'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  headerText: {
-    flex: 1,
-  },
-
-  headerEyebrow: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 1,
-    color:
-      colors.textSecondary,
-  },
-
-  headerTitle: {
-    ...typography.display,
-    fontSize: 31,
-    lineHeight: 34,
-    letterSpacing: 1.6,
-    color:
-      colors.textPrimary,
-  },
-
-  brandIcon: {
-    width: 45,
-    height: 45,
-  },
-
-  blueDot: {
-    color: colors.primary,
-  },
-
-  /* RÉSUMÉ */
-
-  summaryCard: {
-    marginTop: 10,
-    borderRadius: 17,
-    padding: 16,
-    backgroundColor:
-      'rgba(17,21,26,0.90)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.09)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent:
-      'space-between',
-  },
-
-  summaryLabel: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.8,
-    color:
-      colors.textSecondary,
-  },
-
-  summaryDuration: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 31,
-    lineHeight: 34,
-    letterSpacing: 1.2,
-    color:
-      colors.textPrimary,
-    marginTop: 2,
-  },
-
-  summaryRight: {
-    alignItems:
-      'flex-end',
-  },
-
-  tricolor: {
-    width: 75,
-    height: 4,
-    flexDirection: 'row',
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginTop: 10,
-  },
-
-  tricolorBlue: {
-    flex: 1,
-    backgroundColor:
-      colors.primary,
-  },
-
-  tricolorWhite: {
-    flex: 1,
-    backgroundColor:
-      colors.brandWhite,
-  },
-
-  tricolorRed: {
-    flex: 1,
-    backgroundColor:
-      colors.brandRed,
-  },
-
-  /* BLOCS */
-
-  blocks: {
-    marginTop:
-      spacing.xl,
-    gap: 14,
-  },
-
-  block: {
-    borderRadius: 18,
-    backgroundColor:
-      'rgba(17,21,26,0.92)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.09)',
-    overflow: 'hidden',
-  },
-
-  blockValidated: {
-    borderColor:
-      'rgba(8,104,255,0.55)',
-    backgroundColor:
-      'rgba(12,20,31,0.94)',
-  },
-
-  blockLocked: {
-    opacity: 0.66,
-  },
-
-  blockHeader: {
-    minHeight: 82,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  blockHeaderText: {
-    flex: 1,
-  },
-
-  blockTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
-  blockTitle: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 24,
-    lineHeight: 27,
-    letterSpacing: 1.3,
-    color:
-      colors.textPrimary,
-  },
-
-  blockTitleLocked: {
-    color:
-      colors.textMuted,
-  },
-
-  blockDuration: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.6,
-    color:
-      colors.textSecondary,
-  },
-
-  blockStructure: {
-    fontFamily:
-      'Oswald_500Medium',
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 0.4,
-    color:
-      colors.primaryLight,
-    marginTop: 3,
-  },
-
-  blockLockedText: {
-    fontFamily:
-      'Oswald_500Medium',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.4,
-    color:
-      colors.textMuted,
-    marginTop: 3,
-  },
-
-  blockStatusPending: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor:
-      colors.border,
-  },
-
-  blockStatusValidated: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor:
-      colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  blockStatusLocked: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor:
-      colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  blockContent: {
-    borderTopWidth: 1,
-    borderTopColor:
-      'rgba(255,255,255,0.06)',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-
-  structureBanner: {
-    marginTop: 14,
-    marginBottom: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 11,
-    backgroundColor:
-      'rgba(7,9,12,0.72)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.05)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent:
-      'space-between',
-  },
-
-  structureBannerLabel: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.7,
-    color:
-      colors.textMuted,
-  },
-
-  structureBannerValue: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 0.6,
-    color:
-      colors.textPrimary,
-  },
-
-  /* TABATA */
-
-  tabataGroupHeader: {
-    marginTop: 16,
-    marginBottom: 2,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor:
-      'rgba(8,104,255,0.10)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(8,104,255,0.24)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent:
-      'space-between',
-  },
-
-  tabataGroupTitle: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 17,
-    lineHeight: 20,
-    letterSpacing: 1,
-    color:
-      colors.primaryLight,
-  },
-
-  tabataGroupMeta: {
-    fontFamily:
-      'Oswald_500Medium',
-    fontSize: 9,
-    lineHeight: 13,
-    letterSpacing: 0.4,
-    color:
-      colors.textSecondary,
-  },
-
-  tabataPosition: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    lineHeight: 12,
-    letterSpacing: 0.7,
-    color:
-      colors.primaryLight,
-    marginBottom: 1,
-  },
-
-  /* EXERCICES */
-
-  exerciseWrapper: {
-    paddingVertical: 14,
-  },
-
-  exerciseBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor:
-      'rgba(255,255,255,0.05)',
-  },
-
-  exerciseRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-  },
-
-  exerciseStatus: {
-    width: 27,
-    height: 27,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor:
-      colors.border,
-    backgroundColor:
-      'rgba(7,9,12,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  exerciseStatusSkipped: {
-    backgroundColor:
-      colors.brandRed,
-    borderColor:
-      colors.brandRed,
-  },
-
-  exerciseStatusCompleted: {
-    backgroundColor:
-      colors.primary,
-    borderColor:
-      colors.primary,
-  },
-
-  exerciseMain: {
-    flex: 1,
-  },
-
-  exerciseName: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.3,
-    color:
-      colors.textPrimary,
-  },
-
-  exercisePrescription: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 17,
-    color:
-      colors.textSecondary,
-    marginTop: 2,
-  },
-
-  swapButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor:
-      'rgba(8,104,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  swapButtonLoading: {
-    opacity: 0.55,
-  },
-
-  swapErrorCard: {
-    minHeight: 54,
-    marginTop: 14,
-    borderRadius: 13,
-    padding: 12,
-    backgroundColor:
-      'rgba(255,59,59,0.08)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,59,59,0.24)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-
-  swapErrorText: {
-    flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
-    color:
-      colors.textSecondary,
-  },
-
-  exerciseDetails: {
-    marginTop: 12,
-    marginLeft: 38,
-  },
-
-  exerciseImagePlaceholder: {
-    height: 120,
-    borderRadius: 13,
-    backgroundColor:
-      'rgba(7,9,12,0.78)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-
-  imagePlaceholderText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.8,
-    color:
-      colors.textMuted,
-  },
-
-  exerciseDescription: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 13,
-    lineHeight: 19,
-    color:
-      colors.textSecondary,
-    marginTop: 11,
-  },
-
-  tipRow: {
-    marginTop: 9,
-    flexDirection: 'row',
-    alignItems:
-      'flex-start',
-    gap: 7,
-  },
-
-  tipText: {
-    flex: 1,
-    fontFamily:
-      'Oswald_500Medium',
-    fontSize: 12,
-    lineHeight: 17,
-    color:
-      colors.textPrimary,
-  },
-
-  statusHint: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 10,
-    lineHeight: 15,
-    color:
-      colors.textMuted,
-    textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 12,
-  },
-
-  /* VALIDATION */
-
-  validateButton: {
-    minHeight: 50,
-    borderRadius: 12,
-    backgroundColor:
-      colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-
-  validateButtonDisabled: {
-    backgroundColor:
-      'rgba(38,43,50,0.92)',
-  },
-
-  validateButtonDone: {
-    backgroundColor:
-      'rgba(8,104,255,0.10)',
-    borderWidth: 1,
-    borderColor:
-      'rgba(8,104,255,0.35)',
-  },
-
-  validateButtonPressed: {
-    backgroundColor:
-      colors.primaryDark,
-    transform: [
-      {
-        scale: 0.99,
-      },
-    ],
-  },
-
-  validateButtonText: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 18,
-    lineHeight: 21,
-    letterSpacing: 1,
-    color:
-      colors.brandWhite,
-  },
-
-  validateButtonTextDisabled: {
-    color:
-      colors.textMuted,
-  },
-
-  validateButtonDoneText: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 0.7,
-    color:
-      colors.primaryLight,
-  },
-
-  bottomSpace: {
-    height: 48,
-  },
-
-  pressed: {
-    opacity: 0.65,
-  },
-});

@@ -1,0 +1,2 @@
+drop function if exists public.program_coach_dose_trajectory_from_inputs_v1(jsonb,jsonb,jsonb,jsonb,jsonb,jsonb);
+drop function if exists public.program_coach_dose_trajectory_v1(uuid,date,text,text[],text,integer,integer);

@@ -1,0 +1,68 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const src=fs.readFileSync('src/utils/exerciseCatalogue.js','utf8').replaceAll('export const ','const ').replaceAll('export function ','function ');
+const f=new Function(src+'\nreturn {filterExerciseCatalogue,exerciseRegionLabel};')();
+const rows=[{id:'one',name:'Élévation',bodyRegion:'Upper',movementPattern:'push_vertical',trainingFocus:'Strength',equipmentNames:['Haltères']},{id:'two',name:'Squat',bodyRegion:'Lower',movementPattern:'squat',trainingFocus:'Strength',equipmentNames:[]}];
+assert.equal(f.filterExerciseCatalogue(rows,{search:'elevation'}).length,1);assert.equal(f.filterExerciseCatalogue(rows,{region:'Lower'})[0].id,'two');
+assert.equal(f.filterExerciseCatalogue(rows,{family:'push_vertical',focus:'Strength'})[0].id,'one');assert.equal(f.filterExerciseCatalogue(rows,{favoritesOnly:true},['two'])[0].id,'two');
+const source=fs.readFileSync('src/services/exerciseService.js','utf8').replace(/import[\s\S]*?from\s+['"][^'"]+['"];\s*/g,'').replaceAll('export const ','const ').replaceAll('export async function ','async function ');
+const calls=[];const data={exercise_muscles:[{muscle_id:'M02',priority:'primary'}],exercises:[{id:'one',name:'Real exercise',body_region:'Upper'}],exercise_equipment:[{exercise_id:'one',equipment_id:'E01'}],equipment:[{id:'E01',name:'Haltère'}],user_exercise_preferences:[{exercise_id:'one',preference_state:'FAVORI'}]};
+const supabase={from(table){let id=null;return {select(){return this},order(){return this},range(){return this},in(){return this},eq(k,v){calls.push([table,k,v]);if(k==='id')id=v;return this},maybeSingle(){return Promise.resolve((data[table]??[]).find(e=>e.id===id)??null)},then(resolve){resolve(data[table]??[])}}},rpc:async(name,args)=>{assert.equal(name,'set_user_exercise_preference_v1');assert.equal(args.p_user_id,'athlete');calls.push([name,args.p_preference_state]);return {status:'SAVED',preference_state:args.p_preference_state}}};
+const api=new Function('supabase','getAuthenticatedUserWithRetry','runSupabaseRequestWithAuthRetry',source+'\nreturn {getExercises,getExerciseById,getExerciseFavorites,setExerciseFavorite,getExerciseMuscles};')(supabase,async()=>({id:'athlete'}),fn=>fn());
+(async()=>{const result=await api.getExercises();assert.equal(result.length,1);assert.equal(result[0].name,'Real exercise');assert.deepEqual(result[0].equipmentNames,['Haltère']);assert.equal(result[0].sets,undefined);assert.equal(await api.getExerciseById('missing'),null,'No silent Air Squat fallback');assert.deepEqual(await api.getExerciseFavorites(),['one']);assert.deepEqual(await api.getExerciseMuscles('one'),[{id:'M02',priority:'primary'}]);assert.ok(calls.some(c=>c[0]==='exercise_muscles'&&c[1]==='exercise_id'&&c[2]==='one'));assert.equal(await api.setExerciseFavorite('one',true),true);assert.equal(await api.setExerciseFavorite('one',false),false);assert.ok(calls.some(c=>c[0]==='user_exercise_preferences'&&c[1]==='user_id'&&c[2]==='athlete'));console.log('PASS real catalogue adapter, exact detail ID, no fake dosage, authenticated shared favorites and guided filters');})().catch(e=>{console.error(e);process.exitCode=1});
+
+const pickerSrc=fs.readFileSync('src/utils/composerPickerPresentation.js','utf8').replaceAll('export const ','const ').replaceAll('export function ','function ');
+const picker=new Function(pickerSrc+'\nreturn {pickerType,filterPickerRows,pickerEquipmentMatches,pickerEquipmentFacetMatches,pickerEquipmentOptions,pickerAddableEquipment,pickerAddSessionEquipment};')();
+const sample=[{id:'a',name:'Push-ups',originalName:'Pompe classique',bodyRegion:'Upper',exerciseType:'strength'},{id:'b',name:'Tractions',bodyRegion:'Upper',exerciseType:'Gymnastique',isBack:true},{id:'c',name:'Rameur',bodyRegion:'Full Body',exerciseType:'Cardio'},{id:'d',name:'Autre',exerciseType:'new_type'}];
+assert.equal(picker.filterPickerRows(sample).length,4);
+assert.deepEqual(picker.filterPickerRows(sample,{zone:'Upper',type:'skill'}).map(x=>x.id),['b']);
+assert.deepEqual(picker.filterPickerRows(sample,{zone:'Back'}).map(x=>x.id),['b']);
+assert.deepEqual(picker.filterPickerRows(sample,{search:'pompe'}).map(x=>x.id),['a']);
+assert.equal(picker.pickerType(sample[2]),'conditioning');assert.equal(picker.pickerType(sample[3]),'general');
+
+const gearRows=[{id:'push',equipmentIds:[]},{id:'body',equipmentIds:['E00']},{id:'band',equipmentIds:['band']},{id:'bar',equipmentIds:['bar']},{id:'assisted',equipmentIds:['bar','band']},{id:'dips',equipmentIds:['dip']},{id:'bench',equipmentIds:['bench','band']},{id:'unknown'}];
+const compatible=(ids)=>gearRows.filter(row=>picker.pickerEquipmentMatches(row,ids)).map(row=>row.id);
+assert.deepEqual(compatible(['band','bar']),['push','body','band','bar','assisted']);
+assert.deepEqual(compatible(['band']),['push','body','band']);
+assert.deepEqual(compatible([]),['push','body']);
+assert.deepEqual(compatible(['bar']),['push','body','bar']);
+const pickerUI=fs.readFileSync('src/workout/ComposerExercisePickerPage.js','utf8');
+assert.match(pickerUI,/const available=rows.filter\(row=>pickerEquipmentMatches\(row,equipmentIds\)/);
+assert.match(pickerUI,/filterPickerRows\(available,/);
+const composerUI=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
+assert.match(composerUI,/!pickerEquipmentMatches\(exercise, equipmentIds\)/);
+assert.match(composerUI,/const pickerRows = pickerCatalogue.map/);
+console.log('PASS equipment-scoped picker: bodyweight, single and combined gear, exclusion of missing requirements, no fallback to unfiltered candidates');
+
+const sessionGear=gearRows.filter(row=>picker.pickerEquipmentMatches(row,['band','bar']));
+assert.deepEqual(picker.filterPickerRows(sessionGear,{equipment:'band'}).map(r=>r.id),['band','assisted']);
+assert.deepEqual(picker.filterPickerRows(sessionGear,{equipment:'bar'}).map(r=>r.id),['bar','assisted']);
+assert.deepEqual(picker.filterPickerRows(sessionGear,{equipment:'E00'}).map(r=>r.id),['push','body']);
+assert.deepEqual(picker.filterPickerRows(sessionGear,{equipment:'dip'}),[]);
+assert.deepEqual(picker.pickerEquipmentOptions(['band','bar','band','E00'],[{id:'band',name:'Élastiques'},{id:'bar',name:'Barre de traction'},{id:'dip',name:'Dips'}]).map(e=>[e.key,e.label]),[['E00','Poids du corps'],['band','Élastiques'],['bar','Barre de traction']]);
+const mixed=[{id:'row',equipmentIds:['band'],bodyRegion:'Upper',exerciseType:'strength',name:'Rowing'},{id:'pull',equipmentIds:['bar','band'],bodyRegion:'Upper',exerciseType:'skill',name:'Tractions assistées'},{id:'squat',equipmentIds:['band'],bodyRegion:'Lower',exerciseType:'strength',name:'Squat'}];
+assert.deepEqual(picker.filterPickerRows(mixed,{equipment:'band',zone:'Upper',type:'strength',search:'rowing',favoritesOnly:true},['row','squat']).map(r=>r.id),['row']);
+assert.match(pickerUI,/setView\('equipment'\)/);assert.match(pickerUI,/setEquipment\(''\)/);assert.match(composerUI,/referenceEquipment=\{referenceEquipment\}/);
+console.log('PASS optional equipment facet, bodyweight, multi-equipment moves, combined filters and session-only equipment options');
+
+const presetGear=[{id:'E00',name:'Poids du corps'},{id:'band',name:'Élastiques'},{id:'bar',name:'Barre de traction'},{id:'dip',name:'Barres de dips'}];
+assert.deepEqual(picker.pickerAddableEquipment(presetGear,['band']).map(e=>e.id),['bar','dip']);
+assert.deepEqual(picker.pickerAddSessionEquipment(['band'],['bar','bar','E00','unknown'],presetGear),['band','bar']);
+const added=picker.pickerAddSessionEquipment(['band'],['bar'],presetGear);
+assert.deepEqual(gearRows.filter(row=>picker.pickerEquipmentMatches(row,added)).map(row=>row.id),['push','body','band','bar','assisted']);
+assert.match(pickerUI,/Ajouter du matériel/);assert.match(pickerUI,/onAddEquipment\(pendingEquipment\)/);assert.match(composerUI,/setPickerCatalogue\(rows\)/);assert.match(composerUI,/openExercisePicker\(replacementId,nextEquipmentIds\)/);assert.match(composerUI,/onAddEquipment=\{addPickerEquipment\}/);
+console.log('PASS session-only additions from preset, no duplicate or unknown equipment, newly compatible exercises available');
+
+assert.match(pickerUI,/import ExerciseDetail from/);
+assert.match(pickerUI,/accessibilityLabel=\{'Détails de '\+row.name\}/);
+assert.match(pickerUI,/onPress=\{\(\)=>setDetailId\(row.id\)\}/);
+assert.match(pickerUI,/onSelect=\{selectFromDetail\}/);
+assert.match(pickerUI,/if\(!detailExercise\|\|!canSelect\)return/);
+assert.match(pickerUI,/onPress=\{\(\)=>onSelect\(row\)\}/);
+assert.match(pickerUI,/selectDisabled=\{!canSelect\}/);
+console.log('PASS separate browse and selection actions, shared detail, capacity protection');
+
+const alt={id:'step',equipmentIds:['E11','E21'],equipmentCompatibility:{equipmentOk:true,environmentOk:true,selectedIds:['E11']}};
+assert.equal(picker.pickerEquipmentMatches(alt,['E11']),true,'Server alternative group is authoritative');
+assert.equal(picker.pickerEquipmentMatches(alt,['E21']),false,'Stale response must not authorize a different selection');
+assert.equal(picker.pickerEquipmentMatches({...alt,equipmentCompatibility:{...alt.equipmentCompatibility,equipmentOk:false}},['E11']),false);
+console.log('PASS authoritative compatibility and stale equipment response guard');

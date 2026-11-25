@@ -1,0 +1,64 @@
+name: Apply EQP-001 environment equipment presets
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-eqp-001-environment-presets.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_WEB_BASE_URL: /ucoach-mobile
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply EQP-001 patch
+        run: node .github/player-patches/apply-eqp-001-environment-presets.mjs
+
+      - name: Verify environment preset wiring
+        run: |
+          git diff --check
+          grep -n "getUserEnvironmentEquipmentPreset\|replaceUserEnvironmentEquipmentPreset" src/services/equipmentService.js
+          grep -n "equipmentEnvironmentCode\|equipmentSelectionSource\|getUserEnvironmentEquipmentPreset" src/workout/PreparationCheckinV4.js
+          grep -n "PROFILE_ENVIRONMENTS\|activeEnvironment\|replaceUserEnvironmentEquipmentPreset" app/profile/equipment.js
+          grep -n "equipmentEnvironmentCode\|equipmentSelectionSource" src/contexts/WorkoutContext.js
+          if grep -q "getUserEquipmentInventory" src/workout/PreparationCheckinV4.js; then
+            echo "Preparation still reads global equipment inventory directly"
+            exit 1
+          fi
+
+      - name: Export Expo web
+        run: npx expo export --platform web --output-dir dist-eqp-001
+
+      - name: Commit EQP-001
+        run: |
+          if git diff --quiet -- src/services/equipmentService.js src/workout/PreparationCheckinV4.js app/profile/equipment.js src/contexts/WorkoutContext.js; then
+            echo "No EQP-001 changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/services/equipmentService.js src/workout/PreparationCheckinV4.js app/profile/equipment.js src/contexts/WorkoutContext.js
+          git commit -m "feat(equipment): scope habitual gear by environment"
+          git push origin HEAD:ux-navigation-coach-v1

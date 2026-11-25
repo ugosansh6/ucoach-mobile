@@ -1,0 +1,3 @@
+-- Historical DEV migration marker.
+-- Intermediate PRG-011 consolidation. The final replay-safe canonical contract is
+-- recreated in full by 20260829101243_prg011_replay_safe_canonical_projection_v5.sql.

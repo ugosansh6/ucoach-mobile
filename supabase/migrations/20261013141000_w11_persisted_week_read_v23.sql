@@ -1,0 +1,86 @@
+create or replace function public.week_intent_presentation_v4(p_user_id uuid,p_planned_focus text,p_planned_target_region text,p_progression_intent text,p_priority jsonb,p_slot_kind text,p_projection_certainty text)
+returns jsonb language plpgsql stable set search_path to 'public','pg_temp' as $function$
+declare
+  v_priority jsonb:=coalesce(p_priority,'{}'::jsonb); v_priority_key text:=nullif(trim(v_priority->>'key'),''); v_priority_kind text:=upper(coalesce(v_priority->>'kind',''));
+  v_reason_codes jsonb:=case when jsonb_typeof(v_priority->'reason_codes')='array' then v_priority->'reason_codes' else '[]'::jsonb end;
+  v_is_maintenance boolean:=upper(coalesce(p_slot_kind,''))='MAINTENANCE_POOL' or v_priority_kind='MAINTENANCE_POOL' or lower(coalesce(v_priority_key,''))='week_balance';
+  v_maintenance_candidate jsonb:=null; v_effective_priority jsonb:=v_priority; v_effective_focus text:=p_planned_focus; v_effective_progression text;
+  v_focus_label text; v_region_label text; v_priority_title text; v_priority_sentence text; v_region_phrase text; v_title_tokens text[]:='{}'; v_title text; v_description text:=null; v_why text:=null; v_advice jsonb:=null; v_examples jsonb:='[]'::jsonb; v_has_active_skill boolean; v_needs_skill_calibration boolean; v_use_priority_in_title boolean:=false;
+begin
+  if v_is_maintenance and jsonb_typeof(v_priority->'candidates')='array' and jsonb_array_length(v_priority->'candidates')=1 then
+    v_maintenance_candidate:=(v_priority->'candidates')->0;
+    if jsonb_typeof(v_maintenance_candidate)='object' then
+      v_effective_priority:=v_maintenance_candidate;
+      v_effective_focus:=coalesce(nullif(v_maintenance_candidate->>'key',''),p_planned_focus);
+      v_reason_codes:=case when jsonb_typeof(v_maintenance_candidate->'reason_codes')='array' then v_maintenance_candidate->'reason_codes' else v_reason_codes end;
+    end if;
+  end if;
+  v_effective_progression:=upper(coalesce(case when v_is_maintenance then nullif(v_effective_priority->>'programming_state','') end,nullif(trim(p_progression_intent),''),nullif(v_effective_priority->>'programming_state',''),nullif(v_priority->>'programming_state',''),''));
+  v_focus_label:=case lower(trim(coalesce(v_effective_focus,''))) when 'strength' then 'Force' when 'conditioning' then 'Conditioning' when 'cardio' then 'Conditioning' when 'muscle gain' then 'Hypertrophie' when 'fat loss' then 'Perte de gras' when 'general fitness' then 'Fitness' when 'skill' then 'Technique' when 'technique' then 'Technique' when 'mobility' then 'Mobilité' else nullif(trim(v_effective_focus),'') end;
+  v_region_label:=case lower(trim(coalesce(p_planned_target_region,''))) when 'upper' then 'Haut du corps' when 'lower' then 'Bas du corps' when 'core' then 'Tronc' when 'full body' then 'Full body' when 'full_body' then 'Full body' else nullif(trim(p_planned_target_region),'') end;
+  v_region_phrase:=case lower(trim(coalesce(p_planned_target_region,''))) when 'upper' then 'du haut du corps' when 'lower' then 'du bas du corps' when 'core' then 'du tronc' when 'full body' then 'globale' when 'full_body' then 'globale' else null end;
+  v_priority_key:=nullif(trim(v_effective_priority->>'key'),''); v_priority_kind:=upper(coalesce(v_effective_priority->>'kind','')); v_priority_sentence:=public.week_priority_label_fr_v1(v_priority_key);
+  v_has_active_skill:=v_reason_codes ? 'ACTIVE_SKILL_TARGET'; v_needs_skill_calibration:=v_reason_codes ? 'ACTIVE_SKILL_TARGET_CALIBRATION_NEEDED';
+  v_priority_title:=case lower(trim(coalesce(v_priority_key,''))) when 'push vertical' then 'Poussée verticale' when 'push_vertical' then 'Poussée verticale' when 'pull vertical' then 'Tirage vertical' when 'pull_vertical' then 'Tirage vertical' when 'push horizontal' then 'Poussée horizontale' when 'push_horizontal' then 'Poussée horizontale' when 'pull horizontal' then 'Tirage horizontal' when 'pull_horizontal' then 'Tirage horizontal' when 'legs' then 'Jambes' when 'back' then 'Dos' when 'shoulders' then 'Épaules' when 'chest' then 'Pectoraux' when 'core' then 'Tronc' else null end;
+  v_use_priority_in_title:=not v_is_maintenance and v_priority_title is not null and v_priority_kind in ('MOVEMENT_PATTERN','MOVEMENT','SKILL','SKILL_PATH');
+  if v_focus_label is not null then v_title_tokens:=array_append(v_title_tokens,upper(v_focus_label)); end if;
+  if v_use_priority_in_title and not exists(select 1 from unnest(v_title_tokens) x where lower(x)=lower(v_priority_title)) then v_title_tokens:=array_append(v_title_tokens,upper(v_priority_title)); end if;
+  if v_region_label is not null and not exists(select 1 from unnest(v_title_tokens) x where lower(x)=lower(v_region_label)) then v_title_tokens:=array_append(v_title_tokens,upper(v_region_label)); end if;
+  v_title:=case when cardinality(v_title_tokens)>0 then array_to_string(v_title_tokens,' · ') else 'SÉANCE À PRÉCISER' end;
+  if lower(trim(coalesce(v_effective_focus,'')))='strength' then
+    if v_effective_progression in ('PROGRESS','DEVELOP') then
+      if v_use_priority_in_title and v_priority_title is not null then v_description:=format('Développer ta force en %s, avec un travail principal orienté force puis du volume complémentaire selon ton contexte du jour.',lower(v_priority_title));
+      elsif v_region_phrase is not null then v_description:=format('Développer ta force %s, avec un travail principal orienté force puis du volume complémentaire.',v_region_phrase); end if;
+    elsif v_effective_progression='MAINTAIN' then v_description:=case when v_region_phrase is not null then format('Entretenir ta force %s avec un travail principal maîtrisé et du volume complémentaire.',v_region_phrase) else 'Entretenir ta force sans en faire la priorité principale de la semaine.' end;
+    elsif v_effective_progression='CONSOLIDATE' then v_description:=case when lower(trim(coalesce(p_planned_target_region,''))) in ('full body','full_body') then 'Consolider ta force globale avec une séance volontairement maîtrisée avant de pousser plus loin.' when v_region_phrase is not null then format('Consolider ta force %s avec une dose volontairement maîtrisée.',v_region_phrase) else 'Consolider ce travail de force avec une dose volontairement maîtrisée.' end;
+    elsif v_effective_progression='DELOAD' then v_description:='Alléger le travail de force pour absorber la charge récente et repartir plus frais.'; v_advice:=jsonb_build_object('type','DOSE_PROTECTION','text','Ne cherche pas à compenser la baisse de charge par plus de volume : la marge fait partie de la séance aujourd’hui.','evidence_reason_codes',v_reason_codes);
+    elsif v_effective_progression in ('RECALIBRATE','CALIBRATE') then v_description:='Reprendre un repère fiable avant de faire évoluer la suite.';
+    elsif v_effective_progression='EXPLORE' then v_description:='Explorer un niveau un peu plus exigeant sans en faire encore une nouvelle référence.'; if v_has_active_skill then v_advice:=jsonb_build_object('type','QUALITY_OVER_FORCE','text','Quelques essais propres suffisent aujourd’hui. L’objectif est d’explorer l’étape suivante, pas de la forcer.','evidence_reason_codes',v_reason_codes); end if; end if;
+  elsif lower(trim(coalesce(v_effective_focus,''))) in ('conditioning','cardio') then
+    v_description:=case when v_effective_progression='MAINTAIN' then 'Entretenir ton conditioning sans en faire la priorité principale de la semaine.' when v_effective_progression in ('PROGRESS','DEVELOP') then 'Faire progresser ton conditioning avec un travail structuré autour de cette qualité.' when v_effective_progression in ('RECALIBRATE','CALIBRATE') then 'Reprendre un repère fiable sur ton conditioning avant de faire évoluer la suite.' when v_effective_progression='CONSOLIDATE' then 'Consolider ton conditioning avec une séance volontairement maîtrisée.' else 'Travailler ton conditioning avec une séance cohérente avec le reste de ta semaine.' end;
+  else
+    v_description:=case v_effective_progression when 'PROGRESS' then 'Faire progresser cette qualité avec une séance construite autour de cette priorité.' when 'DEVELOP' then 'Faire progresser cette qualité avec une séance construite autour de cette priorité.' when 'MAINTAIN' then 'Entretenir cette qualité sans en faire la priorité principale de la semaine.' when 'CONSOLIDATE' then 'Consolider ce travail avant de pousser plus loin.' when 'DELOAD' then 'Alléger la charge de travail pour mieux récupérer.' when 'RECALIBRATE' then 'Reprendre un repère fiable avant de faire évoluer la suite.' when 'EXPLORE' then 'Explorer un niveau un peu plus exigeant.' else null end;
+  end if;
+  if v_needs_skill_calibration then
+    v_why:=case when v_priority_sentence is not null then format('%s fait partie de ton objectif technique actuel, mais il manque encore une référence suffisamment fiable.',upper(substr(v_priority_sentence,1,1))||substr(v_priority_sentence,2)) else 'Il manque encore une référence suffisamment fiable avant de faire évoluer la suite.' end;
+    v_advice:=jsonb_build_object('type','MEASURABLE_REFERENCE','text','Cherche surtout une exécution propre et garde un repère mesurable — charge, répétitions ou temps — pour que la prochaine décision soit plus fiable.','evidence_reason_codes',v_reason_codes);
+  elsif v_effective_progression in ('RECALIBRATE','CALIBRATE') and v_advice is null then v_advice:=jsonb_build_object('type','MEASURABLE_REFERENCE','text','Le repère compte plus que le score aujourd’hui : garde une mesure comparable pour que la suite soit mieux ajustée.','evidence_reason_codes',v_reason_codes);
+  elsif v_has_active_skill and v_priority_sentence is not null then v_why:=format('%s fait partie de ton objectif technique actuel.',upper(substr(v_priority_sentence,1,1))||substr(v_priority_sentence,2));
+  elsif v_is_maintenance and lower(trim(coalesce(v_effective_focus,''))) in ('conditioning','cardio') then v_why:='Cette séance maintient ton conditioning tout en complétant le reste de ta semaine.';
+  elsif v_is_maintenance then v_why:='Cette séance complète ce que tu as déjà travaillé cette semaine sans remettre fortement l’accent sur une seule zone.'; end if;
+  v_examples:=public.week_intent_exercise_examples_v1(p_user_id,v_effective_focus,p_planned_target_region,v_effective_progression,v_effective_priority,5);
+  return jsonb_strip_nulls(jsonb_build_object('version','week-intent-presentation-v4-persisted-coach-plan','title',v_title,'title_tokens',to_jsonb(v_title_tokens),'description',v_description,'why',case when v_why is null then null else jsonb_build_object('title','Pourquoi maintenant ?','text',v_why) end,'coach_advice',v_advice,'exercise_examples',v_examples,'evidence',jsonb_build_object('planned_focus',p_planned_focus,'effective_focus',v_effective_focus,'planned_target_region',p_planned_target_region,'planned_progression_intent',p_progression_intent,'effective_progression_intent',v_effective_progression,'priority_key',v_priority_key,'priority_kind',nullif(v_priority_kind,''),'reason_codes',v_reason_codes,'slot_kind',p_slot_kind,'projection_certainty',p_projection_certainty,'source','PERSISTED_WEEK_COACH_PLAN'),'semantics',jsonb_build_object('title_is_user_facing_intent',true,'priority_is_not_automatically_the_title',true,'maintenance_candidate_can_override_legacy_scaffold_focus',true,'why_now_is_optional',true,'coach_advice_optional',true,'exercise_examples_are_candidates_not_commitments',true,'no_future_readiness_assumption',true,'front_must_not_invent_coach_advice',true,'no_equipment_advice_without_explicit_equipment_opportunity',true)));
+end;$function$;
+
+create or replace function public.week_read_contract_v2(p_user_id uuid,p_anchor_date date default current_date)
+returns jsonb language plpgsql volatile security definer set search_path to 'public','pg_temp' as $function$
+declare
+  v_base jsonb; v_items jsonb:='[]'::jsonb; v_item jsonb; v_projection jsonb; v_presentation jsonb; v_semantics jsonb; v_planned jsonb; v_future jsonb; v_plan_focus text; v_plan_region text; v_plan_intent text; v_plan_context jsonb; v_persisted_plan jsonb; v_provenance text; v_ensure jsonb;
+begin
+  if p_user_id is null then raise exception 'User required'; end if;
+  if auth.uid() is not null and auth.uid()<>p_user_id then raise exception 'Forbidden user'; end if;
+  v_ensure:=public.week_ensure_persisted_coach_plan_v1(p_user_id,coalesce(p_anchor_date,current_date));
+  v_base:=public.week_read_contract_v1(p_user_id,coalesce(p_anchor_date,current_date));
+  for v_item in select value from jsonb_array_elements(coalesce(v_base->'items','[]'::jsonb)) loop
+    select i.planned_focus,i.planned_target_region,i.planned_progression_intent,coalesce(i.planning_context_json,'{}'::jsonb) into v_plan_focus,v_plan_region,v_plan_intent,v_plan_context from public.user_training_plan_items i where i.id=nullif(v_item->>'plan_item_id','')::uuid and i.user_id=p_user_id;
+    v_planned:=coalesce(v_item->'planned_context','{}'::jsonb)||jsonb_strip_nulls(jsonb_build_object('focus',v_plan_focus,'target_region',v_plan_region,'progression_intent',v_plan_intent));
+    v_future:=coalesce(v_plan_context#>'{w11,future_context}','{}'::jsonb);
+    if jsonb_typeof(v_future)='object' and v_future<>'{}'::jsonb then v_planned:=v_planned||jsonb_strip_nulls(jsonb_build_object('duration_minutes',coalesce(nullif(v_future->>'duration_minutes','')::integer,nullif(v_planned->>'duration_minutes','')::integer),'environment_code',coalesce(nullif(v_future->>'environment_code',''),v_planned->>'environment_code'),'equipment',case when jsonb_typeof(v_future->'equipment')='array' then v_future->'equipment' else coalesce(v_planned->'equipment','[]'::jsonb) end,'future_context',v_future)); end if;
+    v_item:=jsonb_set(v_item,'{planned_context}',v_planned,true);
+    v_provenance:=upper(coalesce(v_item#>>'{provenance,code}','UGEROD_PROJECTION')); v_persisted_plan:=v_plan_context#>'{w11,coach_plan}';
+    if v_provenance in ('USER_ASSISTED_SESSION','USER_FREE_SESSION','SAVED_MODEL_SESSION','STRUCTURED_PROGRAM_SESSION','EXTERNAL_ACTUAL') then
+      v_projection:=jsonb_build_object('slot_kind','USER_OWNED','projection_certainty','USER_AUTHORED','relationship_to_item','USER_AUTHORITY','applies_to_session_content',false,'persistent_assignment',true,'replan_protected',true,'priority_source','USER_AUTHORITY');
+    elsif jsonb_typeof(v_persisted_plan)='object' then
+      v_projection:=jsonb_strip_nulls(jsonb_build_object('slot_kind',v_persisted_plan->>'slot_kind','priority',v_persisted_plan->'priority','projection_certainty',v_persisted_plan->>'projection_certainty','relationship_to_item','CONTENT_AUTHORITY','applies_to_session_content',true,'persistent_assignment',true,'replan_protected',false,'priority_source',coalesce(v_persisted_plan->>'priority_source','PERSISTED_WEEK_COACH_PLAN'),'programming_role',v_persisted_plan->>'programming_role','dose_direction',v_persisted_plan->>'dose_direction','assignment_revision',nullif(v_persisted_plan->>'revision','')::integer,'assignment_reason_code',v_persisted_plan->>'reason_code','assigned_at',v_persisted_plan->>'assigned_at','anchor_date',v_persisted_plan->>'anchor_date'));
+    else
+      v_projection:=v_item->'coach_projection'; if jsonb_typeof(v_projection)='object' then v_projection:=v_projection||jsonb_build_object('persistent_assignment',false,'priority_source','LEGACY_DYNAMIC_FALLBACK'); end if;
+    end if;
+    if jsonb_typeof(v_projection)='object' then
+      v_presentation:=public.week_intent_presentation_v4(p_user_id,v_plan_focus,coalesce(nullif(v_future->>'target_region',''),v_plan_region),v_plan_intent,v_projection->'priority',v_projection->>'slot_kind',v_projection->>'projection_certainty');
+      v_projection:=v_projection||jsonb_build_object('presentation',v_presentation); v_item:=jsonb_set(v_item,'{coach_projection}',v_projection,true);
+    else v_item:=v_item-'coach_projection'; end if;
+    v_items:=v_items||jsonb_build_array(v_item);
+  end loop;
+  v_semantics:=coalesce(v_base->'semantics','{}'::jsonb)||jsonb_build_object('coach_advice_is_optional',true,'front_must_not_invent_coach_advice',true,'intent_presentation_is_evidence_bound',true,'intent_title_comes_from_persisted_plan_plus_concrete_priority',true,'priority_is_not_automatically_the_title',true,'why_now_is_optional',true,'exercise_examples_require_real_candidate_data',true,'exercise_examples_are_candidates_not_commitments',true,'no_equipment_advice_without_explicit_equipment_opportunity',true,'future_context_excludes_readiness_and_pain',true,'planned_context_is_not_actual',true,'week_read_does_not_reassign_coach_priorities',true,'coach_plan_assignments_persist_until_explicit_replan',true,'user_owned_items_are_replan_protected',true,'user_owned_item_dates_are_not_moved_by_coach',true);
+  v_base:=jsonb_set(v_base,'{items}',v_items,true); v_base:=jsonb_set(v_base,'{semantics}',v_semantics,true); v_base:=jsonb_set(v_base,'{persistence_meta}',jsonb_build_object('ensure',v_ensure),true); v_base:=jsonb_set(v_base,'{contract_version}',to_jsonb('W11_WEEK_READ_V2_3_PERSISTED'::text),true); return v_base;
+end;$function$;

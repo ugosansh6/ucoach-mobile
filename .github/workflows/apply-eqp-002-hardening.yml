@@ -1,0 +1,54 @@
+name: Apply EQP-002 equipment hardening
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-eqp-002-hardening.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_WEB_BASE_URL: /ucoach-mobile
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply hardening
+        run: node .github/player-patches/apply-eqp-002-hardening.mjs
+
+      - name: Verify
+        run: |
+          git diff --check
+          grep -n "Number(item.exercise_count) > 0" src/services/equipmentService.js
+          grep -n "equipmentSelectionSource: 'session_override'" src/workout/PreparationCheckinV4.js
+
+      - name: Export Expo web
+        run: npx expo export --platform web --output-dir dist-eqp-002-hardening
+
+      - name: Commit hardening
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/services/equipmentService.js src/workout/PreparationCheckinV4.js
+          git commit -m "fix(equipment): enforce exercise-backed catalog choices"
+          git push origin HEAD:ux-navigation-coach-v1

@@ -23,12 +23,16 @@
       }
     },
     "web": {
+      "output": "static",
+      "name": "UGEROD",
+      "shortName": "UGEROD",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-audio"
     ],
     "extra": {
       "router": {},

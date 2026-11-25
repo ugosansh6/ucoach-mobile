@@ -146,10 +146,22 @@ const SECTIONS = [
     icon: 'apps-outline',
     pages: [
       {
-        title: 'Dashboard',
-        subtitle: 'Accueil principal',
+        title: 'Dashboard · actuel',
+        subtitle: 'Accueil principal actuel',
         route: '/(tabs)',
         icon: 'grid-outline',
+      },
+      {
+        title: 'Dashboard · test sombre',
+        subtitle: 'Nouvelle direction fitness home premium',
+        route: '/dashboard-test',
+        icon: 'moon-outline',
+      },
+      {
+        title: 'Dashboard · test clair',
+        subtitle: 'Kaki #646F5E · orange #FF6B19',
+        route: '/dashboard-test-light',
+        icon: 'sunny-outline',
       },
       {
         title: 'Planning',
@@ -179,59 +191,59 @@ const SECTIONS = [
   },
 
   {
-  title: 'PROFIL & RÉGLAGES',
-  icon: 'person-circle-outline',
-  pages: [
-    {
-      title: 'Profil',
-      subtitle: 'Vue principale du profil',
-      route: '/profile',
-      icon: 'person-outline',
-    },
-    {
-      title: 'Niveau',
-      subtitle: 'Modifier le niveau sportif',
-      route: '/profile/level',
-      icon: 'speedometer-outline',
-    },
-    {
-      title: 'Objectif',
-      subtitle: 'Modifier l’objectif principal',
-      route: '/profile/goal',
-      icon: 'trophy-outline',
-    },
-    {
-      title: 'Rythme',
-      subtitle: 'Objectif de séances par semaine',
-      route: '/profile/frequency',
-      icon: 'calendar-outline',
-    },
-    {
-      title: 'Gênes',
-      subtitle: 'Zones à prendre en compte',
-      route: '/profile/precautions',
-      icon: 'medkit-outline',
-    },
-    {
-      title: 'Informations personnelles',
-      subtitle: 'Données personnelles du compte',
-      route: '/profile/personal-information',
-      icon: 'id-card-outline',
-    },
-    {
-      title: 'Sécurité',
-      subtitle: 'Mot de passe et sécurité',
-      route: '/profile/security',
-      icon: 'shield-checkmark-outline',
-    },
-    {
-      title: 'Aide',
-      subtitle: 'Aide et support',
-      route: '/profile/help',
-      icon: 'help-circle-outline',
-    },
-  ],
-},
+    title: 'PROFIL & RÉGLAGES',
+    icon: 'person-circle-outline',
+    pages: [
+      {
+        title: 'Profil',
+        subtitle: 'Vue principale du profil',
+        route: '/profile',
+        icon: 'person-outline',
+      },
+      {
+        title: 'Niveau',
+        subtitle: 'Modifier le niveau sportif',
+        route: '/profile/level',
+        icon: 'speedometer-outline',
+      },
+      {
+        title: 'Objectif',
+        subtitle: 'Modifier l’objectif principal',
+        route: '/profile/goal',
+        icon: 'trophy-outline',
+      },
+      {
+        title: 'Rythme',
+        subtitle: 'Objectif de séances par semaine',
+        route: '/profile/frequency',
+        icon: 'calendar-outline',
+      },
+      {
+        title: 'Gênes',
+        subtitle: 'Zones à prendre en compte',
+        route: '/profile/precautions',
+        icon: 'medkit-outline',
+      },
+      {
+        title: 'Informations personnelles',
+        subtitle: 'Données personnelles du compte',
+        route: '/profile/personal-information',
+        icon: 'id-card-outline',
+      },
+      {
+        title: 'Sécurité',
+        subtitle: 'Mot de passe et sécurité',
+        route: '/profile/security',
+        icon: 'shield-checkmark-outline',
+      },
+      {
+        title: 'Aide',
+        subtitle: 'Aide et support',
+        route: '/profile/help',
+        icon: 'help-circle-outline',
+      },
+    ],
+  },
 
   {
     title: 'ENTRAÎNEMENT',
@@ -256,10 +268,22 @@ const SECTIONS = [
         icon: 'flash-outline',
       },
       {
+        title: 'Séance · pilote design',
+        subtitle: 'Nouvelle direction éditoriale premium',
+        route: '/workbench/session-design',
+        icon: 'color-palette-outline',
+      },
+      {
         title: 'Fin de séance',
         subtitle: 'RPE, charges, notes et récap',
         route: '/workout/completion',
         icon: 'checkmark-done-outline',
+      },
+      {
+        title: 'Bien joué · débrief',
+        subtitle: 'Accès rapide avec une séance DEV préremplie',
+        route: '/workout/debrief-preview',
+        icon: 'trophy-outline',
       },
     ],
   },

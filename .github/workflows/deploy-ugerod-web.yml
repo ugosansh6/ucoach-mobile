@@ -41,6 +41,27 @@ jobs:
           test -n "$EXPO_PUBLIC_SUPABASE_URL" || (echo "Missing EXPO_PUBLIC_SUPABASE_URL" && exit 1)
           test -n "$EXPO_PUBLIC_SUPABASE_ANON_KEY" || (echo "Missing EXPO_PUBLIC_SUPABASE_ANON_KEY" && exit 1)
 
+      - name: Validate Composer structure editor
+        run: |
+          node scripts/qa-composer-architecture-editor.cjs
+          node scripts/qa-composer-editor-wiring.cjs
+          node scripts/qa-composer-presentation.cjs
+          node scripts/qa-composer-distributions-ui.cjs
+          node scripts/qa-composer-intent-matrix.cjs
+          node scripts/qa-composer-selection.cjs
+          node scripts/qa-composer-wod-selection.cjs
+          node scripts/qa-composer-preferences.cjs
+          node scripts/qa-composer-preferences-ui.cjs
+          node scripts/qa-composer-shared-skill.cjs
+          node scripts/qa-composer-outdoor.cjs
+          node scripts/qa-composer-player-progress.cjs
+          node scripts/qa-composer-progress-service.cjs
+          node scripts/qa-exercise-catalogue.cjs
+          node scripts/qa-composer-manual-dose.cjs
+          node scripts/qa-personal-workout-models.cjs
+          node scripts/qa-composer-tabata-runtime.cjs
+          node scripts/qa-wod-protocol-audit.cjs
+          node scripts/qa-composer-wod-runtime.cjs
       - name: Export Expo web app
         run: npx expo export --platform web --output-dir dist
 

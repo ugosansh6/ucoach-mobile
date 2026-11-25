@@ -1,0 +1,79 @@
+name: Roll back EQP-002 categories from Preparation
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-eqp-002-rollback-preparation.txt
+
+permissions:
+  contents: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_WEB_BASE_URL: /ucoach-mobile
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore Preparation UI before EQP-002
+        run: |
+          git show b98767203db9ce004ec6f4521344454124878a61:src/workout/PreparationCheckinV4.js > src/workout/PreparationCheckinV4.js
+
+      - name: Preserve session-only bodyweight override
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src/workout/PreparationCheckinV4.js';
+          let s = fs.readFileSync(path, 'utf8');
+          const before = "onPress={() => updatePreparation({ equipment: ['Poids du corps'] })}";
+          const after = "onPress={() => updatePreparation({\n                  equipment: ['Poids du corps'],\n                  equipmentEnvironmentCode: environmentCode,\n                  equipmentSelectionSource: 'session_override',\n                })}";
+          if (!s.includes(before)) throw new Error('Bodyweight quick action anchor not found');
+          s = s.replace(before, after);
+          fs.writeFileSync(path, s);
+          NODE
+
+      - name: Verify Preparation categories removed only there
+        run: |
+          git diff --check
+          if grep -q "equipmentUxCategories" src/workout/PreparationCheckinV4.js; then
+            echo "Preparation still contains EQP-002 category UI"
+            exit 1
+          fi
+          grep -n "Tout mon matériel" src/workout/PreparationCheckinV4.js
+          grep -n "Poids du corps" src/workout/PreparationCheckinV4.js
+          grep -n "equipmentSelectionSource: 'session_override'" src/workout/PreparationCheckinV4.js
+          grep -n "equipmentUxCategories" app/profile/equipment.js
+
+      - name: Export Expo web
+        run: npx expo export --platform web --output-dir dist-eqp-002-rollback-preparation
+
+      - name: Commit rollback
+        run: |
+          if git diff --quiet -- src/workout/PreparationCheckinV4.js; then
+            echo "No Preparation rollback produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/workout/PreparationCheckinV4.js
+          git commit -m "fix(equipment): keep categories on profile only"
+          git push origin HEAD:ux-navigation-coach-v1

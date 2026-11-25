@@ -1,0 +1,199 @@
+# UGEROD — point d'entrée commun
+
+Ce fichier conserve les repères et décisions durables. Les tâches et leurs preuves vivent dans les [issues GitHub](https://github.com/ugosansh6/ucoach-mobile/issues), sans backlog parallèle. L'assistant maintient ces références pendant le travail ; Ugo décrit son besoin et arbitre les choix produit.
+
+## Synthèse Mouvements — décision du 24 novembre 2026
+
+Sur validation d'Ugo, la page Mouvements utilise trois cartes horizontales icône + valeur, sans libellés visibles « Durée / Lieu / Objectif », puis un quatrième bloc pour les zones ciblées (précision après recette du 24/11) et des onglets de blocs plus visibles avec leur durée. Les cartes d'exercices affichent une vignette, le nom et la prescription courte ; les grosses coches sont retirées, les détails donnent accès au matériel, à la charge et aux actions Remplacer/Retirer. Le lien « Ajuster les blocs et leurs durées » est retiré de cette page ; l'étape Structure reste accessible par le parcours existant. Les prescriptions et le moteur sont conservés. Les vignettes utilisent les images déjà disponibles ou un emplacement neutre ; la galerie d'exercices par images reste une perspective distincte. Contrat détaillé dans `docs/COMPOSER_UX_CONTRACT.md`, suivi dans #40.
+
+## Extérieur raccordé aux producteurs existants — décision du 21 novembre 2026
+
+Sur instruction explicite d’Ugo après analyse, les nouvelles compositions Extérieur partent de **Cardio extérieur**, avec **Gym / street workout** et **WOD** ajoutables. Ceci remplace la proposition générique Renforcement en Extérieur. L’éditeur intégré, le choix de durée, l’ordre, la suppression, les blocs de préparation verrouillés et le choix de mécanique du WOD sont conservés. Une cible technique utilise la Gym et les progressions existantes ; « Sans course » propose directement le WOD plutôt qu’un bloc Cardio inexécutable.
+
+Lieu précis, terrain et matériel sont explicites et partagés avec la préparation Aujourd’hui ; un lieu ne déclare aucun équipement automatiquement. La course réutilise le choix de famille, les protocoles, le contexte Coach et les contrôles Outdoor existants. La Gym réutilise le catalogue street workout pour ses choix, son producteur automatique, puis l’autorité C2/C4 Skill pour prescriptions, aperçu et exécution. Aucun nouveau seuil ou dosage sportif n’est introduit. Les minutes réservées sont distinctes de la durée exacte des cycles prescrits : aucun intervalle supplémentaire n’est inventé pour remplir le créneau.
+
+Le marqueur `COMPOSER_OUTDOOR_V1` isole ce raccord des anciens brouillons. Le jour J transmet le terrain confirmé, la forme, les gênes et le matériel au compilateur ; le brouillon planifié n’est pas réécrit. Les anciens contrats conservent leur voie de compilation. Preuves et validation : [#29](https://github.com/ugosansh6/ucoach-mobile/issues/29), sans clôture automatique.
+
+## Bloc de travail commun et Mobilité — décision du 21 novembre 2026
+
+La nouvelle composition ne propose plus deux blocs concurrents Skill/Musculation : un seul bloc de travail, nommé Skill en Maison/Box, Musculation en Salle ; Extérieur possède désormais ses modules dédiés, voir la décision ci-dessous. Le catalogue sélectionnable est commun aux contrats SKILL/STRENGTH : même lecture paginée, sans filtre de rôle ni limite de présélection artificielle ; matériel, environnement, zones et validation des prescriptions restent applicables. Le type historique reste un contrat moteur, pas un second choix utilisateur. Une cible technique explicite est transmise à l’autorité Skill et à ses progressions existantes, y compris en Salle, avec les durées conservées. Les anciennes compositions mixtes restent distinctes et ne sont pas fusionnées silencieusement.
+
+Le futur bloc Mobilité utilise un catalogue dédié à créer et un contrat propre, comme Cardio possède ses exercices dédiés ; il ne remplace pas Skill/Musculation et n’est pas présenté comme jouable sans catalogue ni raccord au Player. Suivi unique et critères : [#28](https://github.com/ugosansh6/ucoach-mobile/issues/28), actualisé sur instruction explicite d’Ugo. Les séances complètes Mobilité/Pilates et routines historiques conservent leurs périmètres distincts.
+
+## Éditeur intégré — décision du 21 novembre 2026
+
+La page Structure affiche un seul aperçu de la composition courante, actualisé par l’éditeur « Personnaliser la structure », toujours visible et intégré au fond de page. Les cartes alternatives et le volet de personnalisation sont remplacés par cet éditeur. Les possibilités moteur restent conservées : Skill seul et WOD seul s’obtiennent en retirant l’autre bloc. Le choix de mécanique reste à son étape dédiée.
+
+Échauffement et Tabata sont deux blocs grisés/verrouillés ; aucun n’est injecté dans un ancien brouillon qui l’omettait. Les principaux blocs permettent durée, suppression et ordre selon les capacités existantes ; au moins un bloc principal reste nécessaire et, lorsqu’il est seul, il occupe le budget principal restant. Maison/Box démarrent avec Skill + WOD, Salle avec Musculation. Extérieur utilise les producteurs Outdoor existants, avec Cardio extérieur comme base puis Gym et WOD ajoutables (décision ci-dessous). En créneau trop court pour le défaut, le choix d’un format seul reste explicite. Les choix enregistrés ne sont pas remplacés par le défaut à l’ouverture.
+
+## Précision appliquée — 21 novembre 2026
+
+En Maison et Box, les nouvelles cartes de proposition font varier la répartition Skill + WOD : conseillée, équilibrée, plus de temps pour l’autre bloc lorsque les durées le permettent. Skill seul et WOD seul restent proposés comme alternatives, en plus des répartitions Skill + WOD ; ils ne les remplacent pas. Seules les cartes Force/Renforcement seul sont retirées en Maison et Box. Cette précision explicite d’Ugo remplace le retrait erroné de Skill seul. Le retrait explicite du Skill et les ajustements manuels restent disponibles. Les anciennes compositions enregistrées sont conservées ; Salle et Extérieur gardent leurs alternatives propres. La répartition conseillée lit les champs réels C4 `skill_target_minutes` et `wod_target_minutes`, avec vérification de leur présence.
+
+## Reprendre depuis une nouvelle conversation
+
+Lire [AGENTS.md](AGENTS.md), consulter ce fichier sur la branche de référence, ouvrir le ticket pertinent puis vérifier le code et, si nécessaire, Supabase. Ne pas demander à Ugo un document de reprise si ces sources sont accessibles.
+
+Lien de démarrage : https://github.com/ugosansh6/ucoach-mobile/blob/ux-navigation-coach-v1/UGEROD.md
+
+Instruction d'Ugo du 20/11/2026 : continuer le développement sur `ux-navigation-coach-v1`, sans créer de nouvelle branche. Les incréments de la PR #47 y sont rapatriés après vérification. Le garde temporaire de création a été levé dans le lot suivant du 20/11 : producteurs partagés, exécution et sauvegarde/reprise sont raccordés. Les contrats déjà enregistrés sont préservés. Le déploiement et la recette utilisateur restent des preuves distinctes, suivies dans #29 et #38.
+
+Un nouveau chat doit avoir accès au dépôt et lire ces consignes. Aucun mécanisme installé ici ne charge automatiquement le contexte dans tous les chats et aucun processus de synchronisation ne tourne en arrière-plan.
+
+## Qui fait quoi
+
+| Rôle | Responsabilité |
+| --- | --- |
+| Ugo | Décisions produit/UX, priorités, inscription des évolutions et clôture des tickets |
+| Assistant — produit / UX | Clarifier, proposer, challenger et expliquer les conséquences avant arbitrage |
+| Assistant — développement / architecture | Réaliser le périmètre autorisé et préserver les contrats existants |
+| Assistant — QA / continuité | Vérifier, signaler les limites et conserver les preuves et décisions acceptées |
+
+Il s'agit de responsabilités d'un même assistant, pas d'une équipe de relecteurs indépendants. Les tests et validations utilisateur restent des preuves distinctes.
+
+Les décisions validées dans les échanges doivent être répercutées dans leur référence GitHub. Le code et Supabase permettent de vérifier leur application ; un décalage doit être signalé. Une décision explicite plus récente remplace l'ancienne, sans transformer une idée en évolution acceptée.
+
+Les documents de reprise existants restent conservés comme archives. Une première consolidation est disponible dans la référence produit ; la migration complète du backlog Excel n'est pas encore validée. Il n'existe pas de synchronisation automatique de toutes les conversations avec GitHub.
+
+## Références
+
+| Élément | Référence et usage |
+| --- | --- |
+| Dépôt | ugosansh6/ucoach-mobile |
+| Branche de travail | ux-navigation-coach-v1 ; vérifier sa tête au début de chaque tâche |
+| Branche par défaut GitHub | main ; ne pas la traiter comme la version actuelle ni y reporter les changements par défaut |
+| Interface | React Native / Expo ; SDK à vérifier dans les dépendances |
+| Backend de travail | Supabase, projet nommé ugoach (DEV) ; retrouver et vérifier son identifiant via l'accès connecté avant toute requête |
+| Préproduction | Projet nommé ugerod-staging ; aucune réactivation ou écriture sans demande explicite |
+| Production | Aucune cible n'est présumée validée par ce fichier |
+| Publication web DEV | [Workflow Deploy UGEROD Web](.github/workflows/deploy-ugerod-web.yml), déclenché sur les pushes de la branche de référence ; lire le run du commit concerné |
+
+Le statut des projets Supabase peut changer : le relire au moment utile. Les noms ci-dessus sont des repères, pas une autorisation de modifier un environnement.
+
+## Décisions produit courantes
+
+### Cadrage hebdomadaire accepté le 19 novembre 2026
+
+La composition guidée avec aperçu partagé et ses précisions validées par Ugo font autorité pour **Ma semaine**. Le [ticket #29](https://github.com/ugosansh6/ucoach-mobile/issues/29) est l'index unique des besoins, des responsabilités, des priorités, de la couverture réellement implémentée et des preuves ; aucun backlog parallèle n'est tenu ici. L'inscription puis la consolidation des tickets n'autorisent pas à elles seules le développement.
+
+| Sujet | Règle actuelle |
+| --- | --- |
+| Lieu et préférences | Maison, Box, Salle et Extérieur restent distincts. Orientation, une ou plusieurs zones de travail privilégiées et cible technique facultative sont des préférences séparées, distinctes des douleurs/exclusions. |
+| Maison et Box | Chacun propose Skill + WOD par défaut avec la préparation prévue. La page Format existante permet les ajustements explicites : retirer/rétablir le Skill, réserver un WOD plus long et rééquilibrer les durées. Le défaut n'est pas un verrou. |
+| Skill | Bloc de maîtrise/progression, y compris force, concentré sur deux ou trois exercices maximum. L'apprentissage technique réutilise les progressions existantes ; cible directement visible pour cette orientation, option secondaire pour les autres. |
+| Exercices et mécanique | Exploration guidée via les zones/objectif/familles existantes, choix et remplacement explicites, détails à la demande. Mécaniques compatibles au choix, motifs expliqués et corrections réellement évaluées si possibles. Conserver cartes et aperçu compact déjà livrés. |
+| Salle | Organisation en séries et styles réellement exécutables, cardio facultatif avant ou après le travail musculaire. Cardio et WOD ont des contrats distincts. Le cardio initial ne remplace pas automatiquement la préparation. |
+| Autorité et exécution | Ma semaine transmet les préférences aux autorités moteur existantes. Proposition, aperçu et jour J partagent les contrats ; le Player exécute le dosage, les séries/temps, repos, transitions et scores sans ajouter du volume localement. |
+| Préparation et plans existants | Échauffement et Tabata abdos 4 min restent protégés dans les nouvelles propositions. Les anciens choix, versions, identités et résultats sont conservés ; une réparation/adaptation exige une confirmation explicite. |
+
+Ces règles décrivent la cible acceptée, **partiellement implémentée** : la couverture et le reste de chaque besoin sont dans #29. Les autorités Strength/WOD, la page Format, les cartes et les capacités Player déjà présentes sont conservées. La précédente priorité automatique force→Strength seul / conditionnement→WOD seul ne constitue plus le défaut Maison/Box. Aucune nouvelle règle globale pour Aujourd'hui n'est induite.
+
+### Socle du 12 novembre et précisions du 17 novembre
+
+Les repères suivants restent utiles pour leurs protections et choix explicites ; le cadrage du 19 novembre prévaut sur toute formulation incompatible.
+
+| Parcours | Règle attendue |
+| --- | --- |
+| Aujourd'hui | Le Coach compose automatiquement la séance selon la politique applicable |
+| Aujourd'hui / Maison classique | Skill + WOD réels et exécutables ; incompatibilité explicite si une séance valide est impossible, sans READY trompeur |
+| Ma semaine / Composer | Conserver exactement les blocs choisis et leur ordre ; ne pas ajouter un bloc pour appliquer la politique automatique |
+| Ma semaine / personnalisation de structure | Depuis le 17/11/2026 : UGEROD propose une structure puis l'utilisateur peut ajouter, retirer et réordonner Technique, Renforcement et WOD. Échauffement et Tabata abdos (4 min, 8 intervalles 20 s / 10 s) automatiques et non supprimables dans chaque nouvelle proposition (#31, dernier arbitrage du 17/11/2026), compris dans la durée totale. Cette décision remplace le Tabata facultatif. Les anciens brouillons et blocs persistés restent inchangés, sans injection silencieuse. Pas de blocs identiques répétés ni de Course autonome tant que leur identité et leur Player ne sont pas validés. |
+| Visibilité WOD / séance créée par l'utilisateur | Le WOD choisi dans Ma semaine est visible dès le récapitulatif, sans révélation manuelle. La génération automatique conserve son WOD masqué jusqu'à la révélation prévue ; le cycle de vie réel du WOD n'est jamais contourné. |
+| Renforcement seul depuis Ma semaine | Strength seul doit être exécutable, y compris à la maison |
+| Check-in Jour J | Adaptation contrôlée des prescriptions, du contexte et de la sécurité ; aucune reconstruction silencieuse de l'architecture choisie |
+| Séance commencée | Préserver l'identité de séance et les éléments déjà réalisés |
+
+Ces règles décrivent la cible ; elles ne certifient pas que tous les cas fonctionnent. Les vérifications restantes sont dans les tickets.
+
+Contrats existants à lire selon le chantier :
+- [Composer et expérience Coach](docs/COMPOSER_UX_CONTRACT.md).
+- [Thèmes clair/sombre et typographie](docs/UX_THEME_CONTRACT.md) : code de page commun, palettes historiques conservées.
+- [Mutation et cycle de vie d'une séance](docs/QA_MUTATION_MATRIX.md).
+- [Évolutions des séances et limites de validation](docs/session-evolutions-2026-10-28.md), compte rendu historique à confronter à l'état actuel.
+
+## Consolidation du 13 novembre 2026
+
+La [référence produit](docs/PRODUCT_REFERENCE.md) conserve la doctrine et 62 décisions historiques, avec leurs réserves et les précédences récentes. L'[état de transition](docs/WORKFLOW_TRANSITION.md) décrit le rapprochement et ses limites.
+
+Le backlog Excel a été rapproché sur ses 280 lignes et classé en deux ensembles : 85 lignes déclarées réalisées dans la source, et 195 restes à qualifier, dont 5 déjà reliés à des tickets et 190 candidats soumis à validation d'inscription. Aucun de ces rapprochements ne constitue une clôture ou une validation actuelle. Le rapport détaillé est remis à Ugo pour examen ; les candidats ne sont pas inscrits automatiquement.
+
+Le travail sur #26 et #3 garde ses priorités actuelles. L'organisation ne crée pas de gate supplémentaire pour le delivery DEV.
+
+## Classement du backlog : deux ensembles
+
+Décision d'Ugo du 13/11/2026 : distinguer avant tout **réalisé / historique** et **reste à réaliser**.
+
+- Réalisé : conserver le besoin, les décisions, les changements et les preuves disponibles ; ne pas remettre le développement à faire.
+- Reste à réaliser : noter uniquement le complément nécessaire — développement, correction, test, recette ou arbitrage — en conservant la partie déjà faite.
+- Un développement codé mais non recetté garde sa partie réalisée en historique et sa vérification comme reste ; ne pas recréer un chantier de développement complet.
+- Un statut ancien sans preuve actuelle est signalé comme tel. Ne jamais annoncer terminé un élément contradictoire ou non vérifié.
+- Les idées encore à arbitrer sont indiquées non engagées dans le reste, sans autoriser leur inscription ni leur développement.
+- La distinction n'autorise aucune clôture automatique : demander l'accord d'Ugo pour fermer les tickets.
+
+Le rapport a été réorganisé en deux parties : 85 lignes déclarées réalisées dans la source et 195 restes à qualifier (5 rattachements existants, 190 candidates). Ces nombres ne sont pas une recette actuelle : les preuves récentes peuvent faire évoluer le classement.
+
+## Où reprendre le travail
+
+Repères établis le 13/11/2026 ; le statut détaillé reste dans chaque ticket :
+
+- [#26 — Aujourd'hui Maison : Skill absent sur 30 min](https://github.com/ugosansh6/ucoach-mobile/issues/26) : priorité fonctionnelle identifiée.
+- [#3 — Composer vers Player et historique](https://github.com/ugosansh6/ucoach-mobile/issues/3) : validations réelles iPhone et critères restants. Les routines Mobilité/Gainage 10–15 min et badges sont identifiés dans la suite produit de ce ticket.
+- [#27 — Correspondance migrations Git / DEV](https://github.com/ugosansh6/ucoach-mobile/issues/27) : dette de reproductibilité à résoudre avant promotion.
+- [PR #2 — Débrief expérimental](https://github.com/ugosansh6/ucoach-mobile/pull/2) : exploration en pause, à reprendre seulement après arbitrage produit.
+
+Les priorités peuvent être changées par Ugo. Lire les tickets récents avant d'agir et actualiser ces liens si le découpage du travail évolue.
+
+## Suivre un changement Supabase
+
+Utiliser le même ticket pour les parties interface et backend du même besoin. Y conserver, pour chaque environnement concerné :
+
+| Preuve | Ce qu'il faut enregistrer |
+| --- | --- |
+| SQL ou fonction versionnés | Chemin et commit Git |
+| Base modifiée | Migration effectivement appliquée, cible et date |
+| Edge Function déployée | Nom, version déployée, cible et date ; un fichier Git ne suffit pas |
+| Contrôle backend | Cas testé, résultat et rollback/nettoyage le cas échéant |
+| Contrôle utilisateur | Parcours, appareil/environnement, résultat ou mention à faire |
+
+Si l'une des preuves manque, marquer cet étage non vérifié. L'absence d'accès à Supabase ne doit jamais être masquée par un succès côté GitHub.
+
+Le contrôle en lecture seule du 13/11 a confirmé un écart entre les identifiants des migrations Git et le registre DEV, désormais suivi dans #27. Il ne constitue ni une comparaison complète du schéma ni une réparation. [L'audit BASE-005 antérieur](docs/backend/BASE-005_DEV_GIT_MIGRATION_AUDIT_2026-08-29.md) reste une preuve historique. Ne pas déclarer une reconstruction depuis Git validée avant un replay isolé réussi.
+
+## Inscrire une évolution au backlog
+
+**Règle décidée par Ugo le 13/11/2026 : l'assistant propose systématiquement l'inscription d'une nouvelle évolution et attend l'accord explicite d'Ugo avant tout ajout.**
+
+1. Une idée ou un arbitrage émerge dans la conversation.
+2. L'assistant reformule brièvement l'évolution et demande si elle doit être inscrite au backlog.
+3. Ugo accepte, refuse ou demande de poursuivre la réflexion. Sans accord, aucune entrée de suivi n'est créée.
+4. Après accord, l'assistant recherche un doublon et crée ou complète le ticket correspondant, avec le périmètre validé et la date de l'accord.
+
+Une demande explicite « ajoute cette évolution au backlog » constitue déjà l'accord et n'appelle pas une seconde confirmation. Une validation groupée exige une liste explicite des ajouts.
+
+Cette règle couvre aussi l'ajout d'une nouvelle évolution à un ticket existant : ne pas la glisser dans sa checklist ou un document de suivi. En fin d'arbitrage, rappeler les idées encore sans décision d'inscription pour éviter les oublis. L'agent conseille ; Ugo décide de ce qui entre au backlog. L'inscription seule ne vaut pas lancement du développement.
+
+L'agent continue à actualiser l'avancement, les résultats de tests et la prochaine action des tâches acceptées sans redemander l'accord à chaque mise à jour. L'import historique de l'Excel doit d'abord être rapproché des tickets actuels et la liste des ajouts validée explicitement.
+
+## Valider la fin d'un développement
+
+Règle décidée par Ugo le 13/11/2026 :
+
+1. L'assistant termine les vérifications pertinentes et enregistre le résultat dans le ticket.
+2. Il présente ce qui fonctionne, les preuves, les éventuelles réserves et comment vérifier.
+3. Il demande systématiquement en fin de développement de la tâche si Ugo souhaite clôturer le ticket ou le garder ouvert.
+4. Le ticket reste ouvert, à valider par Ugo, jusqu'à un accord explicite de clôture portant sur ce ticket.
+5. Après accord, l'assistant enregistre la date et les réserves éventuellement acceptées puis clôture. Une demande directe de fermeture vaut accord.
+
+Un code enregistré, un déploiement réussi et une validation utilisateur sont des étapes distinctes. Pas de clôture automatique à la fusion sans accord. Une interruption ou un développement partiel donne lieu à une mise à jour d'avancement, sans prétendre que la tâche est terminée.
+
+À la reprise, l'assistant indique brièvement le ticket, la version de code, la cible utile et la prochaine action. À la fin, il vérifie l'enregistrement des modifications et du suivi. Une seule conversation modifie une même tâche à la fois ; il s'agit d'une discipline de coordination, pas d'un verrou technique.
+
+## Format du suivi dans une issue
+
+Garder une seule description à jour, avec l'objectif et les critères d'acceptation, puis :
+- état : à faire / en cours / à vérifier / à valider par Ugo / terminé après accord ;
+- changements : commit, fichiers et cible ;
+- vérifications : exécutées, résultats et limites ;
+- prochaine action exacte si la tâche reste ouverte.
+
+En cas de changement de règle produit, actualiser également le contrat concerné dans le même chantier. Les échanges et anciens documents de reprise restent des archives, sans recréer un nouveau compte rendu à chaque session.
