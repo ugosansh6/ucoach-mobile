@@ -66,6 +66,7 @@ import {
   getComposerArchitectureProposal,
   getComposerCardioProposal,
   getComposerExerciseCandidates,
+  getComposerExerciseCompatibility,
   getComposerMechanicOptions,
   getComposerWodSelectionContracts,
   getComposerPrescriptionPreview,
@@ -611,6 +612,7 @@ export default function WeekComposerV7() {
   const [wodEngineVersion, setWodEngineVersion] = useState('C4_COMPOSER_V2');
   const [mechanicOptions, setMechanicOptions] = useState([]);
   const [mechanicIssue, setMechanicIssue] = useState(null);
+  const [requestedMechanic,setRequestedMechanic]=useState(null);
   const [prescriptionPreview, setPrescriptionPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(false);
@@ -903,6 +905,7 @@ export default function WeekComposerV7() {
       if (environmentCode === 'OUTDOOR') { setOutdoorEngineVersion(COMPOSER_OUTDOOR_VERSION); setSkillEngineVersion('C4_COMPOSER_SKILL_V1'); }
       if (proposal?.status === 'DEFAULT_UNAVAILABLE') setArchitectureEditError(proposal.reason);
       previousSkillWodChoices.current = null;
+      setRequestedMechanic(null);
       setArchitectures(next);
       setArchitecture(proposal?.status === 'DEFAULT_UNAVAILABLE' ? null : next[0] ?? null);
       if (proposal?.status !== 'DEFAULT_UNAVAILABLE') setArchitectureEditError('');
@@ -1098,7 +1101,7 @@ export default function WeekComposerV7() {
     }
   }
 
-  async function openExercisePicker(id = null) {
+  async function openExercisePicker(id = null, nextEquipmentIds = equipmentIds) {
     if (!activeBlock || activeBlock.type === 'CARDIO') return;
     const request = ++pickerRequest.current;
     setReplacementId(id);
@@ -1107,11 +1110,10 @@ export default function WeekComposerV7() {
     try {
       const rows = await getComposerExerciseCandidates({
         blockType: activeBlock.type, focus: intent?.focus ?? 'General Fitness',
-        environmentCode, equipmentIds, manualCatalogue: true,
+        environmentCode, equipmentIds: nextEquipmentIds, manualCatalogue: true,
       });
       if (request !== pickerRequest.current) return;
-      // Keep the raw manual catalogue so an explicit session equipment addition
-      // can reveal newly compatible rows without a new network request.
+      // Only the real inventory/environment authority can approve catalogue rows.
       setPickerCatalogue(rows);
       // Evidence is optional; never restrict exploration if history is unavailable.
       setPickerLoading(false);
@@ -1137,7 +1139,9 @@ export default function WeekComposerV7() {
   }
 
   function addPickerEquipment(ids) {
-    setEquipmentIds(current => pickerAddSessionEquipment(current, ids, referenceEquipment));
+    const nextEquipmentIds=pickerAddSessionEquipment(equipmentIds,ids,referenceEquipment);
+    setEquipmentIds(nextEquipmentIds);
+    openExercisePicker(replacementId,nextEquipmentIds);
     setPreviewSignature(null); setPrescriptionPreview(null); setPreviewIssue(null);
     setStrengthAssessmentSignature(null);
   }
@@ -1261,6 +1265,12 @@ export default function WeekComposerV7() {
     }
   }
 
+  function editWodForMechanic(option=null){
+    setRequestedMechanic(option);
+    setRecapEditingBlock('WOD');setExerciseBlockIndex(0);setExpandedExerciseId(null);
+    setMechanicIssue(null);setError('');setStep(3);
+  }
+
   async function advanceExerciseBlock() {
     const blocks = recapEditingBlock
       ? (architecture?.blocks ?? []).filter((item) => item.type === recapEditingBlock)
@@ -1285,6 +1295,13 @@ export default function WeekComposerV7() {
     try {
       setBusy(true);
       setError('');
+      const compatibility=await getComposerExerciseCompatibility({exerciseIds:selectionMap.WOD??[],equipmentIds,environmentCode});
+      const bad=(selectionMap.WOD??[]).filter(id=>!compatibility[id]?.equipment_ok||!compatibility[id]?.environment_ok);
+      if(bad.length){
+        const names=bad.map(id=>{const exercise=candidateMap.WOD?.find(row=>row.id===id);const status=compatibility[id];return (exercise?.name??id)+' ('+(!status?'référence manquante':!status.equipment_ok?'matériel ou quantité requis':'lieu incompatible')+')';});
+        setError('À ajuster : '+names.join(' · ')+'. Remplace ces mouvements ou ajoute le matériel nécessaire.');
+        setRecapEditingBlock('WOD');setExerciseBlockIndex(0);setStep(3);return;
+      }
       const options = await getComposerMechanicOptions({
         sessionMinutes: duration, targetRegion,
         equipmentNames: referenceEquipment.filter((e) => equipmentIds.includes(String(e.id))).map((e) => e.name),
@@ -1298,8 +1315,11 @@ export default function WeekComposerV7() {
       setWodEngineVersion('C4_COMPOSER_V2');
       setMechanicOptions(options);
       setMechanicIssue(null);
-      setMechanic((current) => options.find((option) => option.available !== false && composerMechanicIdentity(option) === composerMechanicIdentity(current))
+      const requested=requestedMechanic?options.find(option=>composerMechanicIdentity(option)===composerMechanicIdentity(requestedMechanic)):null;
+      setMechanic((current) => requested?.available ? requested : options.find((option) => option.available !== false && composerMechanicIdentity(option) === composerMechanicIdentity(current))
         ?? options.find((option) => option.available !== false));
+      if(requested&&!requested.available)setMechanicIssue(requested.title+' : '+requested.reason);
+      if(requested?.available)setRequestedMechanic(null);
       setShowAllMechanics(!options.some((option) => option.available !== false));
       setStep(4);
     } catch (reason) {
@@ -1510,7 +1530,7 @@ export default function WeekComposerV7() {
   const rankedById = new Map(activeCandidates.map((exercise) => [exercise.id, exercise]));
   const pickerRows = pickerCatalogue.map((exercise) => ({
     ...rankedById.get(exercise.id), ...exercise,
-    missingEquipment: (exercise.equipmentIds ?? []).filter(id => !equipmentIds.includes(String(id))).map(id => referenceEquipment.find(item => String(item.id) === String(id))?.name ?? id),
+    missingEquipment: exercise.missingEquipment ?? [],
     recommended: pickerEquipmentMatches(exercise, equipmentIds) && Boolean(rankedById.get(exercise.id)?.recommended),
   })).sort((a, b) => Number(b.recommended) - Number(a.recommended));
   const favoriteIds = Object.entries(candidateEvidence).filter(([,e]) => e.explicit_preference_state === 'FAVORI').map(([id]) => id);
@@ -1926,13 +1946,14 @@ export default function WeekComposerV7() {
                   <Text style={styles.sectionSmallHint}>Cette action propose une leçon guidée. Si tu modifies ensuite ses exercices, tu repasses en composition libre.</Text>
                 </View>
               ) : null}
+              {activeBlock.type === 'WOD' && requestedMechanic?.reason_code==='EXERCISE_COUNT' ? <View style={styles.structureExplanation}><Ionicons name="options-outline" size={18} color={colors.accent}/><Text style={styles.structureExplanationText}>{requestedMechanic.title} : choisis entre {requestedMechanic.contract?.min_exercises} et {requestedMechanic.contract?.max_exercises} mouvements. Aucun exercice ne sera ajouté ou retiré automatiquement.</Text></View>:null}
               {activeBlock.type === 'WOD' ? <Text style={styles.sectionSmallHint}>
-                {wodContractsLoading ? 'Vérification des limites par format…'
+                {wodContractsLoading ? 'Vérification des limites par mécanique…'
                   : wodContractsError ? 'Limites indisponibles : trois mouvements maximum pour les nouveaux ajouts.'
                     : activeSelected.length >= maxForBlock(activeBlock.type, activeBlock.minutes)
                       ? 'Limite de sélection atteinte. Tu peux remplacer un mouvement.'
-                      : 'Tu peux ajouter des mouvements. Les formats proposés dépendront de leur nombre.'}
-                {' Le dosage sera précisé avec le format.'}
+                      : 'Tu peux ajouter des mouvements. Les mécaniques proposées dépendront de leur nombre.'}
+                {' Le dosage sera précisé avec la mécanique.'}
               </Text> : null}
               {activeBlock.type === 'WOD' && wodContractsError ? (
                 <Pressable accessibilityRole="button" onPress={() => setWodContractsRetry((value) => value + 1)} style={styles.structureLink}>
@@ -1996,32 +2017,35 @@ export default function WeekComposerV7() {
                   helper={`${wodBlock?.minutes ?? 0} min prévues · ${selectionMap.WOD?.length ?? 0} mouvements. Une seule mécanique à la fois.`}
                   styles={{...styles,stageHeader:styles.mechanicStageHeader,question:styles.mechanicQuestion,helper:styles.mechanicHelper}}
                 />
-              {!mechanicOptions.some((o) => o.available !== false) ? <Text style={styles.previewWarning}>Aucune mécanique validée avec ces mouvements et cette durée. Reviens aux mouvements ou à la structure pour les ajuster.</Text> : null}
+              {!mechanicOptions.some((o) => o.available !== false) ? <View style={styles.structureExplanation}><Ionicons name="options-outline" size={18} color={colors.accent}/><View style={{flex:1,gap:8}}><Text style={styles.structureExplanationText}>Ajuste les mouvements ou la durée pour construire une mécanique exécutable.</Text><Pressable accessibilityRole="button" onPress={()=>editWodForMechanic()}><Text style={styles.structureLinkText}>Modifier les mouvements du WOD</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>setStep(2)}><Text style={styles.structureLinkText}>Ajuster la durée du WOD</Text></Pressable></View></View> : null}
               <View style={styles.mechanicList}>
                 {mechanicOptions.filter((option) =>
                     showAllMechanics || composerMechanicIdentity(option) === composerMechanicIdentity(mechanic) || option.recommended
                   ).sort((a, b) => Number(composerMechanicIdentity(b) === composerMechanicIdentity(mechanic))
                     - Number(composerMechanicIdentity(a) === composerMechanicIdentity(mechanic))).map((option) => {
                   const selected = composerMechanicIdentity(mechanic) === composerMechanicIdentity(option);
+                  const premium=option.available===false&&option.reason_code==='PREMIUM_REQUIRED';
+                  const adjustable=option.available===false&&!premium;
                   return (
                     <View key={composerMechanicIdentity(option)} style={styles.previewOptionGroup}>
                     <Pressable
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: selected, disabled: option.available === false }}
-                      accessibilityLabel={option.title + (option.available === false ? ', indisponible, ' + option.reason : '')}
-                      onPress={() => option.available === false ? setMechanicIssue(option.reason) : (setMechanic(option), setMechanicIssue(null))}
-                      style={[styles.simpleCard, styles.mechanicCard, selected && styles.cardSelected, option.available === false && styles.mechanicDisabled]}>
+                      accessibilityRole={adjustable?'button':'radio'}
+                      accessibilityState={{ checked: selected, disabled: premium }}
+                      accessibilityLabel={option.title+(adjustable?', ajuster la composition':premium?', Premium':'')}
+                      onPress={() => adjustable ? editWodForMechanic(option) : premium ? setMechanicIssue(option.reason) : (setMechanic(option),setRequestedMechanic(null),setMechanicIssue(null))}
+                      style={[styles.simpleCard, styles.mechanicCard, selected && styles.cardSelected, premium && styles.mechanicDisabled]}>
                       {selected ? <View style={styles.mechanicSelectedRail} /> : null}
                       <View style={styles.mechanicTopRow}>
                         <View style={{ flex: 1 }}>
                           {option.available === false || option.recommended || selected ? (
-                            <Text style={styles.cardEyebrow}>{option.available === false ? option.reason_code === 'PREMIUM_REQUIRED' ? 'PREMIUM' : 'INDISPONIBLE' : option.recommended ? 'CHOIX UGEROD' : 'MÉCANIQUE CHOISIE'}</Text>
+                            <Text style={styles.cardEyebrow}>{option.available === false ? option.reason_code === 'PREMIUM_REQUIRED' ? 'PREMIUM' : 'À AJUSTER' : option.recommended ? 'CHOIX UGEROD' : 'MÉCANIQUE CHOISIE'}</Text>
                           ) : null}
                           <Text style={styles.mechanicTitle}>{option.title}</Text>
                           <Text style={styles.mechanicDescription}>{composerMechanicDescription(option)}</Text>
+                          {adjustable?<Text style={styles.structureLinkText}>{option.reason_code==='EXERCISE_COUNT'?'Ajuster les mouvements':'Adapter la composition'} <Text>›</Text></Text>:null}
                         </View>
                         <View style={[styles.mechanicSelectCircle, selected && styles.selectCircleSelected]}>
-                          {option.available === false || selected ? <Ionicons name={option.available === false ? 'lock-closed-outline' : 'checkmark'} size={16} color={option.available === false ? colors.textMuted : colors.textOnAccent} /> : null}
+                          {option.available === false || selected ? <Ionicons name={premium ? 'lock-closed-outline' : adjustable ? 'options-outline' : 'checkmark'} size={16} color={premium ? colors.textMuted : adjustable ? colors.accent : colors.textOnAccent} /> : null}
                         </View>
                       </View>
                     </Pressable>

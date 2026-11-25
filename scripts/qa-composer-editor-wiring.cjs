@@ -22,7 +22,7 @@ assert.match(ui,/Personnaliser la structure/);
 assert.match(ui,/accessibilityState=\{\{ disabled: true \}\} style=\{styles.structureProtected\}/);
 assert.match(service,/blocks: \[warmupBlock, tabataBlock, \.\.\.main\]/);
 assert.match(ui,/showAllMechanics \|\| composerMechanicIdentity\(option\) === composerMechanicIdentity\(mechanic\) \|\| option.recommended/);
-assert.match(ui,/Aucune mécanique validée avec ces mouvements et cette durée/);
+assert.match(ui,/Modifier les mouvements du WOD/);assert.match(ui,/getComposerExerciseCompatibility\(\{exerciseIds:selectionMap.WOD/);
 assert.match(ui,/setMechanicOptions\(options\)/);
 // Format ranking belongs to the RPC. Duration alone must not claim that a
 // circuit was chosen when the server may recommend another format.
@@ -55,3 +55,6 @@ assert.match(mechanicPage,/MÉCANIQUE DU WOD/);assert.match(mechanicPage,/La mé
 assert.doesNotMatch(mechanicPage,/FORMAT DU WOD|FORMAT CHOISI|Voir d’autres formats|Un seul format/);
 assert.match(mechanicPage,/composerMechanicDescription\(option\)/);assert.match(mechanicPage,/ComposerWodPreview/);assert.match(mechanicPage,/composerMechanicIdentity\(mechanic\)/);
 console.log('PASS mechanic wording and dedicated compact styling; existing selection and preview retained');
+
+assert.match(ui,/editWodForMechanic\(option\)/);assert.match(ui,/requestedMechanic\?\.reason_code==='EXERCISE_COUNT'/);assert.match(ui,/premium \? 'lock-closed-outline' : adjustable \? 'options-outline'/);
+console.log('PASS actionable mechanic adjustment and exact material preflight');

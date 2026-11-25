@@ -49,7 +49,7 @@ assert.deepEqual(picker.pickerAddableEquipment(presetGear,['band']).map(e=>e.id)
 assert.deepEqual(picker.pickerAddSessionEquipment(['band'],['bar','bar','E00','unknown'],presetGear),['band','bar']);
 const added=picker.pickerAddSessionEquipment(['band'],['bar'],presetGear);
 assert.deepEqual(gearRows.filter(row=>picker.pickerEquipmentMatches(row,added)).map(row=>row.id),['push','body','band','bar','assisted']);
-assert.match(pickerUI,/Ajouter du matériel/);assert.match(pickerUI,/onAddEquipment\(pendingEquipment\)/);assert.match(composerUI,/setPickerCatalogue\(rows\)/);assert.match(composerUI,/onAddEquipment=\{addPickerEquipment\}/);
+assert.match(pickerUI,/Ajouter du matériel/);assert.match(pickerUI,/onAddEquipment\(pendingEquipment\)/);assert.match(composerUI,/setPickerCatalogue\(rows\)/);assert.match(composerUI,/openExercisePicker\(replacementId,nextEquipmentIds\)/);assert.match(composerUI,/onAddEquipment=\{addPickerEquipment\}/);
 console.log('PASS session-only additions from preset, no duplicate or unknown equipment, newly compatible exercises available');
 
 assert.match(pickerUI,/import ExerciseDetail from/);
@@ -60,3 +60,9 @@ assert.match(pickerUI,/if\(!detailExercise\|\|!canSelect\)return/);
 assert.match(pickerUI,/onPress=\{\(\)=>onSelect\(row\)\}/);
 assert.match(pickerUI,/selectDisabled=\{!canSelect\}/);
 console.log('PASS separate browse and selection actions, shared detail, capacity protection');
+
+const alt={id:'step',equipmentIds:['E11','E21'],equipmentCompatibility:{equipmentOk:true,environmentOk:true,selectedIds:['E11']}};
+assert.equal(picker.pickerEquipmentMatches(alt,['E11']),true,'Server alternative group is authoritative');
+assert.equal(picker.pickerEquipmentMatches(alt,['E21']),false,'Stale response must not authorize a different selection');
+assert.equal(picker.pickerEquipmentMatches({...alt,equipmentCompatibility:{...alt.equipmentCompatibility,equipmentOk:false}},['E11']),false);
+console.log('PASS authoritative compatibility and stale equipment response guard');

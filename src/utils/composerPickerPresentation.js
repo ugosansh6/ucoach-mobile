@@ -39,9 +39,14 @@ export function filterPickerRows(rows,{zone='',type='',equipment='',search='',fa
       ...pickerZones.filter(z=>pickerZoneMatches(row,z.key)).map(z=>z.label),...(row.equipmentNames??[])].join(' ')).includes(q)));
 }
 
-// The session's explicit equipment selection is the only mandatory picker filter.
-// All required items must be present; E00 (bodyweight) is always available.
+// Server-verified compatibility covers alternative groups, quantities and environment.
+// The flat fallback remains for old fixture/legacy rows only.
 export function pickerEquipmentMatches(row, equipmentIds=[]) {
+  if(row.equipmentCompatibility){
+    const signature=JSON.stringify([...new Set(equipmentIds.map(String))].sort());
+    return row.equipmentCompatibility.equipmentOk===true&&row.equipmentCompatibility.environmentOk===true
+      &&JSON.stringify(row.equipmentCompatibility.selectedIds)===signature;
+  }
   const available = new Set(['E00', ...equipmentIds.map(String)]);
   return Array.isArray(row.equipmentIds) && row.equipmentIds.every(id=>available.has(String(id)));
 }

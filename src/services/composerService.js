@@ -63,6 +63,21 @@ async function readCompleteComposerCatalogue(query) {
   }
 }
 
+// Single read-only compatibility authority, shared with the compiler's inventory
+// and environment predicates. Never infer physical compatibility from a flat list.
+export async function getComposerExerciseCompatibility({exerciseIds=[],equipmentIds=[],environmentCode='HOME'}={}) {
+  await getAuthenticatedUserWithRetry();
+  const ids=[...new Set(exerciseIds.filter(Boolean))];
+  const result={};
+  for(let offset=0;offset<ids.length;offset+=500){
+    const rows=await runSupabaseRequestWithAuthRetry(()=>supabase.rpc('week_composer_exercise_compatibility_v1',{
+      p_exercise_ids:ids.slice(offset,offset+500),p_equipment_ids:equipmentIds,p_environment_code:environmentCode,
+    }));
+    Object.assign(result,rows??{});
+  }
+  return result;
+}
+
 export async function getComposerExerciseCandidates({
   blockType,
   focus,
@@ -126,18 +141,8 @@ export async function getComposerExerciseCandidates({
   if (!exercises?.length) return [];
 
   const ids = exercises.map((exercise) => exercise.id);
-  const requirementQuery = supabase.from('exercise_equipment')
-    .select('exercise_id,equipment_id').in('exercise_id', ids)
-    .order('exercise_id').order('equipment_id');
-  let requirements;
-  if (commonTrainingCatalogue) requirements = await readCompleteComposerCatalogue(requirementQuery);
-  else {
-    const result = await requirementQuery;
-    if (result.error) throw result.error;
-    requirements = result.data;
-  }
-
-  const requiredIds = [...new Set((requirements ?? []).map((row) => String(row.equipment_id)).filter((id) => id && id !== 'E00'))];
+  const compatibility=await getComposerExerciseCompatibility({exerciseIds:ids,equipmentIds,environmentCode});
+  const requiredIds=[...new Set(Object.values(compatibility).flatMap(row=>row.equipment_ids??[]))];
   const { data: equipmentRows, error: equipmentError } = requiredIds.length
     ? await supabase.from('equipment_catalog_v2').select('id,name').in('id', requiredIds)
     : { data: [], error: null };
@@ -160,21 +165,11 @@ export async function getComposerExerciseCandidates({
       backMuscleWeights.set(link.exercise_id, (backMuscleWeights.get(link.exercise_id) ?? 0) + weight);
     }
   }
-  const available = new Set(['E00', ...(equipmentIds ?? []).map(String)]);
-  const byExercise = new Map();
-  (requirements ?? []).forEach((row) => {
-    const list = byExercise.get(row.exercise_id) ?? [];
-    list.push(String(row.equipment_id));
-    byExercise.set(row.exercise_id, list);
-  });
-
   return exercises
-    .filter((exercise) => {
-      if (manualCatalogue) return true;
-      if (targetRegion === 'Back' && !backMuscleWeights.has(exercise.id)) return false;
-      const reqs = byExercise.get(exercise.id) ?? [];
-      if (reqs.length === 0) return true;
-      return reqs.every((equipmentId) => available.has(equipmentId));
+    .filter(exercise=>{
+      const status=compatibility[exercise.id];
+      if(!status?.equipment_ok||!status?.environment_ok)return false;
+      return manualCatalogue||targetRegion!=='Back'||backMuscleWeights.has(exercise.id);
     })
     .map((exercise) => ({
       id: exercise.id,
@@ -186,11 +181,12 @@ export async function getComposerExerciseCandidates({
       difficulty: exercise.difficulty ?? null,
       exerciseType: exercise.exercise_type ?? null,
       trainingFocus: exercise.training_focus ?? null,
-      ...(manualCatalogue ? { originalName: exercise.name, isBack: backMuscleWeights.has(exercise.id), missingEquipment: (byExercise.get(exercise.id) ?? []).filter((id) => !available.has(id)).map((id) => equipmentNamesById.get(id) ?? id) } : {}),
-      equipmentIds: (byExercise.get(exercise.id) ?? []).filter((id) => id !== 'E00'),
-      equipmentNames: (byExercise.get(exercise.id) ?? [])
-        .filter((id) => id !== 'E00')
-        .map((id) => equipmentNamesById.get(id) ?? id),
+      ...(manualCatalogue ? { originalName: exercise.name, isBack: backMuscleWeights.has(exercise.id), missingEquipment: [] } : {}),
+      equipmentIds: compatibility[exercise.id].equipment_ids ?? [],
+      equipmentGroups: compatibility[exercise.id].equipment_groups ?? [],
+      equipmentCompatibility: { equipmentOk: true, environmentOk: true, selectedIds: [...new Set(equipmentIds.map(String))].sort() },
+      equipmentNames: (compatibility[exercise.id].equipment_groups ?? []).map(group=>group.map(id=>equipmentNamesById.get(id)??id).join(' + ')).length
+        ? [(compatibility[exercise.id].equipment_groups ?? []).map(group=>group.map(id=>equipmentNamesById.get(id)??id).join(' + ')).join(' ou ')] : [],
       bodyRegion: exercise.body_region,
       movementPattern: exercise.movement_pattern,
       exerciseFamily: exercise.exercise_family,
