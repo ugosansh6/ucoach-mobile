@@ -73,3 +73,14 @@ for(const theme of Object.values(ugerodThemes)){
  const readonly=renderToStaticMarkup(React.createElement(Detail,{exercise:{id:'cardio',name:'Cardio'},colors,onClose(){}}));assert.doesNotMatch(readonly,/Remplacer|Retirer/);
 }
 console.log('PASS compact movement header, solo/mixed tabs, reusable exercise detail in both themes (SSR, not device)');
+
+for(const theme of Object.values(ugerodThemes)){
+ const exercise={id:'EX321',name:'Band Row',instructions:'Tire avec contrôle',equipmentNames:['Élastiques']};
+ const browse=renderToStaticMarkup(React.createElement(Detail,{exercise,colors:theme.colors,onClose(){},onSelect(){},closeLabel:'Retour aux exercices'}));
+ assert.match(browse,/Ajouter à la séance/);assert.match(browse,/Retour aux exercices/);assert.doesNotMatch(browse,/Retour à la séance|Remplacer|Retirer|Dosage à calibrer/);
+ const full=renderToStaticMarkup(React.createElement(Detail,{exercise,colors:theme.colors,onClose(){},onSelect(){},selectDisabled:true,selectHint:'Bloc complet'}));
+ assert.match(full,/Bloc complet/);assert.match(full,/aria-disabled="true"/);
+ const replacement=renderToStaticMarkup(React.createElement(Detail,{exercise,colors:theme.colors,onClose(){},onSelect(){},selectLabel:'Choisir ce remplacement'}));
+ assert.match(replacement,/Choisir ce remplacement/);
+}
+console.log('PASS shared detail catalogue actions in both themes, capacity guard, no invented prescription');

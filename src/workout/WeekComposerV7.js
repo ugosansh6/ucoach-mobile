@@ -1546,7 +1546,7 @@ export default function WeekComposerV7() {
   const detailExercise = step === 3 && detailIndex >= 0 ? selectedCandidateObjects[detailIndex] : null;
 
   if (sheet === 'exercise-picker' && activeBlock) return <ComposerExercisePickerPage
-    colors={colors} isDark={isDark} blockLabel={composerBlockDisplayLabel(activeBlock.type, environmentCode)}
+    colors={colors} isDark={isDark} brandIcon={brandIcon} blockLabel={composerBlockDisplayLabel(activeBlock.type, environmentCode)}
     rows={pickerRows} equipmentIds={equipmentIds} referenceEquipment={referenceEquipment} equipmentSummary={equipmentSummary} selectedRows={selectedCandidateObjects} selectedIds={activeSelected} favoriteIds={favoriteIds}
     capacity={maxForBlock(activeBlock.type, activeBlock.minutes)} replacementId={replacementId} onReplacement={setReplacementId}
     loading={pickerLoading} error={pickerError} onRetry={() => openExercisePicker(replacementId)}

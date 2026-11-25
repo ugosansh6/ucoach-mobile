@@ -12,7 +12,8 @@ const MUSCLE_NAMES={M01:'Pectoraux',M02:'Grands dorsaux',M03:'Épaules',M04:'Bic
 // The same presentation can be reused in another context by supplying its
 // own actions. This component never saves, prescribes or starts a workout.
 export default function ExerciseDetail({ visible=true, exercise, dose, doseLabel, index, count, colors, isDark, brandIcon,
-  editable=false, onClose, onReplace, onRemove, onPrevious, onNext }) {
+  editable=false, onClose, onReplace, onRemove, onPrevious, onNext,
+  closeLabel='Retour à la séance', onSelect, selectLabel='Ajouter à la séance', selectDisabled=false, selectHint=null }) {
   const styles=makeStyles(colors);
   const [muscles,setMuscles]=useState([]),[muscleState,setMuscleState]=useState('loading'),[retry,setRetry]=useState(0);
   const [imageFailed,setImageFailed]=useState(false);
@@ -88,7 +89,11 @@ export default function ExerciseDetail({ visible=true, exercise, dose, doseLabel
           {onReplace?<Pressable accessibilityRole="button" accessibilityLabel={'Remplacer '+exercise.name} onPress={onReplace} style={styles.secondary}><Ionicons name="swap-horizontal-outline" size={18} color={colors.accent}/><Text style={styles.link}>Remplacer</Text></Pressable>:null}
           {onRemove?<Pressable accessibilityRole="button" accessibilityLabel={'Retirer '+exercise.name} onPress={onRemove} style={styles.secondary}><Ionicons name="trash-outline" size={17} color={colors.textSecondary}/><Text style={styles.muted}>Retirer</Text></Pressable>:null}
         </View>:null}
-        <Pressable accessibilityRole="button" onPress={onClose} style={styles.done}><Text style={styles.doneText}>Retour à la séance</Text></Pressable>
+        {onSelect?<>
+          {selectHint?<Text style={styles.muted}>{selectHint}</Text>:null}
+          <Pressable accessibilityRole="button" accessibilityState={{disabled:selectDisabled}} disabled={selectDisabled} onPress={onSelect} style={[styles.done,selectDisabled&&{opacity:.45}]}><Text style={styles.doneText}>{selectLabel}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={onClose} style={styles.secondaryClose}><Text style={styles.link}>{closeLabel}</Text></Pressable>
+        </>:<Pressable accessibilityRole="button" onPress={onClose} style={styles.done}><Text style={styles.doneText}>{closeLabel}</Text></Pressable>}
       </View>
     </SafeAreaView>
   </Modal>;
@@ -118,5 +123,6 @@ function makeStyles(c){return StyleSheet.create({
   link:{fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:18,color:c.accent},
   footer:{width:'100%',maxWidth:820,alignSelf:'center',paddingHorizontal:16,paddingVertical:10,gap:8,borderTopWidth:1,borderTopColor:c.border,backgroundColor:c.background},
   actions:{flexDirection:'row',gap:8},secondary:{flex:1,minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderWidth:1,borderColor:c.border,borderRadius:10},
+  secondaryClose:{minHeight:44,alignItems:'center',justifyContent:'center'},
   done:{minHeight:44,borderRadius:12,backgroundColor:c.accent,alignItems:'center',justifyContent:'center'},doneText:{fontFamily:fontFamilies.bold,fontSize:14,color:c.textOnAccent},
 });}

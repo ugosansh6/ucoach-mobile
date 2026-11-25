@@ -3,13 +3,15 @@ import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleShe
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { fontFamilies } from '../constants/typography';
+import ExerciseDetail from '../components/exercises/ExerciseDetail';
 import { exerciseRegionLabel, exerciseMovementLabel } from '../utils/exerciseCatalogue';
 import { pickerZones, pickerTypes, filterPickerRows, pickerEquipmentMatches, pickerEquipmentOptions, pickerAddableEquipment } from '../utils/composerPickerPresentation';
 
-export default function ComposerExercisePickerPage({colors,isDark,blockLabel,rows,equipmentIds=[],referenceEquipment=[],equipmentSummary,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose,onAddEquipment}) {
+export default function ComposerExercisePickerPage({colors,isDark,brandIcon,blockLabel,rows,equipmentIds=[],referenceEquipment=[],equipmentSummary,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose,onAddEquipment}) {
   const [zone,setZone]=useState(''),[type,setType]=useState(''),[equipment,setEquipment]=useState(''),[search,setSearch]=useState('');
   const [favoritesOnly,setFavoritesOnly]=useState(false),[view,setView]=useState('hub'),[limit,setLimit]=useState(40);
   const [pendingEquipment,setPendingEquipment]=useState([]);
+  const [detailId,setDetailId]=useState(null);
   const styles=createStyles(colors);
   const available=rows.filter(row=>pickerEquipmentMatches(row,equipmentIds)&&!selectedIds.includes(row.id));
   const equipmentOptions=pickerEquipmentOptions(equipmentIds,referenceEquipment);
@@ -21,6 +23,10 @@ export default function ComposerExercisePickerPage({colors,isDark,blockLabel,row
   const filtered=filterPickerRows(available,filters,favoriteIds);
   const selectedZone=pickerZones.find(z=>z.key===zone),selectedType=pickerTypes.find(t=>t.key===type),selectedEquipment=equipmentOptions.find(e=>e.key===equipment);
   const atCapacity=selectedIds.length>=capacity;
+  const canSelect=!atCapacity||Boolean(replacementId);
+  const detailIndex=filtered.findIndex(row=>row.id===detailId);
+  const detailExercise=detailIndex>=0?filtered[detailIndex]:null;
+  function selectFromDetail(){if(!detailExercise||!canSelect)return;setDetailId(null);onSelect(detailExercise);}
   const listVisible=view==='results'||Boolean(search.trim())||favoritesOnly;
   function results(){setView('results');setLimit(40);}
   function back(){if(addingEquipment){setPendingEquipment([]);setView('equipment');return;}if(view==='zone'||view==='type'||view==='equipment'||listVisible){setView('hub');setSearch('');setFavoritesOnly(false);}else onClose();}
@@ -72,15 +78,23 @@ export default function ComposerExercisePickerPage({colors,isDark,blockLabel,row
       </View>{view==='equipment'&&onAddEquipment?<Pressable accessibilityRole="button" onPress={openAddEquipment} style={styles.browse}><Ionicons name="add-circle-outline" size={23} color={colors.accent}/><View style={{flex:1}}><Text style={styles.filterLabel}>Ajouter du matériel</Text><Text style={styles.muted}>Modifier le matériel de cette séance</Text></View><Ionicons name="chevron-forward" size={18} color={colors.accent}/></Pressable>:null}</>:!listVisible?<Pressable accessibilityRole="button" style={styles.browse} onPress={()=>{clearFilters();results();}}><View style={styles.tileIcon}><Ionicons name="grid-outline" size={24} color={colors.accent}/></View><View style={{flex:1}}><Text style={styles.tileTitle}>Tous les exercices</Text><Text style={styles.muted}>{available.length} exercices compatibles avec ton matériel</Text></View><Ionicons name="chevron-forward" color={colors.accent} size={20}/></Pressable>:<>
         <Text style={styles.section}>{filtered.length} exercice{filtered.length!==1?'s':''}</Text>
         {!filtered.length&&!loading?<Text style={styles.muted}>Aucun exercice compatible. Modifie tes filtres, ta recherche ou le matériel de la séance.</Text>:null}
-        {filtered.slice(0,limit).map(row=><Pressable key={row.id} accessibilityRole="button" accessibilityLabel={'Ajouter '+row.name} disabled={atCapacity&&!replacementId} onPress={()=>onSelect(row)} style={[styles.row,atCapacity&&!replacementId&&{opacity:0.5}]}>
+        {filtered.slice(0,limit).map(row=><View key={row.id} style={styles.row}>
+          <Pressable accessibilityRole="button" accessibilityLabel={'Détails de '+row.name} onPress={()=>setDetailId(row.id)} style={styles.exerciseInfo}>
           <View style={styles.thumb}>{/^https?:\/\//i.test(String(row.imagePath??''))?<Image source={{uri:row.imagePath}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>:<Ionicons name="barbell-outline" size={23} color={colors.textSecondary}/>}</View>
           <View style={{flex:1,gap:3}}><Text style={styles.rowTitle}>{row.name}</Text><Text style={styles.muted}>{[exerciseRegionLabel(row.bodyRegion),exerciseMovementLabel(row.movementPattern)].filter(Boolean).join(' · ')}</Text>
           <Text style={styles.muted}>{(row.equipmentNames??[]).join(' · ')||'Poids du corps'}</Text>
           {row.missingEquipment?.length?<Text style={styles.warning}>Matériel manquant : {row.missingEquipment.join(' · ')}</Text>:null}
-          {row.recommended?<Text style={styles.recommended}>Recommandé</Text>:null}</View><Ionicons name="add-circle-outline" size={27} color={colors.accent}/></Pressable>)}
+          {row.recommended?<Text style={styles.recommended}>Recommandé</Text>:null}</View><Ionicons name="chevron-forward" size={15} color={colors.textMuted}/></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={(replacementId?'Choisir ':'Ajouter ')+row.name} accessibilityState={{disabled:!canSelect}} disabled={!canSelect} onPress={()=>onSelect(row)} style={[styles.quickAdd,!canSelect&&{opacity:.4}]}><Ionicons name="add-circle-outline" size={27} color={colors.accent}/></Pressable></View>)}
         {filtered.length>limit?<Pressable style={styles.browse} onPress={()=>setLimit(v=>v+40)}><Text style={styles.filterLabel}>Afficher plus d’exercices</Text><Ionicons name="chevron-down" size={18} color={colors.accent}/></Pressable>:null}
       </>}
     </ScrollView>
+    {detailExercise?<ExerciseDetail key={detailExercise.id} exercise={detailExercise} colors={colors} isDark={isDark} brandIcon={brandIcon}
+      index={detailIndex} count={filtered.length} onClose={()=>setDetailId(null)} closeLabel="Retour aux exercices"
+      onSelect={selectFromDetail} selectLabel={replacementId?'Choisir ce remplacement':'Ajouter à la séance'} selectDisabled={!canSelect}
+      selectHint={!canSelect?'Bloc complet : choisis d’abord un mouvement à remplacer.':null}
+      onPrevious={detailIndex>0?()=>setDetailId(filtered[detailIndex-1].id):null}
+      onNext={detailIndex<filtered.length-1?()=>setDetailId(filtered[detailIndex+1].id):null}/>:null}
     <View style={styles.footer}>{addingEquipment?<Pressable accessibilityRole="button" disabled={!pendingEquipment.length} onPress={confirmEquipment} style={[styles.done,!pendingEquipment.length&&{opacity:.45}]}><Text style={styles.doneText}>Ajouter {pendingEquipment.length||''} équipement{pendingEquipment.length>1?'s':''}</Text></Pressable>:<><Text style={styles.muted}>{selectedIds.length} mouvement{selectedIds.length!==1?'s':''} retenu{selectedIds.length!==1?'s':''}</Text><Pressable accessibilityRole="button" onPress={onClose} style={styles.done}><Text style={styles.doneText}>Terminé</Text></Pressable></>}</View>
   </SafeAreaView>;
 }
@@ -101,6 +115,7 @@ function createStyles(c){return StyleSheet.create({
   equipmentScope:{flexDirection:'row',alignItems:'center',gap:7},
   notice:{gap:8,padding:12,borderWidth:1,borderColor:c.border,borderRadius:12},
   row:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderWidth:1,borderColor:c.border,borderRadius:14,backgroundColor:c.surface},
+  exerciseInfo:{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:10},quickAdd:{width:44,height:44,alignItems:'center',justifyContent:'center'},
   rowTitle:{fontFamily:fontFamilies.semiBold,fontSize:16,color:c.text,flexShrink:1},thumb:{width:56,height:56,borderRadius:10,overflow:'hidden',backgroundColor:c.surfaceElevated??c.background,alignItems:'center',justifyContent:'center'},
   warning:{fontFamily:fontFamilies.medium,fontSize:12,color:c.error},recommended:{fontFamily:fontFamilies.semiBold,fontSize:12,color:c.accent},
   footer:{width:'100%',maxWidth:820,alignSelf:'center',paddingHorizontal:20,paddingTop:10,paddingBottom:14,gap:8,borderTopWidth:1,borderColor:c.border,backgroundColor:c.background},

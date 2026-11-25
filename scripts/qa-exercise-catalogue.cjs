@@ -51,3 +51,12 @@ const added=picker.pickerAddSessionEquipment(['band'],['bar'],presetGear);
 assert.deepEqual(gearRows.filter(row=>picker.pickerEquipmentMatches(row,added)).map(row=>row.id),['push','body','band','bar','assisted']);
 assert.match(pickerUI,/Ajouter du matériel/);assert.match(pickerUI,/onAddEquipment\(pendingEquipment\)/);assert.match(composerUI,/setPickerCatalogue\(rows\)/);assert.match(composerUI,/onAddEquipment=\{addPickerEquipment\}/);
 console.log('PASS session-only additions from preset, no duplicate or unknown equipment, newly compatible exercises available');
+
+assert.match(pickerUI,/import ExerciseDetail from/);
+assert.match(pickerUI,/accessibilityLabel=\{'Détails de '\+row.name\}/);
+assert.match(pickerUI,/onPress=\{\(\)=>setDetailId\(row.id\)\}/);
+assert.match(pickerUI,/onSelect=\{selectFromDetail\}/);
+assert.match(pickerUI,/if\(!detailExercise\|\|!canSelect\)return/);
+assert.match(pickerUI,/onPress=\{\(\)=>onSelect\(row\)\}/);
+assert.match(pickerUI,/selectDisabled=\{!canSelect\}/);
+console.log('PASS separate browse and selection actions, shared detail, capacity protection');
