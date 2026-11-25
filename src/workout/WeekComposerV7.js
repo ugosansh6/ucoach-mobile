@@ -1101,19 +1101,16 @@ export default function WeekComposerV7() {
       if (strength && !(selectionMap.STRENGTH ?? []).length) {
         const ordered = (defaults.STRENGTH ?? []).map((id) => candidatesByBlock.STRENGTH.find((x) => x.id === id))
           .filter(Boolean).map((exercise) => ({ id: exercise.id, name: exercise.name }));
-        if (!ordered.length) throw new Error('Aucun mouvement de renforcement compatible avec le contexte.');
-        // The engine, not the screen, decides how many movements fit this block.
-        const proposal = await getComposerStrengthAutoPick({
+        // A missing initial proposal is not a reason to lock the catalogue.
+        // The existing preview still validates every manual composition.
+        const proposal = ordered.length ? await getComposerStrengthAutoPick({
           candidates: ordered, sessionMinutes: duration, blockMinutes: strength.minutes,
           progressionIntent: selectedItem?.plannedContext?.progressionIntent ?? 'MAINTAIN',
           equipmentNames: equipmentNames(), focus: intent?.focus ?? 'Strength',
           targetRegion,
           environmentCode,
-        });
-        if (!Array.isArray(proposal?.selected_exercises) || !proposal.selected_exercises.length) {
-          throw new Error('Le moteur n’a pas pu composer le renforcement. Ajuste le contexte ou la structure.');
-        }
-        defaults.STRENGTH = proposal.selected_exercises.map((item) => item.id);
+        }) : null;
+        defaults.STRENGTH = (proposal?.selected_exercises ?? []).map((item) => item.id);
         setStrengthAssessment(proposal);
         setStrengthAssessmentError(false);
       } else {
@@ -1136,10 +1133,10 @@ export default function WeekComposerV7() {
           evidence: observations, equipmentIds, targetRegion,
         });
         if (proposal?.status !== 'READY') {
-          const failure = new Error('Skill incompatible');
-          failure.userMessage = composerPreviewIssue(proposal);
-          throw failure;
-        }
+          // No valid recommendation: open an empty editable block instead.
+          // Never manufacture a lesson or present a rejected dose as valid.
+          defaults.SKILL = [];
+        } else {
         const byId = new Map((candidatesByBlock.SKILL ?? []).map((exercise) => [exercise.id, exercise]));
         for (const exercise of proposal.exercises ?? []) {
           if (!byId.has(exercise.id)) byId.set(exercise.id, {
@@ -1163,6 +1160,7 @@ export default function WeekComposerV7() {
         });
         for (const type of ['WARMUP', 'TABATA']) {
           if (!(selectionMap[type] ?? []).length && refreshed[type]) defaults[type] = refreshed[type];
+        }
         }
       }
       if (requestedComposition !== latestComposition.current) return;
@@ -1198,16 +1196,26 @@ export default function WeekComposerV7() {
       if (request !== pickerRequest.current) return;
       setPickerCatalogue(rows);
       // Evidence is optional; never restrict exploration if history is unavailable.
-      const evidence = await getComposerCandidateEvidence({
-        exerciseIds: rows.map((row) => row.id), anchorDate: dateKey,
+      setPickerLoading(false);
+      const chunks = [];
+      for (let offset = 0; offset < rows.length; offset += 160) chunks.push(rows.slice(offset, offset + 160));
+      const evidence = await Promise.all(chunks.map((chunk) => getComposerCandidateEvidence({
+        exerciseIds: chunk.map((row) => row.id), anchorDate: dateKey,
         planItemId: selectedItem?.planItemId ?? null,
-      }).catch(() => ({}));
-      if (request === pickerRequest.current) setCandidateEvidence((old) => ({ ...old, ...evidence }));
+      }).catch(() => ({}))));
+      if (request === pickerRequest.current) setCandidateEvidence((old) => Object.assign({}, old, ...evidence));
     } catch (err) {
       if (request === pickerRequest.current) setPickerError(true);
     } finally {
       if (request === pickerRequest.current) setPickerLoading(false);
     }
+  }
+
+  function closeExercisePicker() {
+    ++pickerRequest.current;
+    setPickerLoading(false);
+    setReplacementId(null);
+    setSheet(null);
   }
 
   function selectPickerExercise(exercise) {
@@ -1258,11 +1266,16 @@ export default function WeekComposerV7() {
     if (type === 'CARDIO') { setError(outdoorEngine ? 'Le moteur adapte la course à la durée et au contexte extérieur. Reviens au contexte pour les modifier.' : 'Le protocole cardio dépend du matériel. Modifie le matériel puis recalcule les mouvements pour le changer.'); return; }
     const minutes = architecture?.blocks?.find((block) => block.type === type)?.minutes ?? 0;
     const max = maxForBlock(type, minutes);
+    const before = selectionMap[type] ?? [];
+    if (type === 'SKILL' && skillTargetPath &&
+        chooseComposerExercise(before, id, max, replacementId) !== before) {
+      setSkillTargetPath(null); setShowSkillTarget(false);
+    }
     setSelectionMap((current) => {
       const selected = current[type] ?? [];
       return { ...current, [type]: chooseComposerExercise(selected, id, max, replacementId) };
     });
-    if (replacementId) { setReplacementId(null); setSheet(null); }
+    if (replacementId) closeExercisePicker();
   }
 
   async function refreshSkillLesson() {
@@ -1950,7 +1963,7 @@ export default function WeekComposerV7() {
                   <Pressable accessibilityRole="button" disabled={busy} onPress={refreshSkillLesson} style={styles.structureLink}>
                     <Text style={styles.structureLinkText}>{busy ? 'Calcul de la leçon…' : 'Actualiser la leçon pour cet objectif'}</Text>
                   </Pressable>
-                  <Text style={styles.sectionSmallHint}>Cette action remplace uniquement les exercices du Skill par la proposition adaptée à ton objectif.</Text>
+                  <Text style={styles.sectionSmallHint}>Cette action propose une leçon guidée. Si tu modifies ensuite ses exercices, tu repasses en composition libre.</Text>
                 </View>
               ) : null}
               {activeBlock.type === 'WOD' ? <Text style={styles.sectionSmallHint}>
@@ -1977,6 +1990,7 @@ export default function WeekComposerV7() {
                   </Text>
                 </View>
               ) : null}
+              {!activeSelected.length && activeBlock.type !== 'CARDIO' ? <Text style={styles.sectionSmallHint}>Pas de proposition prête pour ce bloc. Choisis tes mouvements dans le catalogue pour que UGEROD calcule la séance.</Text> : null}
               <View style={styles.exerciseList}>
                 {selectedCandidateObjects.map((exercise) => {
                   const dose = activeBlock.type === 'STRENGTH'
@@ -2256,10 +2270,10 @@ export default function WeekComposerV7() {
       <SheetShell
         visible={sheet === 'exercise-picker'}
         title={`Autres exercices · ${activeBlock ? blockTitle(activeBlock.type, environmentCode) : ''}`}
-        onClose={() => setSheet(null)}
+        onClose={closeExercisePicker}
         styles={styles}
         colors={colors}
-        footer={<Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}><Text style={styles.sheetDoneButtonText}>Terminé</Text></Pressable>}
+        footer={<Pressable onPress={closeExercisePicker} style={styles.sheetDoneButton}><Text style={styles.sheetDoneButtonText}>Terminé</Text></Pressable>}
       >
         <Text style={styles.sheetHelp}>Catalogue complet. Les conseils restent indicatifs ; le moteur vérifie la faisabilité et le dosage avant enregistrement.</Text>
         {pickerLoading ? <Text style={styles.sheetHelp}>Chargement du catalogue…</Text> : null}

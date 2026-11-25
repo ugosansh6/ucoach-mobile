@@ -64,6 +64,31 @@ async function main(){
   assert.deepEqual(skillCatalogue,strengthCatalogue,'Same exercises and ranking for both training contracts');
   assert.deepEqual(roleFilters,[],'No Skill/Strength role gate on the common training catalogue');
   console.log('PASS: shared Skill/Strength catalogue, full pagination beyond 500 rows and no type-based restriction');
+  // Manual exploration has its own complete read; it must never loosen automatic proposals.
+  roleFilters.length=0;
+  const manualWod=await commonApi.getComposerExerciseCandidates({...base,blockType:'WOD',targetRegion:'Back',manualCatalogue:true,limit:3});
+  assert.equal(manualWod.length,620,'Manual WOD exploration is not restricted by a role, target region or shortlist');
+  assert.deepEqual(roleFilters,[],'Manual exploration must not apply a WOD role filter');
+  const queryCalls=[];
+  const manualDb={from(table){let from=0,to=499;return {
+    select(){return this;},order(){return this;},in(){return this;},
+    eq(...args){queryCalls.push(['eq',...args]);return this;},
+    contains(...args){queryCalls.push(['contains',...args]);return this;},
+    limit(...args){queryCalls.push(['limit',...args]);return this;},
+    range(a,b){from=a;to=b;return this;},then(resolve){
+      const data=table==='exercises'?[{id:'no-bar',name:'Pull-up',home_friendly:false,body_region:'Upper'}]
+        :table==='exercise_equipment'?[{exercise_id:'no-bar',equipment_id:'E01'}]
+        :table==='equipment_catalog_v2'?[{id:'E01',name:'Barre'}]:[];
+      resolve({data:data.slice(from,to+1),error:null});}};}};
+  const manualApi=new Function('supabase','getAuthenticatedUserWithRetry','runSupabaseRequestWithAuthRetry','readComposerPreferences',
+    service+';return {getComposerExerciseCandidates};')(manualDb,async()=>({id:'synthetic'}),async fn=>(await fn()).data,readComposerPreferences);
+  const open=await manualApi.getComposerExerciseCandidates({...base,blockType:'WOD',manualCatalogue:true});
+  assert.deepEqual(queryCalls,[],'No hidden location, role or count filters in the manual catalogue');
+  assert.deepEqual(open[0].missingEquipment,['Barre'],'Missing gear is visible, not a hidden exclusion');
+  const automaticWod=await manualApi.getComposerExerciseCandidates({...base,blockType:'WOD'});
+  assert.equal(automaticWod.length,0,'Automatic candidates still enforce equipment');
+  assert.ok(queryCalls.some(x=>x[0]==='contains')&&queryCalls.some(x=>x[0]==='eq')&&queryCalls.some(x=>x[0]==='limit'));
+  console.log('PASS: manual exploration is complete; existing automatic rules remain active');
   const request={preferences:readComposerPreferences({preferred_regions:['Upper','Core'],skill_target_path_key:'HANDSTAND_HSPU'}),
     session_minutes:45,block_minutes:12,environment_code:'BOX',exercises:[{id:'upper'}]};
   await api.getComposerSkillProposal(request);
