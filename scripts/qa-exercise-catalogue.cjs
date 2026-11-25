@@ -11,7 +11,7 @@ const api=new Function('supabase','getAuthenticatedUserWithRetry','runSupabaseRe
 (async()=>{const result=await api.getExercises();assert.equal(result.length,1);assert.equal(result[0].name,'Real exercise');assert.deepEqual(result[0].equipmentNames,['Haltère']);assert.equal(result[0].sets,undefined);assert.equal(await api.getExerciseById('missing'),null,'No silent Air Squat fallback');assert.deepEqual(await api.getExerciseFavorites(),['one']);assert.deepEqual(await api.getExerciseMuscles('one'),[{id:'M02',priority:'primary'}]);assert.ok(calls.some(c=>c[0]==='exercise_muscles'&&c[1]==='exercise_id'&&c[2]==='one'));assert.equal(await api.setExerciseFavorite('one',true),true);assert.equal(await api.setExerciseFavorite('one',false),false);assert.ok(calls.some(c=>c[0]==='user_exercise_preferences'&&c[1]==='user_id'&&c[2]==='athlete'));console.log('PASS real catalogue adapter, exact detail ID, no fake dosage, authenticated shared favorites and guided filters');})().catch(e=>{console.error(e);process.exitCode=1});
 
 const pickerSrc=fs.readFileSync('src/utils/composerPickerPresentation.js','utf8').replaceAll('export const ','const ').replaceAll('export function ','function ');
-const picker=new Function(pickerSrc+'\nreturn {pickerType,filterPickerRows,pickerEquipmentMatches};')();
+const picker=new Function(pickerSrc+'\nreturn {pickerType,filterPickerRows,pickerEquipmentMatches,pickerEquipmentFacetMatches,pickerEquipmentOptions};')();
 const sample=[{id:'a',name:'Push-ups',originalName:'Pompe classique',bodyRegion:'Upper',exerciseType:'strength'},{id:'b',name:'Tractions',bodyRegion:'Upper',exerciseType:'Gymnastique',isBack:true},{id:'c',name:'Rameur',bodyRegion:'Full Body',exerciseType:'Cardio'},{id:'d',name:'Autre',exerciseType:'new_type'}];
 assert.equal(picker.filterPickerRows(sample).length,4);
 assert.deepEqual(picker.filterPickerRows(sample,{zone:'Upper',type:'skill'}).map(x=>x.id),['b']);
@@ -32,3 +32,14 @@ const composerUI=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
 assert.match(composerUI,/!pickerEquipmentMatches\(exercise, equipmentIds\)/);
 assert.match(composerUI,/const pickerRows = pickerCatalogue.map/);
 console.log('PASS equipment-scoped picker: bodyweight, single and combined gear, exclusion of missing requirements, no fallback to unfiltered candidates');
+
+const sessionGear=gearRows.filter(row=>picker.pickerEquipmentMatches(row,['band','bar']));
+assert.deepEqual(picker.filterPickerRows(sessionGear,{equipment:'band'}).map(r=>r.id),['band','assisted']);
+assert.deepEqual(picker.filterPickerRows(sessionGear,{equipment:'bar'}).map(r=>r.id),['bar','assisted']);
+assert.deepEqual(picker.filterPickerRows(sessionGear,{equipment:'E00'}).map(r=>r.id),['push','body']);
+assert.deepEqual(picker.filterPickerRows(sessionGear,{equipment:'dip'}),[]);
+assert.deepEqual(picker.pickerEquipmentOptions(['band','bar','band','E00'],[{id:'band',name:'Élastiques'},{id:'bar',name:'Barre de traction'},{id:'dip',name:'Dips'}]).map(e=>[e.key,e.label]),[['E00','Poids du corps'],['band','Élastiques'],['bar','Barre de traction']]);
+const mixed=[{id:'row',equipmentIds:['band'],bodyRegion:'Upper',exerciseType:'strength',name:'Rowing'},{id:'pull',equipmentIds:['bar','band'],bodyRegion:'Upper',exerciseType:'skill',name:'Tractions assistées'},{id:'squat',equipmentIds:['band'],bodyRegion:'Lower',exerciseType:'strength',name:'Squat'}];
+assert.deepEqual(picker.filterPickerRows(mixed,{equipment:'band',zone:'Upper',type:'strength',search:'rowing',favoritesOnly:true},['row','squat']).map(r=>r.id),['row']);
+assert.match(pickerUI,/setView\('equipment'\)/);assert.match(pickerUI,/setEquipment\(''\)/);assert.match(composerUI,/referenceEquipment=\{referenceEquipment\}/);
+console.log('PASS optional equipment facet, bodyweight, multi-equipment moves, combined filters and session-only equipment options');

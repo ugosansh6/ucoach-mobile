@@ -1511,7 +1511,7 @@ export default function WeekComposerV7() {
 
   if (sheet === 'exercise-picker' && activeBlock) return <ComposerExercisePickerPage
     colors={colors} isDark={isDark} blockLabel={composerBlockDisplayLabel(activeBlock.type, environmentCode)}
-    rows={pickerRows} equipmentIds={equipmentIds} equipmentSummary={equipmentSummary} selectedRows={selectedCandidateObjects} selectedIds={activeSelected} favoriteIds={favoriteIds}
+    rows={pickerRows} equipmentIds={equipmentIds} referenceEquipment={referenceEquipment} equipmentSummary={equipmentSummary} selectedRows={selectedCandidateObjects} selectedIds={activeSelected} favoriteIds={favoriteIds}
     capacity={maxForBlock(activeBlock.type, activeBlock.minutes)} replacementId={replacementId} onReplacement={setReplacementId}
     loading={pickerLoading} error={pickerError} onRetry={() => openExercisePicker(replacementId)}
     onSelect={selectPickerExercise} onClose={closeExercisePicker} />;

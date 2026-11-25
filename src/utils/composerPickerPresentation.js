@@ -31,9 +31,9 @@ export function pickerZoneMatches(row,zone) {
   if (zone==='Back') return row.isBack===true;
   return norm(row.bodyRegion)===norm(zone);
 }
-export function filterPickerRows(rows,{zone='',type='',search='',favoritesOnly=false}={},favoriteIds=[]) {
+export function filterPickerRows(rows,{zone='',type='',equipment='',search='',favoritesOnly=false}={},favoriteIds=[]) {
   const fav=new Set(favoriteIds),q=norm(search);
-  return rows.filter(row=>pickerZoneMatches(row,zone)&&(!type||pickerType(row)===type)&&
+  return rows.filter(row=>pickerZoneMatches(row,zone)&&(!type||pickerType(row)===type)&&pickerEquipmentFacetMatches(row,equipment)&&
     (!favoritesOnly||fav.has(row.id))&&(!q||norm([row.name,row.originalName,row.bodyRegion,row.movementPattern,
       row.exerciseType,row.trainingFocus,pickerTypes.find(t=>t.key===pickerType(row))?.label,
       ...pickerZones.filter(z=>pickerZoneMatches(row,z.key)).map(z=>z.label),...(row.equipmentNames??[])].join(' ')).includes(q)));
@@ -44,4 +44,19 @@ export function filterPickerRows(rows,{zone='',type='',search='',favoritesOnly=f
 export function pickerEquipmentMatches(row, equipmentIds=[]) {
   const available = new Set(['E00', ...equipmentIds.map(String)]);
   return Array.isArray(row.equipmentIds) && row.equipmentIds.every(id=>available.has(String(id)));
+}
+
+// Optional navigation facet: never changes the session equipment scope.
+export function pickerEquipmentFacetMatches(row, equipment='') {
+  if (!equipment) return true;
+  if (!Array.isArray(row.equipmentIds)) return false;
+  const required=row.equipmentIds.map(String).filter(id=>id!=='E00');
+  return equipment==='E00' ? required.length===0 : required.includes(String(equipment));
+}
+export function pickerEquipmentOptions(equipmentIds=[], referenceEquipment=[]) {
+  const names=new Map(referenceEquipment.map(item=>[String(item.id),item.name]));
+  return [{key:'E00',label:'Poids du corps',icon:'person-outline'},
+    ...[...new Set(equipmentIds.map(String))].filter(id=>id!=='E00').map(id=>({
+      key:id,label:names.get(id)||id,icon:'barbell-outline',
+    }))];
 }
