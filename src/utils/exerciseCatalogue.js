@@ -7,6 +7,6 @@ export function filterExerciseCatalogue(rows, { search='', region='', family='',
 }
 export function exerciseMovementLabel(value) {
   const raw=String(value??'').trim();const key=raw.toLowerCase().replace(/[_-]+/g,' ');
-  return ({squat:'Squat',lunge:'Fente',hinge:'Charnière',push:'Poussée',pull:'Tirage',carry:'Porté',core:'Gainage',rotation:'Rotation','anti rotation':'Anti-rotation','push horizontal':'Poussée horizontale','pull horizontal':'Tirage horizontal','push vertical':'Poussée verticale','pull vertical':'Tirage vertical',jump:'Saut'}[key]??raw.replace(/[_-]+/g,' '));
+  return ({squat:'Squat',lunge:'Fente',hinge:'Charnière',push:'Poussée',pull:'Tirage',carry:'Porté',core:'Gainage',rotation:'Rotation','anti rotation':'Anti-rotation','push horizontal':'Poussée horizontale','pull horizontal':'Tirage horizontal','push vertical':'Poussée verticale','pull vertical':'Tirage vertical',jump:'Saut',mobility:'Mobilité',conditioning:'Conditionnement',locomotion:'Déplacement',step:'Montée sur support','ankle extension':'Extension de cheville','anti extension':'Anti-extension','elbow extension':'Extension du coude','elbow flexion':'Flexion du coude','hip abduction':'Abduction de hanche','hip adduction':'Adduction de hanche','knee extension':'Extension du genou','knee flexion':'Flexion du genou','shoulder abduction':'Abduction de l’épaule'}[key]??raw.replace(/[_-]+/g,' '));
 }
 export const exerciseFocusLabel=value=>({Strength:'Force',Conditioning:'Conditionnement','General Fitness':'Forme générale',Skill:'Technique'}[value]??value);
