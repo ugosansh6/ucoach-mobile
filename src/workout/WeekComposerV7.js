@@ -3,6 +3,7 @@ import ComposerMovementOverview, { ComposerMovementTabs } from '../components/wo
 import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
 import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
 import ComposerExercisePickerPage from './ComposerExercisePickerPage';
+import ExerciseDetail from '../components/exercises/ExerciseDetail';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -525,111 +526,27 @@ function ArchitectureCard({ option, selected, onPress, styles, colors, environme
   );
 }
 
-function ExerciseCard({ exercise, dose, doseLabel, selected, expanded, editable = true, onToggleSelect, onToggleExpand, onOpenAlternatives, suggestedAlternative, styles, colors }) {
+function ExerciseCard({ exercise, doseLabel, selected, onOpenDetail, styles, colors }) {
   const imageUri = /^https?:\/\//i.test(String(exercise.imagePath ?? '')) ? exercise.imagePath : null;
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => { setImageFailed(false); }, [imageUri]);
-  const material = (exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps';
-  const detailMeta = [movementLabel(exercise.movementPattern), regionLabel(exercise.bodyRegion), humanize(exercise.difficulty)].filter(Boolean).join(' · ');
-  const load = dose?.load_kg != null
-    ? `${dose.load_kg} kg${dose.load_scope === 'per_implement' ? ' par élément' : ''}`
-    : dose?.band_resistance_label ? `Élastique ${dose.band_resistance_label}` : null;
-  return (
-    <View style={[styles.exerciseCard, expanded && styles.exerciseCardExpanded]} testID={`movement-card-${exercise.id}`}>
-      <View style={styles.exerciseMainRow}>
-        <Pressable
-          onPress={onToggleExpand}
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          aria-expanded={expanded}
-          accessibilityLabel={'Détails de ' + exercise.name}
-          style={({ pressed }) => [styles.exerciseInfoButton, pressed && styles.pressed]}
-        >
-          <View style={styles.exerciseThumbnail} testID={`movement-thumbnail-${exercise.id}`}>
-            {imageUri && !imageFailed ? <Image source={{ uri: imageUri }} resizeMode="contain" style={styles.exerciseThumbnailImage}
-              onError={() => setImageFailed(true)} accessible={false} />
-              : <Ionicons name="image-outline" size={25} color={colors.textMuted} accessible={false} />}
-          </View>
-          <View style={styles.exerciseCopy}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {doseLabel ? <Text style={styles.exerciseDose}>{doseLabel}</Text> : null}
-          </View>
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
-        </Pressable>
+  return <View style={styles.exerciseCard} testID={`movement-card-${exercise.id}`}>
+    <Pressable onPress={onOpenDetail} accessibilityRole="button" accessibilityLabel={'Détails de ' + exercise.name}
+      style={({ pressed }) => [styles.exerciseInfoButton, pressed && styles.pressed]}>
+      <View style={styles.exerciseThumbnail} testID={`movement-thumbnail-${exercise.id}`}>
+        {imageUri && !imageFailed ? <Image source={{uri:imageUri}} resizeMode="contain" style={styles.exerciseThumbnailImage}
+          onError={() => setImageFailed(true)} accessible={false} /> : <Ionicons name="image-outline" size={19} color={colors.textMuted} accessible={false}/>}
       </View>
-
-      {/* Never hide relevant movement conflicts behind collapsed details. */}
-      {exercise.warning && selected ? (
-        <View style={styles.exerciseGuidance}>
-          <Ionicons name="alert-circle-outline" size={15} color={colors.secondaryAccent} />
-          <Text style={styles.exerciseGuidanceText} numberOfLines={2}>
-            {exercise.recommendationReason || 'Mouvement similaire déjà sélectionné'}
-          </Text>
-        </View>
-      ) : null}
-
-      {expanded ? (
-        <View style={styles.exerciseDetails}>
-          {detailMeta ? <Text style={styles.exerciseDetailMeta}>{detailMeta}</Text> : null}
-          <View style={styles.detailBlock}>
-            <Text style={styles.detailLabel}>MATÉRIEL</Text>
-            <Text style={styles.detailText}>{material}</Text>
-          </View>
-          {load ? <View style={styles.detailBlock}>
-            <Text style={styles.detailLabel}>CHARGE CONSEILLÉE</Text>
-            <Text style={styles.detailText}>{load}</Text>
-          </View> : null}
-          {editable ? <View style={styles.exerciseDetailActions}>
-            {onOpenAlternatives ? <Pressable accessibilityRole="button" accessibilityLabel={`Remplacer ${exercise.name}`}
-              onPress={onOpenAlternatives} style={({ pressed }) => [styles.exerciseDetailAction, pressed && styles.pressed]}>
-              <Ionicons name="swap-horizontal-outline" size={17} color={colors.text} />
-              <Text style={styles.exerciseDetailActionText}>Remplacer</Text>
-            </Pressable> : null}
-            <Pressable accessibilityRole="button" accessibilityLabel={`${selected ? 'Retirer' : 'Choisir'} ${exercise.name}`}
-              onPress={onToggleSelect} style={({ pressed }) => [styles.exerciseDetailAction, pressed && styles.pressed]}>
-              <Ionicons name={selected ? 'trash-outline' : 'add-outline'} size={17} color={colors.textSecondary} />
-              <Text style={styles.exerciseDetailActionText}>{selected ? 'Retirer' : 'Choisir'}</Text>
-            </Pressable>
-          </View> : null}
-          {!exercise.warning && exercise.recommendationReason ? (
-            <View style={styles.exerciseDetailReason}>
-              <Ionicons name="bulb-outline" size={15} color={colors.accent} />
-              <Text style={styles.exerciseGuidanceText}>{exercise.recommendationReason}</Text>
-            </View>
-          ) : null}
-          {exercise.warning && selected && suggestedAlternative ? (
-            <Pressable onPress={onOpenAlternatives} style={styles.exerciseDetailReason}>
-              <Text style={styles.exerciseSuggestionLinkText}>
-                {'Essayer plutôt : ' + suggestedAlternative.name}
-              </Text>
-              <Ionicons name="chevron-forward" size={15} color={colors.accent} />
-            </Pressable>
-          ) : null}
-          {exercise.description ? (
-            <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>DESCRIPTION</Text>
-              <Text style={styles.detailText}>{exercise.description}</Text>
-            </View>
-          ) : null}
-          {exercise.instructions ? (
-            <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>COMMENT FAIRE</Text>
-              <Text style={styles.detailText}>{exercise.instructions}</Text>
-            </View>
-          ) : null}
-          {exercise.tips ? (
-            <View style={styles.tipBlock}>
-              <View style={styles.tipRule} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.detailLabel}>POINT D’ATTENTION</Text>
-                <Text style={styles.detailText}>{exercise.tips}</Text>
-              </View>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-    </View>
-  );
+      <View style={styles.exerciseCopy}><Text style={styles.exerciseName}>{exercise.name}</Text>
+        {doseLabel ? <Text style={styles.exerciseDose}>{doseLabel}</Text> : null}
+      </View>
+      <Ionicons name="chevron-forward" size={17} color={colors.textMuted}/>
+    </Pressable>
+    {exercise.warning && selected ? <View style={styles.exerciseGuidance}>
+      <Ionicons name="alert-circle-outline" size={15} color={colors.secondaryAccent}/>
+      <Text style={styles.exerciseGuidanceText}>{exercise.recommendationReason || 'Mouvement similaire déjà sélectionné'}</Text>
+    </View> : null}
+  </View>;
 }
 
 export default function WeekComposerV7() {
@@ -1577,6 +1494,19 @@ export default function WeekComposerV7() {
   const currentPreview = !previewLoading && previewSignature === JSON.stringify(buildCurrentDraft())
     ? prescriptionPreview : null;
   const currentWodPreview = currentPreview?.blocks?.find((b) => b.type === 'WOD');
+  const activePreviewBlock = currentPreview?.blocks?.find((b) => b.type === activeBlock?.type);
+  function movementDose(exercise) {
+    return activeBlock?.type === 'STRENGTH' ? currentStrengthAssessment?.exercises?.find((item) => item.id === exercise.id)
+      : activePreviewBlock?.exercises?.find((item) => item.id === exercise.id);
+  }
+  function movementDoseLabel(exercise) {
+    const dose = movementDose(exercise);
+    if (dose) return formatPreviewDose(dose, activeBlock.type, activePreviewBlock, { compactCard: true });
+    if (activeBlock?.type === 'STRENGTH') return strengthAssessmentError ? 'Dosage indisponible' : 'Dosage en attente de calcul';
+    return activeBlock?.type === 'WOD' ? 'Dosage selon la mécanique' : null;
+  }
+  const detailIndex = selectedCandidateObjects.findIndex((exercise) => exercise.id === expandedExerciseId);
+  const detailExercise = step === 3 && detailIndex >= 0 ? selectedCandidateObjects[detailIndex] : null;
 
   if (sheet === 'exercise-picker' && activeBlock) return <ComposerExercisePickerPage
     colors={colors} isDark={isDark} blockLabel={composerBlockDisplayLabel(activeBlock.type, environmentCode)}
@@ -1610,9 +1540,9 @@ export default function WeekComposerV7() {
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.eyebrow}>{dateLabel(dateKey)}</Text>
-              <Text style={styles.title}>Composer<Text style={styles.dot}>.</Text></Text>
+              <Text style={[styles.title, step === 3 && styles.movementHeaderTitle]}>Composer<Text style={styles.dot}>.</Text></Text>
             </View>
-            <Image source={brandIcon} style={styles.brandIcon} resizeMode="contain" />
+            <Image source={brandIcon} style={[styles.brandIcon, step === 3 && styles.movementBrandIcon]} resizeMode="contain" />
           </View>
 
           {step === 3 ? <ComposerMovementOverview
@@ -1926,11 +1856,8 @@ export default function WeekComposerV7() {
           ) : null}
 
           {step === 3 && activeBlock ? (
-            <View style={styles.stepWrap}>
-              <StageHeader
-                title={recapEditingBlock ? 'Ajuste tes mouvements.' : 'Tes mouvements.'}
-                styles={styles}
-              />
+            <View style={styles.movementStepWrap}>
+              <Text accessibilityRole="header" style={styles.movementTitle}>{recapEditingBlock ? 'Ajuste tes mouvements.' : 'Tes mouvements.'}</Text>
               <ComposerMovementTabs
                 blocks={exerciseBlocks.map((item) => ({ ...item, label: composerBlockDisplayLabel(item.type, environmentCode) }))}
                 selectedIndex={exerciseBlockIndex}
@@ -1986,31 +1913,10 @@ export default function WeekComposerV7() {
               ) : null}
               {!activeSelected.length && activeBlock.type !== 'CARDIO' ? <Text style={styles.sectionSmallHint}>Pas de proposition prête pour ce bloc. Choisis tes mouvements dans le catalogue pour que UGEROD calcule la séance.</Text> : null}
               <View style={styles.exerciseList}>
-                {selectedCandidateObjects.map((exercise) => {
-                  const dose = activeBlock.type === 'STRENGTH'
-                    ? currentStrengthAssessment?.exercises?.find((item) => item.id === exercise.id) : null;
-                  return (
-                    <ExerciseCard
-                      key={exercise.id}
-                      exercise={exercise}
-                      dose={dose}
-                      doseLabel={activeBlock.type === 'STRENGTH'
-                        ? currentStrengthAssessment ? formatPreviewDose(dose, activeBlock.type, null, { compactCard: true }) : strengthAssessmentError ? 'Dosage indisponible' : 'Dosage en attente de calcul'
-                        : null}
-                      editable={activeBlock.type !== 'CARDIO'}
-                      selected={activeSelected.includes(exercise.id)}
-                      expanded={expandedExerciseId === exercise.id}
-                      onToggleSelect={() => chooseExercise(activeBlock.type, exercise.id)}
-                      onToggleExpand={() => setExpandedExerciseId((current) => current === exercise.id ? null : exercise.id)}
-                      suggestedAlternative={exercise.warning
-                        ? activeCandidates.find((candidate) => !activeSelected.includes(candidate.id)
-                          && candidate.movementPattern !== exercise.movementPattern) : null}
-                      onOpenAlternatives={activeBlock.type !== 'CARDIO' ? () => openExercisePicker(exercise.id) : null}
-                      styles={styles}
-                      colors={colors}
-                    />
-                  );
-                })}
+                {selectedCandidateObjects.map((exercise) => <ExerciseCard
+                  key={exercise.id} exercise={exercise} doseLabel={movementDoseLabel(exercise)}
+                  selected={activeSelected.includes(exercise.id)} onOpenDetail={() => setExpandedExerciseId(exercise.id)}
+                  styles={styles} colors={colors}/>)}
               </View>
 
               {activeBlock.type === 'CARDIO' ? <Pressable disabled={busy} onPress={refreshCardioProtocol} style={styles.structureLink}><Text style={styles.structureLinkText}>{outdoorEngine ? 'Actualiser le protocole de course' : 'Actualiser le protocole cardio avec mon matériel'}</Text></Pressable> : null}
@@ -2024,7 +1930,7 @@ export default function WeekComposerV7() {
                   onPress={() => openExercisePicker()}
                   style={styles.exerciseChangeAction}
                 >
-                  <Ionicons name="swap-horizontal-outline" size={20} color={colors.accent} />
+                  <Ionicons name={activeSelected.length < maxForBlock(activeBlock.type, activeBlock.minutes) ? 'add-outline' : 'swap-horizontal-outline'} size={19} color={colors.accent} />
                   <Text style={styles.exerciseChangeLabel}>
                     {composerMovementAction(activeSelected.length, maxForBlock(activeBlock.type, activeBlock.minutes))}
                   </Text>
@@ -2195,6 +2101,15 @@ export default function WeekComposerV7() {
         </View>
       </ScrollView>
 
+      {detailExercise ? <ExerciseDetail key={detailExercise.id} visible exercise={detailExercise}
+        dose={movementDose(detailExercise)} doseLabel={movementDoseLabel(detailExercise)}
+        index={detailIndex} count={selectedCandidateObjects.length} colors={colors} isDark={isDark}
+        brandIcon={brandIcon} editable={activeBlock.type !== 'CARDIO'} onClose={() => setExpandedExerciseId(null)}
+        onReplace={() => { setExpandedExerciseId(null); openExercisePicker(detailExercise.id); }}
+        onRemove={() => { setExpandedExerciseId(null); chooseExercise(activeBlock.type, detailExercise.id); }}
+        onPrevious={detailIndex > 0 ? () => setExpandedExerciseId(selectedCandidateObjects[detailIndex - 1].id) : null}
+        onNext={detailIndex < selectedCandidateObjects.length - 1 ? () => setExpandedExerciseId(selectedCandidateObjects[detailIndex + 1].id) : null}
+      /> : null}
       <SheetShell visible={sheet === 'confirm-revision'} title="Mettre à jour cette séance ?" onClose={() => setSheet(null)} styles={styles} colors={colors}>
         <Text style={styles.sheetHelp}>La version déjà générée n’a pas commencé. Elle sera conservée comme remplacée et le nouveau contenu sera généré au prochain lancement.</Text>
         <Text style={styles.sheetHelp}>Actuellement : {composerArchitectureDisplayTitle(savedStructure, environmentCode)}</Text>
@@ -2288,6 +2203,10 @@ function createStyles(colors) {
     contextPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', fontFamily: fontFamilies.semiBold, fontSize: 10, color: colors.accent, backgroundColor: colors.surfaceElevated ?? colors.surface },
     errorText: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.error },
     stepWrap: { marginTop: 32 },
+    movementStepWrap: { marginTop: 18 },
+    movementTitle: { fontFamily: fontFamilies.display, fontSize: 26, lineHeight: 30, color: colors.text, marginBottom: 10 },
+    movementHeaderTitle: { fontSize: 25, lineHeight: 29 },
+    movementBrandIcon: { width: 30, height: 30 },
     stageHeader: { marginBottom: 16 },
     kicker: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.35, color: colors.accent },
     question: { marginTop: 8, fontFamily: fontFamilies.display, fontSize: 29, lineHeight: 34, color: colors.text },
@@ -2403,19 +2322,19 @@ function createStyles(colors) {
     cardFooterText: { fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
     structureExplanation: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 11, marginBottom: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     structureExplanationText: { flex: 1, fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
-    exerciseList: { gap: 10 },
+    exerciseList: { gap: 0, borderTopWidth: 1, borderTopColor: colors.border },
     sectionSmallTitle: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent, marginBottom: 7 },
     sectionSmallHint: { marginBottom: 12, fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 17, color: colors.textSecondary },
     exerciseSuggestionsSection: { marginTop: 22 },
-    exerciseCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    exerciseCard: { position: 'relative', borderBottomWidth: 1, borderBottomColor: colors.border },
     exerciseCardExpanded: { borderColor: colors.accent },
     exerciseMainRow: { minHeight: 92, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
-    exerciseInfoButton: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-    exerciseThumbnail: { width: 64, height: 64, flexShrink: 0, overflow: 'hidden', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    exerciseInfoButton: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+    exerciseThumbnail: { width: 86, height: 60, flexShrink: 0, overflow: 'hidden', borderRadius: 8, backgroundColor: colors.surfaceElevated ?? colors.surface, alignItems: 'center', justifyContent: 'center' },
     exerciseThumbnailImage: { width: '100%', height: '100%' },
     exerciseCopy: { flex: 1, minWidth: 0 },
-    exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 17, lineHeight: 23, color: colors.text },
-    exerciseDose: { marginTop: 5, fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 20, color: colors.textSecondary },
+    exerciseName: { fontFamily: fontFamilies.semiBold, fontSize: 15, lineHeight: 20, color: colors.text },
+    exerciseDose: { marginTop: 3, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 17, color: colors.textSecondary },
     exerciseDetailMeta: { marginTop: 12, fontFamily: fontFamilies.medium, fontSize: 12, color: colors.textSecondary },
     exerciseDetailReason: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
     exerciseDetailActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 15 },
@@ -2426,7 +2345,7 @@ function createStyles(colors) {
     exerciseChangeLabel: { flex: 1, fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.accent },
     exerciseRecommendedLabel: { fontFamily: fontFamilies.bold, fontSize: 10, color: colors.accent, letterSpacing: 0.5, marginBottom: 5 },
     exerciseWarningLabel: { fontFamily: fontFamilies.bold, fontSize: 10, color: colors.secondaryAccent, letterSpacing: 0.5, marginBottom: 5 },
-    exerciseGuidance: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginBottom: 12 },
+    exerciseGuidance: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 8 },
     exerciseGuidanceText: { flex: 1, fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
     exerciseSuggestion: { marginHorizontal: 14, marginBottom: 12, padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, gap: 8, backgroundColor: colors.background },
     exerciseSuggestionText: { fontFamily: fontFamilies.medium, fontSize: 12, color: colors.text },

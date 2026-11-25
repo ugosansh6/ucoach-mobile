@@ -20,7 +20,9 @@ function load(file){
   }).code;
   const requireLocal=(id)=>{
     if(id==='react')return React;
-    if(id==='react-native')return RN;
+    if(id==='react-native')return {...RN,Modal:({visible,children})=>visible?React.createElement('section',null,children):null};
+    if(id==='expo-status-bar')return {StatusBar:()=>null};
+    if(id.endsWith('services/exerciseService'))return {getExerciseMuscles:async()=>[]};
     if(id==='@expo/vector-icons')return {Ionicons:()=>React.createElement('span',{'aria-hidden':true})};
     if(id.endsWith('AthleticMuscleMap'))return {default:()=>React.createElement('span',{'data-unchanged-silhouette':true}),__esModule:true};
     if(id.startsWith('.'))return load(path.resolve(path.dirname(filename),id+'.js'));
@@ -55,3 +57,19 @@ for(const [mode,theme] of Object.entries(ugerodThemes)){
   cases+=6;
 }
 console.log('PASS: '+cases+' actual-control SSR cases, both themes; icons/SVG stubbed, not interactive device validation');
+
+const Overview=load('src/components/workout/ComposerMovementOverview.js');
+const Detail=load('src/components/exercises/ExerciseDetail.js').default;
+for(const theme of Object.values(ugerodThemes)){
+ const colors=theme.colors;
+ const summary=renderToStaticMarkup(React.createElement(Overview.default,{minutes:60,environment:'Maison',intent:{focus:'Strength'},regions:['Haut du corps'],colors}));
+ assert.match(summary,/60 min/);assert.match(summary,/Maison/);assert.match(summary,/Force/);assert.match(summary,/Haut du corps/);
+ const solo=renderToStaticMarkup(React.createElement(Overview.ComposerMovementTabs,{blocks:[{type:'STRENGTH',label:'Musculation',minutes:45}],colors}));
+ assert.match(solo,/Musculation/);assert.match(solo,/45 min/);assert.doesNotMatch(solo,/role="tab"/);
+ const mixed=renderToStaticMarkup(React.createElement(Overview.ComposerMovementTabs,{blocks:[{type:'STRENGTH',label:'Musculation',minutes:20},{type:'WOD',label:'WOD',minutes:15}],selectedIndex:1,colors}));
+ assert.match(mixed,/WOD/);assert.match(mixed,/aria-selected="true"/);
+ const detail=renderToStaticMarkup(React.createElement(Detail,{exercise:{id:'EX321',name:'Band Row',description:'Tirage',instructions:'1. Fixe l’élastique.\n2. Tire.',tips:'Contrôle',equipmentNames:['Élastiques']},doseLabel:'5 séries × 5 reps · repos 75 s',index:0,count:4,colors,editable:true,onReplace(){},onRemove(){},onClose(){},onNext(){}}));
+ assert.match(detail,/Band Row/);assert.match(detail,/5 séries × 5 reps/);assert.match(detail,/Fixe l’élastique/);assert.match(detail,/Élastiques/);assert.match(detail,/Remplacer/);assert.match(detail,/Retirer/);assert.match(detail,/Visuel non disponible/);assert.doesNotMatch(detail,/Commencer l’exercice/);
+ const readonly=renderToStaticMarkup(React.createElement(Detail,{exercise:{id:'cardio',name:'Cardio'},colors,onClose(){}}));assert.doesNotMatch(readonly,/Remplacer|Retirer/);
+}
+console.log('PASS compact movement header, solo/mixed tabs, reusable exercise detail in both themes (SSR, not device)');

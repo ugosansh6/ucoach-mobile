@@ -50,3 +50,12 @@ export async function setExerciseFavorite(exerciseId, favorite) {
   if(result?.status!=='SAVED')throw new Error('Le favori n’a pas pu être enregistré.');
   return result.preference_state==='FAVORI';
 }
+
+// Read-only detail metadata, independent from selection and prescription engines.
+export async function getExerciseMuscles(exerciseId) {
+  if (!exerciseId) return [];
+  await getAuthenticatedUserWithRetry();
+  const rows = await runSupabaseRequestWithAuthRetry(() => supabase.from('exercise_muscles')
+    .select('muscle_id,priority').eq('exercise_id',exerciseId));
+  return (rows ?? []).map(row => ({ id: row.muscle_id, priority: row.priority }));
+}
