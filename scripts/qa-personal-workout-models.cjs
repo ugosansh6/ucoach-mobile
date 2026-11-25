@@ -51,3 +51,24 @@ assert.match(fs.readFileSync('src/workout/PersonalModelsPage.js','utf8'),/Ajoute
  console.log('PASS personal model concurrent requests, stale preview, failure unlock and duplicate state');
  }
  checkPersonalModelOperations().catch(e=>{console.error(e);process.exitCode=1;});
+
+
+async function checkPersonalProgramDayJRefusal(){
+ const source=fs.readFileSync('src/services/workoutGenerationService.js','utf8');
+ const start=source.indexOf('export async function finalizeComposerWorkoutSession(');
+ assert.ok(start>=0);
+ const body=source.slice(start).replace('export async function','async function');
+ const make=new Function('personal',`
+ const date='2026-11-25',localDateKey=()=>date,normalizeEnvironment=v=>v;
+ const getComposerForLocalDate=async()=>({planItemId:'p',draft:{duration_minutes:24,environment_code:'HOME',...(personal?{personal_program_version:'PERSONAL_PROGRAM_V1'}:{})}});
+ const getAuthenticatedUserWithRetry=async()=>({id:'u'}),selectedEquipmentNames=()=>[],composerUsesOutdoorEngine=()=>false;
+ const supabase={rpc:()=>{throw new Error('COMPOSER_EXERCISE_INCOMPATIBLE_EX321');}};
+ const runSupabaseRequestWithAuthRetry=async fn=>fn();
+ `+body+`
+ return ()=>finalizeComposerWorkoutSession({planItemId:'p',localDate:date,preparation:{duration:24,environmentCode:'HOME',painZones:['Aucune']}});
+ `);
+ await assert.rejects(make(true),{code:'PERSONAL_PROGRAM_CONTEXT_INCOMPATIBLE'});
+ await assert.rejects(make(false),{code:'COMPOSER_NEEDS_RECOMPOSITION'});
+ console.log('PASS personal program refusal preserves dedicated contract; ordinary Composer repair unchanged');
+}
+checkPersonalProgramDayJRefusal().catch(e=>{console.error(e);process.exitCode=1;});
