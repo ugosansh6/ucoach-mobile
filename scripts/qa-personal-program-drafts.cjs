@@ -1,6 +1,7 @@
 const fs=require('node:fs'),assert=require('node:assert/strict');
-const load=(p,names)=>new Function(fs.readFileSync(p,'utf8').replaceAll('export const ','const ').replaceAll('export function ','function ')+';return {'+names+'};')();
-const p=load('src/utils/personalProgramDrafts.js','newProgramDraft,newProgramPhase,duplicateProgramPhase,programDraftWeeks,programDraftIssues,validateStoredProgramDraft,upsertProgramDraft');
+const load=(p,names,deps={})=>new Function(...Object.keys(deps),fs.readFileSync(p,'utf8').replace(/^import .*;\n/gm,'').replaceAll('export const ','const ').replaceAll('export function ','function ')+';return {'+names+'};')(...Object.values(deps));
+const coverApi=load('src/utils/programCovers.js','validProgramCover,MAX_PROGRAM_COVER_CHARS,programCoverPreset');
+const p=load('src/utils/personalProgramDrafts.js','newProgramDraft,newProgramPhase,duplicateProgramPhase,programDraftWeeks,programDraftIssues,validateStoredProgramDraft,upsertProgramDraft',{validProgramCover:coverApi.validProgramCover});
 const m=load('src/utils/personalWorkoutModels.js','groupPersonalModels');
 const rows=[{id:'a',origin:'PROGRAM',source_key:'calisthenie-1-4',name:'Renommé'},{id:'b',origin:'PROGRAM',source_key:'street-21-24'},{id:'c',origin:'PROGRAM',name:'Callisthénie (copie)'},{id:'d',origin:'COMPOSER',source_key:'calisthenie-5-8'}];
 const groups=m.groupPersonalModels(rows);
@@ -14,12 +15,29 @@ assert.equal(p.upsertProgramDraft([draft],{...draft,title:'New'}).length,1);
 async function verifyStorage(){
  const source=fs.readFileSync('src/services/localProgramDraftService.js','utf8').replace(/^import .*;\n/gm,'').replaceAll('export async function ','async function ').replaceAll('export function ','function ');
  const store=new Map();let current='user-a';
- const service=new Function('AsyncStorage','getAuthenticatedUserWithRetry','validateStoredProgramDraft','upsertProgramDraft',source+';return {listLocalProgramDrafts,saveLocalProgramDraft};')({getItem:async k=>store.get(k)??null,setItem:async(k,v)=>store.set(k,v)},async()=>({id:current}),p.validateStoredProgramDraft,p.upsertProgramDraft);
+ const service=new Function('AsyncStorage','getAuthenticatedUserWithRetry','validateStoredProgramDraft','upsertProgramDraft','validProgramCover',source+';return {listLocalProgramDrafts,saveLocalProgramDraft,listLocalProgramGroupCovers,saveLocalProgramGroupCover};')({getItem:async k=>store.get(k)??null,setItem:async(k,v)=>store.set(k,v)},async()=>({id:current}),p.validateStoredProgramDraft,p.upsertProgramDraft,coverApi.validProgramCover);
  await service.saveLocalProgramDraft('user-a',draft);assert.equal((await service.listLocalProgramDrafts()).drafts[0].title,'Spartan');
  current='user-b';assert.equal((await service.listLocalProgramDrafts()).drafts.length,0);
  await assert.rejects(()=>service.saveLocalProgramDraft('user-a',draft),/compte a changé/);
  await service.saveLocalProgramDraft('user-b',{...draft,title:'B'});current='user-a';assert.equal((await service.listLocalProgramDrafts()).drafts[0].title,'Spartan');
+ // The synthetic JPEG-shaped string is used only for storage-contract tests.
+ const photo={type:'photo',uri:'data:image/jpeg;base64,/9j/AA=='},preset={type:'preset',id:'outdoor'};
+ assert.equal(coverApi.validProgramCover(photo),true);assert.equal(coverApi.validProgramCover(preset),true);
+ assert.equal(coverApi.validProgramCover({type:'photo',uri:'blob:temporary'}),false);
+ assert.equal(coverApi.validProgramCover({type:'photo',uri:'data:image/svg+xml;base64,AAAA'}),false);
+ assert.equal(coverApi.validProgramCover({type:'photo',uri:'data:image/jpeg;base64,/9j/'+ 'A'.repeat(coverApi.MAX_PROGRAM_COVER_CHARS)}),false);
+ const legacy={...draft};delete legacy.cover;assert.equal(p.validateStoredProgramDraft(legacy),true);
+ await service.saveLocalProgramDraft('user-a',{...draft,cover:photo});assert.deepEqual((await service.listLocalProgramDrafts()).drafts[0].cover,photo);
+ await service.saveLocalProgramDraft('user-a',{...draft,cover:preset});assert.deepEqual((await service.listLocalProgramDrafts()).drafts[0].cover,preset);
+ await service.saveLocalProgramDraft('user-a',{...draft,cover:null});assert.equal((await service.listLocalProgramDrafts()).drafts[0].cover,null);
+ await service.saveLocalProgramGroupCover('user-a','street',photo);await service.saveLocalProgramGroupCover('user-a','calisthenie',preset);
+ assert.deepEqual((await service.listLocalProgramGroupCovers()).covers,{street:photo,calisthenie:preset});
+ current='user-b';assert.deepEqual((await service.listLocalProgramGroupCovers()).covers,{});
+ await assert.rejects(()=>service.saveLocalProgramGroupCover('user-a','street',null),/compte a changé/);
+ current='user-a';await service.saveLocalProgramGroupCover('user-a','street',null);
+ assert.deepEqual((await service.listLocalProgramGroupCovers()).covers,{calisthenie:preset});
+ await assert.rejects(()=>service.saveLocalProgramGroupCover('user-a','other',photo),/invalide/);
  store.set('ugerod.personal-program-drafts.v1:user-a','invalid');await assert.rejects(()=>service.saveLocalProgramDraft('user-a',draft));assert.equal(store.get('ugerod.personal-program-drafts.v1:user-a'),'invalid');
- console.log('PASS grouping, private phase draft, duplicate isolation, account-scoped persistence and corrupt storage protection');
+ console.log('PASS grouping, private phase draft, duplicate isolation, account-scoped persistence cover replacement/removal, existing group covers and corrupt storage protection');
 }
 verifyStorage().catch(e=>{console.error(e);process.exitCode=1;});
