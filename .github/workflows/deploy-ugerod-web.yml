@@ -57,6 +57,7 @@ jobs:
           node scripts/qa-composer-player-progress.cjs
           node scripts/qa-composer-progress-service.cjs
           node scripts/qa-exercise-catalogue.cjs
+          node scripts/qa-composer-manual-dose.cjs
           node scripts/qa-composer-tabata-runtime.cjs
           node scripts/qa-wod-protocol-audit.cjs
           node scripts/qa-composer-wod-runtime.cjs

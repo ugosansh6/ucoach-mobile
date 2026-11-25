@@ -24,7 +24,7 @@ export function formatComposerDose(dose, blockType, block = null, { compactCard 
   }
   if (dose.reps != null && Number.isFinite(Number(dose.reps))) {
     work = `${dose.reps} reps${dose.reps_semantics === 'per_side' ? ' / côté' : ''}`;
-  } else if (dose.duration_seconds != null) work = `${dose.duration_seconds} s`;
+  } else if (dose.duration_seconds != null) work = `${dose.duration_seconds} s${dose.duration_semantics==='per_side'||dose.prescription_json?.duration_semantics==='per_side'?' / côté':''}`;
   else if (dose.distance_meters != null) work = `${dose.distance_meters} m`;
   const sets = dose.sets ?? (block?.mechanic === 'SETS_REPS' ? block.parameters?.sets : null);
   if (work) parts.push(sets ? `${sets}${compactCard ? ` série${Number(sets) === 1 ? '' : 's'}` : ''} × ${work}` : work);

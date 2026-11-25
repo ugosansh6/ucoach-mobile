@@ -33,6 +33,7 @@ import {
   withComposerPreferences,
 } from '../utils/composerPreferences';
 import { composerWodSelectionLimit, chooseComposerExercise } from '../utils/composerWodSelection';
+import { composerManualKey,restoreComposerManualEdits,attachComposerManualEdits,composerManualExerciseFields,composerManualParameterFields,validComposerManualValues,composerManualTimeSummary,composerManualError } from '../utils/composerManualDose';
 import {
   composerDurationSummary,
   composerMechanicIdentity,
@@ -608,6 +609,9 @@ export default function WeekComposerV7() {
   const [candidateMap, setCandidateMap] = useState({});
   const [candidateEvidence, setCandidateEvidence] = useState({});
   const [selectionMap, setSelectionMap] = useState({});
+  const [manualEdits,setManualEdits]=useState({});
+  const [doseEditor,setDoseEditor]=useState(null);
+  const beforeManualEdit=useRef(null);
   const [exerciseBlockIndex, setExerciseBlockIndex] = useState(0);
   const [recapEditingBlock, setRecapEditingBlock] = useState(null);
   const [expandedExerciseId, setExpandedExerciseId] = useState(null);
@@ -801,6 +805,7 @@ export default function WeekComposerV7() {
           setArchitectures([draft.architecture]);
           setCandidateMap(exerciseMap);
           setSelectionMap(requested);
+          setManualEdits(restoreComposerManualEdits(draft));
           try {
             const observations = await getComposerCandidateEvidence({
               exerciseIds: Object.values(exerciseMap).flatMap((list) => list.map((exercise) => exercise.id)),
@@ -1351,6 +1356,30 @@ export default function WeekComposerV7() {
     setStep(3);
   }
 
+  function openManualEditor(type,exerciseId,title,fields){
+    if(!fields.length)return;
+    setDoseEditor({type,exerciseId,title,fields,values:Object.fromEntries(fields.map(f=>[f.key,String(f.value)]))});
+  }
+  function applyManualEditor(reset=false){
+    if(!doseEditor)return;
+    const {type,exerciseId,fields,values}=doseEditor;
+    if(!reset&&!validComposerManualValues(fields,values))return;
+    const key=composerManualKey(type,mechanic);
+    const changes=Object.fromEntries(fields.filter(f=>Number(values[f.key])!==f.value).map(f=>[f.key,Number(values[f.key])]));
+    if(!reset&&!Object.keys(changes).length){setDoseEditor(null);return;}
+    beforeManualEdit.current=manualEdits;
+    setManualEdits(old=>{
+      const entry=old[key]??{exercises:{},parameters:{}};
+      const next={...entry,exercises:{...entry.exercises},parameters:{...entry.parameters}};
+      if(exerciseId){if(reset)delete next.exercises[exerciseId];else next.exercises[exerciseId]={...next.exercises[exerciseId],...changes};}
+      else next.parameters=reset?{}:{...next.parameters,...changes};
+      if(!Object.keys(next.exercises).length&&!Object.keys(next.parameters).length){const copy={...old};delete copy[key];return copy;}
+      return {...old,[key]:next};
+    });
+    setDoseEditor(null);
+  }
+  function resetManualEdits(){beforeManualEdit.current=manualEdits;setManualEdits({});}
+  function undoManualEdit(){if(beforeManualEdit.current){setManualEdits(beforeManualEdit.current);beforeManualEdit.current=null;}}
   function buildCurrentDraft() {
     const estimatedMinutes = architecture?.estimatedMinutes
       ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
@@ -1367,12 +1396,12 @@ export default function WeekComposerV7() {
       architecture: {
         key: architecture?.key ?? null,
         title: architecture?.title ?? null,
-        blocks: (architecture?.blocks ?? []).map((block) => ({
+        blocks: (architecture?.blocks ?? []).map((block) => attachComposerManualEdits({
           type: block.type,
           label: outdoorEngine ? composerBlockDisplayLabel(block.type, environmentCode) : block.label,
           minutes: block.minutes,
           exercises: selectedExercises(block.type).map((exercise) => ({ id: exercise.id, name: exercise.name })),
-        })),
+        },mechanic,manualEdits,{skillTarget:skillTargetPath,wodEngineVersion})),
       },
       mechanic: mechanic ? { key: mechanic.key, variant_key: mechanic.variant_key ?? null, title: mechanic.title } : null,
       estimated_minutes: estimatedMinutes,
@@ -1396,6 +1425,7 @@ export default function WeekComposerV7() {
     getComposerPrescriptionPreview({ draft, equipmentNames: selectedNames })
       .then((result) => {
         if (!active) return;
+        if(result?.status==='PREVIEW')beforeManualEdit.current=null;
         setPrescriptionPreview(result?.status === 'PREVIEW' ? result : null);
         setPreviewSignature(result?.status === 'PREVIEW' ? draftSignature : null);
         setPreviewIssue(['NEEDS_RECOMPOSITION','RECOMPOSITION_REQUIRED','UNAVAILABLE'].includes(result?.status) ? result : null);
@@ -1404,13 +1434,14 @@ export default function WeekComposerV7() {
       .catch((reason) => {
         if (active) {
           console.warn('[Composer] C2 preview unavailable', reason);
-          setPreviewError(true);
+          const manualMessage=composerManualError(reason);
+          if(manualMessage)setPreviewIssue({reason:'COMPOSER_MANUAL_ERROR',manualMessage});else setPreviewError(true);
         }
       })
       .finally(() => { if (active) setPreviewLoading(false); });
     return () => { active = false; };
   }, [loading, step, architecture, selectionMap, candidateMap, mechanic,
-      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion, preferencesSignature, skillEngineVersion, outdoorContext, outdoorEngineVersion]);
+      referenceEquipment, equipmentIds, duration, environmentCode, targetRegion, intent, dateKey, wodEngineVersion, preferencesSignature, skillEngineVersion, outdoorContext, outdoorEngineVersion,manualEdits]);
 
   const strengthRequest = {
     exercises: (selectionMap.STRENGTH ?? []).map((id) => {
@@ -1558,6 +1589,8 @@ export default function WeekComposerV7() {
   const currentPreview = !previewLoading && previewSignature === JSON.stringify(buildCurrentDraft())
     ? prescriptionPreview : null;
   const currentWodPreview = currentPreview?.blocks?.find((b) => b.type === 'WOD');
+  const recapTime=composerManualTimeSummary(currentPreview,duration);
+  const hasManualEdits=Object.keys(manualEdits).length>0;
   const activePreviewBlock = currentPreview?.blocks?.find((b) => b.type === activeBlock?.type);
   function movementDose(exercise) {
     return activeBlock?.type === 'STRENGTH' ? currentStrengthAssessment?.exercises?.find((item) => item.id === exercise.id)
@@ -2078,11 +2111,20 @@ export default function WeekComposerV7() {
 
           {step === 5 ? (
             <View style={styles.stepWrap}>
-              <StageHeader kicker="RÉCAPITULATIF" title="Ta séance en détail." helper={`${duration} min prévues · ${environmentLabel(environmentCode)} · mouvements et repos calculés.`} styles={styles} />
+              <StageHeader kicker="RÉCAPITULATIF" title="Ta séance." helper={`${environmentLabel(environmentCode)} · ${composerArchitectureDisplayTitle(architecture,environmentCode)}`} styles={{...styles,stageHeader:styles.mechanicStageHeader,question:styles.mechanicQuestion,helper:styles.mechanicHelper}} />
+              <View style={styles.recapOverview}>
+                <View style={styles.recapHeaderRow}>
+                  <View><Text style={styles.recapExerciseMeta}>Durée prévue</Text><Text style={styles.recapTimeValue}>{duration} min</Text></View>
+                  <View><Text style={styles.recapExerciseMeta}>Durée estimée</Text><Text style={[styles.recapTimeValue,recapTime?.overMinutes>0&&{color:colors.secondaryAccent}]}>{recapTime?recapTime.minutes+' min':'—'}</Text></View>
+                </View>
+                <View style={styles.recapSegments}>{(architecture?.blocks??[]).map((b,i)=><View key={b.type} style={{flex:b.minutes,backgroundColor:[colors.accent,colors.secondaryAccent,colors.textSecondary,colors.accent,colors.textMuted][i%5],opacity:i===0?.45:i===1?.65:1,borderRadius:3}}/>)}</View>
+                {recapTime?.overMinutes>0?<View style={styles.recapAdvisory}><Ionicons name="time-outline" size={18} color={colors.secondaryAccent}/><Text style={styles.recapAdvisoryText}>Tes modifications dépassent la durée prévue d’environ {recapTime.overMinutes} min. Tu peux conserver cette séance.</Text></View>:null}
+                {hasManualEdits?<Text style={styles.recapHelp}>Prescription personnalisée · UGEROD conserve tes choix et vérifie le contexte du jour.</Text>:null}
+              </View>
               <Text style={styles.recapHelp}>
                 {(architecture?.blocks ?? []).some((b) => b.type === 'TABATA')
-                  ? 'Échauffement et Tabata inclus dans la durée. Tu peux modifier les exercices de chaque bloc.'
-                  : 'Échauffement inclus dans la durée. Tu peux modifier les exercices de chaque bloc.'}
+                  ? 'Échauffement et Tabata inclus. Modifie les prescriptions des blocs d’entraînement si tu le souhaites.'
+                  : 'Échauffement inclus. Modifie les prescriptions des blocs d’entraînement si tu le souhaites.'}
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -2102,18 +2144,20 @@ export default function WeekComposerV7() {
                   <Text style={styles.previewNote}>Calcul des séries, répétitions et récupérations…</Text>
                 </View>
               ) : prescriptionPreview ? (
-                <Text style={styles.previewNote}>Dosage prévisionnel · le jour J, la forme et les gênes pourront entraîner des ajustements.</Text>
+                <Text style={styles.previewNote}>{hasManualEdits?'Tes valeurs personnalisées seront conservées. Les contrôles de sécurité du jour J restent actifs.':'Dosage prévisionnel · le jour J, la forme et les gênes pourront entraîner des ajustements.'}</Text>
               ) : previewIssue ? (
                 <View style={styles.structureExplanation}>
                   <Ionicons name="alert-circle-outline" size={18} color={colors.secondaryAccent} />
                   <Text style={styles.structureExplanationText}>
-                    {composerPreviewIssue(previewIssue, environmentCode)}
+                    {previewIssue.manualMessage??composerPreviewIssue(previewIssue, environmentCode)}
                   </Text>
                 </View>
               ) : previewError ? (
                 <Text style={styles.previewWarning}>Prévision indisponible : vérifie la connexion avant de valider.</Text>
               ) : null}
-              {previewIssue ? (
+              {previewIssue&&beforeManualEdit.current?<Pressable onPress={undoManualEdit} style={styles.recapEdit}><Ionicons name="arrow-undo-outline" size={17} color={colors.accent}/><Text style={styles.recapEditText}>Annuler la dernière modification</Text></Pressable>:null}
+              {hasManualEdits?<Pressable onPress={resetManualEdits} style={styles.recapEdit}><Ionicons name="refresh-outline" size={17} color={colors.accent}/><Text style={styles.recapEditText}>Rétablir les recommandations UGEROD</Text></Pressable>:null}
+              {previewIssue&&!previewIssue.manualMessage ? (
                 <PrimaryButton
                   label="ADAPTER LA STRUCTURE"
                   onPress={() => setStep(2)}
@@ -2122,42 +2166,41 @@ export default function WeekComposerV7() {
                 />
               ) : null}
               <View style={styles.recapCard}>
-                {(architecture?.blocks ?? []).map((item) => (
-                  <View key={`recap-${item.type}`} style={styles.recapBlock}>
+                {(architecture?.blocks??[]).map((item,index)=>{
+                  const block=currentPreview?.blocks?.find(b=>b.type===item.type);
+                  const blockFields=composerManualParameterFields(block,wodEngineVersion);
+                  const blockTime=block?.time?.prescribed_seconds;
+                  const over=blockTime!=null&&Number(blockTime)>Number(item.minutes)*60;
+                  const icon={WARMUP:'flame-outline',TABATA:'timer-outline',SKILL:'body-outline',STRENGTH:'barbell-outline',WOD:'flash-outline',CARDIO:'heart-outline'}[item.type];
+                  const entry=manualEdits[composerManualKey(item.type,mechanic)];
+                  return <View key={'recap-'+item.type} style={styles.recapBlock}>
                     <View style={styles.recapHeaderRow}>
-                      <Text style={styles.recapBlockTitle}>{item.label.toUpperCase()}</Text>
-                      <Text style={styles.recapMinutes}>{item.minutes} min</Text>
+                      <View style={styles.recapBlockHeading}><Ionicons name={icon??'fitness-outline'} size={20} color={colors.accent}/><View style={{flex:1}}><Text style={styles.recapBlockTitle}>{String(index+1).padStart(2,'0')} · {composerBlockDisplayLabel(item.type,environmentCode)}</Text>{item.type==='WOD'&&mechanic?<Text style={styles.recapExerciseMeta}>{mechanic.title}</Text>:null}</View></View>
+                      <View style={{alignItems:'flex-end'}}><Text style={styles.recapMinutes}>{item.minutes} min prévues</Text>{blockTime!=null?<Text style={[styles.recapMinutes,over&&{color:colors.secondaryAccent}]}>≈ {Math.ceil(Number(blockTime)/60)} min</Text>:null}</View>
                     </View>
-                    {(() => {
-                      const prescription = currentPreview?.blocks?.find((block) => block.type === item.type);
-                      if (!prescription) return null;
-                      if (item.type === 'TABATA') {
-                        return <Text style={styles.recapDose}>8 intervalles · 20 s effort / 10 s repos</Text>;
-                      }
-                      if (item.type === 'WOD') {
-                        return <><Text style={styles.recapDose}>{composerWodTimeSummary(prescription)}</Text><Text style={styles.recapDose}>{composerWodProtocol(prescription)}</Text>{composerWodRegionAdvisory(prescription)?<Text style={styles.previewDetails}>{composerWodRegionAdvisory(prescription)}</Text>:null}{composerWodDurationAdvisory(prescription)?<Text style={styles.previewDetails}>{composerWodDurationAdvisory(prescription)}</Text>:null}</>;
-                      }
-                      return null;
-                    })()}
-                    {selectedExercises(item.type).map((exercise) => {
-                      const dose = currentPreview?.blocks
-                        ?.find((block) => block.type === item.type)?.exercises
-                        ?.find((value) => value.id === exercise.id);
-                      return (
-                        <View key={exercise.id} style={styles.recapExerciseRow}>
+                    {item.type==='TABATA'?<Text style={styles.recapDose}>8 intervalles · 20 s effort / 10 s repos</Text>:null}
+                    {item.type==='WOD'&&block?<Text style={styles.recapDose}>{composerWodProtocol(block)}</Text>:null}
+                    {composerWodRegionAdvisory(block)?<Text style={styles.previewDetails}>{composerWodRegionAdvisory(block)}</Text>:null}
+                    {composerWodDurationAdvisory(block)?<Text style={styles.previewDetails}>{composerWodDurationAdvisory(block)}</Text>:null}
+                    {over?<Text style={styles.recapAdvisoryText}>Ce bloc dépasse le temps réservé. Ce n’est pas bloquant.</Text>:null}
+                    {blockFields.length?<Pressable accessibilityRole="button" onPress={()=>openManualEditor(item.type,null,'Paramètres du WOD',blockFields)} style={styles.recapParameterButton}><Ionicons name="options-outline" size={16} color={colors.accent}/><Text style={styles.recapEditText}>{Object.keys(entry?.parameters??{}).length?'Paramètres personnalisés':'Modifier les paramètres'}</Text><Ionicons name="chevron-forward" size={15} color={colors.accent}/></Pressable>:null}
+                    {selectedExercises(item.type).map(exercise=>{
+                      const dose=block?.exercises?.find(x=>x.id===exercise.id);
+                      const fields=composerManualExerciseFields(item.type,dose,mechanic,{skillTarget:skillTargetPath,wodEngineVersion});
+                      const edited=Boolean(Object.keys(entry?.exercises?.[exercise.id]??{}).length);
+                      return <View key={exercise.id} style={styles.recapExerciseRow}>
+                        <View style={styles.recapThumb}>{exercise.imagePath?<Image source={{uri:exercise.imagePath}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>:<Ionicons name="image-outline" size={20} color={colors.textMuted}/>}</View>
+                        <View style={{flex:1,minWidth:0}}>
                           <Text style={styles.recapExercise}>{exercise.name}</Text>
-                          {dose ? <Text style={styles.recapDose}>{formatPreviewDose(dose, item.type, currentPreview?.blocks?.find((b) => b.type === item.type))}</Text> : null}
-                          <Text style={styles.recapExerciseMeta}>{(exercise.equipmentNames ?? []).join(' · ') || 'Poids du corps'}</Text>
+                          {dose?<Text style={styles.recapDose}>{formatPreviewDose(dose,item.type,block,{compactCard:true})}</Text>:null}
+                          {edited?<Text style={styles.recapExerciseMeta}>Personnalisé</Text>:null}
                         </View>
-                      );
+                        {fields.length?<Pressable accessibilityRole="button" accessibilityLabel={'Modifier le dosage de '+exercise.name} onPress={()=>openManualEditor(item.type,exercise.id,exercise.name,fields)} style={styles.recapDoseEdit}><Ionicons name="create-outline" size={19} color={colors.accent}/></Pressable>:null}
+                      </View>;
                     })}
-                    {item.type === 'WOD' && mechanic ? <Text style={styles.recapMechanic}>{mechanic.title}</Text> : null}
-                    <Pressable onPress={() => editRecapBlock(item.type)} style={styles.recapEdit}>
-                      <Ionicons name="create-outline" size={16} color={colors.accent} />
-                      <Text style={styles.recapEditText}>Modifier {item.type === 'WOD' ? 'ce bloc ou sa mécanique' : 'les exercices'}</Text>
-                    </Pressable>
-                  </View>
-                ))}
+                    <Pressable onPress={()=>editRecapBlock(item.type)} style={styles.recapEdit}><Ionicons name="swap-horizontal-outline" size={16} color={colors.accent}/><Text style={styles.recapEditText}>Modifier {item.type==='WOD'?'les mouvements ou la mécanique':'les mouvements'}</Text></Pressable>
+                  </View>;
+                })}
               </View>
               <PrimaryButton
                 label={busy ? 'ENREGISTREMENT…' : 'VALIDER MA SÉANCE'}
@@ -2181,6 +2224,19 @@ export default function WeekComposerV7() {
         onPrevious={detailIndex > 0 ? () => setExpandedExerciseId(selectedCandidateObjects[detailIndex - 1].id) : null}
         onNext={detailIndex < selectedCandidateObjects.length - 1 ? () => setExpandedExerciseId(selectedCandidateObjects[detailIndex + 1].id) : null}
       /> : null}
+      {doseEditor?<SheetShell visible title={doseEditor.title} onClose={()=>setDoseEditor(null)} styles={styles} colors={colors}
+        footer={<PrimaryButton label="APPLIQUER" onPress={()=>applyManualEditor()} disabled={!validComposerManualValues(doseEditor.fields,doseEditor.values)} styles={styles} colors={colors}/>}>
+        <Text style={styles.sheetHelp}>Personnalise la prescription. UGEROD estime la durée, sans bloquer un simple dépassement de temps.</Text>
+        {doseEditor.fields.map(f=><View key={f.key} style={styles.manualDoseField}>
+          <Text style={styles.recapExercise}>{f.label}</Text>
+          <View style={styles.manualDoseControls}>
+            <Pressable accessibilityLabel={'Diminuer '+f.label} onPress={()=>setDoseEditor(old=>({...old,values:{...old.values,[f.key]:String(Math.max(f.min,(Number(old.values[f.key])||f.min)-f.step))}}))} style={styles.manualDoseButton}><Ionicons name="remove" size={20} color={colors.accent}/></Pressable>
+            <TextInput accessibilityLabel={f.label} value={doseEditor.values[f.key]} onChangeText={value=>setDoseEditor(old=>({...old,values:{...old.values,[f.key]:value.replace(/[^0-9]/g,'').slice(0,5)}}))} keyboardType="number-pad" selectTextOnFocus style={styles.manualDoseInput}/>
+            <Pressable accessibilityLabel={'Augmenter '+f.label} onPress={()=>setDoseEditor(old=>({...old,values:{...old.values,[f.key]:String(Math.min(f.max,(Number(old.values[f.key])||f.min)+f.step))}}))} style={styles.manualDoseButton}><Ionicons name="add" size={20} color={colors.accent}/></Pressable>
+          </View>
+        </View>)}
+        <Pressable onPress={()=>applyManualEditor(true)} style={styles.recapEdit}><Ionicons name="refresh-outline" size={17} color={colors.accent}/><Text style={styles.recapEditText}>Rétablir le dosage recommandé</Text></Pressable>
+      </SheetShell>:null}
       <SheetShell visible={sheet === 'confirm-revision'} title="Mettre à jour cette séance ?" onClose={() => setSheet(null)} styles={styles} colors={colors}>
         <Text style={styles.sheetHelp}>La version déjà générée n’a pas commencé. Elle sera conservée comme remplacée et le nouveau contenu sera généré au prochain lancement.</Text>
         <Text style={styles.sheetHelp}>Actuellement : {composerArchitectureDisplayTitle(savedStructure, environmentCode)}</Text>
@@ -2449,7 +2505,20 @@ function createStyles(colors) {
     selectionFooterHint: { fontFamily: fontFamilies.regular, fontSize: 11, color: colors.textSecondary },
     primaryButton: { marginTop: 28, minHeight: 54, borderRadius: 15, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18 },
     primaryButtonText: { fontFamily: fontFamilies.bold, fontSize: 12, letterSpacing: 0.8, color: colors.textOnAccent },
-    recapCard: { borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: 'hidden' },
+    recapCard: { gap:10, marginTop:12 },
+    recapOverview:{borderRadius:12,borderWidth:1,borderColor:colors.border,padding:12,gap:10,backgroundColor:colors.surface,marginBottom:12},
+    recapTimeValue:{fontFamily:fontFamilies.bold,fontSize:22,color:colors.text},
+    recapSegments:{height:7,flexDirection:'row',gap:3},
+    recapAdvisory:{flexDirection:'row',gap:8,alignItems:'center'},
+    recapAdvisoryText:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:18,color:colors.secondaryAccent,flexShrink:1},
+    recapBlockHeading:{flex:1,flexDirection:'row',alignItems:'center',gap:8},
+    recapParameterButton:{flexDirection:'row',alignItems:'center',gap:7,paddingVertical:9},
+    recapThumb:{width:45,height:45,borderRadius:8,overflow:'hidden',backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},
+    recapDoseEdit:{width:44,height:44,justifyContent:'center',alignItems:'center'},
+    manualDoseField:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,marginVertical:6},
+    manualDoseControls:{flexDirection:'row',alignItems:'center',gap:4},
+    manualDoseButton:{width:40,height:44,borderRadius:8,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},
+    manualDoseInput:{width:58,height:44,borderWidth:1,borderColor:colors.border,borderRadius:8,textAlign:'center',fontFamily:fontFamilies.semiBold,fontSize:16,color:colors.text},
     recapHelp: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, color: colors.textSecondary, marginBottom: 16 },
     previewState: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12 },
     previewNote: { fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 18, color: colors.textSecondary, marginBottom: 12 },
@@ -2457,11 +2526,11 @@ function createStyles(colors) {
     recapDose: { marginTop: 5, fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 18, color: colors.accent },
     recapEdit: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', minHeight: 34 },
     recapEditText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.accent },
-    recapExerciseRow: { marginTop: 9 },
+    recapExerciseRow: { flexDirection:'row',alignItems:'center',gap:10,paddingVertical:9,borderTopWidth:1,borderTopColor:colors.border },
     recapExerciseMeta: { marginTop: 3, fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
-    recapBlock: { padding: 17, borderBottomWidth: 1, borderBottomColor: colors.border },
+    recapBlock: { padding:12,borderWidth:1,borderColor:colors.border,borderRadius:12,backgroundColor:colors.surface,gap:4 },
     recapHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-    recapBlockTitle: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1, color: colors.accent },
+    recapBlockTitle: { fontFamily:fontFamilies.semiBold,fontSize:15,color:colors.text },
     recapMinutes: { fontFamily: fontFamilies.medium, fontSize: 11, color: colors.textSecondary },
     recapExercise: { fontFamily: fontFamilies.medium, fontSize: 13, color: colors.text },
     recapMechanic: { marginTop: 9, fontFamily: fontFamilies.bold, fontSize: 12, color: colors.secondaryAccent },
