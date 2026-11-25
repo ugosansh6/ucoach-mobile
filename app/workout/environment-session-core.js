@@ -1,0 +1,4114 @@
+import { restoreRunningClock, isComposerWorkout } from '../../src/utils/composerPlayerProgress';
+import { router } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+import { spacing } from '../../src/constants';
+import { useWorkout } from '../../src/contexts/WorkoutContext';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
+import ComposerSkillPlayer from '../../src/components/workout/ComposerSkillPlayer';
+import { flushComposerPlayerProgress } from '../../src/services/composerPlayerProgressService';
+import EnvironmentWodBlock from '../../src/components/workout/EnvironmentWodBlock';
+import { isUserComposedSession, shouldShowWodContent } from '../../src/utils/sessionWodVisibility';
+import { FocusedTabata, createStyles as createFocusedSessionStyles } from './session-focused-core';
+import EnvironmentSwapOverlay from '../../src/components/workout/EnvironmentSwapOverlay';
+import SessionFormatSheet from '../../src/components/workout/SessionFormatSheet';
+import SessionPlayerHeader from '../../src/components/workout/SessionPlayerHeader';
+import {
+  markWorkoutWodRevealed,
+  markWorkoutWodStarted,
+} from '../../src/services/sessionMutationService';
+
+function normalize(value) {
+  return String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s/-]+/g, '_');
+}
+
+function numberOr(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function optionalNumber(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const parsed = Number(String(value).replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeDetailText(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/\\r\\n|\\n|\\r/g, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/(^|\n)\s*(\d+)[.)-]?\s+/g, (_, prefix, number) => `${prefix}${number}. `)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function shortCue(exercise) {
+  const value = normalizeDetailText(
+    exercise?.tips ?? exercise?.instructions ?? exercise?.description ?? ''
+  );
+  if (!value) return null;
+
+  const line = value.split(/\n+/)[0].replace(/^\d+\.\s*/, '').trim();
+  const sentence = line.match(/^(.{1,150}?[.!?])(?:\s|$)/)?.[1] ?? line;
+  return sentence.length > 150 ? `${sentence.slice(0, 147).trim()}…` : sentence;
+}
+
+function positiveInt(value, fallback = 0) {
+  return Math.max(0, Math.round(numberOr(value, fallback)));
+}
+
+function formatClock(totalSeconds) {
+  const safe = Math.max(0, Math.floor(numberOr(totalSeconds, 0)));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function formatRunDuration(totalSeconds) {
+  const safe = Math.max(0, Math.round(numberOr(totalSeconds, 0)));
+  if (safe <= 0) return null;
+
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+
+  if (minutes > 0 && seconds > 0) return `${minutes} min ${seconds} sec`;
+  if (minutes > 0) return `${minutes} min`;
+  return `${seconds} sec`;
+}
+
+function blockKey(block) {
+  return String(block?.block_key ?? block?.blockKey ?? block?.key ?? '').toLowerCase();
+}
+
+function blockTitle(block, fallback = 'Préparation') {
+  return block?.label_fr ?? block?.label ?? block?.title ?? block?.block_name ?? fallback;
+}
+
+function blockMechanic(block) {
+  return normalize(
+    block?.mechanic ??
+      block?.mechanic_json?.mechanic_key ??
+      block?.mechanicJson?.mechanic_key ??
+      ''
+  );
+}
+
+function blockParameters(block) {
+  return (
+    block?.mechanic_json?.parameters ??
+    block?.mechanicJson?.parameters ??
+    block?.parameters ??
+    {}
+  );
+}
+
+function exerciseKey(exercise) {
+  return exercise?.sessionExerciseId ?? exercise?.id;
+}
+
+function exerciseTrackingModes(exercise) {
+  if (Array.isArray(exercise?.trackingModes)) return exercise.trackingModes;
+  if (Array.isArray(exercise?.prescriptionJson?.tracking_modes)) {
+    return exercise.prescriptionJson.tracking_modes;
+  }
+  return [];
+}
+
+function isRunMechanic(mechanic) {
+  return [
+    'RUN_CONTINUOUS',
+    'RUN_INTERVALS',
+    'RUN_FARTLEK',
+    'RUN_CALIBRATION',
+  ].includes(mechanic);
+}
+
+function runFamilyLabel(mechanic, block) {
+  const family = normalize(
+    block?.mechanic_json?.variant_key ??
+      block?.mechanicJson?.variant_key ??
+      block?.running_protocol?.family_code ??
+      block?.running_family_context?.family_code ??
+      ''
+  );
+
+  const labels = {
+    EASY_CONTINUOUS: 'Course continue — allure modérée',
+    SHORT_INTERVALS: 'Intervalles courts',
+    MEDIUM_INTERVALS: 'Intervalles moyens',
+    GUIDED_FARTLEK: 'Fartlek guidé',
+    CALIBRATION: 'Calibration',
+  };
+
+  if (labels[family]) return labels[family];
+  if (mechanic === 'RUN_CONTINUOUS') return 'Course continue — allure modérée';
+  if (mechanic === 'RUN_FARTLEK') return 'Fartlek guidé';
+  if (mechanic === 'RUN_INTERVALS') return 'Intervalles';
+  if (mechanic === 'RUN_CALIBRATION') return 'Calibration';
+  return 'Course';
+}
+
+function runIntensityCueLabel(value) {
+  const labels = {
+    SUSTAINED_CONTROLLED: 'Allure soutenue mais contrôlée',
+    EASY_CONVERSATIONAL: 'Allure facile, tu peux parler',
+  };
+
+  return labels[normalize(value)] ?? null;
+}
+
+function runRecoveryCueLabel(value) {
+  const labels = {
+    EASY_MOVE_OR_WALK: 'Marche ou trottine tranquillement',
+  };
+
+  return labels[normalize(value)] ?? null;
+}
+
+function statusValue(exercise) {
+  if (exercise?.userExecutionStatus) return exercise.userExecutionStatus;
+  if (exercise?.status === 'skipped') return 'not_completed';
+  if (exercise?.status === 'not_completed') return 'not_completed';
+  if (exercise?.status === 'adapted') return 'adapted';
+  if (exercise?.status === 'completed') return 'completed';
+  return 'pending';
+}
+
+function blockIsDone(block, exercises) {
+  const key = blockKey(block);
+  const rows = exercises.filter(
+    (exercise) => String(exercise.blockKey ?? exercise.block ?? '').toLowerCase() === key
+  );
+  return rows.length > 0 && rows.every((exercise) => statusValue(exercise) !== 'pending');
+}
+
+function wodExecutionStatus(runtime) {
+  if (!runtime?.started || !runtime?.finished) return 'pending';
+
+  const completedReasons = [
+    'timer_complete',
+    'rounds_complete',
+    'steps_complete',
+    'sequence_complete',
+    'target_complete',
+    'completed',
+  ];
+
+  if (completedReasons.includes(runtime?.finishReason)) {
+    return 'completed';
+  }
+
+  const observedWork =
+    positiveInt(runtime?.elapsedSeconds, 0) > 0 ||
+    positiveInt(runtime?.completedRounds, 0) > 0 ||
+    positiveInt(runtime?.manualStep, 1) > 1 ||
+    positiveInt(runtime?.currentStage, 0) > 0;
+
+  return observedWork ? 'adapted' : 'not_completed';
+}
+
+function getSetCount(exercise, block) {
+  const prescription = exercise?.prescriptionJson ?? {};
+  const params = blockParameters(block);
+  const mechanic = blockMechanic(block);
+
+  if (mechanic === 'CIRCUIT') {
+    return positiveInt(
+      prescription?.block_parameters?.rounds ?? params?.rounds,
+      0
+    );
+  }
+
+  return positiveInt(
+    prescription?.block_parameters?.sets ?? prescription?.sets ?? params?.sets,
+    0
+  );
+}
+
+function usesLoad(exercise) {
+  return exerciseTrackingModes(exercise).includes('load');
+}
+
+function usesReps(exercise) {
+  const modes = exerciseTrackingModes(exercise);
+  return modes.includes('reps') || modes.length === 0;
+}
+
+function prescribedReps(exercise) {
+  const prescription = exercise?.prescriptionJson ?? {};
+  const candidates = [
+    prescription?.execution_target_reps,
+    prescription?.reps,
+    prescription?.reps_max,
+    prescription?.reps_min,
+  ];
+
+  for (const candidate of candidates) {
+    const value = optionalNumber(candidate);
+    if (value != null) return String(value);
+  }
+
+  const text = String(exercise?.prescription ?? '');
+  const match = text.match(/(\d+(?:[.,]\d+)?)\s*reps?/i);
+  return match?.[1]?.replace(',', '.') ?? '';
+}
+
+function prescribedLoad(exercise) {
+  const prescription = exercise?.prescriptionJson ?? {};
+  const candidates = [
+    prescription?.execution_target_load_kg,
+    prescription?.load_kg,
+    prescription?.target_load_kg,
+  ];
+
+  for (const candidate of candidates) {
+    const value = optionalNumber(candidate);
+    if (value != null) return String(value);
+  }
+
+  return '';
+}
+
+function initialSetDrafts(exercises, block) {
+  const next = {};
+
+  for (const exercise of exercises) {
+    const key = exerciseKey(exercise);
+    const existing = exercise?.performanceActualJson?.gym_sets;
+    const setCount = getSetCount(exercise, block);
+    const defaultReps = prescribedReps(exercise);
+    next[key] = {
+      prescriptionKey: JSON.stringify(exercise.prescriptionJson ?? {}),
+      reps: existing?.find?.((row) => row.reps != null)?.reps != null
+        ? String(existing.find((row) => row.reps != null).reps) : defaultReps,
+      sets: Array.from({ length: setCount }, (_, index) => {
+        const row = existing?.find?.((value) => Number(value.set_index) === index + 1);
+        return { setIndex: index + 1, load: row?.load_kg != null ? String(row.load_kg) : '',
+          done: row?.status === 'completed' || row?.completed === true };
+      }),
+    };
+  }
+
+  return next;
+}
+
+function SimpleBlock({
+  block,
+  exercises,
+  onComplete,
+  onExerciseComplete,
+  onExerciseRefuse,
+  onActiveExerciseChange,
+  initialExerciseIndex = 0,
+  executionEnabled = true,
+}) {
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const focusedStyles = useMemo(
+    () => createEnvironmentFocusedStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+  const [exerciseIndex, setExerciseIndex] = useState(() => Math.min(Math.max(0, initialExerciseIndex), Math.max(0, exercises.length - 1)));
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const exercise = exercises[exerciseIndex] ?? exercises[0] ?? null;
+  const cue = shortCue(exercise);
+
+  useEffect(() => {
+    if (!exercise) return;
+    onActiveExerciseChange?.(exercise, exerciseIndex);
+    setDetailsOpen(false);
+  }, [exercise, exerciseIndex, onActiveExerciseChange]);
+
+  if (!exercise) {
+    return (
+      <View style={focusedStyles.exerciseCard}>
+        <Text style={focusedStyles.exerciseName}>Bloc vide</Text>
+        <Text style={focusedStyles.exercisePrescription}>Aucun exercice exécutable n’a été reçu.</Text>
+      </View>
+    );
+  }
+
+  const isLast = exerciseIndex >= exercises.length - 1;
+
+  function validateCurrent() {
+    if (!executionEnabled) return;
+
+    onExerciseComplete?.(exercise);
+
+    if (isLast) {
+      onComplete(exercise, 'completed');
+      return;
+    }
+    setExerciseIndex((current) => Math.min(exercises.length - 1, current + 1));
+  }
+
+  function refuseCurrent() {
+    if (!executionEnabled) return;
+
+    onExerciseRefuse?.(exercise);
+
+    if (isLast) {
+      onComplete(exercise, 'not_completed');
+      return;
+    }
+    setExerciseIndex((current) => Math.min(exercises.length - 1, current + 1));
+  }
+
+  return (
+    <>
+      <View style={focusedStyles.mediaCard}>
+        <View style={focusedStyles.mediaFallback}>
+          <View style={focusedStyles.mediaFallbackIcon}>
+            <Ionicons name="barbell-outline" size={34} color={themeColors.accent} />
+          </View>
+          <Text style={focusedStyles.mediaFallbackText}>{blockTitle(block)}</Text>
+        </View>
+        <View style={focusedStyles.mediaOverlayTop}>
+          <Text style={focusedStyles.exercisePosition}>
+            Exercice {exerciseIndex + 1} / {exercises.length}
+          </Text>
+        </View>
+      </View>
+
+      <View style={focusedStyles.exerciseCard}>
+        <Text style={focusedStyles.exerciseName}>{exercise.name}</Text>
+        {exercise.prescription ? (
+          <Text style={focusedStyles.exercisePrescription}>{exercise.prescription}</Text>
+        ) : null}
+
+        {cue ? (
+          <View style={focusedStyles.cueBox}>
+            <View style={focusedStyles.cueIcon}>
+              <Ionicons name="flash-outline" size={15} color={themeColors.secondaryAccent} />
+            </View>
+            <View style={focusedStyles.cueCopy}>
+              <Text style={focusedStyles.cueLabel}>L’essentiel</Text>
+              <Text style={focusedStyles.cueText}>{cue}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {detailsOpen ? (
+          <View style={focusedStyles.detailsBox}>
+            {exercise?.description ? (
+              <>
+                <Text style={focusedStyles.detailsLabel}>Description</Text>
+                <Text style={focusedStyles.detailsText}>
+                  {normalizeDetailText(exercise.description)}
+                </Text>
+              </>
+            ) : null}
+            {exercise?.instructions ? (
+              <>
+                <Text
+                  style={[
+                    focusedStyles.detailsLabel,
+                    exercise?.description && { marginTop: 12 },
+                  ]}
+                >
+                  Exécution
+                </Text>
+                <Text style={focusedStyles.detailsText}>
+                  {normalizeDetailText(exercise.instructions)}
+                </Text>
+              </>
+            ) : null}
+            {exercise?.tips ? (
+              <>
+                <Text style={[focusedStyles.detailsLabel, { marginTop: 12 }]}>
+                  Conseil UGEROD
+                </Text>
+                <Text style={focusedStyles.detailsText}>
+                  {normalizeDetailText(exercise.tips)}
+                </Text>
+              </>
+            ) : null}
+            {!exercise?.description && !exercise?.instructions && !exercise?.tips ? (
+              <Text style={focusedStyles.detailsText}>
+                Aucune consigne détaillée supplémentaire.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        <View style={focusedStyles.inlineActions}>
+          <Pressable
+            onPress={() => setDetailsOpen((value) => !value)}
+            style={focusedStyles.secondaryAction}
+          >
+            <Ionicons
+              name={detailsOpen ? 'chevron-up' : 'information-circle-outline'}
+              size={18}
+              color={themeColors.text}
+            />
+            <Text style={focusedStyles.secondaryActionText}>
+              {detailsOpen ? 'Réduire' : 'Consignes'}
+            </Text>
+          </Pressable>
+
+          <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+
+          <Pressable
+            onPress={refuseCurrent}
+            disabled={!executionEnabled}
+            style={[
+              focusedStyles.refuseAction,
+              !executionEnabled && focusedStyles.actionDisabled,
+            ]}
+          >
+            <Ionicons
+              name="close-circle-outline"
+              size={18}
+              color={themeColors.secondaryAccent}
+            />
+            <Text style={focusedStyles.refuseActionText}>Refuser</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {exercises.length > 1 ? (
+        <View style={focusedStyles.exerciseNav}>
+          <Pressable
+            onPress={() => setExerciseIndex((current) => Math.max(0, current - 1))}
+            disabled={exerciseIndex === 0}
+            style={[focusedStyles.navButton, exerciseIndex === 0 && focusedStyles.actionDisabled]}
+          >
+            <Ionicons name="chevron-back" size={20} color={themeColors.text} />
+          </Pressable>
+          <View style={focusedStyles.navDots}>
+            {exercises.map((row, index) => (
+              <View
+                key={exerciseKey(row) ?? `${index}`}
+                style={[focusedStyles.navDot, index === exerciseIndex && focusedStyles.navDotActive]}
+              />
+            ))}
+          </View>
+          <Pressable
+            onPress={() => setExerciseIndex((current) => Math.min(exercises.length - 1, current + 1))}
+            disabled={isLast}
+            style={[focusedStyles.navButton, isLast && focusedStyles.actionDisabled]}
+          >
+            <Ionicons name="chevron-forward" size={20} color={themeColors.text} />
+          </Pressable>
+        </View>
+      ) : null}
+
+      <Pressable
+        onPress={validateCurrent}
+        disabled={!executionEnabled}
+        style={[
+          focusedStyles.primaryButtonLarge,
+          !executionEnabled && focusedStyles.actionDisabled,
+        ]}
+      >
+        <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
+        <Text style={focusedStyles.primaryButtonTextLarge}>
+          {isLast ? 'Réalisé · terminer le bloc' : 'Réalisé · suivant'}
+        </Text>
+      </Pressable>
+    </>
+  );
+}
+
+function StrengthBlock({
+  block,
+  exercises,
+  drafts,
+  setDrafts,
+  onComplete,
+  onPartial,
+  restRuntime,
+  onRestChange,
+  onExerciseRefuse,
+  onActiveExerciseChange,
+  executionEnabled = true,
+}) {
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const gymStyles = useMemo(
+    () => createGymStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 500); return () => clearInterval(timer); }, []);
+  const restRemaining = Math.max(0, Math.ceil(((restRuntime?.until ?? 0) - clock) / 1000));
+  const mechanic = blockMechanic(block);
+  const isCircuit = mechanic === 'CIRCUIT';
+  const [activeKey, setActiveKey] = useState(() => exerciseKey(exercises?.[0]) ?? null);
+  const [detailsKey, setDetailsKey] = useState(null);
+
+  useEffect(() => {
+    if (exercises.some((exercise) => exerciseKey(exercise) === activeKey)) return;
+    setActiveKey(exerciseKey(exercises?.[0]) ?? null);
+  }, [activeKey, exercises]);
+
+  useEffect(() => {
+    const activeExercise =
+      exercises.find((exercise) => exerciseKey(exercise) === activeKey) ??
+      exercises?.[0] ??
+      null;
+
+    if (!activeExercise) return;
+    onActiveExerciseChange?.(
+      activeExercise,
+      Math.max(
+        0,
+        exercises.findIndex(
+          (exercise) => exerciseKey(exercise) === exerciseKey(activeExercise)
+        )
+      )
+    );
+  }, [activeKey, exercises, onActiveExerciseChange]);
+
+  function updateExerciseReps(exercise, value) {
+    if (!executionEnabled) return;
+    const key = exerciseKey(exercise);
+    setDrafts((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] ?? { reps: '', sets: [] }),
+        reps: value,
+      },
+    }));
+  }
+
+  function updateSetLoad(exercise, setIndex, value) {
+    if (!executionEnabled) return;
+    const key = exerciseKey(exercise);
+    setDrafts((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] ?? { reps: '', sets: [] }),
+        sets: (current[key]?.sets ?? []).map((row, index) =>
+          index === setIndex ? { ...row, load: value } : row
+        ),
+      },
+    }));
+  }
+
+  function toggleSet(exercise, setIndex) {
+    if (!executionEnabled) return;
+    const key = exerciseKey(exercise);
+    const completed = !drafts[key]?.sets?.[setIndex]?.done;
+    const p = exercise.prescriptionJson ?? {};
+    const rest = Number(p.rest_between_sets_seconds ?? p.rest_seconds ?? blockParameters(block).rest_seconds ?? 0);
+    if (completed && rest > 0) onRestChange?.({ until: Date.now() + rest * 1000, sessionExerciseId: key, seconds: rest });
+    setDrafts((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] ?? { reps: '', sets: [] }),
+        sets: (current[key]?.sets ?? []).map((row, index) =>
+          index === setIndex ? { ...row, done: !row.done, reps: row.done ? null : optionalNumber(current[key]?.reps) } : row
+        ),
+      },
+    }));
+  }
+
+  function markWholeBlockDone() {
+    if (!executionEnabled) return;
+    setDrafts((current) => {
+      const next = { ...current };
+
+      for (const exercise of exercises) {
+        const key = exerciseKey(exercise);
+        const draft = current[key] ?? { reps: '', sets: [] };
+
+        next[key] = {
+          ...draft,
+          sets: (draft.sets ?? []).map((row) => ({
+            ...row,
+            done: true,
+          })),
+        };
+      }
+
+      return next;
+    });
+  }
+
+  const blockSetRows = exercises.flatMap((exercise) => {
+    const key = exerciseKey(exercise);
+    return drafts[key]?.sets ?? [];
+  });
+  const blockHasSets = blockSetRows.length > 0;
+  const wholeBlockDone =
+    blockHasSets && blockSetRows.every((row) => Boolean(row.done));
+
+  return (
+    <>
+      {restRemaining > 0 ? <View style={{ padding: 16, gap: 10 }}><Text style={{ color: themeColors.text, fontSize: 24 }}>Récupération · {restRemaining} s</Text><Pressable onPress={() => onRestChange?.({ ...restRuntime, until: null, shortened: true })}><Text style={{ color: themeColors.accent }}>Écourter le repos</Text></Pressable></View> : null}
+      {exercises.map((exercise, exerciseIndex) => {
+        const key = exerciseKey(exercise);
+        const draft = drafts[key] ?? { reps: '', sets: [] };
+        const rows = draft.sets ?? [];
+        const loadEnabled = usesLoad(exercise);
+        const repsEnabled = usesReps(exercise);
+        const isActive = activeKey === key;
+        const isRefused = statusValue(exercise) === 'not_completed';
+        const cue = shortCue(exercise);
+        const completedCount = rows.filter((row) => row.done).length;
+        const seriesLabel = isCircuit ? 'tours' : 'séries';
+
+        return (
+          <View key={key} style={[gymStyles.exerciseCard, isActive && gymStyles.exerciseCardActive]}>
+            <Pressable
+              onPress={() => setActiveKey(isActive ? null : key)}
+              style={({ pressed }) => [gymStyles.exerciseHeader, pressed && gymStyles.pressed]}
+            >
+              <View style={gymStyles.exerciseHeaderCopy}>
+                <Text style={gymStyles.exerciseEyebrow}>
+                  EXERCICE {exerciseIndex + 1}/{exercises.length}
+                </Text>
+                <Text style={gymStyles.exerciseName}>{exercise.name}</Text>
+                <Text style={gymStyles.exerciseSummary}>
+                  {rows.length || '—'} {seriesLabel}
+                  {repsEnabled ? ` · ${draft.reps || '—'} reps` : ''}
+                </Text>
+              </View>
+
+              <View style={gymStyles.exerciseHeaderStatus}>
+                <Text style={gymStyles.exerciseProgress}>
+                  {completedCount}/{rows.length || 0}
+                </Text>
+                <Ionicons
+                  name={isActive ? 'chevron-up' : 'chevron-down'}
+                  size={19}
+                  color={themeColors.textSecondary}
+                />
+              </View>
+            </Pressable>
+
+            {isActive ? (
+              <View style={gymStyles.exerciseBody}>
+                {cue ? (
+                  <View style={gymStyles.cueBox}>
+                    <View style={gymStyles.cueIcon}>
+                      <Ionicons name="flash-outline" size={15} color={themeColors.secondaryAccent} />
+                    </View>
+                    <View style={gymStyles.cueCopy}>
+                      <Text style={gymStyles.cueLabel}>L’essentiel</Text>
+                      <Text style={gymStyles.cueText}>{cue}</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {repsEnabled && !isRefused ? (
+                  <View style={gymStyles.globalFieldRow}>
+                    <View style={gymStyles.globalFieldCopy}>
+                      <Text style={gymStyles.fieldLabel}>REPS / SÉRIE</Text>
+                    </View>
+                    <View style={gymStyles.repsInputWrap}>
+                      <TextInput
+                        value={draft.reps}
+                        editable={executionEnabled}
+                        onChangeText={(value) => updateExerciseReps(exercise, value)}
+                        placeholder="—"
+                        placeholderTextColor={themeColors.textMuted}
+                        keyboardType="numeric"
+                        selectTextOnFocus
+                        style={gymStyles.repsInput}
+                      />
+                      <Text style={gymStyles.inputSuffix}>reps</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={gymStyles.exerciseActionsRow}>
+                  <Pressable
+                    onPress={() => setDetailsKey((current) => current === key ? null : key)}
+                    style={({ pressed }) => [gymStyles.detailButton, pressed && gymStyles.pressed]}
+                  >
+                    <Ionicons
+                      name={detailsKey === key ? 'chevron-up' : 'information-circle-outline'}
+                      size={17}
+                      color={themeColors.text}
+                    />
+                    <Text style={gymStyles.detailButtonText}>
+                      {detailsKey === key ? 'Réduire' : 'Consignes'}
+                    </Text>
+                  </Pressable>
+
+                  <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+
+                  <Pressable
+                    onPress={() => {
+                      if (!executionEnabled || isRefused) return;
+                      onExerciseRefuse?.(exercise);
+                      setActiveKey(null);
+                    }}
+                    disabled={!executionEnabled || isRefused}
+                    style={({ pressed }) => [
+                      gymStyles.refuseButton,
+                      (!executionEnabled || isRefused) && gymStyles.actionDisabled,
+                      pressed && executionEnabled && !isRefused && gymStyles.pressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="close-circle-outline"
+                      size={17}
+                      color={themeColors.secondaryAccent}
+                    />
+                    <Text style={gymStyles.refuseButtonText}>Refuser</Text>
+                  </Pressable>
+                </View>
+
+                {detailsKey === key ? (
+                  <View style={gymStyles.detailsPanel}>
+                    {exercise?.description ? (
+                      <>
+                        <Text style={gymStyles.detailsLabel}>DESCRIPTION</Text>
+                        <Text style={gymStyles.detailsText}>
+                          {normalizeDetailText(exercise.description)}
+                        </Text>
+                      </>
+                    ) : null}
+                    {exercise?.instructions ? (
+                      <>
+                        <Text style={gymStyles.detailsLabel}>EXÉCUTION</Text>
+                        <Text style={gymStyles.detailsText}>
+                          {normalizeDetailText(exercise.instructions)}
+                        </Text>
+                      </>
+                    ) : null}
+                    {exercise?.tips ? (
+                      <>
+                        <Text style={gymStyles.detailsLabel}>CONSEIL UGEROD</Text>
+                        <Text style={gymStyles.detailsText}>
+                          {normalizeDetailText(exercise.tips)}
+                        </Text>
+                      </>
+                    ) : null}
+                    {!exercise?.description && !exercise?.instructions && !exercise?.tips ? (
+                      <Text style={gymStyles.detailsText}>
+                        Aucune consigne détaillée supplémentaire.
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {isRefused ? (
+                  <Text style={gymStyles.refusedText}>Exercice refusé · aucune performance ne sera inventée.</Text>
+                ) : rows.length === 0 ? (
+                  <Text style={gymStyles.warningText}>
+                    Aucun nombre de séries/tours reçu du moteur. Ce bloc ne peut pas être validé automatiquement.
+                  </Text>
+                ) : (
+                  <View style={gymStyles.setsPanel}>
+                    <Text style={gymStyles.setsTitle}>
+                      {isCircuit ? 'TOURS' : 'SÉRIES'}
+                    </Text>
+
+                    {rows.map((row, index) => (
+                      <View
+                        key={`${key}:${row.setIndex}`}
+                        style={[gymStyles.setRow, row.done && gymStyles.setRowDone]}
+                      >
+                        <Pressable
+                          onPress={() => toggleSet(exercise, index)}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: Boolean(row.done) }}
+                          style={[gymStyles.checkButton, row.done && gymStyles.checkButtonDone]}
+                        >
+                          <Ionicons
+                            name={row.done ? 'checkmark' : 'ellipse-outline'}
+                            size={18}
+                            color={row.done ? themeColors.textOnAccent : themeColors.textSecondary}
+                          />
+                        </Pressable>
+
+                        <Text style={gymStyles.setLabel}>
+                          {isCircuit ? 'T' : 'S'}{row.setIndex}
+                        </Text>
+
+                        <Text style={gymStyles.setRepsText}>
+                          {repsEnabled ? `${draft.reps || '—'} reps` : 'À réaliser'}
+                        </Text>
+
+                        {loadEnabled ? (
+                          <View style={gymStyles.loadInputWrap}>
+                            <TextInput
+                              value={row.load}
+                              editable={executionEnabled}
+                              onChangeText={(value) => updateSetLoad(exercise, index, value)}
+                              placeholder="—"
+                              placeholderTextColor={themeColors.textMuted}
+                              keyboardType="decimal-pad"
+                              selectTextOnFocus
+                              style={gymStyles.loadInput}
+                            />
+                            <Text style={gymStyles.inputSuffix}>kg</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+
+      {blockHasSets ? (
+        <Pressable
+          onPress={markWholeBlockDone}
+          disabled={wholeBlockDone || !executionEnabled}
+          style={({ pressed }) => [
+            gymStyles.validateAllButton,
+            wholeBlockDone && gymStyles.validateAllButtonDone,
+            !executionEnabled && gymStyles.actionDisabled,
+            pressed && !wholeBlockDone && executionEnabled && gymStyles.pressed,
+          ]}
+        >
+          <Ionicons
+            name={wholeBlockDone ? 'checkmark-done-circle' : 'checkmark-done-outline'}
+            size={19}
+            color={wholeBlockDone ? themeColors.accent : themeColors.text}
+          />
+          <Text
+            style={[
+              gymStyles.validateAllButtonText,
+              wholeBlockDone && gymStyles.validateAllButtonTextDone,
+            ]}
+          >
+            {wholeBlockDone ? 'TOUTES LES SÉRIES SONT VALIDÉES' : 'TOUT MARQUER COMME RÉALISÉ'}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      <Pressable
+        onPress={onComplete}
+        disabled={!executionEnabled}
+        style={({ pressed }) => [
+          gymStyles.primaryButton,
+          !executionEnabled && gymStyles.actionDisabled,
+          pressed && executionEnabled && gymStyles.pressed,
+        ]}
+      >
+        <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
+        <Text style={gymStyles.primaryButtonText}>VALIDER LE BLOC</Text>
+      </Pressable>
+      <Pressable disabled={!executionEnabled} onPress={() => Alert.alert('Arrêter le renforcement ?', 'Seules les séries cochées seront conservées.', [{ text: 'Continuer', style: 'cancel' }, { text: 'Arrêter', onPress: onPartial }])} style={gymStyles.secondaryButton}><Text style={{ color: themeColors.text }}>Arrêter ce bloc ici</Text></Pressable>
+    </>
+  );
+}
+
+function ManualGymBlock({
+  block,
+  exercises,
+  onComplete,
+  onExerciseRefuse,
+  executionEnabled = true,
+}) {
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const gymStyles = useMemo(
+    () => createGymStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+  const [drafts, setDrafts] = useState(() =>
+    Object.fromEntries(
+      exercises.map((exercise) => [
+        exerciseKey(exercise),
+        {
+          reps: exercise?.repsCompleted != null ? String(exercise.repsCompleted) : '',
+          seconds: exercise?.durationSeconds != null ? String(exercise.durationSeconds) : '',
+        },
+      ])
+    )
+  );
+  const [detailsKey, setDetailsKey] = useState(null);
+
+  function patch(exercise, field, value) {
+    if (!executionEnabled) return;
+    const key = exerciseKey(exercise);
+    setDrafts((current) => ({
+      ...current,
+      [key]: { ...(current[key] ?? {}), [field]: value },
+    }));
+  }
+
+  function finish() {
+    if (!executionEnabled) return;
+    const updates = {};
+
+    for (const exercise of exercises) {
+      const key = exerciseKey(exercise);
+
+      if (statusValue(exercise) === 'not_completed') {
+        updates[key] = {
+          status: 'not_completed',
+          userExecutionStatus: 'not_completed',
+          repsCompleted: null,
+          durationSeconds: null,
+          distanceMeters: null,
+          rpe: null,
+          performanceActualJson: null,
+        };
+        continue;
+      }
+
+      const draft = drafts[key] ?? {};
+      const modes = exerciseTrackingModes(exercise);
+      const wantsReps = modes.includes('reps') || modes.length === 0;
+      const wantsTime = modes.includes('time');
+      const reps = optionalNumber(draft.reps);
+      const seconds = optionalNumber(draft.seconds);
+
+      if ((wantsReps || wantsTime) && reps == null && seconds == null) {
+        Alert.alert(
+          'Performance manquante',
+          `Renseigne ce que tu as réellement réalisé pour ${exercise.name}.`
+        );
+        return;
+      }
+
+      updates[key] = {
+        status: 'completed',
+        userExecutionStatus: 'completed',
+        repsCompleted: wantsReps ? reps : null,
+        durationSeconds: wantsTime ? seconds : null,
+        performanceActualJson: {
+          ...(exercise.performanceActualJson ?? {}),
+          source: 'ugerod_environment_gym_manual',
+          controlled_entry: true,
+        },
+      };
+    }
+
+    onComplete(updates);
+  }
+
+  return (
+    <>
+      <View style={gymStyles.blockHint}>
+        <Ionicons name="create-outline" size={18} color={themeColors.accent} />
+        <Text style={gymStyles.blockHintText}>
+          Ajuste uniquement les valeurs qui diffèrent de ce que tu as réellement fait.
+        </Text>
+      </View>
+
+      {exercises.map((exercise, index) => {
+        const key = exerciseKey(exercise);
+        const draft = drafts[key] ?? {};
+        const modes = exerciseTrackingModes(exercise);
+        const showReps = modes.includes('reps') || modes.length === 0;
+        const showTime = modes.includes('time');
+        const isRefused = statusValue(exercise) === 'not_completed';
+        const cue = shortCue(exercise);
+
+        return (
+          <View key={key} style={gymStyles.exerciseCard}>
+            <View style={gymStyles.exerciseBody}>
+              <Text style={gymStyles.exerciseEyebrow}>EXERCICE {index + 1}/{exercises.length}</Text>
+              <Text style={gymStyles.exerciseName}>{exercise.name}</Text>
+              {exercise.prescription ? (
+                <Text style={gymStyles.exerciseSummary}>{exercise.prescription}</Text>
+              ) : null}
+
+              {cue ? (
+                <View style={gymStyles.cueBox}>
+                  <View style={gymStyles.cueIcon}>
+                    <Ionicons name="flash-outline" size={15} color={themeColors.secondaryAccent} />
+                  </View>
+                  <View style={gymStyles.cueCopy}>
+                    <Text style={gymStyles.cueLabel}>L’essentiel</Text>
+                    <Text style={gymStyles.cueText}>{cue}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              <View style={gymStyles.exerciseActionsRow}>
+                <Pressable
+                  onPress={() => setDetailsKey((current) => current === key ? null : key)}
+                  style={({ pressed }) => [gymStyles.detailButton, pressed && gymStyles.pressed]}
+                >
+                  <Ionicons
+                    name={detailsKey === key ? 'chevron-up' : 'information-circle-outline'}
+                    size={17}
+                    color={themeColors.text}
+                  />
+                  <Text style={gymStyles.detailButtonText}>
+                    {detailsKey === key ? 'Réduire' : 'Consignes'}
+                  </Text>
+                </Pressable>
+
+                <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+
+                <Pressable
+                  onPress={() => {
+                    if (!executionEnabled || isRefused) return;
+                    onExerciseRefuse?.(exercise);
+                  }}
+                  disabled={!executionEnabled || isRefused}
+                  style={({ pressed }) => [
+                    gymStyles.refuseButton,
+                    (!executionEnabled || isRefused) && gymStyles.actionDisabled,
+                    pressed && executionEnabled && !isRefused && gymStyles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="close-circle-outline"
+                    size={17}
+                    color={themeColors.secondaryAccent}
+                  />
+                  <Text style={gymStyles.refuseButtonText}>Refuser</Text>
+                </Pressable>
+              </View>
+
+              {detailsKey === key ? (
+                <View style={gymStyles.detailsPanel}>
+                  {exercise?.description ? (
+                    <>
+                      <Text style={gymStyles.detailsLabel}>DESCRIPTION</Text>
+                      <Text style={gymStyles.detailsText}>
+                        {normalizeDetailText(exercise.description)}
+                      </Text>
+                    </>
+                  ) : null}
+                  {exercise?.instructions ? (
+                    <>
+                      <Text style={gymStyles.detailsLabel}>EXÉCUTION</Text>
+                      <Text style={gymStyles.detailsText}>
+                        {normalizeDetailText(exercise.instructions)}
+                      </Text>
+                    </>
+                  ) : null}
+                  {exercise?.tips ? (
+                    <>
+                      <Text style={gymStyles.detailsLabel}>CONSEIL UGEROD</Text>
+                      <Text style={gymStyles.detailsText}>
+                        {normalizeDetailText(exercise.tips)}
+                      </Text>
+                    </>
+                  ) : null}
+                  {!exercise?.description && !exercise?.instructions && !exercise?.tips ? (
+                    <Text style={gymStyles.detailsText}>
+                      Aucune consigne détaillée supplémentaire.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {isRefused ? (
+                <Text style={gymStyles.refusedText}>
+                  Exercice refusé · aucune performance ne sera inventée.
+                </Text>
+              ) : (
+                <View style={gymStyles.manualFieldsRow}>
+                {showReps ? (
+                  <View style={gymStyles.manualField}>
+                    <Text style={gymStyles.fieldLabel}>RÉPÉTITIONS</Text>
+                    <TextInput
+                      value={draft.reps ?? ''}
+                      editable={executionEnabled}
+                      onChangeText={(value) => patch(exercise, 'reps', value)}
+                      placeholder="—"
+                      placeholderTextColor={themeColors.textMuted}
+                      keyboardType="numeric"
+                      style={gymStyles.manualInput}
+                    />
+                  </View>
+                ) : null}
+                {showTime ? (
+                  <View style={gymStyles.manualField}>
+                    <Text style={gymStyles.fieldLabel}>SECONDES</Text>
+                    <TextInput
+                      value={draft.seconds ?? ''}
+                      editable={executionEnabled}
+                      onChangeText={(value) => patch(exercise, 'seconds', value)}
+                      placeholder="—"
+                      placeholderTextColor={themeColors.textMuted}
+                      keyboardType="numeric"
+                      style={gymStyles.manualInput}
+                    />
+                  </View>
+                ) : null}
+                </View>
+              )}
+            </View>
+          </View>
+        );
+      })}
+
+      <Pressable
+        onPress={finish}
+        disabled={!executionEnabled}
+        style={({ pressed }) => [
+          gymStyles.primaryButton,
+          !executionEnabled && gymStyles.actionDisabled,
+          pressed && executionEnabled && gymStyles.pressed,
+        ]}
+      >
+        <Ionicons name="checkmark-circle-outline" size={20} color={themeColors.textOnAccent} />
+        <Text style={gymStyles.primaryButtonText}>VALIDER LE BLOC</Text>
+      </Pressable>
+    </>
+  );
+}
+
+function GymCardioBlock({
+  block,
+  exercises,
+  onBeforeStart,
+  onComplete,
+  initialRuntime = null,
+  onRuntimeChange,
+  executionEnabled = true,
+}) {
+  const resumedRuntime = useRef(restoreRunningClock(initialRuntime, initialRuntime?.sampledAt)).current;
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const cardioStyles = useMemo(
+    () => createGymCardioStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+
+  const machineExercise = exercises?.[0] ?? null;
+  const supportExercise = exercises?.[1] ?? null;
+  const target = useMemo(
+    () => gymCardioTarget(machineExercise, block),
+    [block, machineExercise]
+  );
+  const params = blockParameters(block);
+  const mechanic = blockMechanic(block);
+  const protocolFamily = normalize(
+    block?.protocol_family ??
+      block?.mechanic_json?.variant_key ??
+      block?.mechanicJson?.variant_key ??
+      params?.protocol_family ??
+      'CONTINUOUS'
+  );
+  const isMachineIntervals = mechanic === 'CARDIO_INTERVALS';
+  const isMixedIntervals = mechanic === 'CARDIO_MIXED_INTERVALS';
+
+  const modes = exerciseTrackingModes(machineExercise);
+  const machineCode = normalize(machineExercise?.name);
+  const machineSupportsCalories =
+    modes.includes('calories') ||
+    ['RAMEUR', 'ROWER', 'AIR_BIKE_ASSAULT_BIKE', 'SKIERG', 'VELO_BIKE'].some((token) =>
+      machineCode.includes(token)
+    );
+  const machineSupportsDistance =
+    modes.includes('distance') ||
+    ['RAMEUR', 'ROWER', 'AIR_BIKE_ASSAULT_BIKE', 'SKIERG', 'VELO_BIKE', 'TAPIS_DE_COURSE'].some((token) =>
+      machineCode.includes(token)
+    );
+
+  const totalSeconds = Math.max(
+    1,
+    positiveInt(
+      params?.duration_seconds,
+      target.kind === 'time'
+        ? target.value
+        : numberOr(block?.duration_minutes ?? block?.durationMinutes, 1) * 60
+    )
+  );
+  const workSeconds = Math.max(1, positiveInt(params?.work_seconds, 60));
+  const recoverySeconds = Math.max(0, positiveInt(params?.recovery_seconds, 0));
+  const machineSeconds = Math.max(1, positiveInt(params?.machine_seconds, 60));
+  const supportSeconds = Math.max(1, positiveInt(params?.support_seconds, 60));
+  const repeats = Math.max(1, positiveInt(params?.repeats, 1));
+
+  const initialElapsed = positiveInt(machineExercise?.durationSeconds, 0);
+  const initialActual = machineExercise?.performanceActualJson ?? {};
+  const [started, setStarted] = useState(resumedRuntime?.started ?? initialElapsed > 0);
+  const [paused, setPaused] = useState(Boolean(resumedRuntime?.paused));
+  const [reviewing, setReviewing] = useState(Boolean(resumedRuntime?.reviewing));
+  const [elapsed, setElapsed] = useState(Number(resumedRuntime?.elapsedSeconds ?? initialElapsed));
+  const [distance, setDistance] = useState(
+    resumedRuntime?.distance ?? (machineExercise?.distanceMeters != null
+      ? String(machineExercise.distanceMeters)
+      : initialActual?.distance_meters != null
+        ? String(initialActual.distance_meters)
+        : '')
+  );
+  const [calories, setCalories] = useState(
+    resumedRuntime?.calories ?? (initialActual?.calories != null ? String(initialActual.calories) : '')
+  );
+
+  useEffect(() => { onRuntimeChange?.({ started, paused: paused || reviewing, reviewing, elapsedSeconds: elapsed, totalSeconds, distance, calories }); }, [started, paused, reviewing, elapsed, totalSeconds, distance, calories, onRuntimeChange]);
+
+  useEffect(() => {
+    if (!executionEnabled || !started || paused || reviewing || elapsed >= totalSeconds) {
+      return undefined;
+    }
+
+    let lastTickAt = Date.now();
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.max(1, Math.floor((now - lastTickAt) / 1000));
+      lastTickAt = now;
+      setElapsed((current) => Math.min(totalSeconds, current + delta));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [elapsed, executionEnabled, paused, reviewing, started, totalSeconds]);
+
+  useEffect(() => {
+    if (executionEnabled && started && elapsed >= totalSeconds && !reviewing) {
+      setPaused(true);
+      setReviewing(true);
+    }
+  }, [elapsed, executionEnabled, reviewing, started, totalSeconds]);
+
+  const phase = useMemo(() => {
+    if (elapsed >= totalSeconds) {
+      return {
+        label: 'TERMINÉ',
+        remaining: 0,
+        round: repeats,
+        completedIntervals: repeats,
+        activeExercise: machineExercise,
+      };
+    }
+
+    if (isMixedIntervals) {
+      const cycle = Math.max(1, machineSeconds + supportSeconds);
+      const fullCycles = Math.floor(elapsed / cycle);
+      const within = elapsed % cycle;
+      const onSupport = within >= machineSeconds;
+      return {
+        label: onSupport ? 'EXERCICE' : 'MACHINE',
+        remaining: onSupport
+          ? Math.max(0, cycle - within)
+          : Math.max(0, machineSeconds - within),
+        round: Math.min(repeats, fullCycles + 1),
+        completedIntervals: Math.min(repeats, fullCycles),
+        activeExercise: onSupport ? supportExercise : machineExercise,
+      };
+    }
+
+    if (isMachineIntervals) {
+      const cycle = Math.max(1, workSeconds + recoverySeconds);
+      const fullCycles = Math.floor(elapsed / cycle);
+      const within = elapsed % cycle;
+      const inRecovery = recoverySeconds > 0 && within >= workSeconds;
+      return {
+        label: inRecovery ? 'RÉCUPÉRATION' : 'EFFORT',
+        remaining: inRecovery
+          ? Math.max(0, cycle - within)
+          : Math.max(0, workSeconds - within),
+        round: Math.min(repeats, fullCycles + 1),
+        completedIntervals: Math.min(repeats, fullCycles + (inRecovery ? 1 : 0)),
+        activeExercise: machineExercise,
+      };
+    }
+
+    return {
+      label: 'EFFORT',
+      remaining: Math.max(0, totalSeconds - elapsed),
+      round: 1,
+      completedIntervals: 0,
+      activeExercise: machineExercise,
+    };
+  }, [
+    elapsed,
+    isMachineIntervals,
+    isMixedIntervals,
+    machineExercise,
+    machineSeconds,
+    recoverySeconds,
+    repeats,
+    supportExercise,
+    supportSeconds,
+    totalSeconds,
+    workSeconds,
+  ]);
+
+  const protocolSummary = useMemo(() => {
+    if (isMixedIntervals && supportExercise) {
+      return `${formatRunDuration(machineSeconds)} ${machineExercise?.name ?? 'machine'} · ${formatRunDuration(supportSeconds)} ${supportExercise.name}`;
+    }
+    if (isMachineIntervals) {
+      return `${formatRunDuration(workSeconds)} soutenu · ${formatRunDuration(recoverySeconds)} facile`;
+    }
+    return `${formatRunDuration(totalSeconds)} en continu`;
+  }, [
+    isMachineIntervals,
+    isMixedIntervals,
+    machineExercise?.name,
+    machineSeconds,
+    recoverySeconds,
+    supportExercise,
+    supportSeconds,
+    totalSeconds,
+    workSeconds,
+  ]);
+
+  function openReview() {
+    if (!executionEnabled || !started || elapsed <= 0) return;
+    setPaused(true);
+    setReviewing(true);
+  }
+
+  function validateResult() {
+    if (!executionEnabled) return;
+
+    const distanceMeters = distance.trim()
+      ? numberOr(distance.replace(',', '.'), null)
+      : null;
+    const caloriesValue = calories.trim()
+      ? numberOr(calories.replace(',', '.'), null)
+      : null;
+
+    if (target.kind === 'distance' && distanceMeters == null) {
+      Alert.alert('Distance manquante', 'Renseigne la distance affichée par la machine.');
+      return;
+    }
+    if (target.kind === 'calories' && caloriesValue == null) {
+      Alert.alert('Calories manquantes', 'Renseigne les calories affichées par la machine.');
+      return;
+    }
+
+    const protocolCompleted = elapsed >= totalSeconds;
+
+    onComplete({
+      elapsedSeconds: elapsed,
+      distanceMeters,
+      calories: caloriesValue,
+      rpe: null,
+      intervalsCompleted:
+        isMachineIntervals || isMixedIntervals ? phase.completedIntervals : null,
+      protocolCompleted,
+      mechanic,
+      parameters: params,
+      controlledTiming: true,
+      targetKind: target.kind,
+      targetValue: target.value,
+      protocolFamily,
+      mixedProtocol: isMixedIntervals,
+    });
+  }
+
+  async function startEffort() {
+    if (!executionEnabled) {
+      Alert.alert(
+        'Séance non démarrée',
+        'Démarre d’abord la séance avant de lancer ce bloc.'
+      );
+      return;
+    }
+
+    try {
+      if (typeof onBeforeStart === 'function') await onBeforeStart();
+      setStarted(true);
+    } catch (error) {
+      Alert.alert(
+        'Impossible de démarrer la séance',
+        error?.message ?? 'Réessaie.'
+      );
+    }
+  }
+
+  const displayMain =
+    started && (isMachineIntervals || isMixedIntervals)
+      ? formatClock(phase.remaining)
+      : started
+        ? formatClock(elapsed)
+        : formatClock(totalSeconds);
+
+  return (
+    <View style={cardioStyles.card}>
+      <View style={cardioStyles.topRow}>
+        <View style={cardioStyles.machineIcon}>
+          <Ionicons name="fitness-outline" size={21} color={themeColors.accent} />
+        </View>
+        <View style={cardioStyles.topCopy}>
+          <Text style={cardioStyles.machineName}>
+            {isMixedIntervals ? 'Cardio alterné' : machineExercise?.name ?? 'Cardio'}
+          </Text>
+          <Text style={cardioStyles.targetLabel}>{protocolSummary}</Text>
+        </View>
+      </View>
+
+      <View style={cardioStyles.metricHero}>
+        {started && (isMachineIntervals || isMixedIntervals) ? (
+          <>
+            <Text style={cardioStyles.phaseLabel}>{phase.label}</Text>
+            <Text style={cardioStyles.metricMain}>{displayMain}</Text>
+            <Text style={cardioStyles.activeExercise}>
+              {phase.activeExercise?.name ?? machineExercise?.name ?? 'Cardio'}
+            </Text>
+            <Text style={cardioStyles.secondaryMetric}>
+              Passage {phase.round}/{repeats} · Total {formatClock(elapsed)} / {formatClock(totalSeconds)}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={cardioStyles.metricMain}>{displayMain}</Text>
+            {started ? (
+              <Text style={cardioStyles.metricTarget}>/ {formatClock(totalSeconds)}</Text>
+            ) : null}
+          </>
+        )}
+      </View>
+
+      {!started ? (
+        <>
+          <View style={cardioStyles.protocolBox}>
+            <Text style={cardioStyles.protocolTitle}>Protocole</Text>
+            <Text style={cardioStyles.protocolText}>{protocolSummary}</Text>
+            {isMixedIntervals && supportExercise ? (
+              <Text style={cardioStyles.protocolHint}>
+                Alterne automatiquement entre {machineExercise?.name} et {supportExercise.name}.
+              </Text>
+            ) : isMachineIntervals ? (
+              <Text style={cardioStyles.protocolHint}>
+                Les phases effort et récupération s’enchaînent automatiquement.
+              </Text>
+            ) : (
+              <Text style={cardioStyles.protocolHint}>
+                Allure régulière et contrôlée.
+              </Text>
+            )}
+          </View>
+          <Pressable
+            onPress={startEffort}
+            disabled={!executionEnabled}
+            style={({ pressed }) => [
+              cardioStyles.primaryButton,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && cardioStyles.pressed,
+            ]}
+          >
+            <Ionicons name="play" size={18} color={themeColors.textOnAccent} />
+            <Text style={cardioStyles.primaryButtonText}>DÉMARRER</Text>
+          </Pressable>
+        </>
+      ) : !reviewing ? (
+        <View style={cardioStyles.liveActions}>
+          <Pressable
+            onPress={() => setPaused((current) => !current)}
+            disabled={!executionEnabled}
+            style={({ pressed }) => [
+              cardioStyles.secondaryButton,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && cardioStyles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={paused ? 'play' : 'pause'}
+              size={17}
+              color={themeColors.text}
+            />
+            <Text style={cardioStyles.secondaryButtonText}>
+              {paused ? 'REPRENDRE' : 'PAUSE'}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={openReview}
+            disabled={!executionEnabled}
+            style={({ pressed }) => [
+              cardioStyles.finishButton,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && cardioStyles.pressed,
+            ]}
+          >
+            <Ionicons name="checkmark" size={17} color={themeColors.text} />
+            <Text style={cardioStyles.finishButtonText}>TERMINER</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={cardioStyles.results}>
+          <View style={cardioStyles.resultsHeader}>
+            <Ionicons name="checkmark-circle" size={20} color={themeColors.accent} />
+            <View>
+              <Text style={cardioStyles.resultsTitle}>Effort terminé</Text>
+              <Text style={cardioStyles.resultsSubtitle}>
+                Ajoute seulement ce que la machine t’affiche.
+              </Text>
+            </View>
+          </View>
+
+          <View style={cardioStyles.resultFields}>
+            {machineSupportsDistance ? (
+              <View style={cardioStyles.resultField}>
+                <Text style={cardioStyles.fieldLabel}>DISTANCE (M)</Text>
+                <TextInput
+                  value={distance}
+                  editable={executionEnabled && reviewing}
+                  onChangeText={setDistance}
+                  placeholder="—"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="decimal-pad"
+                  style={cardioStyles.input}
+                />
+              </View>
+            ) : null}
+
+            {machineSupportsCalories ? (
+              <View style={cardioStyles.resultField}>
+                <Text style={cardioStyles.fieldLabel}>CALORIES</Text>
+                <TextInput
+                  value={calories}
+                  editable={executionEnabled && reviewing}
+                  onChangeText={setCalories}
+                  placeholder="—"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="decimal-pad"
+                  style={cardioStyles.input}
+                />
+              </View>
+            ) : null}
+          </View>
+
+          <Pressable
+            onPress={validateResult}
+            disabled={!executionEnabled}
+            style={({ pressed }) => [
+              cardioStyles.primaryButton,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && cardioStyles.pressed,
+            ]}
+          >
+            <Ionicons name="checkmark" size={18} color={themeColors.textOnAccent} />
+            <Text style={cardioStyles.primaryButtonText}>VALIDER LE BLOC</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function TimedBlock({
+  block,
+  exercise,
+  environmentCode,
+  onBeforeStart,
+  onComplete,
+  initialRuntime = null,
+  onRuntimeChange,
+  executionEnabled = true,
+}) {
+  const resumedRuntime = useRef(restoreRunningClock(initialRuntime, initialRuntime?.sampledAt)).current;
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const runStyles = useMemo(
+    () => createOutdoorRunStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+  const timedStyles = useMemo(
+    () => createTimedBlockStyles(themeColors),
+    [themeColors]
+  );
+  const mechanic = blockMechanic(block);
+  const params = blockParameters(block);
+  const isRun = isRunMechanic(mechanic);
+  const isIntervals = ['RUN_INTERVALS', 'RUN_FARTLEK'].includes(mechanic);
+  const prescribedSeconds = Math.max(
+    1,
+    positiveInt(
+      params?.duration_seconds,
+      numberOr(block?.duration_minutes ?? block?.durationMinutes, 1) * 60
+    )
+  );
+  const workSeconds = Math.max(1, positiveInt(params?.work_seconds, prescribedSeconds));
+  const recoverySeconds = Math.max(0, positiveInt(params?.recovery_seconds, 0));
+  const repeats = Math.max(1, positiveInt(params?.repeats, 1));
+
+  const initialElapsed = positiveInt(exercise?.durationSeconds, 0);
+  const [started, setStarted] = useState(resumedRuntime?.started ?? initialElapsed > 0);
+  const [paused, setPaused] = useState(Boolean(resumedRuntime?.paused));
+  const [elapsed, setElapsed] = useState(Number(resumedRuntime?.elapsedSeconds ?? initialElapsed));
+  const [distance, setDistance] = useState(resumedRuntime?.distance ?? (exercise?.distanceMeters != null ? String(exercise.distanceMeters) : ''));
+  const [rpe, setRpe] = useState(resumedRuntime?.rpe ?? (exercise?.rpe != null ? String(exercise.rpe) : ''));
+
+  useEffect(() => { onRuntimeChange?.({ started, paused, elapsedSeconds: elapsed, totalSeconds: prescribedSeconds, distance, rpe }); }, [started, paused, elapsed, prescribedSeconds, distance, rpe, onRuntimeChange]);
+
+  useEffect(() => {
+    if (!executionEnabled || !started || paused || elapsed >= prescribedSeconds) {
+      return undefined;
+    }
+    let lastTickAt = Date.now();
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.max(1, Math.floor((now - lastTickAt) / 1000));
+      lastTickAt = now;
+      setElapsed((current) => Math.min(prescribedSeconds, current + delta));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [elapsed, executionEnabled, paused, prescribedSeconds, started]);
+
+  const phase = useMemo(() => {
+    if (!isIntervals) {
+      return {
+        label: elapsed >= prescribedSeconds ? 'TERMINÉ' : 'EFFORT',
+        remaining: Math.max(0, prescribedSeconds - elapsed),
+        completedIntervals: 0,
+        intervalNumber: 1,
+      };
+    }
+
+    if (elapsed >= prescribedSeconds) {
+      return {
+        label: 'TERMINÉ',
+        remaining: 0,
+        completedIntervals: repeats,
+        intervalNumber: repeats,
+      };
+    }
+
+    const cycle = Math.max(1, workSeconds + recoverySeconds);
+    const fullCycles = Math.floor(elapsed / cycle);
+    const within = elapsed % cycle;
+    const inRecovery = recoverySeconds > 0 && within >= workSeconds;
+    const completedIntervals = Math.min(repeats, fullCycles + (inRecovery ? 1 : 0));
+    const intervalNumber = Math.min(repeats, fullCycles + 1);
+    const remaining = inRecovery ? Math.max(0, cycle - within) : Math.max(0, workSeconds - within);
+
+    return {
+      label: inRecovery ? 'RÉCUPÉRATION' : 'EFFORT',
+      remaining,
+      completedIntervals,
+      intervalNumber,
+    };
+  }, [elapsed, isIntervals, prescribedSeconds, recoverySeconds, repeats, workSeconds]);
+
+  const title = isRun ? runFamilyLabel(mechanic, block) : blockTitle(block, 'Cardio');
+  const intensityCue = runIntensityCueLabel(params?.intensity_cue);
+  const recoveryCue = runRecoveryCueLabel(params?.recovery_mode);
+  const phaseCue = phase.label === 'RÉCUPÉRATION' ? recoveryCue : intensityCue;
+  const workLabel = formatRunDuration(workSeconds);
+  const recoveryLabel = formatRunDuration(recoverySeconds);
+  const totalLabel = formatRunDuration(prescribedSeconds);
+
+  async function startTimedBlock() {
+    if (!executionEnabled) {
+      Alert.alert(
+        'Séance non démarrée',
+        'Démarre d’abord la séance avant de lancer ce bloc.'
+      );
+      return;
+    }
+
+    try {
+      if (typeof onBeforeStart === 'function') await onBeforeStart();
+      setStarted(true);
+    } catch (error) {
+      Alert.alert(
+        'Impossible de démarrer ce bloc',
+        error?.message ?? 'Démarre d’abord la séance.'
+      );
+    }
+  }
+
+  function finish() {
+    if (!executionEnabled) return;
+
+    if (!started && elapsed <= 0) {
+      Alert.alert('Chrono non démarré', 'Démarre le chrono avant de terminer ce bloc.');
+      return;
+    }
+
+    onComplete({
+      elapsedSeconds: elapsed,
+      distanceMeters: distance.trim() ? numberOr(distance.replace(',', '.'), null) : null,
+      rpe: rpe.trim() ? positiveInt(rpe, null) : null,
+      intervalsCompleted: isIntervals ? phase.completedIntervals : null,
+      protocolCompleted: elapsed >= prescribedSeconds,
+      mechanic,
+      parameters: params,
+      controlledTiming: true,
+    });
+  }
+
+  if (!isRun) {
+    return (
+      <View style={timedStyles.card}>
+        <Text style={timedStyles.cardTitle}>{title}</Text>
+        {exercise?.prescription ? <Text style={timedStyles.prescription}>{exercise.prescription}</Text> : null}
+
+        <View style={timedStyles.timerBox}>
+          <Text style={timedStyles.timer}>{formatClock(elapsed)}</Text>
+          <Text style={timedStyles.timerTarget}>/ {formatClock(prescribedSeconds)}</Text>
+        </View>
+
+        <View style={timedStyles.timerActions}>
+          {!started ? (
+            <Pressable
+              onPress={startTimedBlock}
+              disabled={!executionEnabled}
+              style={({ pressed }) => [
+                timedStyles.primaryButton,
+                timedStyles.flexButton,
+                !executionEnabled && { opacity: 0.45 },
+                pressed && executionEnabled && timedStyles.pressed,
+              ]}
+            >
+              <Text style={timedStyles.primaryButtonText}>DÉMARRER</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => setPaused((current) => !current)}
+              disabled={!executionEnabled}
+              style={({ pressed }) => [
+                timedStyles.secondaryButton,
+                timedStyles.flexButton,
+                !executionEnabled && { opacity: 0.45 },
+                pressed && executionEnabled && timedStyles.pressed,
+              ]}
+            >
+              <Text style={timedStyles.secondaryButtonText}>{paused ? 'REPRENDRE' : 'PAUSE'}</Text>
+            </Pressable>
+          )}
+        </View>
+
+        <View style={timedStyles.metricsRow}>
+          <View style={timedStyles.metricField}>
+            <Text style={timedStyles.inputLabel}>DISTANCE RÉELLE (M)</Text>
+            <TextInput
+              value={distance}
+              editable={executionEnabled && started}
+              onChangeText={setDistance}
+              placeholder="Optionnel"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="decimal-pad"
+              style={timedStyles.metricInput}
+            />
+          </View>
+          <View style={timedStyles.metricFieldSmall}>
+            <Text style={timedStyles.inputLabel}>RPE</Text>
+            <TextInput
+              value={rpe}
+              editable={executionEnabled && started}
+              onChangeText={setRpe}
+              placeholder="1–10"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
+              style={timedStyles.metricInput}
+            />
+          </View>
+        </View>
+
+        <Text style={timedStyles.helperText}>
+          {environmentCode === 'OUTDOOR'
+            ? 'La distance reste optionnelle : aucun GPS n’est requis.'
+            : 'Renseigne seulement ce que tu as réellement mesuré.'}
+        </Text>
+
+        <Pressable
+          onPress={finish}
+          disabled={!executionEnabled || !started}
+          style={({ pressed }) => [
+            timedStyles.primaryButton,
+            (!executionEnabled || !started) && { opacity: 0.45 },
+            pressed && executionEnabled && started && timedStyles.pressed,
+          ]}
+        >
+          <Text style={timedStyles.primaryButtonText}>{elapsed >= prescribedSeconds ? 'TERMINER LE BLOC' : 'ARRÊTER ET TERMINER'}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={runStyles.card}>
+      <Text style={runStyles.eyebrow}>CONDITIONING COURSE</Text>
+      <Text style={runStyles.title}>{title}</Text>
+
+      {!started && exercise ? (
+        <View style={runStyles.optionsRow}>
+          <EnvironmentSwapOverlay variant="inline" targetExercise={exercise} />
+        </View>
+      ) : null}
+
+      <View style={runStyles.briefPanel}>
+        <Text style={runStyles.briefLabel}>TA SÉANCE</Text>
+        <Text style={runStyles.briefMain}>
+          {isIntervals
+            ? `${repeats} × ${workLabel} de course`
+            : `${totalLabel} de course`}
+        </Text>
+        {isIntervals && recoverySeconds > 0 ? (
+          <Text style={runStyles.briefRecovery}>+ {recoveryLabel} de récupération</Text>
+        ) : null}
+
+        {intensityCue ? (
+          <View style={runStyles.cueRow}>
+            <Ionicons name="speedometer-outline" size={16} color={themeColors.accent} />
+            <Text style={runStyles.cueText}>{intensityCue}</Text>
+          </View>
+        ) : null}
+
+        <View style={runStyles.totalRow}>
+          <Ionicons name="time-outline" size={15} color={themeColors.textSecondary} />
+          <Text style={runStyles.totalText}>{totalLabel} au total</Text>
+        </View>
+      </View>
+
+      <View style={runStyles.phaseCard}>
+        <Text style={runStyles.phaseLabel}>
+          {isIntervals
+            ? `${phase.label} · ${phase.intervalNumber}/${repeats}`
+            : phase.label === 'TERMINÉ' ? 'TERMINÉ' : 'COURSE'}
+        </Text>
+        <Text style={runStyles.phaseTime}>{formatClock(phase.remaining)}</Text>
+        {phaseCue && phase.label !== 'TERMINÉ' ? (
+          <Text style={runStyles.phaseCue}>{phaseCue}</Text>
+        ) : null}
+      </View>
+
+      <View style={runStyles.overallRow}>
+        <Text style={runStyles.overallLabel}>TEMPS TOTAL</Text>
+        <Text style={runStyles.overallValue}>
+          {formatClock(elapsed)} / {formatClock(prescribedSeconds)}
+        </Text>
+      </View>
+
+      <View style={runStyles.actionRow}>
+        {!started ? (
+          <Pressable
+            onPress={startTimedBlock}
+            disabled={!executionEnabled}
+            style={({ pressed }) => [
+              runStyles.primaryButton,
+              runStyles.flexButton,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && runStyles.pressed,
+            ]}
+          >
+            <Ionicons name="play" size={18} color={themeColors.textOnAccent} />
+            <Text style={runStyles.primaryButtonText}>DÉMARRER</Text>
+          </Pressable>
+        ) : elapsed < prescribedSeconds ? (
+          <Pressable
+            onPress={() => setPaused((current) => !current)}
+            disabled={!executionEnabled}
+            style={({ pressed }) => [
+              runStyles.secondaryButton,
+              runStyles.flexButton,
+              !executionEnabled && { opacity: 0.45 },
+              pressed && executionEnabled && runStyles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={paused ? 'play' : 'pause'}
+              size={17}
+              color={themeColors.text}
+            />
+            <Text style={runStyles.secondaryButtonText}>
+              {paused ? 'REPRENDRE' : 'PAUSE'}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {(started || elapsed > 0) ? (
+        <View style={runStyles.metricsPanel}>
+          <Text style={runStyles.metricsEyebrow}>APRÈS L’EFFORT · OPTIONNEL</Text>
+          <View style={runStyles.metricsRow}>
+            <View style={runStyles.metricField}>
+              <Text style={runStyles.inputLabel}>DISTANCE (M)</Text>
+              <TextInput
+                value={distance}
+                editable={executionEnabled && started}
+                onChangeText={setDistance}
+                placeholder="Optionnel"
+                placeholderTextColor={themeColors.textMuted}
+                keyboardType="decimal-pad"
+                style={runStyles.metricInput}
+              />
+            </View>
+            <View style={runStyles.metricFieldSmall}>
+              <Text style={runStyles.inputLabel}>RPE</Text>
+              <TextInput
+                value={rpe}
+                editable={executionEnabled && started}
+                onChangeText={setRpe}
+                placeholder="1–10"
+                placeholderTextColor={themeColors.textMuted}
+                keyboardType="numeric"
+                style={runStyles.metricInput}
+              />
+            </View>
+          </View>
+          {environmentCode === 'OUTDOOR' ? (
+            <Text style={runStyles.helperText}>
+              Aucun GPS n’est requis. Renseigne seulement ce que tu as réellement mesuré.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {elapsed >= prescribedSeconds ? (
+        <Pressable
+          onPress={finish}
+          disabled={!executionEnabled || !started}
+          style={({ pressed }) => [
+            runStyles.primaryButton,
+            (!executionEnabled || !started) && { opacity: 0.45 },
+            pressed && executionEnabled && started && runStyles.pressed,
+          ]}
+        >
+          <Ionicons name="checkmark" size={18} color={themeColors.textOnAccent} />
+          <Text style={runStyles.primaryButtonText}>TERMINER LE BLOC</Text>
+        </Pressable>
+      ) : started ? (
+        <Pressable
+          onPress={finish}
+          disabled={!executionEnabled}
+          style={({ pressed }) => [
+            runStyles.stopButton,
+            !executionEnabled && { opacity: 0.45 },
+            pressed && executionEnabled && runStyles.pressed,
+          ]}
+        >
+          <Ionicons
+            name="stop-circle-outline"
+            size={17}
+            color={themeColors.secondaryAccent}
+          />
+          <Text style={runStyles.stopButtonText}>ARRÊTER LE BLOC</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+export default function EnvironmentSessionCore({
+  environmentCode,
+  onOpenOverview,
+  onOpenPlanB,
+  onOpenWhy,
+  onOpenAdjust,
+  onStartSession,
+  lifecycleReady = true,
+  sessionStarted = false,
+  startBusy = false,
+  showAdjust = false,
+  showPlanB = false,
+}) {
+  const { workout, updateWorkout } = useWorkout();
+  const { colors: themeColors, isDark } = useUgerodTheme();
+  const shellStyles = useMemo(
+    () => createFocusedSessionStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+  const focusedTabataStyles = useMemo(
+    () => createFocusedSessionStyles(themeColors, isDark),
+    [themeColors, isDark]
+  );
+  const executionAllowed = sessionStarted && !workout.sessionClosed && !['completed','abandoned'].includes(workout.status);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [formatOpen, setFormatOpen] = useState(false);
+  const wodStartPromise = useRef(null);
+  const wodStartedRef = useRef(
+    Boolean(
+      workout?.wodRuntime?.started ||
+      workout?.wodStarted ||
+      workout?.wodStartedAt
+    )
+  );
+
+  const blocks = useMemo(() => {
+    const raw = Array.isArray(workout.rawBlocks) ? workout.rawBlocks : [];
+    if (raw.length > 0) return raw;
+    return Object.values(workout.blocks ?? {});
+  }, [workout.blocks, workout.rawBlocks]);
+
+  const currentBlock = blocks[currentIndex] ?? null;
+  const currentKey = blockKey(currentBlock);
+  const currentExercises = useMemo(
+    () => (workout.exercises ?? []).filter(
+      (exercise) => String(exercise.blockKey ?? exercise.block ?? '').toLowerCase() === currentKey
+    ),
+    [currentKey, workout.exercises]
+  );
+
+  const [setDrafts, setSetDrafts] = useState(() => workout.strengthDrafts ?? {});
+
+  const setActiveEnvironmentExercise = useCallback(
+    (exercise, exerciseIndex = 0) => {
+      if (!exercise || !currentKey) return;
+
+      const nextCursor = {
+        sessionId: workout?.sessionId ?? null,
+        blockId: currentKey,
+        exerciseIndex,
+        sessionExerciseId:
+          exercise?.sessionExerciseId ??
+          exercise?.session_exercise_id ??
+          null,
+        exerciseId:
+          exercise?.exerciseId ??
+          exercise?.id ??
+          null,
+      };
+      const currentCursor = workout?.playerCursor ?? null;
+
+      if (
+        (currentCursor?.sessionId ?? null) === nextCursor.sessionId &&
+        currentCursor?.blockId === nextCursor.blockId &&
+        Number(currentCursor?.exerciseIndex ?? -1) === nextCursor.exerciseIndex &&
+        (currentCursor?.sessionExerciseId ?? null) === nextCursor.sessionExerciseId &&
+        (currentCursor?.exerciseId ?? null) === nextCursor.exerciseId
+      ) {
+        return;
+      }
+
+      updateWorkout({ playerCursor: nextCursor });
+    },
+    [
+      currentKey,
+      updateWorkout,
+      workout?.sessionId,
+      workout?.playerCursor?.sessionId,
+      workout?.playerCursor?.blockId,
+      workout?.playerCursor?.exerciseIndex,
+      workout?.playerCursor?.sessionExerciseId,
+      workout?.playerCursor?.exerciseId,
+    ]
+  );
+
+  useEffect(() => {
+    const firstExercise = currentExercises?.[0] ?? null;
+    if (!firstExercise) return;
+    const saved = workout?.playerCursor;
+    if (saved?.blockId === currentKey) return;
+    setActiveEnvironmentExercise(firstExercise, 0);
+  }, [currentKey, currentExercises, setActiveEnvironmentExercise]);
+
+  const structuredStrength = useMemo(() => {
+    if (!currentBlock || !['strength', 'gym', 'street_gym'].includes(currentKey)) return false;
+    if (currentKey !== 'gym') return true;
+    return currentExercises.length > 0 && currentExercises.every((exercise) => getSetCount(exercise, currentBlock) > 0);
+  }, [currentBlock, currentExercises, currentKey]);
+
+  useEffect(() => {
+    if (!currentBlock || !structuredStrength) return;
+
+    const baseline = initialSetDrafts(currentExercises, currentBlock);
+    const activeSessionExerciseId =
+      workout?.playerCursor?.sessionExerciseId ?? null;
+
+    setSetDrafts((current) => {
+      const next = { ...baseline };
+
+      for (const exercise of currentExercises) {
+        const key = exerciseKey(exercise);
+        const existing = current?.[key];
+        const hasRealizedSet =
+          (existing?.sets ?? []).some((row) => Boolean(row?.done));
+        const isActive =
+          Boolean(activeSessionExerciseId) &&
+          activeSessionExerciseId ===
+            (exercise?.sessionExerciseId ??
+              exercise?.session_exercise_id ??
+              null);
+
+        if (existing && (existing.prescriptionKey === baseline[key]?.prescriptionKey || (!existing.prescriptionKey && (hasRealizedSet || isActive)))) {
+          next[key] = existing;
+        }
+      }
+
+      return next;
+    });
+  }, [
+    currentBlock,
+    currentExercises,
+    structuredStrength,
+    workout?.playerCursor?.sessionExerciseId,
+  ]);
+
+  useEffect(() => {
+    if (!structuredStrength || !currentBlock) return;
+
+    const partialSessionExerciseIds = currentExercises
+      .filter((exercise) => {
+        const draft = setDrafts?.[exerciseKey(exercise)];
+        return (draft?.sets ?? []).some((row) => Boolean(row?.done));
+      })
+      .map(
+        (exercise) =>
+          exercise?.sessionExerciseId ??
+          exercise?.session_exercise_id
+      )
+      .filter(Boolean);
+
+    updateWorkout({
+      strengthDrafts: setDrafts,
+      environmentPartialProgress: {
+        blockId: currentKey,
+        sessionExerciseIds: partialSessionExerciseIds,
+      },
+    });
+  }, [
+    currentBlock,
+    currentExercises,
+    currentKey,
+    setDrafts,
+    structuredStrength,
+    updateWorkout,
+  ]);
+
+  useEffect(() => {
+    const firstPending = blocks.findIndex((block) => !blockIsDone(block, workout.exercises ?? []));
+    if (firstPending >= 0) setCurrentIndex(firstPending);
+  }, [blocks, workout.exercises]);
+
+  const ensureStarted = useCallback(async () => {
+    if (!workout?.sessionId) {
+      throw new Error('Aucune séance active.');
+    }
+    if (!lifecycleReady) {
+      throw new Error('Vérification de la séance en cours. Réessaie dans un instant.');
+    }
+    if (workout.sessionClosed || ['completed','abandoned'].includes(workout.status)) throw new Error('Cette séance est terminée. Ses résultats sont conservés.');
+    if (sessionStarted) return { status: 'IN_PROGRESS' };
+
+    throw new Error('Démarre d’abord la séance avec le bouton « Démarrer ma séance ».');
+  }, [lifecycleReady, sessionStarted, workout?.sessionId, workout?.sessionClosed, workout?.status]);
+
+  const wodRevealed = Boolean(
+    lifecycleReady &&
+      (workout?.wodRevealed || workout?.wodRevealedAt)
+  );
+  const userComposedWod = isUserComposedSession(workout);
+  const wodContentVisible = shouldShowWodContent(workout, { lifecycleReady });
+
+  const revealWod = useCallback(async () => {
+    await ensureStarted();
+
+    if (!workout?.sessionId || wodRevealed) {
+      return { status: wodRevealed ? 'WOD_ALREADY_REVEALED' : 'NO_SESSION' };
+    }
+
+    const result = await markWorkoutWodRevealed({ sessionId: workout.sessionId });
+
+    updateWorkout({
+      wodRevealed: true,
+      wodRevealedAt: result?.wod_revealed_at ?? new Date().toISOString(),
+      formatChangeCount: Number(
+        result?.format_change_count ?? workout?.formatChangeCount ?? 0
+      ),
+      formatChangeLimit: Number(
+        result?.format_change_limit ?? workout?.formatChangeLimit ?? 3
+      ),
+      remainingFormatChanges: Number(
+        result?.remaining_format_changes ??
+          Math.max(
+            0,
+            Number(workout?.formatChangeLimit ?? 3) -
+              Number(result?.format_change_count ?? workout?.formatChangeCount ?? 0)
+          )
+      ),
+      formatLocked: Boolean(result?.format_locked ?? false),
+    });
+
+    return result;
+  }, [
+    ensureStarted,
+    updateWorkout,
+    wodRevealed,
+    workout?.formatChangeCount,
+    workout?.formatChangeLimit,
+    workout?.sessionId,
+  ]);
+
+  useEffect(() => {
+    wodStartedRef.current = Boolean(
+      workout?.wodRuntime?.started ||
+      workout?.wodStarted ||
+      workout?.wodStartedAt
+    );
+  }, [
+    workout?.sessionId,
+    workout?.wodRuntime?.started,
+    workout?.wodStarted,
+    workout?.wodStartedAt,
+  ]);
+
+  const ensureWodStarted = useCallback(async () => {
+    await ensureStarted();
+
+    if (!wodRevealed && !userComposedWod) {
+      throw new Error('Révèle d’abord le WOD avant de le démarrer.');
+    }
+
+    if (wodStartedRef.current) {
+      return { status: 'WOD_ALREADY_STARTED' };
+    }
+    if (wodStartPromise.current) {
+      return wodStartPromise.current;
+    }
+
+    wodStartedRef.current = true;
+    // Composer WOD is readable before start, but backend reveal must still
+    // happen after session start and before the actual WOD start.
+    // This request stays coalesced by wodStartPromise to protect double taps.
+    const request = (async () => {
+      if (!wodRevealed && userComposedWod) {
+        const revealed = await markWorkoutWodRevealed({ sessionId: workout.sessionId });
+        updateWorkout({
+          wodRevealed: true,
+          wodRevealedAt: revealed?.wod_revealed_at ?? new Date().toISOString(),
+        });
+      }
+      return markWorkoutWodStarted({ sessionId: workout.sessionId });
+    })()
+      .then((result) => {
+        updateWorkout({
+          wodStarted: true,
+          wodStartedAt:
+            result?.wod_started_at ??
+            workout?.wodStartedAt ??
+            new Date().toISOString(),
+          wodRevealed: true,
+          wodRevealedAt:
+            result?.wod_revealed_at ??
+            workout?.wodRevealedAt ??
+            new Date().toISOString(),
+          formatLocked: true,
+          remainingFormatChanges: 0,
+        });
+        return result;
+      })
+      .catch((error) => {
+        wodStartedRef.current = false;
+        throw error;
+      })
+      .finally(() => {
+        wodStartPromise.current = null;
+      });
+
+    wodStartPromise.current = request;
+    return request;
+  }, [
+    ensureStarted,
+    updateWorkout,
+    wodRevealed,
+    userComposedWod,
+    workout?.sessionId,
+    workout?.wodRevealedAt,
+    workout?.wodStartedAt,
+  ]);
+
+  const timedRuntimesRef = useRef(workout.timedRuntimes ?? {});
+  timedRuntimesRef.current = workout.timedRuntimes ?? {};
+  const handleTimedRuntimeChange = useCallback((runtime) => updateWorkout({
+    timedRuntimes: { ...timedRuntimesRef.current, [currentKey]: { ...runtime, sampledAt: Date.now() } },
+  }), [updateWorkout, currentKey]);
+
+  const handleTabataRuntimeChange = useCallback((tabataRuntime) => updateWorkout({ tabataRuntime: { ...tabataRuntime, sampledAt: Date.now() } }), [updateWorkout]);
+
+  const handleWodRuntimeChange = useCallback((runtime) => {
+    if (runtime?.started) {
+      wodStartedRef.current = true;
+    }
+    updateWorkout({ wodRuntime: { ...runtime, sampledAt: Date.now() } });
+  }, [updateWorkout]);
+
+  function writeExerciseUpdates(updatesByKey) {
+    const nextExercises = (workout.exercises ?? []).map((exercise) => {
+      const next = updatesByKey[exerciseKey(exercise)];
+      return next ? { ...exercise, ...next } : exercise;
+    });
+    updateWorkout({ exercises: nextExercises });
+    return nextExercises;
+  }
+
+  async function advanceWithUpdates(updatesByKey) {
+    try {
+      await ensureStarted();
+    } catch (error) {
+      Alert.alert('Impossible de démarrer la séance', error?.message ?? 'Réessaie.');
+      return;
+    }
+
+    writeExerciseUpdates(updatesByKey);
+
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < blocks.length) {
+      setCurrentIndex(nextIndex);
+      return;
+    }
+
+    router.push('/workout/completion');
+  }
+
+  function markSimpleExerciseCompleted(exercise) {
+    if (!exercise) return;
+    if (currentKey === 'warm_up' || currentKey === 'warmup') {
+      const round = workout?.warmupRuntime?.sessionId === workout?.sessionId ? Number(workout.warmupRuntime.round ?? 1) : 1;
+      const rounds = Math.max(1, Number(currentBlock?.warmup_rounds) || 3);
+      if (round < rounds) return;
+    }
+
+    writeExerciseUpdates({
+      [exerciseKey(exercise)]: {
+        status: 'completed',
+        userExecutionStatus: 'completed',
+      },
+    });
+  }
+
+  function markSimpleExerciseRefused(exercise) {
+    if (!exercise || !sessionStarted) return;
+
+    writeExerciseUpdates({
+      [exerciseKey(exercise)]: {
+        status: 'not_completed',
+        userExecutionStatus: 'not_completed',
+        repsCompleted: null,
+        durationSeconds: null,
+        distanceMeters: null,
+        rpe: null,
+        performanceActualJson: null,
+      },
+    });
+  }
+
+  function completeSimpleBlock(terminalExercise = null, terminalStatus = 'completed') {
+    if (currentKey === 'warm_up' || currentKey === 'warmup') {
+      const round = workout?.warmupRuntime?.sessionId === workout?.sessionId ? Number(workout.warmupRuntime.round ?? 1) : 1;
+      const rounds = Math.max(1, Number(currentBlock?.warmup_rounds) || 3);
+      if (round < rounds) {
+        updateWorkout({ warmupRuntime: { sessionId: workout.sessionId, round: round + 1 }, playerCursor: { ...workout.playerCursor, exerciseIndex: 0 } });
+        return;
+      }
+    }
+    const updates = {};
+    const terminalKey = exerciseKey(terminalExercise);
+
+    for (const exercise of currentExercises) {
+      const key = exerciseKey(exercise);
+      const existing = statusValue(exercise);
+
+      if (terminalKey && key === terminalKey) {
+        updates[key] = {
+          status: terminalStatus,
+          userExecutionStatus: terminalStatus,
+        };
+        continue;
+      }
+
+      if (existing !== 'pending') {
+        updates[key] = {
+          status: existing,
+          userExecutionStatus: existing,
+        };
+        continue;
+      }
+
+      updates[key] = {
+        status: 'completed',
+        userExecutionStatus: 'completed',
+      };
+    }
+
+    advanceWithUpdates(updates);
+  }
+
+  function completeStrengthBlock(partial = false) {
+    const updates = {};
+
+    for (const exercise of currentExercises) {
+      const key = exerciseKey(exercise);
+      const currentStatus = statusValue(exercise);
+
+      if (currentStatus === 'not_completed') {
+        updates[key] = {
+          status: 'not_completed',
+          userExecutionStatus: 'not_completed',
+          repsCompleted: null,
+          durationSeconds: null,
+          distanceMeters: null,
+          rpe: null,
+          performanceActualJson: null,
+        };
+        continue;
+      }
+
+      const draft = setDrafts[key] ?? { reps: '', sets: [] };
+      const rows = draft.sets ?? [];
+      const repsEnabled = usesReps(exercise);
+
+      if (rows.length === 0) {
+        Alert.alert(
+          'Séries indisponibles',
+          `UGEROD n’a reçu aucun nombre de séries/tours pour ${exercise.name}. Le bloc reste fermé pour éviter d’inventer du volume.`
+        );
+        return;
+      }
+
+      const reps = repsEnabled
+        ? optionalNumber(draft.reps)
+        : null;
+
+      if (repsEnabled && reps == null && rows.some((row) => row.done)) {
+        Alert.alert(
+          'Répétitions manquantes',
+          `Renseigne le nombre de répétitions prévu pour toutes les séries de ${exercise.name}.`
+        );
+        return;
+      }
+
+      const completedRows = rows.filter((row) => row.done);
+
+      if (!partial && completedRows.length !== rows.length) {
+        Alert.alert(
+          'Séries restantes',
+          `Valide les ${rows.length - completedRows.length} série(s) restante(s) de ${exercise.name} avant de terminer le bloc.`
+        );
+        return;
+      }
+
+      const gymSets = completedRows.map((row) => ({
+        set_index: row.setIndex,
+        status: 'completed',
+        reps: row.reps ?? reps,
+        load_kg: row.load.trim() ? numberOr(row.load.replace(',', '.'), null) : null,
+        rpe: null,
+      }));
+
+      const completionStatus = completedRows.length === rows.length ? 'completed' : completedRows.length ? 'adapted' : 'not_completed';
+      updates[key] = {
+        status: completionStatus,
+        userExecutionStatus: completionStatus,
+        performanceActualJson: {
+          ...(exercise.performanceActualJson ?? {}),
+          gym_sets: gymSets,
+          source: 'ugerod_gym_player',
+          protocol_completed: completedRows.length === rows.length,
+        },
+      };
+    }
+
+    advanceWithUpdates(updates);
+  }
+
+  function completeTimedBlock(result) {
+    const exercise = currentExercises[0];
+    if (!exercise) {
+      Alert.alert('Bloc incomplet', 'Aucun exercice exécutable n’a été reçu.');
+      return;
+    }
+
+    const isOutdoorRun = environmentCode === 'OUTDOOR' && isRunMechanic(result.mechanic);
+    const isGymCardio = environmentCode === 'GYM' && currentKey === 'cardio';
+    const updates = {};
+
+    currentExercises.forEach((row, index) => {
+      const key = exerciseKey(row);
+      const actual = {
+        ...(row.performanceActualJson ?? {}),
+        elapsed_seconds: result.elapsedSeconds,
+        controlled_timing: result.controlledTiming,
+        protocol_completed: result.protocolCompleted,
+      };
+
+      if (index === 0 && result.distanceMeters != null) actual.distance_meters = result.distanceMeters;
+      if (index === 0 && result.calories != null) actual.calories = result.calories;
+      if (index === 0 && result.targetKind) actual.target_kind = result.targetKind;
+      if (index === 0 && result.targetValue != null) actual.target_value = result.targetValue;
+
+      if (isGymCardio) {
+        actual.source = 'ugerod_gym_cardio_player';
+        actual.cardio_mechanic = result.mechanic;
+        actual.cardio_protocol_family =
+          result.protocolFamily ??
+          currentBlock?.protocol_family ??
+          currentBlock?.mechanic_json?.variant_key ??
+          null;
+        actual.planned_duration_seconds = positiveInt(result.parameters?.duration_seconds, 0);
+        actual.planned_work_seconds = positiveInt(
+          result.parameters?.work_seconds ?? result.parameters?.machine_seconds,
+          0
+        );
+        actual.planned_recovery_seconds = positiveInt(result.parameters?.recovery_seconds, 0);
+        actual.planned_support_seconds = positiveInt(result.parameters?.support_seconds, 0);
+        actual.cardio_role = index === 0 ? 'MACHINE' : 'SUPPORT';
+        if (result.intervalsCompleted != null) {
+          actual.intervals_completed = result.intervalsCompleted;
+        }
+      }
+
+      if (isOutdoorRun) {
+        actual.running_mechanic = result.mechanic;
+        actual.running_family_code =
+          currentBlock?.mechanic_json?.variant_key ??
+          currentBlock?.mechanicJson?.variant_key ??
+          currentBlock?.running_protocol?.family_code ??
+          null;
+        actual.planned_duration_seconds = positiveInt(result.parameters?.duration_seconds, 0);
+        actual.planned_work_seconds = positiveInt(result.parameters?.work_seconds, 0);
+        actual.planned_recovery_seconds = positiveInt(result.parameters?.recovery_seconds, 0);
+        actual.reliable_distance = Boolean(result.parameters?.reliable_distance);
+        if (result.intervalsCompleted != null) actual.intervals_completed = result.intervalsCompleted;
+        actual.source = 'ugerod_environment_player';
+      }
+
+      const executionStatus =
+        result.protocolCompleted
+          ? 'completed'
+          : result.elapsedSeconds > 0
+            ? 'adapted'
+            : 'not_completed';
+
+      updates[key] = {
+        status: executionStatus,
+        userExecutionStatus: executionStatus,
+        durationSeconds: result.elapsedSeconds,
+        distanceMeters: index === 0 ? result.distanceMeters : null,
+        calories: index === 0 ? result.calories : null,
+        rpe: result.rpe,
+        performanceActualJson: actual,
+      };
+    });
+
+    advanceWithUpdates(updates);
+  }
+
+  function completeEnvironmentTabata(result = {}) {
+    const completedWorkIntervals = positiveInt(result.completedWorkIntervals, 0);
+    const exerciseCount = Math.max(1, currentExercises.length);
+    const protocolCompleted = Boolean(result.protocolCompleted);
+    const updates = {};
+
+    currentExercises.forEach((exercise, exerciseIndex) => {
+      let exerciseIntervals = 0;
+      for (let roundIndex = 0; roundIndex < completedWorkIntervals; roundIndex += 1) {
+        if (roundIndex % exerciseCount === exerciseIndex) exerciseIntervals += 1;
+      }
+
+      const executionStatus = protocolCompleted
+        ? 'completed'
+        : exerciseIntervals > 0
+          ? 'adapted'
+          : 'not_completed';
+
+      updates[exerciseKey(exercise)] = {
+        status: executionStatus,
+        userExecutionStatus: executionStatus,
+        performanceActualJson: {
+          ...(exercise.performanceActualJson ?? {}),
+          source: 'ugerod_environment_tabata',
+          controlled_timing: true,
+          protocol_completed: protocolCompleted,
+          elapsed_seconds: positiveInt(result.elapsedSeconds, 0),
+          planned_rounds: positiveInt(result.rounds, 8),
+          rounds_completed: completedWorkIntervals,
+          work_intervals_completed: exerciseIntervals,
+          work_seconds: positiveInt(result.workSeconds, 20),
+          rest_seconds: positiveInt(result.restSeconds, 10),
+        },
+      };
+    });
+
+    advanceWithUpdates(updates);
+  }
+
+  function completeWodBlock() {
+    const runtime = workout.wodRuntime;
+    const executionStatus = wodExecutionStatus(runtime);
+
+    if (executionStatus === 'pending') {
+      Alert.alert('WOD en cours', 'Termine ou arrête le WOD avant de valider ce bloc.');
+      return;
+    }
+
+    const updates = {};
+    for (const exercise of currentExercises) {
+      updates[exerciseKey(exercise)] = {
+        status: executionStatus,
+        userExecutionStatus: executionStatus,
+      };
+    }
+    advanceWithUpdates(updates);
+  }
+
+  if (!workout.sessionId || blocks.length === 0 || !currentBlock) {
+    return (
+      <SafeAreaView style={shellStyles.screen}>
+        <View style={shellStyles.emptyState}>
+          <Ionicons name="alert-circle-outline" size={28} color={themeColors.textSecondary} />
+          <Text style={shellStyles.emptyTitle}>Séance incomplète</Text>
+          <Text style={shellStyles.emptyText}>Aucun bloc environnement exécutable n’a été chargé.</Text>
+          <Pressable
+            onPress={() => router.replace('/workout/preparation')}
+            style={shellStyles.primaryButtonLarge}
+          >
+            <Text style={shellStyles.primaryButtonTextLarge}>Revenir au check-in</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const mechanic = blockMechanic(currentBlock);
+  const timed = isRunMechanic(mechanic) || currentKey === 'cardio' || mechanic === 'CARDIO_CONTINUOUS';
+  const gymCardio = environmentCode === 'GYM' && timed && !isRunMechanic(mechanic);
+  const tabata = currentKey === 'tabata' || ['TABATA', 'TABATA_ABS'].includes(normalize(currentBlock?.module_code));
+  const manualGym = currentKey === 'gym' && !structuredStrength;
+  const wodBlock = currentKey === 'wod';
+  const canonicalWod = wodBlock && !isRunMechanic(mechanic);
+
+  return (
+    <SafeAreaView style={shellStyles.screen}>
+      <SessionPlayerHeader
+        eyebrowPrefix={{
+          HOME: 'MAISON',
+          BOX: 'BOX',
+          GYM: 'SALLE',
+          OUTDOOR: 'EXTÉRIEUR',
+        }[String(environmentCode ?? '').toUpperCase()] ?? 'SÉANCE'}
+        blockIndex={currentIndex}
+        blockCount={blocks.length}
+        title={blockTitle(currentBlock, currentKey.toUpperCase())}
+        meta={[
+          ['warmup', 'warm_up'].includes(currentKey)
+            ? `Tour ${workout?.warmupRuntime?.sessionId === workout?.sessionId ? workout.warmupRuntime.round ?? 1 : 1} / ${Math.max(1, Number(currentBlock?.warmup_rounds) || 3)}` : null,
+          currentBlock?.structure ?? currentBlock?.execution_style?.label_fr ?? null,
+          Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes) > 0
+            ? `${Number(currentBlock?.duration_minutes ?? currentBlock?.durationMinutes)} min`
+            : null,
+        ].filter(Boolean).join(' · ')}
+        progress={blocks.length > 0 ? currentIndex / blocks.length : 0}
+        onBack={() => router.replace('/workout/preparation')}
+        onOpenOverview={onOpenOverview}
+        onOpenWhy={onOpenWhy}
+        onOpenAdjust={onOpenAdjust}
+        onOpenPlanB={onOpenPlanB}
+        onStartSession={onStartSession}
+        sessionStarted={sessionStarted}
+        startBusy={startBusy}
+        showAdjust={showAdjust && executionAllowed}
+        showPlanB={showPlanB}
+      />
+
+      <ScrollView contentContainerStyle={shellStyles.content} showsVerticalScrollIndicator={false}>
+        {workout.progressSaveError ? <View accessibilityRole="alert" style={{ padding: 16, gap: 8 }}>
+          <Text style={{ color: themeColors.text }}>{workout.progressSaveError}</Text>
+          <Pressable onPress={async () => { try { await flushComposerPlayerProgress(workout.sessionId); updateWorkout({ progressSaveError: null }); } catch (error) { Alert.alert('Sauvegarde', error.message); } }}><Text style={{ color: themeColors.accent }}>Réessayer la sauvegarde</Text></Pressable>
+        </View> : null}
+        {wodBlock && !wodContentVisible ? (
+          <View style={focusedTabataStyles.secretCard}>
+              <View style={focusedTabataStyles.secretIcon}>
+                <Ionicons
+                  name="eye-off-outline"
+                  size={24}
+                  color={themeColors.textOnAccent}
+                />
+              </View>
+              <Text style={focusedTabataStyles.secretTitle}>Ton WOD est prêt</Text>
+              <Text style={focusedTabataStyles.secretText}>
+                Le contenu reste masqué jusqu’à ce que tu choisisses de le découvrir.
+              </Text>
+
+              <View style={focusedTabataStyles.formatRow}>
+                <View style={focusedTabataStyles.formatCopy}>
+                  <Text style={focusedTabataStyles.formatLabel}>Format</Text>
+                  <Text style={focusedTabataStyles.formatValue}>
+                    {String(
+                      workout?.format ??
+                      currentBlock?.mechanicLabel ??
+                      currentBlock?.mechanic ??
+                      'UGEROD'
+                    )}
+                  </Text>
+                </View>
+                {!workout?.wodStarted && !workout?.wodStartedAt ? (
+                  <Pressable
+                    onPress={() => setFormatOpen(true)}
+                    style={focusedTabataStyles.smallActionButton}
+                  >
+                    <Ionicons
+                      name="options-outline"
+                      size={16}
+                      color={themeColors.accent}
+                    />
+                    <Text style={focusedTabataStyles.smallActionText}>Changer</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  revealWod().catch((error) => {
+                    Alert.alert(
+                      'Impossible de révéler le WOD',
+                      error?.message ?? 'Réessaie.'
+                    );
+                  });
+                }}
+                disabled={!sessionStarted}
+                style={[
+                  focusedTabataStyles.primaryButton,
+                  !sessionStarted && focusedTabataStyles.actionDisabled,
+                ]}
+              >
+                <Ionicons
+                  name="eye-outline"
+                  size={18}
+                  color={themeColors.textOnAccent}
+                />
+                <Text style={focusedTabataStyles.primaryButtonText}>
+                  Découvrir le WOD
+                </Text>
+              </Pressable>
+            </View>
+        ) : gymCardio ? (
+          <GymCardioBlock
+            key={`${currentKey}:${mechanic}:gym`}
+            block={currentBlock}
+            initialRuntime={workout.timedRuntimes?.[currentKey]}
+            onRuntimeChange={handleTimedRuntimeChange}
+            exercises={currentExercises}
+            onBeforeStart={ensureStarted}
+            onComplete={completeTimedBlock}
+            executionEnabled={executionAllowed}
+          />
+        ) : timed ? (
+          <TimedBlock
+            key={`${currentKey}:${mechanic}`}
+            block={currentBlock}
+            initialRuntime={workout.timedRuntimes?.[currentKey]}
+            onRuntimeChange={handleTimedRuntimeChange}
+            exercise={currentExercises[0]}
+            environmentCode={environmentCode}
+            onBeforeStart={wodBlock ? ensureWodStarted : ensureStarted}
+            onComplete={completeTimedBlock}
+            executionEnabled={executionAllowed}
+          />
+        ) : canonicalWod ? (
+          <EnvironmentWodBlock
+            key={`${currentKey}:${mechanic}`}
+            block={currentBlock}
+            exercises={currentExercises}
+            runtime={restoreRunningClock(workout.wodRuntime, workout.wodRuntime?.sampledAt) ?? null}
+            onBeforeStart={ensureWodStarted}
+            executionEnabled={executionAllowed}
+            onRuntimeChange={handleWodRuntimeChange}
+            onComplete={completeWodBlock}
+            canChangeFormat={
+              !workout?.wodRuntime?.started &&
+              !workout?.wodStarted &&
+              !workout?.wodStartedAt
+            }
+            onChangeFormat={() => setFormatOpen(true)}
+          />
+        ) : tabata ? (
+          <FocusedTabata
+            key={`${currentKey}:${currentIndex}`}
+            block={{
+              source: {
+                ...currentBlock,
+                rounds: currentBlock?.settings?.rounds ?? currentBlock?.rounds,
+                work_seconds:
+                  currentBlock?.settings?.work_seconds ?? currentBlock?.work_seconds,
+                rest_seconds:
+                  currentBlock?.settings?.rest_seconds ?? currentBlock?.rest_seconds,
+              },
+              exercises: currentExercises,
+            }}
+            onBeforeStart={ensureStarted}
+            initialRuntime={workout.tabataRuntime}
+            onRuntimeChange={handleTabataRuntimeChange}
+            onFinish={completeEnvironmentTabata}
+            executionEnabled={executionAllowed}
+            styles={focusedTabataStyles}
+            colors={themeColors}
+          />
+        ) : ['warm_up','warmup'].includes(currentKey) && Number(currentBlock.warmup_rounds) > 0 ? (
+          <ComposerSkillPlayer key={currentKey} blockType="warmup" blockSets={Number(currentBlock.warmup_rounds)}
+            exercises={currentExercises} runtime={workout.warmupRuntime}
+            onRuntimeChange={(warmupRuntime) => updateWorkout({ warmupRuntime: { ...warmupRuntime, sessionId: workout.sessionId } })}
+            onComplete={advanceWithUpdates} onActiveExerciseChange={setActiveEnvironmentExercise}
+            executionEnabled={executionAllowed} />
+        ) : currentKey === 'skill' ? (
+          <ComposerSkillPlayer exercises={currentExercises} runtime={workout.skillRuntime}
+            onRuntimeChange={(skillRuntime) => updateWorkout({ skillRuntime })}
+            onComplete={advanceWithUpdates} onActiveExerciseChange={setActiveEnvironmentExercise}
+            executionEnabled={executionAllowed} />
+        ) : structuredStrength && isComposerWorkout(workout) && currentExercises.some((e) => {
+          const p = e.prescriptionJson ?? {};
+          return p.source==='PERSONAL_PROGRAM_V1' || !usesReps(e) || p.reps_semantics === 'per_side';
+        }) ? (
+          <ComposerSkillPlayer key={currentKey} blockType="strength" blockSets={blockParameters(currentBlock).sets} blockRestSeconds={blockParameters(currentBlock).rest_seconds} exercises={currentExercises} runtime={workout.strengthRuntime}
+            onRuntimeChange={(strengthRuntime) => updateWorkout({ strengthRuntime })}
+            onComplete={advanceWithUpdates} onActiveExerciseChange={setActiveEnvironmentExercise}
+            executionEnabled={executionAllowed} />
+        ) : structuredStrength ? (
+          <StrengthBlock
+            block={currentBlock}
+            exercises={currentExercises}
+            restRuntime={workout.setRestRuntime}
+            onRestChange={(setRestRuntime) => updateWorkout({ setRestRuntime })}
+            drafts={setDrafts}
+            setDrafts={setSetDrafts}
+            onComplete={() => completeStrengthBlock(false)}
+            onPartial={() => completeStrengthBlock(true)}
+            onExerciseRefuse={markSimpleExerciseRefused}
+            onActiveExerciseChange={setActiveEnvironmentExercise}
+            executionEnabled={executionAllowed}
+          />
+        ) : manualGym ? (
+          <ManualGymBlock
+            key={`${currentKey}:${currentIndex}`}
+            block={currentBlock}
+            exercises={currentExercises}
+            onComplete={advanceWithUpdates}
+            onExerciseRefuse={markSimpleExerciseRefused}
+            executionEnabled={executionAllowed}
+          />
+        ) : (
+          <SimpleBlock
+            key={`${currentKey}:${workout?.warmupRuntime?.round ?? 1}`}
+            block={currentBlock}
+            exercises={currentExercises}
+            initialExerciseIndex={workout.playerCursor?.blockId === currentKey ? workout.playerCursor.exerciseIndex : 0}
+            onComplete={completeSimpleBlock}
+            onExerciseComplete={markSimpleExerciseCompleted}
+            onExerciseRefuse={markSimpleExerciseRefused}
+            onActiveExerciseChange={setActiveEnvironmentExercise}
+            executionEnabled={executionAllowed}
+          />
+        )}
+      </ScrollView>
+
+      <SessionFormatSheet
+        visible={formatOpen}
+        onClose={() => setFormatOpen(false)}
+      />
+    </SafeAreaView>
+  );
+}
+
+function createShellStyles(colors, isDark) {
+  return StyleSheet.create({
+    header: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: 8,
+      paddingBottom: 10,
+      backgroundColor: colors.background,
+    },
+    headerTop: {
+      minHeight: 64,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    iconButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    headerCopy: { flex: 1, minWidth: 0 },
+    headerEyebrow: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      textTransform: 'uppercase',
+      color: colors.accent,
+    },
+    headerTitle: {
+      marginTop: 2,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 22,
+      lineHeight: 27,
+      color: colors.text,
+    },
+    headerMeta: {
+      marginTop: 2,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 14,
+      color: colors.textSecondary,
+    },
+    overviewButton: {
+      minHeight: 38,
+      paddingHorizontal: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    overviewButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 10,
+      color: colors.text,
+    },
+    coachTools: {
+      marginTop: 8,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    coachTool: {
+      minHeight: 36,
+      paddingHorizontal: 11,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    coachToolText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 10,
+      color: colors.text,
+    },
+    progressTrack: { height: 3, backgroundColor: colors.border },
+    progressFill: { height: 3, backgroundColor: colors.accent },
+  });
+}
+
+function createGymStyles(colors, isDark) {
+  return StyleSheet.create({
+    pressed: { opacity: 0.72 },
+
+    exerciseCard: {
+      marginBottom: 12,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      overflow: 'hidden',
+    },
+    exerciseCardActive: {
+      borderColor: colors.accent,
+      shadowColor: colors.shadow,
+      shadowOpacity: isDark ? 0.18 : 0.08,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+    exerciseHeader: {
+      minHeight: 88,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    exerciseHeaderCopy: { flex: 1, minWidth: 0 },
+    exerciseHeaderStatus: {
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    exerciseEyebrow: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.75,
+      color: colors.accent,
+    },
+    exerciseName: {
+      marginTop: 3,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 18,
+      lineHeight: 23,
+      color: colors.text,
+    },
+    exerciseSummary: {
+      marginTop: 4,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 11,
+      lineHeight: 16,
+      color: colors.textSecondary,
+    },
+    cueBox: {
+      marginTop: 14,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    cueIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+    },
+    cueCopy: { flex: 1 },
+    cueLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      color: colors.secondaryAccent,
+    },
+    cueText: {
+      marginTop: 3,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.text,
+    },
+    exerciseProgress: {
+      minWidth: 34,
+      textAlign: 'right',
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    exerciseBody: {
+      paddingHorizontal: 16,
+      paddingBottom: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    globalFieldRow: {
+      paddingVertical: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+    globalFieldCopy: { flex: 1 },
+    fieldLabel: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.65,
+      color: colors.textSecondary,
+    },
+
+    repsInputWrap: {
+      minWidth: 112,
+      minHeight: 46,
+      paddingHorizontal: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    repsInput: {
+      minWidth: 44,
+      paddingVertical: 8,
+      textAlign: 'right',
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 16,
+      color: colors.text,
+    },
+    inputSuffix: {
+      marginLeft: 6,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 10,
+      color: colors.textMuted,
+    },
+    exerciseActionsRow: {
+      paddingTop: 12,
+      paddingBottom: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    detailButton: {
+      minHeight: 36,
+      paddingHorizontal: 11,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    detailButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.35,
+      color: colors.text,
+    },
+    refuseButton: {
+      minHeight: 36,
+      paddingHorizontal: 11,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    refuseButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.35,
+      color: colors.secondaryAccent,
+    },
+    refusedText: {
+      marginTop: 8,
+      padding: 11,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.secondaryAccent,
+    },
+    detailsPanel: {
+      marginBottom: 12,
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    detailsLabel: {
+      marginTop: 10,
+      marginBottom: 3,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.6,
+      color: colors.accent,
+    },
+    detailsText: {
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 11,
+      lineHeight: 17,
+      color: colors.textSecondary,
+    },
+    setsPanel: {
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      overflow: 'hidden',
+    },
+    setsTitle: {
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 7,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.75,
+      color: colors.textMuted,
+    },
+    setRow: {
+      minHeight: 54,
+      paddingHorizontal: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      backgroundColor: colors.surface,
+    },
+    setRowDone: {
+      backgroundColor: colors.successSoft,
+    },
+    checkButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkButtonDone: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    setLabel: {
+      width: 28,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    setRepsText: {
+      flex: 1,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    loadInputWrap: {
+      minWidth: 100,
+      minHeight: 40,
+      paddingHorizontal: 9,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+    },
+    loadInput: {
+      minWidth: 45,
+      paddingVertical: 7,
+      textAlign: 'right',
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    warningText: {
+      marginTop: 12,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.error,
+    },
+    validateAllButton: {
+      minHeight: 48,
+      marginTop: 6,
+      marginBottom: 10,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong ?? colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    validateAllButtonDone: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    validateAllButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 10,
+      letterSpacing: 0.4,
+      color: colors.text,
+    },
+    validateAllButtonTextDone: {
+      color: colors.accent,
+    },
+    primaryButton: {
+      minHeight: 54,
+      marginTop: 4,
+      paddingHorizontal: 18,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: colors.accent,
+    },
+    primaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      letterSpacing: 0.4,
+      color: colors.textOnAccent,
+    },
+    manualFieldsRow: {
+      marginTop: 14,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    manualField: { flex: 1 },
+    manualInput: {
+      minHeight: 44,
+      marginTop: 6,
+      paddingHorizontal: 11,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 12,
+      color: colors.text,
+    },
+  });
+}
+
+function createEnvironmentFocusedStyles(colors, isDark) {
+  return StyleSheet.create({
+    mediaCard: {
+      minHeight: 190,
+      borderRadius: 18,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    mediaFallback: {
+      flex: 1,
+      minHeight: 190,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      backgroundColor: colors.surface,
+    },
+    mediaFallbackIcon: {
+      width: 64,
+      height: 64,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accentSoft,
+    },
+    mediaFallbackText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    mediaOverlayTop: {
+      position: 'absolute',
+      top: 12,
+      right: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: isDark ? 'rgba(0,0,0,0.58)' : 'rgba(255,255,255,0.88)',
+    },
+    exercisePosition: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      color: colors.text,
+    },
+    exerciseCard: {
+      marginTop: 12,
+      padding: 18,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+    },
+    exerciseName: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 20,
+      lineHeight: 25,
+      color: colors.text,
+    },
+    exercisePrescription: {
+      marginTop: 6,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.textSecondary,
+    },
+    cueBox: {
+      marginTop: 13,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    cueIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+    },
+    cueCopy: { flex: 1 },
+    cueLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      color: colors.secondaryAccent,
+    },
+    cueText: {
+      marginTop: 3,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.text,
+    },
+    detailsBox: {
+      marginTop: 14,
+      paddingTop: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    detailsLabel: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    detailsText: {
+      marginTop: 4,
+      fontFamily: 'Manrope_400Regular',
+      fontSize: 13,
+      lineHeight: 20,
+      color: colors.textSecondary,
+    },
+    inlineActions: {
+      marginTop: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    secondaryAction: {
+      minHeight: 42,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      flexGrow: 1,
+    },
+    secondaryActionText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    refuseAction: {
+      minHeight: 42,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      flexGrow: 1,
+    },
+    refuseActionText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.secondaryAccent,
+    },
+    exerciseNav: {
+      marginTop: 12,
+      minHeight: 42,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    navButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    navDots: { flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 7 },
+    navDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.borderStrong },
+    navDotActive: { width: 20, backgroundColor: colors.accent },
+    actionDisabled: { opacity: 0.35 },
+    primaryButtonLarge: {
+      minHeight: 54,
+      marginTop: 14,
+      paddingHorizontal: 18,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: colors.accent,
+    },
+    primaryButtonTextLarge: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      color: colors.textOnAccent,
+    },
+  });
+}
+
+
+function createTimedBlockStyles(colors) {
+  return StyleSheet.create({
+    card: {
+      padding: 18,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cardTitle: {
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 28,
+      lineHeight: 30,
+      color: colors.text,
+    },
+    prescription: {
+      marginTop: 5,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
+    },
+    timerBox: {
+      marginTop: 20,
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'center',
+    },
+    timer: {
+      fontFamily: 'BebasNeue_400Regular',
+      fontSize: 62,
+      lineHeight: 66,
+      color: colors.text,
+      fontVariant: ['tabular-nums'],
+    },
+    timerTarget: {
+      marginLeft: 7,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 14,
+      color: colors.textMuted,
+      fontVariant: ['tabular-nums'],
+    },
+    timerActions: {
+      marginTop: 12,
+      flexDirection: 'row',
+      gap: 9,
+    },
+    primaryButton: {
+      minHeight: 48,
+      marginTop: 18,
+      paddingHorizontal: 15,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+    },
+    primaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      letterSpacing: 0.5,
+      color: colors.textOnAccent,
+    },
+    secondaryButton: {
+      minHeight: 48,
+      marginTop: 18,
+      paddingHorizontal: 15,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    secondaryButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    flexButton: { flex: 1 },
+    pressed: { opacity: 0.72 },
+    metricsRow: {
+      marginTop: 16,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    metricField: { flex: 1 },
+    metricFieldSmall: { width: 92 },
+    inputLabel: {
+      marginBottom: 5,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textSecondary,
+    },
+    metricInput: {
+      minHeight: 44,
+      paddingHorizontal: 11,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    helperText: {
+      marginTop: 8,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.textMuted,
+    },
+  });
+}
+
+function createOutdoorRunStyles(colors, isDark) {
+  return StyleSheet.create({
+    card: {
+      padding: 18,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    eyebrow: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.9,
+      color: colors.accent,
+    },
+    title: {
+      marginTop: 5,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 28,
+      lineHeight: 34,
+      color: colors.text,
+    },
+    optionsRow: {
+      marginTop: 12,
+      alignItems: 'flex-start',
+    },
+    briefPanel: {
+      marginTop: 16,
+      padding: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.accentSoft,
+    },
+    briefLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.8,
+      color: colors.accent,
+    },
+    briefMain: {
+      marginTop: 5,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 22,
+      lineHeight: 28,
+      color: colors.text,
+    },
+    briefRecovery: {
+      marginTop: 3,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.textSecondary,
+    },
+    cueRow: {
+      marginTop: 12,
+      paddingTop: 11,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    cueText: {
+      flex: 1,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
+    },
+    totalRow: {
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+    },
+    totalText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    phaseCard: {
+      marginTop: 14,
+      paddingVertical: 20,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      backgroundColor: isDark ? colors.surfaceElevated : colors.background,
+    },
+    phaseLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 10,
+      letterSpacing: 0.8,
+      color: colors.accent,
+    },
+    phaseTime: {
+      marginTop: 4,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 48,
+      lineHeight: 56,
+      color: colors.text,
+    },
+    phaseCue: {
+      marginTop: 4,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      textAlign: 'center',
+      color: colors.textSecondary,
+    },
+    overallRow: {
+      marginTop: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    overallLabel: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textMuted,
+    },
+    overallValue: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+    flexButton: { flex: 1 },
+    primaryButton: {
+      minHeight: 52,
+      marginTop: 14,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      backgroundColor: colors.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    primaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      color: colors.textOnAccent,
+    },
+    secondaryButton: {
+      minHeight: 52,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    secondaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    metricsPanel: {
+      marginTop: 14,
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    metricsEyebrow: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textMuted,
+    },
+    metricsRow: { marginTop: 10, flexDirection: 'row', gap: 10 },
+    metricField: { flex: 1 },
+    metricFieldSmall: { width: 92 },
+    inputLabel: {
+      marginBottom: 5,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textSecondary,
+    },
+    metricInput: {
+      minHeight: 44,
+      paddingHorizontal: 11,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      color: colors.text,
+    },
+    helperText: {
+      marginTop: 8,
+      fontFamily: 'Manrope_500Medium',
+      fontSize: 10,
+      lineHeight: 15,
+      color: colors.textMuted,
+    },
+    stopButton: {
+      minHeight: 48,
+      marginTop: 12,
+      paddingHorizontal: 15,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: colors.secondaryAccent,
+      backgroundColor: colors.secondaryAccentSoft,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    stopButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      color: colors.secondaryAccent,
+    },
+    pressed: { opacity: 0.72 },
+  });
+}
+
+function createGymCardioStyles(colors, isDark) {
+  return StyleSheet.create({
+    pressed: { opacity: 0.72 },
+    card: {
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      padding: 18,
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    machineIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accentSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    topCopy: { flex: 1 },
+    machineName: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 20,
+      lineHeight: 25,
+      color: colors.text,
+    },
+    targetLabel: {
+      marginTop: 2,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.7,
+      color: colors.textSecondary,
+    },
+    protocolBox: {
+      marginBottom: 14,
+      padding: 13,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    protocolTitle: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    protocolText: {
+      marginTop: 3,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.text,
+    },
+    protocolHint: {
+      marginTop: 4,
+      fontFamily: 'Manrope_400Regular',
+      fontSize: 11,
+      lineHeight: 17,
+      color: colors.textSecondary,
+    },
+    phaseLabel: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 11,
+      letterSpacing: 0.7,
+      color: colors.accent,
+    },
+    activeExercise: {
+      marginTop: 5,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 17,
+      lineHeight: 22,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    metricHero: {
+      paddingVertical: 30,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    metricMain: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 58,
+      lineHeight: 64,
+      color: colors.text,
+      fontVariant: ['tabular-nums'],
+    },
+    metricTarget: {
+      marginTop: 2,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 14,
+      color: colors.textMuted,
+      fontVariant: ['tabular-nums'],
+    },
+    secondaryMetric: {
+      marginTop: 8,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    preStartHint: {
+      marginTop: -4,
+      marginBottom: 14,
+      fontFamily: 'Manrope_400Regular',
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    primaryButton: {
+      minHeight: 52,
+      borderRadius: 14,
+      backgroundColor: colors.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    primaryButtonText: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 12,
+      letterSpacing: 0.5,
+      color: colors.textOnAccent,
+    },
+    liveActions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    secondaryButton: {
+      flex: 1,
+      minHeight: 50,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    secondaryButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    finishButton: {
+      flex: 1,
+      minHeight: 50,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong ?? colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    finishButtonText: {
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 11,
+      color: colors.text,
+    },
+    results: {
+      marginTop: 4,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    resultsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 14,
+    },
+    resultsTitle: {
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 14,
+      color: colors.text,
+    },
+    resultsSubtitle: {
+      marginTop: 1,
+      fontFamily: 'Manrope_400Regular',
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    resultFields: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 14,
+    },
+    resultField: {
+      flexGrow: 1,
+      flexBasis: 120,
+    },
+    resultFieldSmall: {
+      width: 86,
+    },
+    fieldLabel: {
+      marginBottom: 5,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 8,
+      letterSpacing: 0.6,
+      color: colors.textSecondary,
+    },
+    input: {
+      minHeight: 46,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: isDark ? colors.surface : colors.background,
+      paddingHorizontal: 12,
+      fontFamily: 'Manrope_700Bold',
+      fontSize: 14,
+      color: colors.text,
+    },
+  });
+}

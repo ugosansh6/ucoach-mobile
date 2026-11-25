@@ -1,0 +1,97 @@
+import { supabase } from '../lib/supabase';
+import { runSupabaseRequestWithAuthRetry } from '../lib/supabaseAuthRetry';
+import { reloadWorkoutSession } from './workoutService';
+
+async function invokePlanB(body, fallbackMessage) {
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.functions.invoke('plan-b-handler', { body })
+  );
+
+  if (!data?.ok) {
+    throw new Error(data?.error ?? fallbackMessage);
+  }
+
+  return data?.result ?? null;
+}
+
+async function reloadPlanBWorkout({ data, preparationSnapshot }) {
+  const newSessionId = data?.new_session_id;
+
+  if (!newSessionId) {
+    throw new Error('La séance alternative est introuvable.');
+  }
+
+  const workout = await reloadWorkoutSession({
+    sessionId: newSessionId,
+    preparationSnapshot,
+  });
+
+  return { result: data, workout };
+}
+
+export async function changeWorkoutSkillPlan({
+  sessionId,
+  action,
+  preparationSnapshot = null,
+}) {
+  if (!sessionId) {
+    throw new Error('Impossible de modifier le Skill : séance introuvable.');
+  }
+
+  if (!['ALTERNATE_SKILL', 'SKIP_SKILL'].includes(action)) {
+    throw new Error('Action Skill non reconnue.');
+  }
+
+  const data = await invokePlanB(
+    { mode: 'SKILL', session_id: sessionId, action },
+    'Impossible de proposer un autre Skill.'
+  );
+
+  if (data?.status !== 'APPLIED') {
+    throw new Error(
+      data?.reason === 'SKILL_PLAN_B_ONLY_BEFORE_SESSION_START'
+        ? 'Le Skill ne peut être remplacé qu’avant le démarrage de la séance.'
+        : data?.reason === 'NO_CURRENT_SKILL_PATH'
+          ? 'Cette séance n’a pas de parcours Skill à remplacer.'
+          : 'UGEROD n’a pas trouvé d’autre Skill cohérent pour cette séance.'
+    );
+  }
+
+  return reloadPlanBWorkout({ data, preparationSnapshot });
+}
+
+export async function changeWholeWorkoutPlan({
+  sessionId,
+  preparationSnapshot = null,
+}) {
+  if (!sessionId) {
+    throw new Error('Impossible de proposer une autre séance : séance introuvable.');
+  }
+
+  let data;
+  try {
+    data = await invokePlanB(
+      { mode: 'WHOLE_SESSION', session_id: sessionId },
+      'Impossible de proposer une autre séance.'
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    throw new Error(
+      message.includes('SESSION_PLAN_B_NO_MEANINGFUL_ALTERNATIVE_AVAILABLE')
+        ? 'UGEROD n’a pas trouvé de deuxième proposition suffisamment différente et cohérente.'
+        : /statement timeout|canceling statement due to statement timeout/i.test(message)
+          ? 'UGEROD a mis trop de temps à préparer une autre séance. Réessaie.'
+          : message || 'Impossible de proposer une autre séance.'
+    );
+  }
+
+  if (data?.status !== 'APPLIED') {
+    throw new Error(
+      data?.reason === 'SESSION_PLAN_B_ONLY_BEFORE_SESSION_START'
+        ? 'Une autre séance ne peut être proposée qu’avant le démarrage.'
+        : 'UGEROD n’a pas trouvé de deuxième proposition suffisamment différente et cohérente.'
+    );
+  }
+
+  return reloadPlanBWorkout({ data, preparationSnapshot });
+}

@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { getCurrentPrimaryGoal } from './goalsService';
+import { composerSessionPreferences } from '../utils/composerPreferences';
+import { hydrateComposerPlayerProgress, isComposerWorkout } from '../utils/composerPlayerProgress';
+import { loadComposerPlayerProgress, flushComposerPlayerProgress } from './composerPlayerProgressService';
 
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -35,9 +38,23 @@ export async function markWorkoutSessionStarted({
     throw new Error(error.message);
   }
 
-  return data ?? {
+  const result = data ?? {
     status: 'UNKNOWN',
   };
+
+  if (result?.status === 'STALE_SESSION_REQUIRES_RECHECKIN') {
+    return result;
+  }
+
+  if (result?.status !== 'IN_PROGRESS') {
+    throw new Error(
+      result?.status === 'CLOSED'
+        ? 'Cette séance est déjà fermée.'
+        : 'Impossible de démarrer cette séance.'
+    );
+  }
+
+  return result;
 }
 
 export async function markWorkoutWodRevealed({
@@ -59,7 +76,19 @@ export async function markWorkoutWodRevealed({
     );
   }
 
-  return data ?? { status: 'UNKNOWN' };
+  const result = data ?? { status: 'UNKNOWN' };
+
+  if (result?.status !== 'WOD_REVEALED') {
+    throw new Error(
+      result?.status === 'SESSION_NOT_STARTED'
+        ? 'Démarre d’abord la séance avant de révéler le WOD.'
+        : result?.reason === 'SESSION_CLOSED'
+          ? 'Cette séance est déjà fermée.'
+          : 'Le backend n’a pas confirmé la révélation du WOD.'
+    );
+  }
+
+  return result;
 }
 
 export async function markWorkoutWodStarted({
@@ -81,7 +110,80 @@ export async function markWorkoutWodStarted({
     );
   }
 
-  return data ?? { status: 'UNKNOWN' };
+  const result = data ?? { status: 'UNKNOWN' };
+
+  if (result?.status !== 'WOD_STARTED') {
+    throw new Error(
+      result?.status === 'SESSION_NOT_STARTED'
+        ? 'Démarre d’abord la séance avant de démarrer le WOD.'
+        : result?.status === 'WOD_NOT_REVEALED'
+          ? 'Révèle d’abord le WOD avant de le démarrer.'
+          : result?.reason === 'SESSION_CLOSED'
+            ? 'Cette séance est déjà fermée.'
+            : 'Le backend n’a pas confirmé le démarrage du WOD.'
+    );
+  }
+
+  return result;
+}
+
+export async function getWorkoutSessionLifecycle(sessionId) {
+  if (!sessionId) {
+    return {
+      sessionId: null,
+      status: 'NO_SESSION',
+      sessionStarted: false,
+      sessionClosed: false,
+      wodRevealed: false,
+      wodStarted: false,
+      startedAt: null,
+      wodRevealedAt: null,
+      wodStartedAt: null,
+      lifecycleStage: 'NO_SESSION',
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('id, status, started_at, started_local_date, wod_revealed_at, wod_started_at, completed_at')
+    .eq('id', sessionId)
+    .single();
+
+  if (error) {
+    throw new Error(
+      error?.message ?? 'Impossible de vérifier l’état de la séance.'
+    );
+  }
+
+  const status = String(data?.status ?? 'generated').toLowerCase();
+  const sessionClosed = ['completed', 'abandoned'].includes(status);
+  const sessionStarted =
+    sessionClosed ||
+    status === 'in_progress' ||
+    Boolean(data?.started_at);
+  const wodRevealed = Boolean(data?.wod_revealed_at);
+  const wodStarted = Boolean(data?.wod_started_at);
+
+  let lifecycleStage = 'GENERATED';
+  if (sessionClosed) lifecycleStage = 'COMPLETED';
+  else if (wodStarted) lifecycleStage = 'WOD_STARTED';
+  else if (wodRevealed) lifecycleStage = 'WOD_REVEALED';
+  else if (sessionStarted) lifecycleStage = 'SESSION_STARTED';
+
+  return {
+    sessionId: data?.id ?? sessionId,
+    status,
+    sessionStarted,
+    sessionClosed,
+    wodRevealed,
+    wodStarted,
+    startedAt: data?.started_at ?? null,
+    startedLocalDate: data?.started_local_date ?? null,
+    wodRevealedAt: data?.wod_revealed_at ?? null,
+    wodStartedAt: data?.wod_started_at ?? null,
+    completedAt: data?.completed_at ?? null,
+    lifecycleStage,
+  };
 }
 
 function normalizeEquipmentForBackend(equipment) {
@@ -225,6 +327,34 @@ function formatNumber(value) {
       );
 }
 
+function formatDurationSeconds(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+
+  const totalSeconds = Math.round(numeric);
+  if (totalSeconds < 60) return `${totalSeconds} sec`;
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0
+    ? `${minutes} min ${seconds} sec`
+    : `${minutes} min`;
+}
+
+function formatDurationRange(minValue, maxValue) {
+  const min = Number(minValue);
+  const max = Number(maxValue);
+  const hasMin = Number.isFinite(min) && min > 0;
+  const hasMax = Number.isFinite(max) && max > 0;
+
+  if (!hasMin && !hasMax) return null;
+  if (hasMin && hasMax && Math.round(min) !== Math.round(max)) {
+    return `${formatDurationSeconds(min)} – ${formatDurationSeconds(max)}`;
+  }
+  return formatDurationSeconds(hasMin ? min : max);
+}
+
+
 function formatRange(
   minValue,
   maxValue,
@@ -258,6 +388,32 @@ function stripRpeFromPrescription(value) {
     .trim();
 }
 
+function prescriptionSetCount(prescription = {}) {
+  const directSets = formatNumber(
+    prescription.sets
+  );
+
+  if (directSets) {
+    return directSets;
+  }
+
+  const mechanic = normalizeMechanic(
+    prescription.block_mechanic ??
+      prescription.mechanic
+  );
+
+  if (
+    mechanic !== 'SETS_REPS' &&
+    mechanic !== 'STRENGTH'
+  ) {
+    return null;
+  }
+
+  return formatNumber(
+    prescription.block_parameters?.sets
+  );
+}
+
 function formatExecutionTargetPrescription(exercise) {
   const prescription =
     readPrescriptionObject(exercise);
@@ -265,7 +421,7 @@ function formatExecutionTargetPrescription(exercise) {
   const reps = formatNumber(
     prescription.execution_target_reps
   );
-  const duration = formatNumber(
+  const duration = formatDurationSeconds(
     prescription.execution_target_duration_seconds
   );
   const distance = formatNumber(
@@ -278,25 +434,28 @@ function formatExecutionTargetPrescription(exercise) {
 
   const pieces = [];
 
-  const sets = formatNumber(
-    prescription.sets
+  const sets = prescriptionSetCount(
+    prescription
   );
 
-  if (sets) {
-    pieces.push(`${sets} séries`);
-  }
-
   if (reps) {
+    const repsLabel = `${reps} ${
+      prescription.reps_semantics ===
+      'per_side'
+        ? 'reps / côté'
+        : 'reps'
+    }`;
+
     pieces.push(
-      `${reps} ${
-        prescription.reps_semantics ===
-        'per_side'
-          ? 'reps / côté'
-          : 'reps'
-      }`
+      sets
+        ? `${sets} × ${repsLabel}`
+        : repsLabel
     );
   } else if (duration) {
-    pieces.push(`${duration} sec`);
+    if (sets) {
+      pieces.push(`${sets} séries`);
+    }
+    pieces.push(duration);
   } else if (distance) {
     pieces.push(`${distance} m`);
   }
@@ -317,7 +476,131 @@ function formatExecutionTargetPrescription(exercise) {
     );
   }
 
+  const bandResistance =
+    prescription.band_resistance_label;
+
+  if (bandResistance) {
+    const bandPrefix =
+      prescription
+        .band_resistance_semantics ===
+      'assistance'
+        ? 'Assistance'
+        : 'Résistance';
+
+    pieces.push(
+      `${bandPrefix} ${String(
+        bandResistance
+      ).toLocaleLowerCase('fr-FR')}`
+    );
+  }
+
   return pieces.join(' · ');
+}
+
+function formatMechanicAwarePrescription(prescription = {}) {
+  const overlay =
+    prescription?.mechanic_overlay &&
+    typeof prescription.mechanic_overlay === 'object'
+      ? prescription.mechanic_overlay
+      : {};
+
+  const mechanic = normalizeMechanic(
+    prescription?.mechanic ??
+      prescription?.block_mechanic
+  );
+  const semanticsSuffix =
+    prescription?.reps_semantics === 'per_side'
+      ? ' / côté'
+      : '';
+
+  if (
+    mechanic === 'PYRAMID' ||
+    String(overlay?.type ?? '').toLowerCase() === 'pyramid'
+  ) {
+    const base = Number(
+      overlay?.base_reps ??
+        prescription?.reps_min
+    );
+
+    if (!Number.isFinite(base) || base <= 0) {
+      return null;
+    }
+
+    const multipliers =
+      Array.isArray(overlay?.multipliers) &&
+      overlay.multipliers.length > 0
+        ? overlay.multipliers
+        : [1, 2, 3, 2, 1];
+
+    const sequence = multipliers
+      .map((value) => {
+        const multiplier = Number(value);
+        if (!Number.isFinite(multiplier) || multiplier <= 0) {
+          return null;
+        }
+        return Math.round(base * multiplier);
+      })
+      .filter((value) => Number.isFinite(value));
+
+    if (sequence.length === 0) return null;
+    return `${sequence.join(' → ')} reps${semanticsSuffix}`;
+  }
+
+  if (mechanic === 'HIIT' || String(overlay?.type ?? '').toLowerCase() === 'hiit_station') {
+    const workSeconds = Number(
+      overlay?.work_seconds ??
+        prescription?.block_parameters?.work_seconds ??
+        prescription?.duration_seconds_min
+    );
+    if (Number.isFinite(workSeconds) && workSeconds > 0) {
+      return `${Math.round(workSeconds)} sec de travail`;
+    }
+  }
+
+  if (mechanic === 'DECK' || String(overlay?.type ?? '').toLowerCase() === 'deck_suit') {
+    return 'Répétitions selon la carte';
+  }
+
+  if (
+    mechanic === 'PROGRESSIVE_INTERVAL' ||
+    ['death_by', 'death_by_couplet', 'progressive_generic'].includes(
+      String(overlay?.type ?? '').toLowerCase()
+    )
+  ) {
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+    if (Number.isFinite(startReps) && startReps > 0 && Number.isFinite(increment) && increment > 0) {
+      return `${Math.round(startReps)} → ${Math.round(startReps + increment)} → ${Math.round(startReps + 2 * increment)} → … reps${semanticsSuffix}`;
+    }
+  }
+
+  if (
+    mechanic === 'LADDER' ||
+    String(overlay?.type ?? '').toLowerCase() === 'ascending_ladder'
+  ) {
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+    if (Number.isFinite(startReps) && startReps > 0 && Number.isFinite(increment) && increment > 0) {
+      return `Départ ${Math.round(startReps)} reps${semanticsSuffix} · +${Math.round(increment)} / étape`;
+    }
+  }
+
+  if (mechanic === 'COUPLET') {
+    const overlayType = String(overlay?.type ?? '').toLowerCase();
+    const startReps = Number(overlay?.start_reps ?? prescription?.reps_min);
+    const increment = Number(overlay?.increment_reps ?? 1);
+
+    if (Number.isFinite(increment) && increment > 0) {
+      if (overlayType === 'descending_couplet') {
+        return `Progression décroissante · -${Math.round(increment)} reps / étape${semanticsSuffix}`;
+      }
+      if (Number.isFinite(startReps) && startReps > 0) {
+        return `Départ ${Math.round(startReps)} reps${semanticsSuffix} · +${Math.round(increment)} / étape`;
+      }
+    }
+  }
+
+  return null;
 }
 
 function formatPrescription(exercise) {
@@ -360,6 +643,15 @@ function formatPrescription(exercise) {
     }
 
     return `${attempts} tentatives · meilleure performance propre`;
+  }
+
+  const mechanicAwarePrescription =
+    formatMechanicAwarePrescription(
+      prescription
+    );
+
+  if (mechanicAwarePrescription) {
+    return mechanicAwarePrescription;
   }
 
   const executionTarget =
@@ -422,10 +714,9 @@ function formatPrescription(exercise) {
       : 'reps'
   );
 
-  const duration = formatRange(
+  const duration = formatDurationRange(
     prescription.duration_seconds_min,
-    prescription.duration_seconds_max,
-    'sec'
+    prescription.duration_seconds_max
   );
 
   const distance = formatRange(
@@ -458,12 +749,39 @@ function formatPrescription(exercise) {
     );
   }
 
-  const sets = formatNumber(
-    prescription.sets
+  const bandResistance =
+    prescription.band_resistance_label;
+
+  if (bandResistance) {
+    const bandPrefix =
+      prescription
+        .band_resistance_semantics ===
+      'assistance'
+        ? 'Assistance'
+        : 'Résistance';
+
+    pieces.push(
+      `${bandPrefix} ${String(
+        bandResistance
+      ).toLocaleLowerCase('fr-FR')}`
+    );
+  }
+
+  const sets = prescriptionSetCount(
+    prescription
   );
 
   if (sets) {
-    pieces.unshift(`${sets} séries`);
+    const first = pieces[0] ?? null;
+    const isRepPrescription =
+      typeof first === 'string' &&
+      /\breps?\b/i.test(first);
+
+    if (isRepPrescription) {
+      pieces[0] = `${sets} × ${first}`;
+    } else {
+      pieces.unshift(`${sets} séries`);
+    }
   }
 
 
@@ -1325,18 +1643,9 @@ function parseLoadKg(value) {
 }
 
 function normalizeUserExecutionStatus(status) {
-  if (status === 'adapted') {
-    return 'adapted';
-  }
-
-  if (
-    status === 'not_completed' ||
-    status === 'skipped'
-  ) {
-    return 'not_completed';
-  }
-
-  return 'completed';
+  if (status === 'completed') return 'completed';
+  if (status === 'adapted') return 'adapted';
+  return 'not_completed';
 }
 
 function toLegacyStatus(userExecutionStatus) {
@@ -1482,6 +1791,39 @@ export async function getWorkoutSwapAvailability(sessionId) {
   };
 }
 
+export async function getWorkoutSwapAvailabilityForExercise(sessionId, sessionExerciseId) {
+  if (!sessionId || !sessionExerciseId) {
+    return {
+      sessionId: sessionId ?? null,
+      sessionExerciseId: sessionExerciseId ?? null,
+      item: null,
+      version: null,
+      timingMs: 0,
+    };
+  }
+
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc(
+    'get_workout_swap_availability_for_exercise_v1',
+    { p_session_exercise_id: sessionExerciseId }
+  );
+
+  if (error) {
+    throw new Error(
+      error?.message ?? 'Impossible de vérifier ce remplacement.'
+    );
+  }
+
+  return {
+    sessionId: data?.session_id ?? sessionId,
+    sessionExerciseId: data?.session_exercise_id ?? sessionExerciseId,
+    item: data?.item ?? data?.items?.[sessionExerciseId] ?? null,
+    version: data?.version ?? null,
+    timingMs: Date.now() - startedAt,
+  };
+}
+
+
 export async function swapWorkoutExercise({
   sessionId,
   sessionExerciseId,
@@ -1570,18 +1912,37 @@ export async function getWorkoutFormatOptions(sessionId) {
     );
   }
 
-  const { data, error } = await supabase.rpc(
-    'get_workout_format_options',
-    {
-      p_session_id: sessionId,
-    }
-  );
+  const { data, error } =
+    await supabase.functions.invoke(
+      'change-workout-format',
+      {
+        body: {
+          action: 'OPTIONS',
+          session_id: sessionId,
+        },
+      }
+    );
 
   if (error) {
+    let detail = null;
+
+    try {
+      detail =
+        await error?.context?.json();
+    } catch {
+      detail = null;
+    }
+
     throw new Error(
-      error?.message ??
+      detail?.error ??
+        detail?.message ??
+        error?.message ??
         'Impossible de charger les formats disponibles.'
     );
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
   }
 
   return {
@@ -1611,12 +1972,15 @@ export async function getWorkoutFormatOptions(sessionId) {
         : [],
     version:
       data?.version ?? null,
+    timingMs:
+      Number(data?.timing_ms ?? 0),
   };
 }
 
 export async function reloadWorkoutSession({
   sessionId,
   preparationSnapshot = null,
+  confirmComposerProgressRebase = false,
 }) {
   if (!sessionId) {
     throw new Error(
@@ -1627,7 +1991,7 @@ export async function reloadWorkoutSession({
   const { data, error } = await supabase
     .from('workout_sessions')
     .select(
-      'id, status, generated_workout, started_at, started_local_date, wod_revealed_at, wod_started_at, format_change_count, context_recalculation_count'
+      'id, status, generated_workout, planning_context_json, started_at, started_local_date, wod_revealed_at, wod_started_at, format_change_count, context_recalculation_count'
     )
     .eq('id', sessionId)
     .single();
@@ -1642,10 +2006,18 @@ export async function reloadWorkoutSession({
     );
   }
 
+  // The existing compiler persists the entire authored draft. Read its exact
+  // preference snapshot on every reload, not just from transient check-in state.
+  const composerPreferences = data.generated_workout.meta?.composer_preferences
+    ?? composerSessionPreferences(data.planning_context_json);
   const mappedWorkout =
     mapGeneratedWorkout(
       {
         ...data.generated_workout,
+        meta: {
+          ...(data.generated_workout.meta ?? {}),
+          ...(composerPreferences ? { composer_preferences: composerPreferences } : {}),
+        },
         session_id: sessionId,
         status:
           data.status ??
@@ -1655,10 +2027,13 @@ export async function reloadWorkoutSession({
       preparationSnapshot ?? {}
     );
 
-  const enriched =
+  let enriched =
     await enrichWorkoutExerciseMetadata(
       mappedWorkout
     );
+  if (isComposerWorkout(enriched)) {
+    enriched = hydrateComposerPlayerProgress(enriched, await loadComposerPlayerProgress(sessionId, confirmComposerProgressRebase));
+  }
   const formatChangeCount =
     Number(data?.format_change_count ?? 0);
   const formatChangeLimit = 3;
@@ -1821,9 +2196,31 @@ export async function completeWorkoutSession({
     );
   }
 
+  const lifecycle = await getWorkoutSessionLifecycle(sessionId);
+  await flushComposerPlayerProgress(sessionId);
+
+  if (!lifecycle?.sessionStarted) {
+    throw new Error(
+      "Impossible d'enregistrer la séance : la séance n'a pas été officiellement démarrée."
+    );
+  }
+
   const rawSessionExercises = Array.isArray(exercises)
     ? exercises.filter((exercise) => exercise?.id)
     : [];
+
+  const containsWodExecution = rawSessionExercises.some(
+    (exercise) =>
+      String(exercise?.blockKey ?? exercise?.block ?? '')
+        .trim()
+        .toLowerCase() === 'wod'
+  );
+
+  if (containsWodExecution && !lifecycle?.wodStarted) {
+    throw new Error(
+      "Impossible d'enregistrer la séance : le WOD n'a pas été officiellement démarré."
+    );
+  }
 
   if (rawSessionExercises.length === 0) {
     throw new Error(

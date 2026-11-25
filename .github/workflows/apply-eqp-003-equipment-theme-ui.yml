@@ -1,0 +1,63 @@
+name: Apply EQP-003 equipment theme UI
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-eqp-003-equipment-theme-ui.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_WEB_BASE_URL: /ucoach-mobile
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply EQP-003 theme patch
+        run: node .github/player-patches/apply-eqp-003-equipment-theme-ui.mjs
+
+      - name: Verify theme wiring
+        run: |
+          git diff --check
+          grep -n "useUgerodTheme\|createStyles(colors, isDark)\|lightBrandIcon\|StatusBar" app/profile/equipment.js
+          grep -n "source={isDark ? backgroundImage : undefined}" app/profile/equipment.js
+          grep -n "BRAND_KAKI\|BRAND_ORANGE" app/profile/equipment.js
+          if grep -n "import {.*colors" app/profile/equipment.js; then
+            echo "Legacy static colors import still present"
+            exit 1
+          fi
+
+      - name: Export Expo web
+        run: npx expo export --platform web --output-dir dist-eqp-003
+
+      - name: Commit EQP-003
+        run: |
+          if git diff --quiet -- app/profile/equipment.js; then
+            echo "No EQP-003 changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/profile/equipment.js
+          git commit -m "fix(equipment): make profile equipment theme-aware"
+          git push origin HEAD:ux-navigation-coach-v1

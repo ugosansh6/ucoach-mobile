@@ -403,6 +403,22 @@ export function buildWodProtocolCompletion({
   const plannedSeconds =
     derivePlannedSeconds(workout, runtime);
   const actuals = new Map();
+  const executionEvents = Array.isArray(
+    runtime.executionEvents
+  )
+    ? runtime.executionEvents.filter(
+        (event) =>
+          event &&
+          typeof event === 'object' &&
+          typeof event.event_type === 'string' &&
+          event.event_type.trim()
+      )
+    : [];
+  const roundSplits = Array.isArray(
+    runtime.roundSplits
+  )
+    ? runtime.roundSplits
+    : [];
 
   const outcome = {
     mechanic_key: mechanic,
@@ -410,6 +426,13 @@ export function buildWodProtocolCompletion({
     elapsed_seconds: elapsedSeconds,
     planned_duration_seconds: plannedSeconds,
     finish_reason: runtime.finishReason ?? null,
+    source: 'ugerod_session_player',
+    controlled_timing:
+      runtime.controlledWindow === true,
+    execution_trace_version:
+      'w2-execution-events-v1',
+    execution_events: executionEvents,
+    round_splits: roundSplits,
     player_version:
       runtime.version ?? 'fc7-wod-player-v2',
     performance_capture_version: 'm7.2-v1',
@@ -522,6 +545,7 @@ export function buildWodProtocolCompletion({
         : outcome.protocol_completed
           ? 1
           : 0;
+
   } else if (
     mechanic === 'EVERY_X_MINUTES'
   ) {
@@ -550,6 +574,7 @@ export function buildWodProtocolCompletion({
         : outcome.protocol_completed
           ? 1
           : 0;
+
   } else if (mechanic === 'HIIT') {
     const workSeconds = Math.max(
       1,
@@ -589,6 +614,7 @@ export function buildWodProtocolCompletion({
     outcome.completion_ratio = clamp01(
       stations / plannedStations
     );
+
   } else if (
     mechanic === 'LADDER' ||
     mechanic === 'COUPLET'
@@ -815,6 +841,9 @@ export function buildWodProtocolCompletion({
           )
         : 0;
 
+    let completedRepTarget = 0;
+    let repTargetExact = true;
+
     for (
       let index = 0;
       index <
@@ -846,6 +875,11 @@ export function buildWodProtocolCompletion({
         'distance_meters_max'
       );
 
+      if (mechanic === 'REP_TARGET') {
+        if (reps == null) repTargetExact = false;
+        else completedRepTarget += reps;
+      }
+
       if (
         reps != null ||
         duration != null ||
@@ -862,6 +896,15 @@ export function buildWodProtocolCompletion({
           distanceMeters: distance,
           unit: 'sequence_item',
         });
+      }
+    }
+
+    if (mechanic === 'REP_TARGET') {
+      const targetReps = numberOrNull(parameters.total_rep_target);
+      if (targetReps != null && targetReps > 0 && repTargetExact) {
+        outcome.reps_completed = completedRepTarget;
+        outcome.target_reps = targetReps;
+        outcome.completion_ratio = clamp01(completedRepTarget / targetReps);
       }
     }
   } else if (mechanic === 'DECK') {

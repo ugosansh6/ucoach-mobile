@@ -314,11 +314,14 @@ export default function WodProtocolPlayer({
     );
 
   const beepPlayer =
-    useAudioPlayer(wodBeep);
+    useAudioPlayer(wodBeep, {
+      keepAudioSessionActive: true,
+    });
 
   useEffect(() => {
     setAudioModeAsync({
       playsInSilentMode: true,
+      interruptionMode: 'mixWithOthers',
     }).catch((error) => {
       console.warn(
         'WOD audio mode',

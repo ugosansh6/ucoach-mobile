@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
@@ -17,23 +18,39 @@ import {
 } from 'react-native';
 
 import {
-  colors,
   spacing,
-  typography,
 } from '../../src/constants';
+import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 
 import {
   getEquipmentCatalog,
-  getUserEquipmentInventory,
+  getUserEnvironmentEquipmentPreset,
+  replaceUserEnvironmentEquipmentPreset,
   replaceUserEquipmentInventory,
 } from '../../src/services/equipmentService';
+import { getEquipmentUxSections } from '../../src/constants/equipmentUxCategories';
+
+const BRAND_KAKI = '#5E6633';
+const BRAND_ORANGE = '#FF6B19';
+
+const MANROPE = {
+  regular: 'Manrope_400Regular',
+  medium: 'Manrope_500Medium',
+  semiBold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+  extraBold: 'Manrope_800ExtraBold',
+};
 
 const backgroundImage = require(
   '../../assets/backgrounds/welcome-default.jpg'
 );
 
-const brandIcon = require(
+const darkBrandIcon = require(
   '../../assets/branding/ugerod-icon.png'
+);
+
+const lightBrandIcon = require(
+  '../../assets/branding/LOGO VERSION NOIR.png'
 );
 
 const FIXED_LOAD_CAPABLE_IDS = new Set([
@@ -61,6 +78,20 @@ const RESISTANCE_OPTIONS = [
   { value: 'Moyenne', label: 'MOYENNE' },
   { value: 'Forte', label: 'FORTE' },
 ];
+
+const PROFILE_ENVIRONMENTS = [
+  { key: 'HOME', label: 'Maison', icon: 'home-outline' },
+  { key: 'BOX', label: 'Box', icon: 'fitness-outline' },
+  { key: 'GYM', label: 'Salle', icon: 'barbell-outline' },
+  { key: 'OUTDOOR', label: 'Extérieur', icon: 'leaf-outline' },
+];
+
+function normalizeSearchValue(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
 
 function makeLocalKey(equipmentId) {
   return `${equipmentId}-${Date.now()}-${Math.random()
@@ -274,7 +305,52 @@ function sanitizeInventory(rows) {
 }
 
 export default function ProfileEquipmentScreen() {
-  const { returnTo } = useLocalSearchParams();
+  const { returnTo, environment, view } = useLocalSearchParams();
+  const { colors: themeColors, isDark } = useUgerodTheme();
+
+  const initialEnvironment = useMemo(() => {
+    const rawEnvironment = Array.isArray(environment)
+      ? environment[0]
+      : environment;
+    const code = String(rawEnvironment ?? 'HOME').trim().toUpperCase();
+
+    return PROFILE_ENVIRONMENTS.some((item) => item.key === code)
+      ? code
+      : 'HOME';
+  }, [environment]);
+
+  const colors = useMemo(
+    () => ({
+      ...themeColors,
+      // Cette page applique la nouvelle charte UGEROD dans les deux thèmes.
+      accent: BRAND_KAKI,
+      accentStrong: BRAND_KAKI,
+      accentSoft: isDark
+        ? 'rgba(94,102,51,0.22)'
+        : 'rgba(94,102,51,0.12)',
+      secondaryAccent: BRAND_ORANGE,
+      secondaryAccentStrong: BRAND_ORANGE,
+      secondaryAccentSoft: isDark
+        ? 'rgba(255,107,25,0.18)'
+        : 'rgba(255,107,25,0.12)',
+      primary: BRAND_KAKI,
+      primaryLight: isDark ? '#A8B09A' : BRAND_KAKI,
+      textPrimary: themeColors.text,
+      brandWhite: '#FFFFFF',
+    }),
+    [themeColors, isDark]
+  );
+
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
+
+  const QuantityControl = (props) => (
+    <EquipmentQuantityControl {...props} styles={styles} colors={colors} />
+  );
+
+  const LoadInput = (props) => (
+    <EquipmentLoadInput {...props} styles={styles} colors={colors} />
+  );
   const [catalog, setCatalog] =
     useState([]);
 
@@ -292,6 +368,28 @@ export default function ProfileEquipmentScreen() {
 
   const [saved, setSaved] =
     useState(false);
+
+  const [searchQuery, setSearchQuery] =
+    useState('');
+
+  const [activeCategory, setActiveCategory] =
+    useState(null);
+
+  const [activeEnvironment, setActiveEnvironment] =
+    useState(initialEnvironment);
+
+  useFocusEffect(
+    useCallback(() => {
+      const requestedView = Array.isArray(view) ? view[0] : view;
+
+      if (requestedView === 'categories') {
+        setActiveEnvironment(initialEnvironment);
+        setActiveCategory(null);
+        setSearchQuery('');
+        setExpandedEquipmentIds(new Set());
+      }
+    }, [initialEnvironment, view])
+  );
 
   const [
     expandedEquipmentIds,
@@ -311,7 +409,7 @@ export default function ProfileEquipmentScreen() {
           inventoryData,
         ] = await Promise.all([
           getEquipmentCatalog(),
-          getUserEquipmentInventory(),
+          getUserEnvironmentEquipmentPreset(initialEnvironment),
         ]);
 
         if (cancelled) {
@@ -344,21 +442,121 @@ export default function ProfileEquipmentScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialEnvironment]);
 
-  const visibleCatalog = useMemo(
-    () =>
-      catalog.filter(
-        (equipment) =>
-          equipment.id !== 'E00'
-      ),
-    [catalog]
+  const activeEnvironmentLabel =
+    PROFILE_ENVIRONMENTS.find((item) => item.key === activeEnvironment)?.label ?? 'MAISON';
+
+  async function selectProfileEnvironment(code) {
+    const environment = String(code ?? 'HOME').toUpperCase();
+    if (environment === activeEnvironment || isSaving) return;
+
+    try {
+      setIsLoading(true);
+      setErrorMessage('');
+      setSaved(false);
+      setActiveEnvironment(environment);
+      setActiveCategory(null);
+      setSearchQuery('');
+      setExpandedEquipmentIds(new Set());
+
+      const rows = await getUserEnvironmentEquipmentPreset(environment);
+      setDraftInventory((rows ?? []).map(normalizeLoadedRow));
+    } catch (error) {
+      setErrorMessage(
+        error?.message ?? 'Impossible de charger le matériel de cet environnement.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const selectedEquipmentIdList = useMemo(
+    () => Array.from(new Set(draftInventory.map((row) => row.equipment_id).filter(Boolean))),
+    [draftInventory]
   );
+
+  const selectedEquipmentIds = useMemo(
+    () => new Set(selectedEquipmentIdList),
+    [selectedEquipmentIdList]
+  );
+
+  const equipmentSections = useMemo(
+    () => getEquipmentUxSections(catalog, activeEnvironment, selectedEquipmentIdList),
+    [catalog, activeEnvironment, selectedEquipmentIdList]
+  );
+
+  const categoryOptions = useMemo(
+    () => equipmentSections.map((section) => ({
+      ...section,
+      selectedCount: section.items.filter((item) => selectedEquipmentIds.has(item.id)).length,
+    })),
+    [equipmentSections, selectedEquipmentIds]
+  );
+
+  const resolvedActiveCategory =
+    categoryOptions.some((section) => section.key === activeCategory)
+      ? activeCategory
+      : null;
+
+  const activeCategoryOption = useMemo(
+    () => categoryOptions.find((section) => section.key === resolvedActiveCategory) ?? null,
+    [categoryOptions, resolvedActiveCategory]
+  );
+
+  const globalEquipmentCatalog = useMemo(
+    () =>
+      equipmentSections
+        .flatMap((section) =>
+          (section.items ?? []).map((item) => ({
+            ...item,
+            uxCategoryLabel: section.label,
+          }))
+        )
+        .sort((a, b) =>
+          String(a.displayName ?? a.name ?? '').localeCompare(
+            String(b.displayName ?? b.name ?? ''),
+            'fr'
+          )
+        ),
+    [equipmentSections]
+  );
+
+  const normalizedEquipmentSearch = normalizeSearchValue(searchQuery.trim());
+  const equipmentSearchActive = normalizedEquipmentSearch.length > 0;
+
+  const visibleCatalog = useMemo(() => {
+    if (equipmentSearchActive) {
+      return globalEquipmentCatalog.filter((equipment) =>
+        normalizeSearchValue(
+          [
+            equipment.displayName,
+            equipment.name,
+            equipment.category,
+            equipment.description,
+            equipment.uxCategoryLabel,
+            equipment.uxGroup,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        ).includes(normalizedEquipmentSearch)
+      );
+    }
+
+    return activeCategoryOption?.items ?? [];
+  }, [
+    activeCategoryOption,
+    equipmentSearchActive,
+    globalEquipmentCatalog,
+    normalizedEquipmentSearch,
+  ]);
+
+  const selectedEquipmentCount = selectedEquipmentIds.size;
 
   const canSave =
     !isLoading &&
     !isSaving &&
-    draftInventory.every(validateRow);
+    (activeEnvironment !== 'HOME' || draftInventory.every(validateRow));
 
   function rowsForEquipment(
     equipmentId
@@ -439,13 +637,15 @@ export default function ProfileEquipmentScreen() {
       equipment.id ===
       BARBELL_EQUIPMENT_ID;
 
-    const defaultMode = isBarbell
-      ? 'adjustable_load'
-      : FIXED_LOAD_CAPABLE_IDS.has(
-          equipment.id
-        )
-        ? 'load_unknown'
-        : 'non_load';
+    const defaultMode = activeEnvironment !== 'HOME'
+      ? 'non_load'
+      : isBarbell
+        ? 'adjustable_load'
+        : FIXED_LOAD_CAPABLE_IDS.has(
+            equipment.id
+          )
+          ? 'load_unknown'
+          : 'non_load';
 
     const nextRow = createInventoryRow(
       equipment.id,
@@ -463,12 +663,13 @@ export default function ProfileEquipmentScreen() {
     ]);
 
     const configurable =
-      isBarbell ||
-      FIXED_LOAD_CAPABLE_IDS.has(
-        equipment.id
-      ) ||
-      equipment.id ===
-        RESISTANCE_EQUIPMENT_ID;
+      activeEnvironment === 'HOME' &&
+      (isBarbell ||
+        FIXED_LOAD_CAPABLE_IDS.has(
+          equipment.id
+        ) ||
+        equipment.id ===
+          RESISTANCE_EQUIPMENT_ID);
 
     if (configurable) {
       setEquipmentExpanded(
@@ -693,21 +894,24 @@ export default function ProfileEquipmentScreen() {
       setErrorMessage('');
       setSaved(false);
 
-      const payload =
-        sanitizeInventory(
-          draftInventory
+      if (activeEnvironment === 'HOME') {
+        const payload = sanitizeInventory(draftInventory);
+        const savedRows = await replaceUserEquipmentInventory(payload);
+        setDraftInventory((savedRows ?? []).map(normalizeLoadedRow));
+      } else {
+        const equipmentIds = Array.from(
+          new Set(draftInventory.map((row) => row.equipment_id).filter(Boolean))
         );
-
-      const savedRows =
-        await replaceUserEquipmentInventory(
-          payload
+        const savedIds = await replaceUserEnvironmentEquipmentPreset(
+          activeEnvironment,
+          equipmentIds
         );
-
-      setDraftInventory(
-        (savedRows ?? []).map(
-          normalizeLoadedRow
-        )
-      );
+        setDraftInventory(
+          (savedIds ?? []).map((equipmentId) =>
+            normalizeLoadedRow(createInventoryRow(equipmentId, 'non_load'))
+          )
+        );
+      }
 
       setSaved(true);
 
@@ -720,7 +924,7 @@ export default function ProfileEquipmentScreen() {
           return;
         }
 
-        router.back();
+        router.replace('/profile');
       }, 450);
     } catch (error) {
       console.log(
@@ -743,7 +947,25 @@ export default function ProfileEquipmentScreen() {
   }
 
   function handleBack() {
-    router.back();
+    if (isSaving) {
+      return;
+    }
+
+    if (activeCategory) {
+      setSearchQuery('');
+      setActiveCategory(null);
+      return;
+    }
+
+    if (
+      typeof returnTo === 'string' &&
+      returnTo.length > 0
+    ) {
+      router.replace(returnTo);
+      return;
+    }
+
+    router.replace('/profile');
   }
 
   if (isLoading) {
@@ -755,13 +977,13 @@ export default function ProfileEquipmentScreen() {
       >
         <ActivityIndicator
           size="large"
-          color={colors.primary}
+          color={BRAND_KAKI}
         />
 
         <Text
           style={styles.loadingText}
         >
-          CHARGEMENT DU MATÉRIEL...
+          Chargement du matériel…
         </Text>
       </View>
     );
@@ -770,35 +992,30 @@ export default function ProfileEquipmentScreen() {
   return (
     <View style={styles.screen}>
       <ImageBackground
-        source={backgroundImage}
+        source={isDark ? backgroundImage : undefined}
         resizeMode="cover"
         style={styles.background}
       >
-        <View
-          style={styles.darkOverlay}
-        />
-
-        <LinearGradient
-          colors={[
-            'rgba(7,9,12,0.45)',
-            'rgba(7,9,12,0.72)',
-            'rgba(7,9,12,0.95)',
-            'rgba(7,9,12,1)',
-          ]}
-          locations={[
-            0,
-            0.26,
-            0.68,
-            1,
-          ]}
-          style={
-            StyleSheet.absoluteFill
-          }
-        />
+        {isDark && (
+          <>
+            <View style={styles.darkOverlay} />
+            <LinearGradient
+              colors={[
+                'rgba(7,9,12,0.42)',
+                'rgba(7,9,12,0.62)',
+                'rgba(7,9,12,0.90)',
+                'rgba(7,9,12,0.99)',
+              ]}
+              locations={[0, 0.24, 0.62, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </>
+        )}
 
         <SafeAreaView
           style={styles.safeArea}
         >
+          <StatusBar style={isDark ? 'light' : 'dark'} />
           <ScrollView
             showsVerticalScrollIndicator={
               false
@@ -840,7 +1057,7 @@ export default function ProfileEquipmentScreen() {
                     styles.headerEyebrow
                   }
                 >
-                  PROFIL SPORTIF
+                  Profil sportif
                 </Text>
 
                 <Text
@@ -848,7 +1065,7 @@ export default function ProfileEquipmentScreen() {
                     styles.headerTitle
                   }
                 >
-                  TON MATÉRIEL
+                  Ton matériel
                   <Text
                     style={styles.blueDot}
                   >
@@ -868,39 +1085,10 @@ export default function ProfileEquipmentScreen() {
 
             {/* INTRO */}
             <View style={styles.intro}>
-              <Text
-                style={
-                  styles.introTitle
-                }
-              >
-                TON INVENTAIRE HABITUEL
-              </Text>
-
-              <Text
-                style={
-                  styles.introText
-                }
-              >
-                Ici, tu peux mettre à jour le matériel que tu possèdes et renseigner les charges associées.
-              </Text>
-            </View>
-
-            {/* INFO */}
-            <View
-              style={styles.infoCard}
-            >
-              <Ionicons
-                name="information-circle-outline"
-                size={21}
-                color={
-                  colors.primaryLight
-                }
-              />
-
-              <Text
-                style={styles.infoText}
-              >
-                Renseigner les charges permet à UGEROD d’adapter plus précisément tes entraînements. Tu peux enregistrer un matériel même si tu ne connais pas sa charge.
+              <Text style={styles.introText}>
+                {activeEnvironment === 'HOME'
+                  ? 'Sélectionne le matériel que tu as à disposition chez toi.'
+                  : `Sélectionne le matériel que tu as habituellement à disposition en ${activeEnvironmentLabel.toLowerCase()}.`}
               </Text>
             </View>
 
@@ -912,7 +1100,7 @@ export default function ProfileEquipmentScreen() {
                   name="alert-circle-outline"
                   size={20}
                   color={
-                    colors.brandRed
+                    BRAND_ORANGE
                   }
                 />
 
@@ -926,7 +1114,7 @@ export default function ProfileEquipmentScreen() {
                       styles.errorTitle
                     }
                   >
-                    ERREUR
+                    Erreur
                   </Text>
 
                   <Text
@@ -940,33 +1128,185 @@ export default function ProfileEquipmentScreen() {
               </View>
             )}
 
+            <View style={styles.catalogTools}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.locationTabs}
+              >
+                {PROFILE_ENVIRONMENTS.map((location) => {
+                  const selected = activeEnvironment === location.key;
+
+                  return (
+                    <Pressable
+                      key={location.key}
+                      onPress={() => selectProfileEnvironment(location.key)}
+                      style={[
+                        styles.locationTab,
+                        selected && styles.locationTabSelected,
+                      ]}
+                    >
+                      <Ionicons
+                        name={location.icon}
+                        size={16}
+                        color={selected ? colors.brandWhite : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.locationTabText,
+                          selected && styles.locationTabTextSelected,
+                        ]}
+                      >
+                        {location.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.searchShell}>
+                <Ionicons
+                  name="search-outline"
+                  size={19}
+                  color={colors.textMuted}
+                />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Rechercher un matériel…"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                />
+                {searchQuery.length > 0 && (
+                  <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                    <Ionicons
+                      name="close-circle"
+                      size={19}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                )}
+              </View>
+
+              {equipmentSearchActive ? (
+                <View style={styles.searchResultsHeader}>
+                  <Text style={styles.categoryIntroTitle}>Résultats</Text>
+                  <Text style={styles.categoryIntroText}>
+                    {visibleCatalog.length} matériel{visibleCatalog.length !== 1 ? 's' : ''} trouvé{visibleCatalog.length !== 1 ? 's' : ''} dans le catalogue.
+                  </Text>
+                </View>
+              ) : !resolvedActiveCategory ? (
+                <>
+                  <View style={styles.categoryIntroRow}>
+                    <View style={styles.categoryIntroCopy}>
+                      <Text style={styles.categoryIntroTitle}>Catégories</Text>
+                      <Text style={styles.categoryIntroText}>
+                        {selectedEquipmentCount} équipement{selectedEquipmentCount !== 1 ? 's' : ''} sélectionné{selectedEquipmentCount !== 1 ? 's' : ''} pour {activeEnvironmentLabel.toLowerCase()}.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.categoryGrid}>
+                    {categoryOptions.map((category) => (
+                      <Pressable
+                        key={category.key}
+                        onPress={() => {
+                          setSearchQuery('');
+                          setActiveCategory(category.key);
+                        }}
+                        style={({ pressed }) => [
+                          styles.categoryCard,
+                          pressed && styles.categoryCardPressed,
+                        ]}
+                      >
+                        <View style={styles.categoryHeroIcon}>
+                          <Ionicons
+                            name={category.icon}
+                            size={24}
+                            color={colors.accent}
+                          />
+                        </View>
+
+                        <Text style={styles.categoryCardLabel}>
+                          {category.label}
+                        </Text>
+
+                        <Text numberOfLines={2} style={styles.categoryCardDescription}>
+                          {category.description}
+                        </Text>
+
+                        <View style={styles.categoryCardFooter}>
+                          <Text style={styles.categoryCardCount}>
+                            {category.selectedCount}/{category.items.length} sélectionné{category.selectedCount !== 1 ? 's' : ''}
+                          </Text>
+                          <Ionicons
+                            name="chevron-forward"
+                            size={17}
+                            color={colors.textMuted}
+                          />
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={() => {
+                      setSearchQuery('');
+                      setActiveCategory(null);
+                    }}
+                    style={({ pressed }) => [
+                      styles.categoryBackRow,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Ionicons name="arrow-back" size={18} color={colors.accent} />
+                    <Text style={styles.categoryBackText}>Toutes les catégories</Text>
+                  </Pressable>
+
+                  <View style={styles.activeCategoryHero}>
+                    <View style={styles.activeCategoryIcon}>
+                      <Ionicons
+                        name={activeCategoryOption?.icon ?? 'grid-outline'}
+                        size={22}
+                        color={colors.accent}
+                      />
+                    </View>
+                    <View style={styles.activeCategoryCopy}>
+                      <Text style={styles.activeCategoryTitle}>
+                        {String(activeCategoryOption?.label ?? '')}
+                      </Text>
+                      <Text style={styles.activeCategoryDescription}>
+                        {activeCategoryOption?.description}
+                      </Text>
+                    </View>
+                    <Text style={styles.activeCategoryCount}>
+                      {activeCategoryOption?.selectedCount ?? 0}/{activeCategoryOption?.items?.length ?? 0}
+                    </Text>
+                  </View>
+
+                  <View style={styles.catalogSummaryRow}>
+                    <Text style={styles.catalogSummaryText}>
+                      {visibleCatalog.length} équipement{visibleCatalog.length !== 1 ? 's' : ''}
+                    </Text>
+                    <Text style={styles.catalogSummarySelected}>
+                      {activeCategoryOption?.selectedCount ?? 0} sélectionné{(activeCategoryOption?.selectedCount ?? 0) !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
             {/* INVENTAIRE */}
             <View
               style={
                 styles.equipmentList
               }
             >
-              <View
-                style={[
-                  styles.equipmentCard,
-                  styles.bodyweightCard,
-                ]}
-              >
-                <View style={styles.equipmentHeader}>
-                  <View style={styles.bodyweightIcon}>
-                    <Ionicons
-                      name="body-outline"
-                      size={20}
-                      color={colors.textPrimary}
-                    />
-                  </View>
-
-                  <Text style={styles.equipmentName}>
-                    POIDS DU CORPS
-                  </Text>
-                </View>
-              </View>
-
               {visibleCatalog.map(
                 (equipment) => {
                   const rows =
@@ -1008,9 +1348,10 @@ export default function ProfileEquipmentScreen() {
                     RESISTANCE_EQUIPMENT_ID;
 
                   const hasConfiguration =
-                    isBarbell ||
-                    supportsFixed ||
-                    supportsResistance;
+                    activeEnvironment === 'HOME' &&
+                    (isBarbell ||
+                      supportsFixed ||
+                      supportsResistance);
 
                   const mode =
                     rows[0]
@@ -1086,20 +1427,27 @@ export default function ProfileEquipmentScreen() {
                             }
                           >
                             {String(
-                              equipment.name ??
+                              equipment.displayName ??
+                                equipment.name ??
                                 ''
-                            ).toUpperCase()}
+                            )}
                           </Text>
 
-                          {(isBarbell ||
-                            supportsFixed ||
-                            supportsResistance) && (
+                          {equipmentSearchActive ? (
+                            <Text style={styles.searchResultMeta}>
+                              {[equipment.uxCategoryLabel, equipment.uxGroup]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </Text>
+                          ) : null}
+
+                          {hasConfiguration && (
                             <View style={styles.equipmentMetaRow}>
                               {(isBarbell || supportsFixed) && (
                                 <Ionicons
                                   name="barbell-outline"
                                   size={14}
-                                  color={colors.primaryLight}
+                                  color={BRAND_KAKI}
                                 />
                               )}
 
@@ -1275,7 +1623,7 @@ export default function ProfileEquipmentScreen() {
                                     name="checkmark-circle-outline"
                                     size={18}
                                     color={
-                                      colors.primaryLight
+                                      BRAND_KAKI
                                     }
                                   />
 
@@ -1380,7 +1728,6 @@ export default function ProfileEquipmentScreen() {
                             </View>
                           )}
 
-
                           {supportsFixed &&
                             mode ===
                               'load_unknown' &&
@@ -1467,7 +1814,7 @@ export default function ProfileEquipmentScreen() {
                                             18
                                           }
                                           color={
-                                            colors.brandRed
+                                            BRAND_ORANGE
                                           }
                                         />
                                       </Pressable>
@@ -1589,7 +1936,7 @@ export default function ProfileEquipmentScreen() {
                                   name="add-circle-outline"
                                   size={18}
                                   color={
-                                    colors.primaryLight
+                                    BRAND_KAKI
                                   }
                                 />
 
@@ -1758,7 +2105,7 @@ export default function ProfileEquipmentScreen() {
                                           <Ionicons
                                             name="checkmark-circle"
                                             size={17}
-                                            color={colors.primaryLight}
+                                            color={BRAND_KAKI}
                                           />
                                         )}
                                       </Pressable>
@@ -1773,6 +2120,24 @@ export default function ProfileEquipmentScreen() {
                   );
                 }
               )}
+
+              {resolvedActiveCategory && visibleCatalog.length === 0 && (
+                <View style={styles.noResultCard}>
+                  <Ionicons
+                    name="search-outline"
+                    size={22}
+                    color={BRAND_KAKI}
+                  />
+                  <View style={styles.noResultTextArea}>
+                    <Text style={styles.noResultTitle}>
+                      AUCUN MATÉRIEL TROUVÉ
+                    </Text>
+                    <Text style={styles.noResultText}>
+                      Essaie un autre mot-clé ou change de lieu.
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             {draftInventory.length ===
@@ -1786,7 +2151,7 @@ export default function ProfileEquipmentScreen() {
                   name="body-outline"
                   size={22}
                   color={
-                    colors.primaryLight
+                    BRAND_KAKI
                   }
                 />
 
@@ -1842,8 +2207,8 @@ export default function ProfileEquipmentScreen() {
                     }
                   >
                     {saved
-                      ? 'MATÉRIEL ENREGISTRÉ'
-                      : 'ENREGISTRER MON MATÉRIEL'}
+                      ? 'Matériel enregistré'
+                      : 'Enregistrer mon matériel'}
                   </Text>
 
                   <Ionicons
@@ -1861,7 +2226,6 @@ export default function ProfileEquipmentScreen() {
               )}
             </Pressable>
 
-
             <View
               style={styles.bottomSpace}
             />
@@ -1872,11 +2236,13 @@ export default function ProfileEquipmentScreen() {
   );
 }
 
-function QuantityControl({
+function EquipmentQuantityControl({
   row,
   onMinus,
   onPlus,
   compact = false,
+  styles,
+  colors,
 }) {
   return (
     <View
@@ -1932,11 +2298,13 @@ function QuantityControl({
   );
 }
 
-function LoadInput({
+function EquipmentLoadInput({
   label,
   value,
   placeholder,
   onChange,
+  styles,
+  colors,
 }) {
   return (
     <View
@@ -1972,7 +2340,8 @@ function LoadInput({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors, isDark) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor:
@@ -1981,10 +2350,12 @@ const styles = StyleSheet.create({
 
   background: {
     flex: 1,
+    backgroundColor: colors.background,
   },
 
   safeArea: {
     flex: 1,
+    backgroundColor: isDark ? 'transparent' : colors.background,
   },
 
   darkOverlay: {
@@ -1994,9 +2365,9 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingHorizontal:
-      spacing.xl,
+    paddingHorizontal: spacing.xl,
     paddingTop: 8,
+    paddingBottom: 30,
   },
 
   loadingScreen: {
@@ -2009,16 +2380,15 @@ const styles = StyleSheet.create({
   },
 
   loadingText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 11,
-    letterSpacing: 0.8,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 13,
+    letterSpacing: 0.1,
     color:
       colors.textSecondary,
   },
 
   header: {
-    minHeight: 74,
+    minHeight: 70,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -2028,11 +2398,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor:
-      'rgba(17,21,26,0.90)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.10)',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2042,67 +2410,51 @@ const styles = StyleSheet.create({
   },
 
   headerEyebrow: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 1,
+    fontFamily: 'Oswald_500Medium',
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.35,
     color:
       colors.textSecondary,
   },
 
   headerTitle: {
-    ...typography.display,
+    fontFamily: MANROPE.extraBold,
     fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: 1.7,
+    lineHeight: 38,
+    letterSpacing: -0.8,
     color:
       colors.textPrimary,
   },
 
   blueDot: {
-    color: colors.primary,
+    color: BRAND_KAKI,
   },
 
   brandIcon: {
-    width: 45,
-    height: 45,
+    width: 44,
+    height: 44,
   },
 
   intro: {
-    marginTop: 25,
-  },
-
-  introTitle: {
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 31,
-    lineHeight: 34,
-    letterSpacing: 1.4,
-    color:
-      colors.textPrimary,
+    marginTop: 4,
   },
 
   introText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 13,
-    lineHeight: 20,
-    color:
-      colors.textSecondary,
-    marginTop: 6,
-    maxWidth: 355,
+    fontFamily: MANROPE.regular,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.textSecondary,
   },
 
   infoCard: {
-    marginTop: 22,
+    marginTop: 18,
     borderRadius: 16,
     padding: 14,
-    backgroundColor:
-      'rgba(8,104,255,0.08)',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
     borderColor:
-      'rgba(8,104,255,0.20)',
+      'rgba(94,102,51,0.20)',
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
@@ -2110,10 +2462,9 @@ const styles = StyleSheet.create({
 
   infoText: {
     flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color:
       colors.textSecondary,
   },
@@ -2122,11 +2473,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 16,
     padding: 14,
-    backgroundColor:
-      'rgba(255,59,59,0.08)',
+    backgroundColor: colors.secondaryAccentSoft,
     borderWidth: 1,
     borderColor:
-      'rgba(255,59,59,0.28)',
+      'rgba(255,107,25,0.28)',
     flexDirection: 'row',
     gap: 10,
   },
@@ -2136,46 +2486,351 @@ const styles = StyleSheet.create({
   },
 
   errorTitle: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.7,
-    color: colors.brandRed,
+    fontFamily: MANROPE.bold,
+    fontSize: 12,
+    letterSpacing: 0.2,
+    color: BRAND_ORANGE,
   },
 
   errorText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color:
       colors.textSecondary,
     marginTop: 3,
   },
 
-  equipmentList: {
+  catalogTools: {
     marginTop: 18,
+    gap: 14,
+  },
+
+  searchResultsHeader: {
+    marginTop: 2,
+  },
+
+  searchResultMeta: {
+    marginTop: 2,
+    fontFamily: MANROPE.regular,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textMuted,
+  },
+
+  searchShell: {
+    minHeight: 48,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.11)' : colors.border,
+    backgroundColor: isDark ? 'rgba(17,21,26,0.92)' : colors.surfaceElevated,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
 
-  equipmentCard: {
-    borderRadius: 17,
-    backgroundColor:
-      'rgba(17,21,26,0.92)',
+  searchInput: {
+    flex: 1,
+    paddingVertical: 0,
+    fontFamily: MANROPE.regular,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+
+  locationTabs: {
+    gap: 8,
+    paddingRight: 4,
+  },
+
+  locationTab: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.09)',
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  locationTabSelected: {
+    backgroundColor: BRAND_KAKI,
+    borderColor: BRAND_KAKI,
+  },
+
+  locationTabText: {
+    fontFamily: MANROPE.semiBold,
+    fontSize: 12,
+    letterSpacing: 0,
+    color: colors.textSecondary,
+  },
+
+  locationTabTextSelected: {
+    color: colors.brandWhite,
+  },
+
+  categoryIntroRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  categoryIntroCopy: {
+    flex: 1,
+  },
+
+  categoryIntroTitle: {
+    fontFamily: MANROPE.bold,
+    fontSize: 15,
+    lineHeight: 21,
+    letterSpacing: -0.2,
+    color: colors.textPrimary,
+  },
+
+  categoryIntroText: {
+    marginTop: 3,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  categoryCard: {
+    width: '48%',
+    minHeight: 132,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+  },
+
+  categoryCardPressed: {
+    opacity: 0.84,
+    transform: [{ scale: 0.985 }],
+  },
+
+  categoryHeroIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+    marginBottom: 10,
+  },
+
+  categoryCardLabel: {
+    fontFamily: MANROPE.bold,
+    fontSize: 15,
+    lineHeight: 20,
+    letterSpacing: -0.15,
+    color: colors.textPrimary,
+  },
+
+  categoryCardDescription: {
+    marginTop: 3,
+    minHeight: 34,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+
+  categoryCardFooter: {
+    marginTop: 'auto',
+    paddingTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  categoryCardCount: {
+    flexShrink: 1,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.accent,
+  },
+
+  categoryBackRow: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  categoryBackText: {
+    fontFamily: MANROPE.semiBold,
+    fontSize: 12,
+    letterSpacing: 0,
+    color: BRAND_KAKI,
+  },
+
+  activeCategoryHero: {
+    minHeight: 76,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  activeCategoryIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  activeCategoryCopy: {
+    flex: 1,
+  },
+
+  activeCategoryTitle: {
+    fontFamily: MANROPE.bold,
+    fontSize: 17,
+    lineHeight: 22,
+    color: colors.textPrimary,
+  },
+
+  activeCategoryDescription: {
+    marginTop: 2,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+
+  activeCategoryCount: {
+    fontFamily: MANROPE.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.accent,
+  },
+
+  categoryTabs: {
+    gap: 10,
+    paddingRight: 8,
+  },
+
+  categoryTab: {
+    width: 174,
+    minHeight: 104,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
+    backgroundColor: isDark ? 'rgba(17,21,26,0.88)' : colors.surfaceElevated,
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  categoryTabSelected: {
+    borderColor: BRAND_KAKI,
+    backgroundColor: colors.accentSoft,
+  },
+
+  categoryIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(94,102,51,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  categoryIconSelected: {
+    backgroundColor: BRAND_KAKI,
+  },
+
+  categoryTabCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  categoryTabLabel: {
+    fontFamily: MANROPE.bold,
+    fontSize: 14,
+    lineHeight: 19,
+    color: colors.textPrimary,
+  },
+
+  categoryTabMeta: {
+    marginTop: 3,
+    fontFamily: MANROPE.regular,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textMuted,
+  },
+
+  categoryTabCount: {
+    marginTop: 6,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 10,
+    lineHeight: 15,
+    color: BRAND_ORANGE,
+  },
+
+  catalogSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+
+  catalogSummaryText: {
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
+    color: colors.textMuted,
+  },
+
+  catalogSummarySelected: {
+    fontFamily: MANROPE.bold,
+    fontSize: 11,
+    letterSpacing: 0.1,
+    color: BRAND_KAKI,
+  },
+
+  equipmentList: {
+    marginTop: 12,
+    gap: 8,
+  },
+
+  equipmentCard: {
+    borderRadius: 13,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
 
   equipmentCardSelected: {
     borderColor:
-      'rgba(8,104,255,0.42)',
+      'rgba(94,102,51,0.42)',
   },
 
   bodyweightCard: {
-    borderColor:
-      'rgba(255,255,255,0.08)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.08)'
+      : colors.border,
   },
 
   bodyweightIcon: {
@@ -2186,8 +2841,8 @@ const styles = StyleSheet.create({
   },
 
   equipmentHeader: {
-    minHeight: 74,
-    paddingHorizontal: 14,
+    minHeight: 64,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -2205,20 +2860,18 @@ const styles = StyleSheet.create({
   },
 
   equipmentName: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 16,
-    lineHeight: 21,
-    letterSpacing: 0.35,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 14,
+    lineHeight: 19,
+    letterSpacing: -0.15,
     color:
       colors.textPrimary,
   },
 
   equipmentHint: {
-    fontFamily:
-      'Oswald_400Regular',
+    fontFamily: MANROPE.regular,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
     color:
       colors.textMuted,
   },
@@ -2226,27 +2879,28 @@ const styles = StyleSheet.create({
   checkbox: {
     width: 24,
     height: 24,
-    borderRadius: 7,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.20)',
-    backgroundColor:
-      'rgba(255,255,255,0.03)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.20)'
+      : colors.borderStrong,
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.03)'
+      : colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   checkboxSelected: {
-    backgroundColor:
-      colors.primary,
-    borderColor:
-      colors.primary,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
 
   configurationArea: {
     borderTopWidth: 1,
-    borderTopColor:
-      'rgba(255,255,255,0.07)',
+    borderTopColor: isDark
+      ? 'rgba(255,255,255,0.07)'
+      : colors.border,
     padding: 14,
     gap: 12,
   },
@@ -2255,8 +2909,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 3,
     borderRadius: 12,
-    backgroundColor:
-      'rgba(255,255,255,0.04)',
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.04)'
+      : colors.surface,
     gap: 3,
   },
 
@@ -2269,15 +2924,13 @@ const styles = StyleSheet.create({
   },
 
   modeTabSelected: {
-    backgroundColor:
-      colors.primary,
+    backgroundColor: colors.accent,
   },
 
   modeTabText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
     color:
       colors.textMuted,
   },
@@ -2288,10 +2941,9 @@ const styles = StyleSheet.create({
   },
 
   fieldLabel: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.6,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 10,
+    letterSpacing: 0.2,
     color:
       colors.textMuted,
     marginBottom: 6,
@@ -2304,10 +2956,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.10)',
-    backgroundColor:
-      'rgba(255,255,255,0.03)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.10)'
+      : colors.border,
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.03)'
+      : colors.surface,
     overflow: 'hidden',
   },
 
@@ -2325,9 +2979,8 @@ const styles = StyleSheet.create({
   quantityValue: {
     minWidth: 34,
     textAlign: 'center',
-    fontFamily:
-      'BebasNeue_400Regular',
-    fontSize: 22,
+    fontFamily: MANROPE.extraBold,
+    fontSize: 18,
     color:
       colors.textPrimary,
   },
@@ -2335,11 +2988,13 @@ const styles = StyleSheet.create({
   loadGroup: {
     borderRadius: 13,
     padding: 12,
-    backgroundColor:
-      'rgba(255,255,255,0.025)',
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.025)'
+      : colors.surface,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.07)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.07)'
+      : colors.border,
   },
 
   loadGroupTop: {
@@ -2351,10 +3006,9 @@ const styles = StyleSheet.create({
   },
 
   loadGroupTitle: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.7,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
     color:
       colors.textSecondary,
   },
@@ -2380,10 +3034,12 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor:
-      'rgba(255,255,255,0.11)',
-    backgroundColor:
-      'rgba(255,255,255,0.035)',
+    borderColor: isDark
+      ? 'rgba(255,255,255,0.11)'
+      : colors.border,
+    backgroundColor: isDark
+      ? 'rgba(255,255,255,0.035)'
+      : colors.surfaceElevated,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 11,
@@ -2392,17 +3048,15 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     paddingVertical: 0,
-    fontFamily:
-      'Oswald_600SemiBold',
+    fontFamily: MANROPE.semiBold,
     fontSize: 15,
     color:
       colors.textPrimary,
   },
 
   inputSuffix: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 9,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 10,
     color:
       colors.textMuted,
   },
@@ -2413,9 +3067,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor:
-      'rgba(8,104,255,0.35)',
+      'rgba(94,102,51,0.35)',
     backgroundColor:
-      'rgba(8,104,255,0.05)',
+      'rgba(94,102,51,0.05)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2423,12 +3077,11 @@ const styles = StyleSheet.create({
   },
 
   addLoadText: {
-    fontFamily:
-      'Oswald_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontFamily: MANROPE.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
     color:
-      colors.primaryLight,
+      BRAND_KAKI,
   },
 
   unknownLoadArea: {
@@ -2436,9 +3089,9 @@ const styles = StyleSheet.create({
   },
 
   unknownLoadText: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color: colors.textSecondary,
   },
 
@@ -2447,9 +3100,9 @@ const styles = StyleSheet.create({
   },
 
   resistanceHelp: {
-    fontFamily: 'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color: colors.textSecondary,
     marginBottom: 2,
   },
@@ -2467,8 +3120,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderColor: isDark ? 'rgba(255,255,255,0.11)' : colors.border,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : colors.surfaceElevated,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -2476,20 +3129,20 @@ const styles = StyleSheet.create({
   },
 
   resistanceChipSelected: {
-    borderColor: colors.primary,
-    backgroundColor: 'rgba(8,104,255,0.12)',
+    borderColor: BRAND_KAKI,
+    backgroundColor: 'rgba(94,102,51,0.12)',
   },
 
   resistanceChipText: {
     flexShrink: 1,
-    fontFamily: 'Oswald_700Bold',
+    fontFamily: MANROPE.semiBold,
     fontSize: 12,
-    letterSpacing: 0.45,
+    letterSpacing: 0,
     color: colors.textSecondary,
   },
 
   resistanceChipTextSelected: {
-    color: colors.primaryLight,
+    color: BRAND_KAKI,
   },
 
   adjustableArea: {
@@ -2505,15 +3158,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  noResultCard: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(94,102,51,0.18)',
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+
+  noResultTextArea: {
+    flex: 1,
+  },
+
+  noResultTitle: {
+    fontFamily: MANROPE.bold,
+    fontSize: 13,
+    letterSpacing: 0,
+    color: colors.textPrimary,
+  },
+
+  noResultText: {
+    marginTop: 3,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+
   emptyCard: {
     marginTop: 16,
     borderRadius: 16,
     padding: 14,
-    backgroundColor:
-      'rgba(8,104,255,0.06)',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
     borderColor:
-      'rgba(8,104,255,0.18)',
+      'rgba(94,102,51,0.18)',
     flexDirection: 'row',
     gap: 10,
     alignItems: 'flex-start',
@@ -2521,30 +3203,27 @@ const styles = StyleSheet.create({
 
   emptyText: {
     flex: 1,
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontFamily: MANROPE.regular,
+    fontSize: 13,
+    lineHeight: 19,
     color:
       colors.textSecondary,
   },
 
   validationText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color:
-      colors.brandRed,
+      BRAND_ORANGE,
     marginTop: 12,
   },
 
   saveButton: {
-    minHeight: 56,
-    marginTop: 22,
+    minHeight: 58,
+    marginTop: 18,
     borderRadius: 16,
-    backgroundColor:
-      colors.primary,
+    backgroundColor: colors.accent,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2552,8 +3231,7 @@ const styles = StyleSheet.create({
   },
 
   saveButtonDone: {
-    backgroundColor:
-      colors.primary,
+    backgroundColor: colors.accent,
   },
 
   saveButtonDisabled: {
@@ -2569,19 +3247,18 @@ const styles = StyleSheet.create({
   },
 
   saveButtonText: {
-    fontFamily:
-      'Oswald_700Bold',
-    fontSize: 13,
-    letterSpacing: 0.8,
+    fontFamily: MANROPE.bold,
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.1,
     color:
       colors.brandWhite,
   },
 
   footerText: {
-    fontFamily:
-      'Oswald_400Regular',
-    fontSize: 11,
-    lineHeight: 17,
+    fontFamily: MANROPE.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color:
       colors.textMuted,
     textAlign: 'center',
@@ -2595,4 +3272,5 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.72,
   },
-});
+  });
+}

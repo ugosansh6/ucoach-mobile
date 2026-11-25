@@ -1,0 +1,1 @@
+deploy EQP-002 with categories limited to Profile > Matériel; Preparation restored

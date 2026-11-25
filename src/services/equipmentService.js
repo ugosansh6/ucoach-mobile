@@ -1,55 +1,128 @@
 import { supabase } from '../lib/supabase';
+import {
+  getAuthenticatedUserWithRetry,
+  runSupabaseRequestWithAuthRetry,
+} from '../lib/supabaseAuthRetry';
 
 async function getAuthenticatedUser() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error) {
-    throw error;
-  }
-
-  if (!user) {
-    throw new Error(
-      'Aucun utilisateur connecté. Reconnecte-toi puis recommence.'
-    );
-  }
-
-  return user;
+  return getAuthenticatedUserWithRetry();
 }
 
 export async function getEquipmentCatalog() {
+  const {
+    data: categorizedData,
+    error: categorizedError,
+  } = await supabase
+    .from('equipment_catalog_v2')
+    .select(
+      'id, name, category, description, locations, exercise_count'
+    )
+    .order('name', { ascending: true });
+
+  if (!categorizedError) {
+    return (categorizedData ?? [])
+      .filter(
+        (item) =>
+          item.id === 'E00' ||
+          item.exercise_count === null ||
+          item.exercise_count === undefined ||
+          Number(item.exercise_count) > 0
+      )
+      .map((item) => ({
+        ...item,
+        locations: Array.isArray(item.locations)
+          ? item.locations
+          : [],
+      }));
+  }
+
+  /*
+   * Compatibilité temporaire avec un environnement plus ancien
+   * qui n'aurait pas encore reçu equipment_catalog_v2.
+   */
   const { data, error } = await supabase
     .from('equipment')
-    .select('id, name')
+    .select('id, name, category, description')
     .order('id', { ascending: true });
 
   if (error) {
-    throw error;
+    throw categorizedError ?? error;
   }
 
-  return data ?? [];
+  return (data ?? []).map((item) => ({
+    ...item,
+    locations: [],
+  }));
 }
 
 export async function getUserEquipmentInventory() {
   const user = await getAuthenticatedUser();
 
-  const { data, error } = await supabase
-    .from('user_equipment_inventory')
-    .select(
-      'id, equipment_id, inventory_mode, quantity, load_kg, min_load_kg, max_load_kg, increment_kg, resistance_label, active, notes'
-    )
-    .eq('user_id', user.id)
-    .eq('active', true)
-    .order('equipment_id', { ascending: true })
-    .order('load_kg', { ascending: true });
-
-  if (error) {
-    throw error;
-  }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase
+      .from('user_equipment_inventory')
+      .select(
+        'id, equipment_id, inventory_mode, quantity, load_kg, min_load_kg, max_load_kg, increment_kg, resistance_label, active, notes'
+      )
+      .eq('user_id', user.id)
+      .eq('active', true)
+      .order('equipment_id', { ascending: true })
+      .order('load_kg', { ascending: true })
+  );
 
   return data ?? [];
+}
+
+function normalizeEnvironmentCode(value) {
+  const code = String(value ?? 'HOME').trim().toUpperCase();
+  return ['HOME', 'BOX', 'GYM', 'OUTDOOR'].includes(code) ? code : 'HOME';
+}
+
+export async function getUserEnvironmentEquipmentPreset(environmentCode = 'HOME') {
+  const environment = normalizeEnvironmentCode(environmentCode);
+
+  // HOME reste l'inventaire personnel historique, avec quantité/charges.
+  if (environment === 'HOME') {
+    return getUserEquipmentInventory();
+  }
+
+  const user = await getAuthenticatedUser();
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase
+      .from('user_environment_equipment_presets')
+      .select('equipment_id, created_at, updated_at')
+      .eq('user_id', user.id)
+      .eq('environment_code', environment)
+      .order('equipment_id', { ascending: true })
+  );
+
+  return (data ?? []).map((row) => ({
+    ...row,
+    inventory_mode: 'non_load',
+    quantity: 1,
+    active: true,
+  }));
+}
+
+export async function replaceUserEnvironmentEquipmentPreset(environmentCode, equipmentIds) {
+  await getAuthenticatedUser();
+  const environment = normalizeEnvironmentCode(environmentCode);
+  const ids = Array.from(
+    new Set(
+      (Array.isArray(equipmentIds) ? equipmentIds : [])
+        .map((value) => String(value ?? '').trim())
+        .filter((value) => value && value !== 'E00')
+    )
+  );
+
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc('replace_user_environment_equipment_preset', {
+      p_environment_code: environment,
+      p_equipment_ids: ids,
+    })
+  );
+
+  return Array.isArray(data) ? data : [];
 }
 
 function normalizeInventoryRow(row) {
@@ -159,16 +232,14 @@ export async function replaceUserEquipmentInventory(rows) {
    * Si une ligne est invalide, toute l'opération est annulée :
    * l'ancien inventaire n'est jamais supprimé à moitié.
    */
-  const { data, error } = await supabase.rpc(
-    'replace_user_equipment_inventory',
-    {
-      p_rows: normalizedRows,
-    }
+  const data = await runSupabaseRequestWithAuthRetry(() =>
+    supabase.rpc(
+      'replace_user_equipment_inventory',
+      {
+        p_rows: normalizedRows,
+      }
+    )
   );
-
-  if (error) {
-    throw error;
-  }
 
   return Array.isArray(data) ? data : [];
 }

@@ -10,6 +10,14 @@ import {
 } from '@expo-google-fonts/bebas-neue';
 
 import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from '@expo-google-fonts/manrope';
+
+import {
   Oswald_400Regular,
   Oswald_500Medium,
   Oswald_600SemiBold,
@@ -18,12 +26,17 @@ import {
 
 import { colors } from '../src/constants';
 import { OnboardingProvider } from '../src/contexts/OnboardingContext';
+import { UgerodThemeProvider } from '../src/contexts/UgerodThemeContext';
 import { WorkoutProvider } from '../src/contexts/WorkoutContext';
-import SessionAdaptationOverlay from '../src/components/workout/SessionAdaptationOverlay';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     BebasNeue_400Regular,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
     Oswald_400Regular,
     Oswald_500Medium,
     Oswald_600SemiBold,
@@ -35,10 +48,7 @@ export default function RootLayout() {
       playsInSilentMode: true,
       interruptionMode: 'mixWithOthers',
     }).catch((error) => {
-      console.warn(
-        'UGEROD audio mixing mode',
-        error
-      );
+      console.warn('UGEROD audio mixing mode', error);
     });
   }, []);
 
@@ -48,22 +58,28 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <OnboardingProvider>
-        <WorkoutProvider>
-          <StatusBar style="light" />
+      <UgerodThemeProvider>
+        <OnboardingProvider>
+          <WorkoutProvider>
+            {/*
+             * Les écrans migrés gèrent leur StatusBar selon le thème.
+             * La valeur racine reste sombre tant que la passe UX globale
+             * n'a pas migré les anciens écrans vers le thème partagé.
+             */}
+            <StatusBar style="light" />
 
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: {
-                backgroundColor: colors.background,
-              },
-            }}
-          />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: {
+                  backgroundColor: colors.background,
+                },
+              }}
+            />
 
-          <SessionAdaptationOverlay />
-        </WorkoutProvider>
-      </OnboardingProvider>
+          </WorkoutProvider>
+        </OnboardingProvider>
+      </UgerodThemeProvider>
     </SafeAreaProvider>
   );
 }

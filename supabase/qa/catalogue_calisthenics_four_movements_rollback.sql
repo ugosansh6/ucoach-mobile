@@ -1,0 +1,20 @@
+BEGIN;
+INSERT INTO auth.users(id,instance_id,aud,role,email,created_at,updated_at) VALUES('00000000-0000-0000-0000-000000949022','00000000-0000-0000-0000-000000000000','authenticated','authenticated','qa-calisthenics-dose@example.invalid',now(),now());
+INSERT INTO profiles(id,weight,subscription_tier,experience) VALUES('00000000-0000-0000-0000-000000949022',80,'PREMIUM','advanced') ON CONFLICT(id) DO UPDATE SET weight=80,subscription_tier='PREMIUM',experience='advanced';
+SET LOCAL request.jwt.claim.sub='00000000-0000-0000-0000-000000949022';
+DO $qa$ DECLARE u uuid:=auth.uid(); d jsonb; p jsonb; c jsonb; item uuid; sid uuid; ids text[]:=ARRAY['EX582','EX583','EX584','EX585']; gear text[]:=ARRAY['E05','E52','E07','E51']; compat jsonb; BEGIN
+ IF (SELECT count(*) FROM exercises WHERE id=ANY(ids) AND description IS NOT NULL AND instructions IS NOT NULL AND tips IS NOT NULL)<>4 THEN RAISE EXCEPTION 'Incomplete catalogue';END IF;
+ compat:=week_composer_exercise_compatibility_v1(ids,ARRAY['E05','E52','E50','E07','E51'],'OUTDOOR');
+ IF (SELECT count(*) FROM jsonb_each(compat) x WHERE x.value->>'equipment_ok'='true' AND x.value->>'environment_ok'='true')<>4 THEN RAISE EXCEPTION 'Equipment context failure';END IF;
+ IF exercise_equipment_compatible('EX583','[{"equipment_id":"E07","quantity":1}]') OR exercise_equipment_compatible('EX584','[{"equipment_id":"E07","quantity":1}]') OR exercise_equipment_compatible('EX582','[{"equipment_id":"E05","quantity":1}]') THEN RAISE EXCEPTION 'Missing equipment accepted';END IF;
+ d:='{"version":"w11-composer-draft-v1","structure_stable":true,"wod_engine_version":"C4_COMPOSER_V2","duration_minutes":60,"environment_code":"HOME","target_region":"Upper","progression_intent":"MAINTAIN","intent":{"focus":"Strength"},"equipment_ids":["E05","E52","E07","E51"],"architecture":{"blocks":[{"type":"STRENGTH","minutes":45,"exercises":[{"id":"EX582","manual_dose":{"sets":3,"reps":10,"rest_seconds":90}},{"id":"EX584","manual_dose":{"sets":2,"duration_seconds":15}},{"id":"EX585","manual_dose":{"sets":2,"duration_seconds":40}}]}]}}';
+ p:=week_composer_prescription_preview_v1(u,d,gear);
+ IF p->>'status'<>'PREVIEW' THEN RAISE EXCEPTION 'Preview failed %',p->>'reason'; END IF;
+ INSERT INTO user_training_plan_items(user_id,sequence_index,recommended_date,status,planned_duration_minutes,planned_focus,planned_target_region,planned_progression_intent,planning_context_json) VALUES(u,0,current_date,'available',60,'Strength','Upper','MAINTAIN','{"w11":{}}') RETURNING id INTO item;
+ IF week_save_composer_revision_v1(u,item,d,null,false)->>'status'<>'SAVED' THEN RAISE EXCEPTION 'Save failed';END IF;
+ c:=week_compile_composer_day_j_v1(u,item,current_date,6,ARRAY['Aucune'],gear,'HOME'); IF c->>'status'<>'READY' THEN RAISE EXCEPTION 'Compile failed %',c; END IF;
+ sid:=(c->>'session_id')::uuid;
+ IF (SELECT count(*) FROM workout_session_exercises WHERE session_id=sid AND ((exercise_id='EX582' AND prescription_json->>'sets'='3' AND prescription_json->>'execution_target_reps'='10') OR (exercise_id='EX584' AND prescription_json->>'sets'='2' AND prescription_json->>'execution_target_duration_seconds'='15') OR (exercise_id='EX585' AND prescription_json->>'sets'='2' AND prescription_json->>'execution_target_duration_seconds'='40')))<>3 THEN RAISE EXCEPTION 'Compiled doses mismatch'; END IF;
+END $qa$;
+SELECT 'PASS: catalogue, required equipment, preview, save and three compiled exercise prescriptions' result;
+ROLLBACK;

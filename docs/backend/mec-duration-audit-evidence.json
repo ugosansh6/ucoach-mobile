@@ -1,0 +1,6190 @@
+{
+  "audit_date": "2026-11-17",
+  "source_commit": "bc9a8b427f1d94c58fe12f07ac6b504c8cdd5776",
+  "environment": "DEV",
+  "mode": "OBSERVATIONAL_NO_POLICY_OR_FUNCTION_CHANGE",
+  "scope_limits": [
+    "HOME, cold-start synthetic athletes only",
+    "PURE finalizers omit athlete runtime context; no safety claim",
+    "Composer preview/save/Day-J, not device execution/history",
+    "AUTO direct C4 planner, not deployed Edge/auth/HTTP/persistence E2E",
+    "24 AUTO cases use candidate_count=20; 2 added probes use deployed HOME/BOX search width=8",
+    "Timings are sequential observations with track_functions enabled, not production percentiles"
+  ],
+  "caps": {
+    "DECK": 40,
+    "EMOM": 40,
+    "HIIT": 25,
+    "AMRAP": 35,
+    "LADDER": 40,
+    "CHIPPER": 50,
+    "CIRCUIT": 50,
+    "COUPLET": 40,
+    "DEFAULT": 50,
+    "PYRAMID": 40,
+    "FOR_TIME": 40,
+    "ODD_EVEN": 40,
+    "STRENGTH": 50,
+    "SETS_REPS": 50,
+    "REP_TARGET": 40,
+    "EVERY_X_MINUTES": 50,
+    "PROGRESSIVE_INTERVAL": 40
+  },
+  "architecture": {
+    "version": "session-architecture-v2",
+    "durations": {
+      "20": {
+        "tabata_minutes": 4,
+        "unlock_minutes": 2,
+        "warmup_minutes": 5,
+        "wod_target_minutes": 9,
+        "skill_target_minutes": 0,
+        "unlock_exercise_count": 2,
+        "warmup_exercise_count": 2
+      },
+      "30": {
+        "tabata_minutes": 4,
+        "unlock_minutes": 2,
+        "warmup_minutes": 5,
+        "wod_target_minutes": 12,
+        "skill_target_minutes": 5,
+        "unlock_exercise_count": 2,
+        "warmup_exercise_count": 2
+      },
+      "45": {
+        "tabata_minutes": 4,
+        "unlock_minutes": 2,
+        "warmup_minutes": 6,
+        "wod_target_minutes": 15,
+        "skill_target_minutes": 9,
+        "unlock_exercise_count": 2,
+        "warmup_exercise_count": 3
+      },
+      "60": {
+        "tabata_minutes": 4,
+        "unlock_minutes": 3,
+        "warmup_minutes": 6,
+        "wod_target_minutes": 20,
+        "skill_target_minutes": 12,
+        "unlock_exercise_count": 2,
+        "warmup_exercise_count": 3
+      },
+      "75": {
+        "tabata_minutes": 4,
+        "unlock_minutes": 3,
+        "warmup_minutes": 7,
+        "wod_target_minutes": 30,
+        "skill_target_minutes": 18,
+        "unlock_exercise_count": 3,
+        "warmup_exercise_count": 3
+      },
+      "90": {
+        "tabata_minutes": 4,
+        "unlock_minutes": 4,
+        "warmup_minutes": 7,
+        "wod_target_minutes": 35,
+        "skill_target_minutes": 25,
+        "unlock_exercise_count": 3,
+        "warmup_exercise_count": 3
+      }
+    },
+    "minimum_wod_minutes": 8,
+    "warmup_budget_contract": {
+      "rounds": 3,
+      "version": "warmup-round-budget-v1",
+      "long_session_minutes": 7,
+      "duration_floor_source": "RESTORED_EXISTING_V1_WARMUP_BUDGET",
+      "short_session_minutes": 5,
+      "standard_session_minutes": 6,
+      "budget_includes_all_rounds": true,
+      "frontend_must_display_block_total_not_per_round": true
+    },
+    "tabata_core_daily_default": true,
+    "tabata_exception_max_duration": 30,
+    "duration_is_maximum_not_fill_target": true
+  },
+  "score_probe": [
+    {
+      "mechanic_key": "AMRAP",
+      "scores": {
+        "20": 70.5,
+        "30": 70.5,
+        "45": 70.5,
+        "60": 70.5,
+        "75": 70.5,
+        "90": 70.5
+      },
+      "cap": 35
+    },
+    {
+      "mechanic_key": "CIRCUIT",
+      "scores": {
+        "20": 89,
+        "30": 89,
+        "45": 89,
+        "60": 89,
+        "75": 89,
+        "90": 89
+      },
+      "cap": 50
+    },
+    {
+      "mechanic_key": "EMOM",
+      "scores": {
+        "20": 86,
+        "30": 86,
+        "45": 86,
+        "60": 86,
+        "75": 86,
+        "90": 86
+      },
+      "cap": 40
+    },
+    {
+      "mechanic_key": "FOR_TIME",
+      "scores": {
+        "20": 75.5,
+        "30": 75.5,
+        "45": 75.5,
+        "60": 75.5,
+        "75": 75.5,
+        "90": 75.5
+      },
+      "cap": 40
+    },
+    {
+      "mechanic_key": "HIIT",
+      "scores": {
+        "20": 67.6,
+        "30": 67.6,
+        "45": 67.6,
+        "60": 67.6,
+        "75": 61.6,
+        "90": 55.6
+      },
+      "cap": 25
+    }
+  ],
+  "function_hashes": [
+    {
+      "proname": "c2_mechanic_fit",
+      "definition_md5": "a8322f44cddd914ad46fa1f94d5763b7"
+    },
+    {
+      "proname": "c4_finalize_candidate_pre_m72",
+      "definition_md5": "65a61f241142a9258d505349a15fd786"
+    },
+    {
+      "proname": "c4_mechanic_duration_contract",
+      "definition_md5": "fd88c946bac0564557910ac700ec6bb4"
+    },
+    {
+      "proname": "c4_mechanic_wod_cap_minutes",
+      "definition_md5": "69f11283f99243e2f645c890c3c2bbca"
+    },
+    {
+      "proname": "c4_plan_full_session_v2",
+      "definition_md5": "a3a641673916b3b63f5e29022696f6fd"
+    },
+    {
+      "proname": "week_compile_composer_day_j_v1",
+      "definition_md5": "fc620affc9322ca5bb56cc474b32f567"
+    },
+    {
+      "proname": "week_composer_prescription_preview_v1",
+      "definition_md5": "b4ed89aa70512840958166e487609fc2"
+    }
+  ],
+  "edge_versions": {
+    "coach_handler": {
+      "version": 20,
+      "sha256": "08e57e05e4af288ef8e83d61c78272cd04971814f7d6ceb21d027e0f10069f20",
+      "home_box_initial_candidate_count": 8
+    },
+    "environment_session_handler": {
+      "version": 3,
+      "only": "GYM/OUTDOOR; not exercised"
+    }
+  },
+  "pure_finalizer_matrix": [
+    {
+      "result": {
+        "mode": "PURE",
+        "rows": [
+          {
+            "ms": 18.34,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 4,
+              "duration_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 480
+          },
+          {
+            "ms": 3.73,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 6,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 720
+          },
+          {
+            "ms": 2.59,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 9,
+              "duration_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1020
+          },
+          {
+            "ms": 2.56,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 11,
+              "duration_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1320
+          },
+          {
+            "ms": 2.49,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 19,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.55,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 19,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 1.87,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 19,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.76,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 2,
+              "station_seconds": 60,
+              "duration_minutes": 6
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 360
+          },
+          {
+            "ms": 1.94,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 4,
+              "station_seconds": 60,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 720
+          },
+          {
+            "ms": 1.93,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 5,
+              "station_seconds": 60,
+              "duration_minutes": 15
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 900
+          },
+          {
+            "ms": 1.85,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 7,
+              "station_seconds": 60,
+              "duration_minutes": 21
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1260
+          },
+          {
+            "ms": 1.89,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 11,
+              "station_seconds": 60,
+              "duration_minutes": 33
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1980
+          },
+          {
+            "ms": 1.82,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 13,
+              "station_seconds": 60,
+              "duration_minutes": 39
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2340
+          },
+          {
+            "ms": 1.83,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 13,
+              "station_seconds": 60,
+              "duration_minutes": 39
+            },
+            "effective_wod": 40,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2340
+          },
+          {
+            "ms": 2.38,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "cap_seconds": 480
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 297
+          },
+          {
+            "ms": 1.89,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 720
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 495
+          },
+          {
+            "ms": 1.82,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 7,
+              "cap_seconds": 1020
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 693
+          },
+          {
+            "ms": 1.95,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 10,
+              "cap_seconds": 1320
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 990
+          },
+          {
+            "ms": 1.78,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 15,
+              "cap_seconds": 2100
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1485
+          },
+          {
+            "ms": 1.87,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 18,
+              "cap_seconds": 2400
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1782
+          },
+          {
+            "ms": 1.83,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 18,
+              "cap_seconds": 2400
+            },
+            "effective_wod": 40,
+            "requested_wod": 60,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1782
+          },
+          {
+            "ms": 2.42,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 387
+          },
+          {
+            "ms": 1.93,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 531
+          },
+          {
+            "ms": 1.78,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 819
+          },
+          {
+            "ms": 1.86,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 8,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 1107
+          },
+          {
+            "ms": 1.83,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 13,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 1827
+          },
+          {
+            "ms": 1.85,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 15,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 2115
+          },
+          {
+            "ms": 1.8,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 19,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 50,
+            "requested_wod": 60,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 2691
+          },
+          {
+            "ms": 4.77,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 20,
+              "work_seconds": 30,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 450
+          },
+          {
+            "ms": 1.42,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 675
+          },
+          {
+            "ms": 1.33,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 30,
+              "work_seconds": 50,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 960
+          },
+          {
+            "ms": 1.31,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 5,
+              "rest_seconds": 30,
+              "work_seconds": 50,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1200
+          },
+          {
+            "ms": 1.25,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "ms": 1.24,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "ms": 1.28,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "cap": 25,
+            "case": "NULL_EXACT_USES_C3_DEFAULT",
+            "mechanic": "HIIT",
+            "effective_wod": 30,
+            "requested_wod": null
+          }
+        ],
+        "scope": "ISOLATED_FINALIZER_WITHOUT_ATHLETE_RUNTIME_CONTEXT",
+        "equipment": "none",
+        "readiness": "low",
+        "elapsed_ms": 120.67
+      },
+      "trace": [
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 36,
+          "self_ms": 1.76
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 36,
+          "self_ms": 1.63
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 72,
+          "self_ms": 5.14
+        }
+      ]
+    },
+    {
+      "result": {
+        "mode": "PURE",
+        "rows": [
+          {
+            "ms": 20.34,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 4,
+              "duration_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 480
+          },
+          {
+            "ms": 3.96,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 6,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 720
+          },
+          {
+            "ms": 2.79,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 9,
+              "duration_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1020
+          },
+          {
+            "ms": 2.74,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 11,
+              "duration_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1320
+          },
+          {
+            "ms": 2.71,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 19,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.73,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 19,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.08,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 19,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.97,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 2,
+              "station_seconds": 60,
+              "duration_minutes": 6
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 360
+          },
+          {
+            "ms": 2.09,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 4,
+              "station_seconds": 60,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 720
+          },
+          {
+            "ms": 2.14,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 5,
+              "station_seconds": 60,
+              "duration_minutes": 15
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 900
+          },
+          {
+            "ms": 1.97,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 7,
+              "station_seconds": 60,
+              "duration_minutes": 21
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1260
+          },
+          {
+            "ms": 2.01,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 11,
+              "station_seconds": 60,
+              "duration_minutes": 33
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1980
+          },
+          {
+            "ms": 1.99,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 13,
+              "station_seconds": 60,
+              "duration_minutes": 39
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2340
+          },
+          {
+            "ms": 1.99,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 13,
+              "station_seconds": 60,
+              "duration_minutes": 39
+            },
+            "effective_wod": 40,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2340
+          },
+          {
+            "ms": 2.68,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "cap_seconds": 480
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 297
+          },
+          {
+            "ms": 1.97,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 720
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 495
+          },
+          {
+            "ms": 1.94,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 7,
+              "cap_seconds": 1020
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 693
+          },
+          {
+            "ms": 1.96,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 10,
+              "cap_seconds": 1320
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 990
+          },
+          {
+            "ms": 2.01,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 15,
+              "cap_seconds": 2100
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1485
+          },
+          {
+            "ms": 1.91,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 18,
+              "cap_seconds": 2400
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1782
+          },
+          {
+            "ms": 1.93,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 18,
+              "cap_seconds": 2400
+            },
+            "effective_wod": 40,
+            "requested_wod": 60,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1782
+          },
+          {
+            "ms": 2.65,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 387
+          },
+          {
+            "ms": 2.04,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 531
+          },
+          {
+            "ms": 1.97,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 819
+          },
+          {
+            "ms": 2.08,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 8,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 1107
+          },
+          {
+            "ms": 2.39,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 13,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 1827
+          },
+          {
+            "ms": 2.01,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 15,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 2115
+          },
+          {
+            "ms": 2.06,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 19,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 50,
+            "requested_wod": 60,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 2691
+          },
+          {
+            "ms": 4.39,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 20,
+              "work_seconds": 30,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 450
+          },
+          {
+            "ms": 1.53,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 675
+          },
+          {
+            "ms": 1.32,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 30,
+              "work_seconds": 50,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 960
+          },
+          {
+            "ms": 1.34,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 5,
+              "rest_seconds": 30,
+              "work_seconds": 50,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1200
+          },
+          {
+            "ms": 1.35,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "ms": 1.29,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "ms": 1.23,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "cap": 25,
+            "case": "NULL_EXACT_USES_C3_DEFAULT",
+            "mechanic": "HIIT",
+            "effective_wod": 30,
+            "requested_wod": null
+          }
+        ],
+        "scope": "ISOLATED_FINALIZER_WITHOUT_ATHLETE_RUNTIME_CONTEXT",
+        "equipment": "bands",
+        "readiness": "low",
+        "elapsed_ms": 129.82
+      },
+      "trace": [
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 36,
+          "self_ms": 1.94
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 36,
+          "self_ms": 1.76
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 72,
+          "self_ms": 5.49
+        }
+      ]
+    },
+    {
+      "result": {
+        "mode": "PURE",
+        "rows": [
+          {
+            "ms": 24.54,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 3,
+              "duration_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 480
+          },
+          {
+            "ms": 4.05,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 5,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 720
+          },
+          {
+            "ms": 2.83,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 8,
+              "duration_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1020
+          },
+          {
+            "ms": 2.64,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 10,
+              "duration_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1320
+          },
+          {
+            "ms": 2.6,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 17,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.69,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 17,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 1.97,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 17,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.66,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 2,
+              "station_seconds": 60,
+              "duration_minutes": 6
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 360
+          },
+          {
+            "ms": 1.96,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 4,
+              "station_seconds": 60,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 720
+          },
+          {
+            "ms": 1.99,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 5,
+              "station_seconds": 60,
+              "duration_minutes": 15
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 900
+          },
+          {
+            "ms": 1.86,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 7,
+              "station_seconds": 60,
+              "duration_minutes": 21
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1260
+          },
+          {
+            "ms": 1.87,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 11,
+              "station_seconds": 60,
+              "duration_minutes": 33
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1980
+          },
+          {
+            "ms": 1.82,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 13,
+              "station_seconds": 60,
+              "duration_minutes": 39
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2340
+          },
+          {
+            "ms": 1.85,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 13,
+              "station_seconds": 60,
+              "duration_minutes": 39
+            },
+            "effective_wod": 40,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2340
+          },
+          {
+            "ms": 2.39,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "cap_seconds": 480
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 327
+          },
+          {
+            "ms": 1.83,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "cap_seconds": 720
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 436
+          },
+          {
+            "ms": 1.83,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 7,
+              "cap_seconds": 1020
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 763
+          },
+          {
+            "ms": 1.85,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 9,
+              "cap_seconds": 1320
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 981
+          },
+          {
+            "ms": 1.83,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 14,
+              "cap_seconds": 2100
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1526
+          },
+          {
+            "ms": 1.82,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 16,
+              "cap_seconds": 2400
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1744
+          },
+          {
+            "ms": 1.81,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 16,
+              "cap_seconds": 2400
+            },
+            "effective_wod": 40,
+            "requested_wod": 60,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1744
+          },
+          {
+            "ms": 2.48,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 417
+          },
+          {
+            "ms": 1.94,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 571
+          },
+          {
+            "ms": 1.83,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 879
+          },
+          {
+            "ms": 1.83,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 8,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 1187
+          },
+          {
+            "ms": 1.86,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 12,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 1803
+          },
+          {
+            "ms": 1.83,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 14,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 2111
+          },
+          {
+            "ms": 1.81,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 17,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 50,
+            "requested_wod": 60,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 2573
+          },
+          {
+            "ms": 4.06,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 20,
+              "work_seconds": 30,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 450
+          },
+          {
+            "ms": 1.43,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 15,
+              "work_seconds": 40,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 660
+          },
+          {
+            "ms": 1.32,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 30,
+              "work_seconds": 50,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 960
+          },
+          {
+            "ms": 1.3,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 5,
+              "rest_seconds": 30,
+              "work_seconds": 50,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1200
+          },
+          {
+            "ms": 1.29,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "ms": 1.28,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "ms": 1.23,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "cap": 25,
+            "case": "NULL_EXACT_USES_C3_DEFAULT",
+            "mechanic": "HIIT",
+            "effective_wod": 30,
+            "requested_wod": null
+          }
+        ],
+        "scope": "ISOLATED_FINALIZER_WITHOUT_ATHLETE_RUNTIME_CONTEXT",
+        "equipment": "none",
+        "readiness": "high",
+        "elapsed_ms": 211.24
+      },
+      "trace": [
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 36,
+          "self_ms": 1.85
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 36,
+          "self_ms": 1.65
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 72,
+          "self_ms": 5.21
+        }
+      ]
+    },
+    {
+      "result": {
+        "mode": "PURE",
+        "rows": [
+          {
+            "ms": 18.54,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 3,
+              "duration_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 480
+          },
+          {
+            "ms": 3.65,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 5,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 720
+          },
+          {
+            "ms": 2.66,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 8,
+              "duration_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1020
+          },
+          {
+            "ms": 2.5,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 10,
+              "duration_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1320
+          },
+          {
+            "ms": 2.43,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 17,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.55,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 17,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 1.81,
+            "cap": 35,
+            "mechanic": "AMRAP",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "expected_rounds": 17,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2100
+          },
+          {
+            "ms": 2.54,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 2,
+              "station_seconds": 60,
+              "duration_minutes": 6
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 360
+          },
+          {
+            "ms": 1.87,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 4,
+              "station_seconds": 60,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 720
+          },
+          {
+            "ms": 1.86,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 5,
+              "station_seconds": 60,
+              "duration_minutes": 15
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 900
+          },
+          {
+            "ms": 1.82,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 7,
+              "station_seconds": 60,
+              "duration_minutes": 21
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1260
+          },
+          {
+            "ms": 1.82,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 11,
+              "station_seconds": 60,
+              "duration_minutes": 33
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1980
+          },
+          {
+            "ms": 1.88,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 13,
+              "station_seconds": 60,
+              "duration_minutes": 39
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2340
+          },
+          {
+            "ms": 1.82,
+            "cap": 40,
+            "mechanic": "EMOM",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "cycles": 13,
+              "station_seconds": 60,
+              "duration_minutes": 39
+            },
+            "effective_wod": 40,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 2340
+          },
+          {
+            "ms": 2.42,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "cap_seconds": 480
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 327
+          },
+          {
+            "ms": 1.91,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "cap_seconds": 720
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 436
+          },
+          {
+            "ms": 1.84,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 7,
+              "cap_seconds": 1020
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 763
+          },
+          {
+            "ms": 1.9,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 9,
+              "cap_seconds": 1320
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 981
+          },
+          {
+            "ms": 1.81,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 14,
+              "cap_seconds": 2100
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1526
+          },
+          {
+            "ms": 1.84,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 16,
+              "cap_seconds": 2400
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1744
+          },
+          {
+            "ms": 1.89,
+            "cap": 40,
+            "mechanic": "FOR_TIME",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 16,
+              "cap_seconds": 2400
+            },
+            "effective_wod": 40,
+            "requested_wod": 60,
+            "duration_semantic": "time_cap",
+            "predicted_seconds": 1744
+          },
+          {
+            "ms": 2.43,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 417
+          },
+          {
+            "ms": 1.87,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 571
+          },
+          {
+            "ms": 1.79,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 879
+          },
+          {
+            "ms": 1.86,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 8,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 1187
+          },
+          {
+            "ms": 1.82,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 12,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 1803
+          },
+          {
+            "ms": 1.88,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 14,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 2111
+          },
+          {
+            "ms": 1.79,
+            "cap": 50,
+            "mechanic": "CIRCUIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 17,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 50,
+            "requested_wod": 60,
+            "duration_semantic": "target_duration",
+            "predicted_seconds": 2573
+          },
+          {
+            "ms": 4.09,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 20,
+              "work_seconds": 30,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 450
+          },
+          {
+            "ms": 1.46,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 15,
+              "work_seconds": 40,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 660
+          },
+          {
+            "ms": 1.29,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 30,
+              "work_seconds": 50,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 960
+          },
+          {
+            "ms": 1.33,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 5,
+              "rest_seconds": 30,
+              "work_seconds": 50,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1200
+          },
+          {
+            "ms": 1.37,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 35,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "ms": 1.28,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 40,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "ms": 1.31,
+            "cap": 25,
+            "mechanic": "HIIT",
+            "c4_status": "OK",
+            "c4_reasons": [],
+            "parameters": {
+              "rounds": 6,
+              "rest_seconds": 30,
+              "work_seconds": 45,
+              "station_order": "sequential",
+              "exercise_count": 3,
+              "solver_controlled": true
+            },
+            "effective_wod": 25,
+            "requested_wod": 60,
+            "duration_semantic": "fixed_duration",
+            "predicted_seconds": 1350
+          },
+          {
+            "cap": 25,
+            "case": "NULL_EXACT_USES_C3_DEFAULT",
+            "mechanic": "HIIT",
+            "effective_wod": 30,
+            "requested_wod": null
+          }
+        ],
+        "scope": "ISOLATED_FINALIZER_WITHOUT_ATHLETE_RUNTIME_CONTEXT",
+        "equipment": "bands",
+        "readiness": "high",
+        "elapsed_ms": 120.43
+      },
+      "trace": [
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 36,
+          "self_ms": 1.7
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 36,
+          "self_ms": 1.7
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 72,
+          "self_ms": 5.22
+        }
+      ]
+    }
+  ],
+  "composer_matrix": [
+    {
+      "result": {
+        "mode": "COMPOSER",
+        "rows": [
+          {
+            "ms": 48.29,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 16.84,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 18.75,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 12.83,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 14.55,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 16.22,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 14.1,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 60
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          },
+          {
+            "ms": 13.48,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 2,
+              "cap_seconds": 480,
+              "time_cap_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 14.66,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 3,
+              "cap_seconds": 720,
+              "time_cap_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 13.22,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 4,
+              "cap_seconds": 1020,
+              "time_cap_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 12.23,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 1320,
+              "time_cap_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 13.73,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 2100,
+              "time_cap_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 16.95,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 2400,
+              "time_cap_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 13.47,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 3600,
+              "time_cap_minutes": 60
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          },
+          {
+            "ms": 14.42,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 2,
+              "rest_seconds": 45,
+              "duration_minutes": 8,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 12.6,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 2,
+              "rest_seconds": 45,
+              "duration_minutes": 12,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 13.49,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 45,
+              "duration_minutes": 17,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 14.11,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 22,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 13.55,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 35,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 14.68,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 40,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 14.08,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 60,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          }
+        ],
+        "scope": "PREVIEW_SAVE_DAYJ_NOT_DEVICE_PLAYER",
+        "equipment": "none",
+        "readiness": "low",
+        "elapsed_ms": 416.71
+      },
+      "trace": null
+    },
+    {
+      "result": {
+        "mode": "COMPOSER",
+        "rows": [
+          {
+            "ms": 46.22,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 17.09,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 17.19,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 13.56,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 14.22,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 13.68,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 15.68,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 60
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          },
+          {
+            "ms": 13.77,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 2,
+              "cap_seconds": 480,
+              "time_cap_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 14.44,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 3,
+              "cap_seconds": 720,
+              "time_cap_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 13.69,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 4,
+              "cap_seconds": 1020,
+              "time_cap_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 12.97,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 1320,
+              "time_cap_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 13.87,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 2100,
+              "time_cap_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 13.9,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 2400,
+              "time_cap_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 12.91,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 3600,
+              "time_cap_minutes": 60
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          },
+          {
+            "ms": 13.17,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 2,
+              "rest_seconds": 45,
+              "duration_minutes": 8,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 13.77,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 2,
+              "rest_seconds": 45,
+              "duration_minutes": 12,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 14,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 45,
+              "duration_minutes": 17,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 14.23,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 22,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 13.63,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 35,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 12.6,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 40,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 12.36,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 60,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          }
+        ],
+        "scope": "PREVIEW_SAVE_DAYJ_NOT_DEVICE_PLAYER",
+        "equipment": "bands",
+        "readiness": "low",
+        "elapsed_ms": 408.4
+      },
+      "trace": null
+    },
+    {
+      "result": {
+        "mode": "COMPOSER",
+        "rows": [
+          {
+            "ms": 82.19,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 26.87,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 25.22,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 22.16,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 23.68,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 20.36,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 20.82,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 60
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          },
+          {
+            "ms": 17.54,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 2,
+              "cap_seconds": 480,
+              "time_cap_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 22.06,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 3,
+              "cap_seconds": 720,
+              "time_cap_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 16.41,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 4,
+              "cap_seconds": 1020,
+              "time_cap_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 21.44,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 1320,
+              "time_cap_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 15.32,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 2100,
+              "time_cap_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 17.22,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 2400,
+              "time_cap_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 20.45,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 3600,
+              "time_cap_minutes": 60
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          },
+          {
+            "ms": 16.73,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 2,
+              "rest_seconds": 45,
+              "duration_minutes": 8,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 18.44,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 2,
+              "rest_seconds": 45,
+              "duration_minutes": 12,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 15.63,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 45,
+              "duration_minutes": 17,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 15.68,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 22,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 12.97,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 35,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 15.92,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 40,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 17.86,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 60,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          }
+        ],
+        "scope": "PREVIEW_SAVE_DAYJ_NOT_DEVICE_PLAYER",
+        "equipment": "none",
+        "readiness": "high",
+        "elapsed_ms": 551.04
+      },
+      "trace": null
+    },
+    {
+      "result": {
+        "mode": "COMPOSER",
+        "rows": [
+          {
+            "ms": 43.33,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 16.39,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 17.75,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 13.52,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 14.44,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 13.74,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 14.29,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 60
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          },
+          {
+            "ms": 14,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 2,
+              "cap_seconds": 480,
+              "time_cap_minutes": 8
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 13.43,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 3,
+              "cap_seconds": 720,
+              "time_cap_minutes": 12
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 12.82,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 4,
+              "cap_seconds": 1020,
+              "time_cap_minutes": 17
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 13.35,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 1320,
+              "time_cap_minutes": 22
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 14.19,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 2100,
+              "time_cap_minutes": 35
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 12.77,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 2400,
+              "time_cap_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 13.95,
+            "mechanic": "FOR_TIME",
+            "parameters": {
+              "rounds": 5,
+              "cap_seconds": 3600,
+              "time_cap_minutes": 60
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          },
+          {
+            "ms": 12.85,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 2,
+              "rest_seconds": 45,
+              "duration_minutes": 8,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 8,
+            "requested_wod": 8,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 24
+          },
+          {
+            "ms": 13.61,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 2,
+              "rest_seconds": 45,
+              "duration_minutes": 12,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 12,
+            "requested_wod": 12,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 28
+          },
+          {
+            "ms": 13.83,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 3,
+              "rest_seconds": 45,
+              "duration_minutes": 17,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 17,
+            "requested_wod": 17,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 33
+          },
+          {
+            "ms": 13.79,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 22,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 22,
+            "requested_wod": 22,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 38
+          },
+          {
+            "ms": 13,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 35,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 35,
+            "requested_wod": 35,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 51
+          },
+          {
+            "ms": 13.12,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 40,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          },
+          {
+            "ms": 12.62,
+            "mechanic": "CIRCUIT",
+            "parameters": {
+              "rounds": 4,
+              "rest_seconds": 45,
+              "duration_minutes": 60,
+              "rest_between_rounds_seconds": 45
+            },
+            "effective_wod": 60,
+            "requested_wod": 60,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 76
+          }
+        ],
+        "scope": "PREVIEW_SAVE_DAYJ_NOT_DEVICE_PLAYER",
+        "equipment": "bands",
+        "readiness": "high",
+        "elapsed_ms": 401.07
+      },
+      "trace": null
+    }
+  ],
+  "full_planner_matrix": [
+    {
+      "ms": 5404.06,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "warmup",
+          "count": 2,
+          "minutes": 5
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 9
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 9,
+      "equipment_ok": true,
+      "planned_minutes": 19,
+      "session_minutes": 20,
+      "predicted_seconds": 540,
+      "wod_target_minutes": 9,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 9,
+        "requested_wod_minutes": 9
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 9,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 9,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 3.26
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 64,
+          "self_ms": 11.08
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 74,
+          "self_ms": 12.18
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 111,
+          "self_ms": 8.11
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 3.79
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 5227.46,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 2,
+          "minutes": 5
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 12
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 12,
+      "equipment_ok": true,
+      "planned_minutes": 27,
+      "session_minutes": 30,
+      "predicted_seconds": 720,
+      "wod_target_minutes": 12,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 12,
+        "requested_wod_minutes": 12
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 12,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 12,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.16
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 64,
+          "self_ms": 11.35
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 74,
+          "self_ms": 12.21
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 111,
+          "self_ms": 7.92
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 4.13
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 7106.85,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 6
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 9
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 15
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 15,
+      "equipment_ok": true,
+      "planned_minutes": 41,
+      "session_minutes": 45,
+      "predicted_seconds": 720,
+      "wod_target_minutes": 15,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 15,
+        "requested_wod_minutes": 15
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 15,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 15,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.39
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 62,
+          "self_ms": 11.67
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 64,
+          "self_ms": 10.89
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 101,
+          "self_ms": 7.26
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 4.73
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 11900.03,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 3
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 6
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 12
+        },
+        {
+          "key": "wod",
+          "count": 4,
+          "minutes": 20
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 20,
+      "equipment_ok": true,
+      "planned_minutes": 50,
+      "session_minutes": 60,
+      "predicted_seconds": 1200,
+      "wod_target_minutes": 20,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 20,
+        "requested_wod_minutes": 20
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 20,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 20,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.09
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 74,
+          "self_ms": 17.1
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 78,
+          "self_ms": 16.49
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 115,
+          "self_ms": 8.29
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.53
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 12190.03,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 3,
+          "minutes": 3
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 7
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 18
+        },
+        {
+          "key": "wod",
+          "count": 4,
+          "minutes": 20
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 20,
+      "equipment_ok": true,
+      "planned_minutes": 58,
+      "session_minutes": 75,
+      "predicted_seconds": 1200,
+      "wod_target_minutes": 20,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 20,
+        "requested_wod_minutes": 20
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 20,
+        "duration_profile": "long_session_allowed",
+        "long_wod_allowed": true,
+        "final_wod_minutes": 20,
+        "compact_through_60": false,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.19
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 67,
+          "self_ms": 15.03
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 71,
+          "self_ms": 14.79
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 108,
+          "self_ms": 7.86
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.57
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 12607.11,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 3,
+          "minutes": 4
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 7
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 25
+        },
+        {
+          "key": "wod",
+          "count": 4,
+          "minutes": 20
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 20,
+      "equipment_ok": true,
+      "planned_minutes": 66,
+      "session_minutes": 90,
+      "predicted_seconds": 1200,
+      "wod_target_minutes": 20,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 20,
+        "requested_wod_minutes": 20
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 20,
+        "duration_profile": "long_session_allowed",
+        "long_wod_allowed": true,
+        "final_wod_minutes": 20,
+        "compact_through_60": false,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.2
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 85,
+          "self_ms": 20.3
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 92,
+          "self_ms": 20.46
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 129,
+          "self_ms": 9.48
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.55
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 4612.43,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "warmup",
+          "count": 2,
+          "minutes": 5
+        },
+        {
+          "key": "wod",
+          "count": 2,
+          "minutes": 9
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 9,
+      "equipment_ok": true,
+      "planned_minutes": 19,
+      "session_minutes": 20,
+      "predicted_seconds": 480,
+      "wod_target_minutes": 9,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 9,
+        "requested_wod_minutes": 9
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 9,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 9,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.17
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 52,
+          "self_ms": 8.25
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 57,
+          "self_ms": 8.22
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 94,
+          "self_ms": 6.44
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 4.29
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 4632.49,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 2,
+          "minutes": 5
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 12
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 12,
+      "equipment_ok": true,
+      "planned_minutes": 27,
+      "session_minutes": 30,
+      "predicted_seconds": 639,
+      "wod_target_minutes": 12,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 12,
+        "requested_wod_minutes": 12
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 12,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 12,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.1
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 56,
+          "self_ms": 9.29
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 56,
+          "self_ms": 8.41
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 93,
+          "self_ms": 6.31
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 4.17
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 7298.01,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 6
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 9
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 15
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 15,
+      "equipment_ok": true,
+      "planned_minutes": 41,
+      "session_minutes": 45,
+      "predicted_seconds": 900,
+      "wod_target_minutes": 15,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 15,
+        "requested_wod_minutes": 15
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 15,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 15,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.11
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 52,
+          "self_ms": 9.79
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 54,
+          "self_ms": 8.97
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 91,
+          "self_ms": 6.34
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 4.83
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 12408.29,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 3
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 6
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 12
+        },
+        {
+          "key": "wod",
+          "count": 4,
+          "minutes": 20
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 20,
+      "equipment_ok": true,
+      "planned_minutes": 50,
+      "session_minutes": 60,
+      "predicted_seconds": 1200,
+      "wod_target_minutes": 20,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 20,
+        "requested_wod_minutes": 20
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 20,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 20,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.1
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 64,
+          "self_ms": 14.63
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 65,
+          "self_ms": 13.79
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 102,
+          "self_ms": 7.27
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.74
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 12488.92,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 3,
+          "minutes": 3
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 7
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 18
+        },
+        {
+          "key": "wod",
+          "count": 4,
+          "minutes": 20
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 20,
+      "equipment_ok": true,
+      "planned_minutes": 58,
+      "session_minutes": 75,
+      "predicted_seconds": 1200,
+      "wod_target_minutes": 20,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 20,
+        "requested_wod_minutes": 20
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 20,
+        "duration_profile": "long_session_allowed",
+        "long_wod_allowed": true,
+        "final_wod_minutes": 20,
+        "compact_through_60": false,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.18
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 68,
+          "self_ms": 15.32
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 69,
+          "self_ms": 14.28
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 106,
+          "self_ms": 7.58
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.53
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 12681.11,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 3,
+          "minutes": 4
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 7
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 25
+        },
+        {
+          "key": "wod",
+          "count": 4,
+          "minutes": 20
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "EMOM",
+      "wod_minutes": 20,
+      "equipment_ok": true,
+      "planned_minutes": 66,
+      "session_minutes": 90,
+      "predicted_seconds": 1200,
+      "wod_target_minutes": 20,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "EMOM",
+        "cap_applied": false,
+        "cap_minutes": 40,
+        "effective_wod_minutes": 20,
+        "requested_wod_minutes": 20
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "EMOM",
+        "target_minutes": 20,
+        "duration_profile": "long_session_allowed",
+        "long_wod_allowed": true,
+        "final_wod_minutes": 20,
+        "compact_through_60": false,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "low",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.22
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 68,
+          "self_ms": 15.39
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 69,
+          "self_ms": 14.66
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 106,
+          "self_ms": 7.64
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.63
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 5512.54,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "warmup",
+          "count": 2,
+          "minutes": 5
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 11
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 11,
+      "equipment_ok": true,
+      "planned_minutes": 20,
+      "session_minutes": 20,
+      "predicted_seconds": 556.25,
+      "wod_target_minutes": 11,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 11,
+        "requested_wod_minutes": 11
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 9,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 9,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.28
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 64,
+          "self_ms": 11.04
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 64,
+          "self_ms": 9.77
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 101,
+          "self_ms": 7.02
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 4.21
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 6895.86,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 2,
+          "minutes": 5
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 5
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 10
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 10,
+      "equipment_ok": true,
+      "planned_minutes": 30,
+      "session_minutes": 30,
+      "predicted_seconds": 483,
+      "wod_target_minutes": 12,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 10,
+        "requested_wod_minutes": 10
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 12,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 10,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 54,
+          "self_ms": 2.5
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 90,
+          "self_ms": 15.25
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 90,
+          "self_ms": 13.37
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 145,
+          "self_ms": 9.85
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 3.48
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 10383.49,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 6
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 9
+        },
+        {
+          "key": "wod",
+          "count": 4,
+          "minutes": 17
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 17,
+      "equipment_ok": true,
+      "planned_minutes": 42,
+      "session_minutes": 45,
+      "predicted_seconds": 873.75,
+      "wod_target_minutes": 17,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 17,
+        "requested_wod_minutes": 17
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 15,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 20,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.43
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 102,
+          "self_ms": 20.82
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 102,
+          "self_ms": 19.01
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 148,
+          "self_ms": 10.95
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.23
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 17708.28,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 3
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 6
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 12
+        },
+        {
+          "key": "wod",
+          "count": 5,
+          "minutes": 27
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 27,
+      "equipment_ok": true,
+      "planned_minutes": 56,
+      "session_minutes": 60,
+      "predicted_seconds": 1372.5,
+      "wod_target_minutes": 27,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 27,
+        "requested_wod_minutes": 27
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 20,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 28,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.47
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 103,
+          "self_ms": 24.69
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 103,
+          "self_ms": 22.61
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 149,
+          "self_ms": 11.09
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.89
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 18496.03,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 3,
+          "minutes": 3
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 7
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 18
+        },
+        {
+          "key": "wod",
+          "count": 5,
+          "minutes": 33
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 33,
+      "equipment_ok": true,
+      "planned_minutes": 70,
+      "session_minutes": 75,
+      "predicted_seconds": 1770,
+      "wod_target_minutes": 33,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 33,
+        "requested_wod_minutes": 33
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 30,
+        "duration_profile": "long_session_allowed",
+        "long_wod_allowed": true,
+        "final_wod_minutes": 38,
+        "compact_through_60": false,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.58
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 103,
+          "self_ms": 24.34
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 103,
+          "self_ms": 22.77
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 149,
+          "self_ms": 11.19
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 6.17
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 17021.11,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 3,
+          "minutes": 4
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 7
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 25
+        },
+        {
+          "key": "wod",
+          "count": 5,
+          "minutes": 40
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 40,
+      "equipment_ok": true,
+      "planned_minutes": 85,
+      "session_minutes": 90,
+      "predicted_seconds": 2072.5,
+      "wod_target_minutes": 40,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 40,
+        "requested_wod_minutes": 40
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 35,
+        "duration_profile": "long_session_allowed",
+        "long_wod_allowed": true,
+        "final_wod_minutes": 43,
+        "compact_through_60": false,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "none",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.47
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 105,
+          "self_ms": 24.84
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 105,
+          "self_ms": 23.47
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 151,
+          "self_ms": 11.23
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 6.13
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 5663.78,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "warmup",
+          "count": 2,
+          "minutes": 5
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 11
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 11,
+      "equipment_ok": true,
+      "planned_minutes": 20,
+      "session_minutes": 20,
+      "predicted_seconds": 586.5,
+      "wod_target_minutes": 11,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 11,
+        "requested_wod_minutes": 11
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 9,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 9,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.19
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 66,
+          "self_ms": 11.8
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 66,
+          "self_ms": 10.76
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 103,
+          "self_ms": 7.91
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 4.37
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 6319.04,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 2,
+          "minutes": 5
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 5
+        },
+        {
+          "key": "wod",
+          "count": 3,
+          "minutes": 10
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 10,
+      "equipment_ok": true,
+      "planned_minutes": 30,
+      "session_minutes": 30,
+      "predicted_seconds": 540,
+      "wod_target_minutes": 12,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 10,
+        "requested_wod_minutes": 10
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 12,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 10,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 54,
+          "self_ms": 2.42
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 90,
+          "self_ms": 15.36
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 90,
+          "self_ms": 13.56
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 145,
+          "self_ms": 9.77
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 3.53
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 9632.1,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 2
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 6
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 9
+        },
+        {
+          "key": "wod",
+          "count": 4,
+          "minutes": 17
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 17,
+      "equipment_ok": true,
+      "planned_minutes": 42,
+      "session_minutes": 45,
+      "predicted_seconds": 852.75,
+      "wod_target_minutes": 17,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 17,
+        "requested_wod_minutes": 17
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 15,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 20,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.31
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 90,
+          "self_ms": 17.36
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 90,
+          "self_ms": 15.75
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 136,
+          "self_ms": 9.58
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.21
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 18047.53,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 2,
+          "minutes": 3
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 6
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 12
+        },
+        {
+          "key": "wod",
+          "count": 5,
+          "minutes": 27
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 27,
+      "equipment_ok": true,
+      "planned_minutes": 56,
+      "session_minutes": 60,
+      "predicted_seconds": 1422,
+      "wod_target_minutes": 27,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 27,
+        "requested_wod_minutes": 27
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 20,
+        "duration_profile": "compact_standard",
+        "long_wod_allowed": false,
+        "final_wod_minutes": 28,
+        "compact_through_60": true,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.37
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 108,
+          "self_ms": 25.84
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 108,
+          "self_ms": 24.11
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 154,
+          "self_ms": 11.29
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 6.08
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 17770.31,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 3,
+          "minutes": 3
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 7
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 18
+        },
+        {
+          "key": "wod",
+          "count": 5,
+          "minutes": 34
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 34,
+      "equipment_ok": true,
+      "planned_minutes": 71,
+      "session_minutes": 75,
+      "predicted_seconds": 1816.75,
+      "wod_target_minutes": 34,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 34,
+        "requested_wod_minutes": 34
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 30,
+        "duration_profile": "long_session_allowed",
+        "long_wod_allowed": true,
+        "final_wod_minutes": 38,
+        "compact_through_60": false,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.46
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 105,
+          "self_ms": 26.15
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 105,
+          "self_ms": 24.59
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 151,
+          "self_ms": 11.73
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 6.06
+        }
+      ],
+      "candidate_count": 20
+    },
+    {
+      "ms": 17687.16,
+      "blocks": [
+        {
+          "key": "unlock",
+          "count": 3,
+          "minutes": 4
+        },
+        {
+          "key": "tabata",
+          "count": 2,
+          "minutes": 4
+        },
+        {
+          "key": "warmup",
+          "count": 3,
+          "minutes": 7
+        },
+        {
+          "key": "skill",
+          "count": 1,
+          "minutes": 25
+        },
+        {
+          "key": "wod",
+          "count": 5,
+          "minutes": 41
+        }
+      ],
+      "reason": null,
+      "status": "READY",
+      "mechanic": "CIRCUIT",
+      "wod_minutes": 41,
+      "equipment_ok": true,
+      "planned_minutes": 86,
+      "session_minutes": 90,
+      "predicted_seconds": 2155.25,
+      "wod_target_minutes": 41,
+      "finalizer_guardrail": {
+        "version": "v1-mechanic-wod-cap-1",
+        "mechanic": "CIRCUIT",
+        "cap_applied": false,
+        "cap_minutes": 50,
+        "effective_wod_minutes": 41,
+        "requested_wod_minutes": 41
+      },
+      "architecture_guardrail": {
+        "version": "session-architecture-v2-wod-budget",
+        "mechanic": "CIRCUIT",
+        "target_minutes": 35,
+        "duration_profile": "long_session_allowed",
+        "long_wod_allowed": true,
+        "final_wod_minutes": 43,
+        "compact_through_60": false,
+        "available_time_is_maximum_not_fill_target": true
+      },
+      "readiness": "high",
+      "equipment": "bands",
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.39
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 107,
+          "self_ms": 25.58
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 107,
+          "self_ms": 23.82
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 153,
+          "self_ms": 11.38
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.93
+        }
+      ],
+      "candidate_count": 20
+    }
+  ],
+  "home_box_search_width_probes": [
+    {
+      "result": {
+        "mode": "AUTO",
+        "rows": [
+          {
+            "ms": 4163.03,
+            "blocks": [
+              {
+                "key": "unlock",
+                "count": 2,
+                "minutes": 2
+              },
+              {
+                "key": "tabata",
+                "count": 2,
+                "minutes": 4
+              },
+              {
+                "key": "warmup",
+                "count": 2,
+                "minutes": 5
+              },
+              {
+                "key": "wod",
+                "count": 3,
+                "minutes": 12
+              }
+            ],
+            "reason": null,
+            "status": "READY",
+            "mechanic": "EMOM",
+            "home_guard": null,
+            "wod_minutes": 12,
+            "equipment_ok": true,
+            "session_intent": "CONSOLIDATE",
+            "candidate_count": 8,
+            "planned_minutes": 27,
+            "session_minutes": 30,
+            "predicted_seconds": 720,
+            "wod_target_minutes": 12,
+            "finalizer_guardrail": {
+              "version": "v1-mechanic-wod-cap-1",
+              "mechanic": "EMOM",
+              "cap_applied": false,
+              "cap_minutes": 40,
+              "effective_wod_minutes": 12,
+              "requested_wod_minutes": 12
+            },
+            "architecture_guardrail": {
+              "version": "session-architecture-v2-wod-budget",
+              "mechanic": "EMOM",
+              "target_minutes": 12,
+              "duration_profile": "compact_standard",
+              "long_wod_allowed": false,
+              "final_wod_minutes": 12,
+              "compact_through_60": true,
+              "available_time_is_maximum_not_fill_target": true
+            }
+          }
+        ],
+        "scope": "PUBLIC_C4_PLANNER_NOT_APP_RPC",
+        "equipment": "none",
+        "readiness": "low",
+        "elapsed_ms": 4173.87
+      },
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 36,
+          "self_ms": 2.4
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 40,
+          "self_ms": 8.07
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 50,
+          "self_ms": 9.39
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 87,
+          "self_ms": 6.17
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 4.34
+        }
+      ]
+    },
+    {
+      "result": {
+        "mode": "AUTO",
+        "rows": [
+          {
+            "ms": 9926.31,
+            "blocks": [
+              {
+                "key": "unlock",
+                "count": 3,
+                "minutes": 4
+              },
+              {
+                "key": "tabata",
+                "count": 2,
+                "minutes": 4
+              },
+              {
+                "key": "warmup",
+                "count": 3,
+                "minutes": 7
+              },
+              {
+                "key": "skill",
+                "count": 1,
+                "minutes": 25
+              },
+              {
+                "key": "wod",
+                "count": 5,
+                "minutes": 40
+              }
+            ],
+            "reason": null,
+            "status": "READY",
+            "mechanic": "CIRCUIT",
+            "home_guard": null,
+            "wod_minutes": 40,
+            "equipment_ok": true,
+            "session_intent": "CLASSIC",
+            "candidate_count": 8,
+            "planned_minutes": 85,
+            "session_minutes": 90,
+            "predicted_seconds": 2072.5,
+            "wod_target_minutes": 40,
+            "finalizer_guardrail": {
+              "version": "v1-mechanic-wod-cap-1",
+              "mechanic": "CIRCUIT",
+              "cap_applied": false,
+              "cap_minutes": 50,
+              "effective_wod_minutes": 40,
+              "requested_wod_minutes": 40
+            },
+            "architecture_guardrail": {
+              "version": "session-architecture-v2-wod-budget",
+              "mechanic": "CIRCUIT",
+              "target_minutes": 35,
+              "duration_profile": "long_session_allowed",
+              "long_wod_allowed": true,
+              "final_wod_minutes": 43,
+              "compact_through_60": false,
+              "available_time_is_maximum_not_fill_target": true
+            }
+          }
+        ],
+        "scope": "PUBLIC_C4_PLANNER_NOT_APP_RPC",
+        "equipment": "none",
+        "readiness": "high",
+        "elapsed_ms": 9948.23
+      },
+      "trace": [
+        {
+          "name": "c2_mechanic_fit",
+          "calls": 45,
+          "self_ms": 2.43
+        },
+        {
+          "name": "c4_finalize_candidate",
+          "calls": 69,
+          "self_ms": 18.23
+        },
+        {
+          "name": "c4_finalize_candidate_pre_m72",
+          "calls": 69,
+          "self_ms": 17.5
+        },
+        {
+          "name": "c4_mechanic_wod_cap_minutes",
+          "calls": 115,
+          "self_ms": 8.29
+        },
+        {
+          "name": "c4_plan_full_session_pre_skill_contract_final_mechanic_policy_s",
+          "calls": 1,
+          "self_ms": 5.97
+        }
+      ]
+    }
+  ],
+  "equipment_gate_probes": [
+    {
+      "result": {
+        "mode": "CONSTRAINT",
+        "rows": [
+          {
+            "ms": 36.33,
+            "mechanic": "AMRAP",
+            "parameters": null,
+            "effective_wod": null,
+            "requested_wod": 40,
+            "compile_reason": "COMPOSER_EXERCISE_INCOMPATIBLE_EX321",
+            "compile_status": "EXPECTED_EQUIPMENT_REJECTION",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          }
+        ],
+        "scope": "PREVIEW_SAVE_DAYJ_NOT_DEVICE_PLAYER",
+        "equipment": "none",
+        "readiness": "high",
+        "elapsed_ms": 63.41
+      },
+      "trace": null
+    },
+    {
+      "result": {
+        "mode": "CONSTRAINT",
+        "rows": [
+          {
+            "ms": 49.07,
+            "mechanic": "AMRAP",
+            "parameters": {
+              "exercise_count": 3,
+              "duration_minutes": 40
+            },
+            "effective_wod": 40,
+            "requested_wod": 40,
+            "compile_reason": null,
+            "compile_status": "READY",
+            "preview_status": "PREVIEW",
+            "session_minutes": 56
+          }
+        ],
+        "scope": "PREVIEW_SAVE_DAYJ_NOT_DEVICE_PLAYER",
+        "equipment": "bands",
+        "readiness": "high",
+        "elapsed_ms": 67.15
+      },
+      "trace": null
+    }
+  ],
+  "final_verification": {
+    "synthetic_users_remaining": 0,
+    "seven_target_function_hashes_unchanged": true,
+    "mechanic_caps_unchanged": true
+  }
+}

@@ -1,0 +1,63 @@
+name: Apply PLAY-011 Session shell and integrated Plan B
+
+on:
+  push:
+    branches:
+      - ux-navigation-coach-v1
+    paths:
+      - .github/player-patches/run-play-011-session-shell-planb.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_WEB_BASE_URL: /ucoach-mobile
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ux-navigation-coach-v1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply PLAY-011 patch
+        run: node .github/player-patches/apply-play-011-session-shell-planb.mjs
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          grep -n "SessionPlanBPanel\|planBOpen={planBOpen}\|SessionWhySheet\|SessionAdaptationSheet" src/components/workout/SessionOverviewSheet.js app/workout/session.js
+          grep -n "Pourquoi ?\|Ajuster\|Ma séance\|coachTools" app/workout/session-focused-core.js
+          if grep -n "SessionWhyOverlay\|SessionAdaptationOverlay" app/_layout.js; then
+            echo "Legacy floating session overlays still mounted globally"
+            exit 1
+          fi
+          grep -n "visible={false}" app/workout/session.js
+
+      - name: Export web app
+        run: npx expo export --platform web --output-dir /tmp/play011-dist
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- app/_layout.js app/workout/session.js app/workout/session-focused-core.js src/components/workout/SessionOverviewSheet.js; then
+            echo "No PLAY-011 changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/_layout.js app/workout/session.js app/workout/session-focused-core.js src/components/workout/SessionOverviewSheet.js
+          git commit -m "fix(player): keep Plan B on overview and organize coach tools"
+          git push origin HEAD:ux-navigation-coach-v1

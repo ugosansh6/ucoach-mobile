@@ -1,0 +1,3 @@
+-- Historical DEV migration marker.
+-- Intermediate PRG-011 legacy plan-slot authority fix.
+-- Superseded by the replay-safe canonical v5 migration at 20260829101243.

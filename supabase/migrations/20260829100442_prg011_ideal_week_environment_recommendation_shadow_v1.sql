@@ -1,0 +1,5 @@
+-- Historical DEV migration marker.
+-- The interrupted PRG-011 iteration created an intermediate environment recommendation
+-- and ideal-week overload that were later consolidated and removed.
+-- Clean replay intentionally performs no DDL here; the canonical replay-safe contract
+-- is created by 20260829101243_prg011_replay_safe_canonical_projection_v5.sql.

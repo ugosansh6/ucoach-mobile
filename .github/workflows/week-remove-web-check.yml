@@ -1,0 +1,33 @@
+name: Ma semaine removal regression and Expo Web
+
+on:
+  pull_request:
+    paths:
+      - 'app/(tabs)/planning.js'
+      - 'src/services/weeklyPlanService.js'
+      - 'scripts/qa-week-remove.cjs'
+      - '.github/workflows/week-remove-web-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  week-remove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify remove-session regression tests
+        run: node scripts/qa-week-remove.cjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Compile Expo Web
+        run: npx expo export --platform web
+        env:
+          EXPO_PUBLIC_APP_ENV: development
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: placeholder_for_static_ci_only

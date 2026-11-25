@@ -1,0 +1,1 @@
+rollback Preparation categories; keep category navigation only in Profile > Matériel

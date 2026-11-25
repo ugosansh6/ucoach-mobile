@@ -1,6 +1,4 @@
 import {
-  useEffect,
-  useRef,
   useState,
 } from 'react';
 import {
@@ -11,11 +9,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import {
-  router,
-  usePathname,
-} from 'expo-router';
+import { usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   colors,
@@ -93,23 +89,15 @@ function buildPreparationSnapshot(
         : snapshot?.painZones?.length > 0
           ? snapshot.painZones
           : ['Aucune'],
-    region:
-      preparation?.region ??
-      snapshot?.region ??
-      null,
+    // Le focus de séance appartient au moteur Coach.
+    // Une ancienne préférence locale ne doit pas survivre à un ajustement.
+    region: null,
   };
-}
-
-function painFingerprint(values) {
-  return (Array.isArray(values) ? values : [])
-    .filter(Boolean)
-    .slice()
-    .sort()
-    .join('|');
 }
 
 export default function SessionAdaptationOverlay() {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const {
     preparation,
     workout,
@@ -124,15 +112,9 @@ export default function SessionAdaptationOverlay() {
   const [error, setError] =
     useState('');
 
-  const pendingPainAdaptationRef =
-    useRef(null);
-
   async function adaptRemaining(
     nextPreparation,
-    preparationPatch = null,
-    {
-      reopenOnError = true,
-    } = {}
+    preparationPatch = null
   ) {
     setLoading(true);
     setError('');
@@ -154,8 +136,8 @@ export default function SessionAdaptationOverlay() {
         throw new Error(
           generated.controlStatus ===
           'RECALC_LIMIT_REACHED'
-            ? 'La limite d’adaptations globales de cette séance est atteinte.'
-            : 'UGEROD a besoin d’une nouvelle confirmation avant de recalculer la séance.'
+            ? 'La limite d’ajustements globaux de cette séance est atteinte.'
+            : 'UGEROD a besoin d’une nouvelle confirmation avant d’ajuster la séance.'
         );
       }
 
@@ -174,57 +156,13 @@ export default function SessionAdaptationOverlay() {
       setError(
         adaptationError instanceof Error
           ? adaptationError.message
-          : 'Impossible d’adapter le reste de la séance.'
+          : 'Impossible d’ajuster la séance.'
       );
-
-      if (reopenOnError) {
-        setVisible(true);
-      }
+      setVisible(true);
     } finally {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (
-      pathname !== '/workout/session' ||
-      !workout?.sessionId ||
-      !pendingPainAdaptationRef.current
-    ) {
-      return;
-    }
-
-    const pending =
-      pendingPainAdaptationRef.current;
-    pendingPainAdaptationRef.current =
-      null;
-
-    const after = painFingerprint(
-      preparation?.painZones
-    );
-
-    if (after === pending.before) {
-      return;
-    }
-
-    const nextPreparation =
-      buildPreparationSnapshot(
-        preparation,
-        workout
-      );
-
-    adaptRemaining(
-      nextPreparation,
-      null,
-      {
-        reopenOnError: true,
-      }
-    );
-  }, [
-    pathname,
-    preparation?.painZones,
-    workout?.sessionId,
-  ]);
 
   if (
     pathname !== '/workout/session' ||
@@ -265,30 +203,25 @@ export default function SessionAdaptationOverlay() {
       },
       {
         readiness,
+        region: null,
       }
     );
-  }
-
-  function openInjuries() {
-    pendingPainAdaptationRef.current = {
-      before: painFingerprint(
-        preparation?.painZones
-      ),
-    };
-
-    setVisible(false);
-    setError('');
-    router.push('/workout/injuries');
   }
 
   return (
     <>
       <View
         pointerEvents="box-none"
-        style={styles.floatingLayer}
+        style={[
+          styles.floatingLayer,
+          { top: insets.top + 24 },
+        ]}
       >
         <Pressable
           onPress={open}
+          accessibilityRole="button"
+          accessibilityLabel="Ajuster ma séance"
+          hitSlop={8}
           style={({ pressed }) => [
             styles.floatingButton,
             pressed &&
@@ -297,12 +230,9 @@ export default function SessionAdaptationOverlay() {
         >
           <Ionicons
             name="options-outline"
-            size={18}
+            size={20}
             color={colors.brandWhite}
           />
-          <Text style={styles.floatingButtonText}>
-            ADAPTER
-          </Text>
         </Pressable>
       </View>
 
@@ -325,7 +255,7 @@ export default function SessionAdaptationOverlay() {
                   COACH UGEROD
                 </Text>
                 <Text style={styles.title}>
-                  ADAPTER LE RESTE
+                  AJUSTER MA SÉANCE
                 </Text>
               </View>
 
@@ -343,7 +273,7 @@ export default function SessionAdaptationOverlay() {
             </View>
 
             <Text style={styles.helper}>
-              UGEROD protège les blocs déjà terminés et recalcule uniquement ce qu’il reste à faire.
+              Ta forme a changé en cours de séance ? UGEROD conserve ce qui est déjà fait et ajuste uniquement ce qu’il reste à faire.
             </Text>
 
             {error ? (
@@ -362,18 +292,16 @@ export default function SessionAdaptationOverlay() {
             <View style={styles.options}>
               <ActionRow
                 icon="battery-half-outline"
-                title="JE SUIS PLUS FATIGUÉ QUE PRÉVU"
-                description="UGEROD baisse l’intensité du contexte du jour et adapte les blocs restants."
+                title="PLUS FATIGUÉ QUE PRÉVU"
+                description="UGEROD baisse l’intensité du contexte du jour et ajuste uniquement les blocs restants."
                 loading={loading}
                 onPress={adaptForFatigue}
               />
 
-              <ActionRow
-                icon="medkit-outline"
-                title="UNE GÊNE EST APPARUE"
-                description="Indique la zone à protéger : UGEROD recalculera ensuite les mouvements restants."
-                loading={false}
-                onPress={openInjuries}
+              <GuidanceRow
+                icon="swap-horizontal-outline"
+                title="UN EXERCICE ME GÊNE"
+                description="Ferme cette fenêtre et utilise Swap sur l’exercice concerné. Pour changer durée, matériel ou gêne globale, utilise simplement le bouton retour de la séance."
               />
             </View>
           </View>
@@ -436,24 +364,48 @@ function ActionRow({
   );
 }
 
+function GuidanceRow({
+  icon,
+  title,
+  description,
+}) {
+  return (
+    <View style={styles.guidanceRow}>
+      <View style={styles.guidanceIcon}>
+        <Ionicons
+          name={icon}
+          size={20}
+          color={colors.primaryLight}
+        />
+      </View>
+
+      <View style={styles.actionMain}>
+        <Text style={styles.actionTitle}>
+          {title}
+        </Text>
+        <Text style={styles.actionDescription}>
+          {description}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   floatingLayer: {
     position: 'absolute',
-    right: spacing.xl,
-    bottom: 92,
+    right: spacing.xl + 58,
     zIndex: 80,
   },
 
   floatingButton: {
-    minHeight: 44,
-    paddingHorizontal: 16,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor:
       'rgba(16,126,255,0.94)',
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
     borderWidth: 1,
     borderColor:
       'rgba(255,255,255,0.14)',
@@ -461,14 +413,7 @@ const styles = StyleSheet.create({
 
   floatingButtonPressed: {
     opacity: 0.78,
-    transform: [{ scale: 0.98 }],
-  },
-
-  floatingButtonText: {
-    fontFamily: 'Oswald_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.05,
-    color: colors.brandWhite,
+    transform: [{ scale: 0.96 }],
   },
 
   overlay: {
@@ -581,6 +526,21 @@ const styles = StyleSheet.create({
     gap: 13,
   },
 
+  guidanceRow: {
+    minHeight: 82,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor:
+      'rgba(16,126,255,0.30)',
+    backgroundColor:
+      'rgba(16,126,255,0.07)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+  },
+
   actionRowDisabled: {
     opacity: 0.55,
   },
@@ -590,6 +550,16 @@ const styles = StyleSheet.create({
   },
 
   actionIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor:
+      'rgba(16,126,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  guidanceIcon: {
     width: 46,
     height: 46,
     borderRadius: 23,

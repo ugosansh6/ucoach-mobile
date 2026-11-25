@@ -1,0 +1,3 @@
+-- DEV iterative patch: HOME/BOX QA generation was aligned with coach-handler
+-- (d_generate_adaptive_session_v3), while GYM/OUTDOOR stay on generate_environment_session_v4.
+-- The consolidated 20261002010144 migration already contains this final state for fresh replays.
