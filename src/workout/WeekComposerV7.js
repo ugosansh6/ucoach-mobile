@@ -40,6 +40,7 @@ import {
   composerPreviewIssue,
   composerMovementAction,
   composerMechanicDescription,
+  composerMechanicAdjustmentReason, composerWodRegionAdvisory,
   composerWodProtocol,
   currentComposerAssessment,
   formatComposerDose as formatPreviewDose,
@@ -446,6 +447,7 @@ function ComposerWodPreview({ block, loading, issue, environmentCode, styles, co
         <Text style={styles.previewExerciseDose}>{formatPreviewDose(dose, 'WOD', block)}</Text>
       </View>)}
     </View>
+    {composerWodRegionAdvisory(block)?<Text style={styles.previewDetails}>{composerWodRegionAdvisory(block)}</Text>:null}
     <Text style={styles.previewFootnote}>Prévision ajustable le jour J.</Text>
   </View>;
 }
@@ -1316,11 +1318,11 @@ export default function WeekComposerV7() {
       setMechanicOptions(options);
       setMechanicIssue(null);
       const requested=requestedMechanic?options.find(option=>composerMechanicIdentity(option)===composerMechanicIdentity(requestedMechanic)):null;
-      setMechanic((current) => requested?.available ? requested : options.find((option) => option.available !== false && composerMechanicIdentity(option) === composerMechanicIdentity(current))
+      setMechanic((current) => requested ? (requested.available?requested:null) : options.find((option) => option.available !== false && composerMechanicIdentity(option) === composerMechanicIdentity(current))
         ?? options.find((option) => option.available !== false));
-      if(requested&&!requested.available)setMechanicIssue(requested.title+' : '+requested.reason);
+      if(requested&&!requested.available)setMechanicIssue(requested.title+' : '+composerMechanicAdjustmentReason(requested));
       if(requested?.available)setRequestedMechanic(null);
-      setShowAllMechanics(!options.some((option) => option.available !== false));
+      setShowAllMechanics(Boolean(requested&&!requested.available)||!options.some((option) => option.available !== false));
       setStep(4);
     } catch (reason) {
       console.warn('[Composer] mechanic recommendation failed', reason);
@@ -1946,7 +1948,7 @@ export default function WeekComposerV7() {
                   <Text style={styles.sectionSmallHint}>Cette action propose une leçon guidée. Si tu modifies ensuite ses exercices, tu repasses en composition libre.</Text>
                 </View>
               ) : null}
-              {activeBlock.type === 'WOD' && requestedMechanic?.reason_code==='EXERCISE_COUNT' ? <View style={styles.structureExplanation}><Ionicons name="options-outline" size={18} color={colors.accent}/><Text style={styles.structureExplanationText}>{requestedMechanic.title} : choisis entre {requestedMechanic.contract?.min_exercises} et {requestedMechanic.contract?.max_exercises} mouvements. Aucun exercice ne sera ajouté ou retiré automatiquement.</Text></View>:null}
+              {activeBlock.type === 'WOD' && requestedMechanic ? <View style={styles.structureExplanation}><Ionicons name="options-outline" size={18} color={colors.accent}/><Text style={styles.structureExplanationText}>{requestedMechanic.title} : {composerMechanicAdjustmentReason(requestedMechanic)}{requestedMechanic?.reason_code==='EXERCISE_COUNT'?' Aucun exercice ne sera ajouté ou retiré automatiquement.':''}</Text></View>:null}
               {activeBlock.type === 'WOD' ? <Text style={styles.sectionSmallHint}>
                 {wodContractsLoading ? 'Vérification des limites par mécanique…'
                   : wodContractsError ? 'Limites indisponibles : trois mouvements maximum pour les nouveaux ajouts.'
@@ -2042,7 +2044,7 @@ export default function WeekComposerV7() {
                           ) : null}
                           <Text style={styles.mechanicTitle}>{option.title}</Text>
                           <Text style={styles.mechanicDescription}>{composerMechanicDescription(option)}</Text>
-                          {adjustable?<Text style={styles.structureLinkText}>{option.reason_code==='EXERCISE_COUNT'?'Ajuster les mouvements':'Adapter la composition'} <Text>›</Text></Text>:null}
+                          {adjustable?<><Text style={styles.mechanicDescription}>{composerMechanicAdjustmentReason(option)}</Text><Text style={styles.structureLinkText}>{option.reason_code==='EXERCISE_COUNT'?'Ajuster les mouvements':'Adapter la composition'} <Text>›</Text></Text></>:null}
                         </View>
                         <View style={[styles.mechanicSelectCircle, selected && styles.selectCircleSelected]}>
                           {option.available === false || selected ? <Ionicons name={premium ? 'lock-closed-outline' : adjustable ? 'options-outline' : 'checkmark'} size={16} color={premium ? colors.textMuted : adjustable ? colors.accent : colors.textOnAccent} /> : null}
@@ -2128,7 +2130,7 @@ export default function WeekComposerV7() {
                         return <Text style={styles.recapDose}>8 intervalles · 20 s effort / 10 s repos</Text>;
                       }
                       if (item.type === 'WOD') {
-                        return <><Text style={styles.recapDose}>{composerWodTimeSummary(prescription)}</Text><Text style={styles.recapDose}>{composerWodProtocol(prescription)}</Text></>;
+                        return <><Text style={styles.recapDose}>{composerWodTimeSummary(prescription)}</Text><Text style={styles.recapDose}>{composerWodProtocol(prescription)}</Text>{composerWodRegionAdvisory(prescription)?<Text style={styles.previewDetails}>{composerWodRegionAdvisory(prescription)}</Text>:null}</>;
                       }
                       return null;
                     })()}

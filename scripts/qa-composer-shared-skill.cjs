@@ -21,7 +21,8 @@ function query(table){
     eq(){return this;},contains(){return this;},in(){return this;},range(){return this;},
     then(resolve){resolve({data:result,error:null});}};
 }
-const supabase={from:query,async rpc(name,args){calls.push({name,args});return {data:rpcReply(name,args)};}};
+function compatibilityFixture(args){return Object.fromEntries(args.p_exercise_ids.map(id=>[id,{equipment_ok:true,environment_ok:true,equipment_ids:[],equipment_groups:[]}]));}
+const supabase={from:query,async rpc(name,args){if(name==='week_composer_exercise_compatibility_v1')return {data:compatibilityFixture(args)};calls.push({name,args});return {data:rpcReply(name,args)};}};
 const api = new Function('supabase','getAuthenticatedUserWithRetry','runSupabaseRequestWithAuthRetry','readComposerPreferences',
   service+'\nreturn {getComposerExerciseCandidates,getComposerSkillProposal,getComposerAutomaticSkillProposal,composerExerciseSlotLimit,composerBlockDisplayLabel,selectComposerDefaultExercises};')
   (supabase,async()=>({id:'synthetic'}),async fn=>{const r=await fn();if(r.error)throw r.error;return r.data;},readComposerPreferences);
@@ -52,7 +53,7 @@ async function main(){
   const catalogueRows=Array.from({length:620},(_,i)=>({id:'catalogue-'+i,name:'Exercise '+i,
     selection_weight:1,home_friendly:true,usable_for:i%2?['Skill']:['STRENGTH']}));
   const roleFilters=[];
-  const catalogueSupabase={from(table){let from=0,to=999;return {
+  const catalogueSupabase={async rpc(name,args){assert.equal(name,'week_composer_exercise_compatibility_v1');assert.ok(args.p_exercise_ids.length<=500);return {data:compatibilityFixture(args)};},from(table){let from=0,to=999;return {
     select(){return this;},order(){return this;},eq(){return this;},in(){return this;},limit(){return this;},
     contains(column,value){roleFilters.push({column,value});return this;},
     range(a,b){from=a;to=b;return this;},then(resolve){resolve({data:table==='exercises'?catalogueRows.slice(from,to+1):[],error:null});}};}};
@@ -70,7 +71,7 @@ async function main(){
   assert.equal(manualWod.length,620,'Manual WOD exploration is not restricted by a role, target region or shortlist');
   assert.deepEqual(roleFilters,[],'Manual exploration must not apply a WOD role filter');
   const queryCalls=[];
-  const manualDb={from(table){let from=0,to=499;return {
+  const manualDb={async rpc(name,args){assert.equal(name,'week_composer_exercise_compatibility_v1');return {data:{'no-bar':{equipment_ok:args.p_equipment_ids.includes('E01'),environment_ok:true,equipment_ids:['E01'],equipment_groups:[['E01']]}}};},from(table){let from=0,to=499;return {
     select(){return this;},order(){return this;},in(){return this;},
     eq(...args){queryCalls.push(['eq',...args]);return this;},
     contains(...args){queryCalls.push(['contains',...args]);return this;},
@@ -84,7 +85,9 @@ async function main(){
     service+';return {getComposerExerciseCandidates};')(manualDb,async()=>({id:'synthetic'}),async fn=>(await fn()).data,readComposerPreferences);
   const open=await manualApi.getComposerExerciseCandidates({...base,blockType:'WOD',manualCatalogue:true});
   assert.deepEqual(queryCalls,[],'No hidden location, role or count filters in the manual catalogue');
-  assert.deepEqual(open[0].missingEquipment,['Barre'],'Missing gear is visible, not a hidden exclusion');
+  assert.equal(open.length,0,'Missing required gear must not leak into manual selection');
+  const equipped=await manualApi.getComposerExerciseCandidates({...base,blockType:'WOD',manualCatalogue:true,equipmentIds:['E01']});
+  assert.deepEqual(equipped.map(e=>e.id),['no-bar']);assert.deepEqual(equipped[0].equipmentNames,['Barre']);assert.equal(equipped[0].equipmentCompatibility.equipmentOk,true);
   const automaticWod=await manualApi.getComposerExerciseCandidates({...base,blockType:'WOD'});
   assert.equal(automaticWod.length,0,'Automatic candidates still enforce equipment');
   assert.ok(queryCalls.some(x=>x[0]==='contains')&&queryCalls.some(x=>x[0]==='eq')&&queryCalls.some(x=>x[0]==='limit'));

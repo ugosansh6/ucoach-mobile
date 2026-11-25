@@ -170,3 +170,20 @@ export function composerPreviewIssue(issue, environmentCode = 'BOX') {
 export function currentComposerAssessment(result, resultSignature, requestSignature, loading, error) {
   return !loading && !error && resultSignature === requestSignature ? result : null;
 }
+
+// Actionable Composer diagnostics: do not claim a rejected runtime is playable.
+export function composerMechanicAdjustmentReason(option) {
+  if(option?.reason_code==='EXERCISE_COUNT') return 'Choisis entre '+(option.contract?.min_exercises??'?')+' et '+(option.contract?.max_exercises??'?')+' mouvements pour cette mécanique.';
+  if(option?.reason_code==='EXERCISE_INCOMPATIBLE') return 'Vérifie le matériel et le lieu des mouvements sélectionnés.';
+  const reasons=(Array.isArray(option?.details)?option.details:[]).join(' ');
+  if(/ATHLETE_WORKLOAD|VOLUME_EXCEEDS/.test(reasons)) return 'Le dosage calculé dépasse la charge de travail validée. Ajuste les mouvements ou choisis une autre mécanique.';
+  if(/PREP_ONLY|WOD_ROLE/.test(reasons)) return 'Un mouvement de préparation ne convient pas à ce WOD. Ajuste les mouvements.';
+  if(/COMPLEXITY|TECHNICAL/.test(reasons)) return 'La difficulté technique du protocole nécessite une adaptation.';
+  if(/DURATION|TIME_CAP|CYCLE/.test(reasons)) return 'Le protocole ne respecte pas la durée ou les cycles requis. Ajuste la durée ou les mouvements.';
+  if(/PROFILE_UNRESOLVED/.test(reasons)) return 'Le suivi de ce mouvement n’est pas compatible avec cette mécanique.';
+  return String(option?.reason??'Le protocole doit être adapté.').replaceAll('ce format','cette mécanique').replaceAll('un autre format','une autre mécanique');
+}
+export function composerWodRegionAdvisory(block){
+  return (block?.time?.advisories??[]).some(code=>['EXPLICIT_TARGET_REGION_COHERENCE','EXPLICIT_TARGET_REGION_COHERENCE_60','BACK_PRIMARY_MUSCLE_REQUIRED'].includes(code))
+    ? 'Les mouvements sollicitent aussi d’autres zones que celle privilégiée. Tu peux conserver cette séance.' : null;
+}

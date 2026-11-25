@@ -7,13 +7,17 @@ const assert=require('node:assert/strict');
 function load(file,names) { return new Function(fs.readFileSync(file,'utf8').replaceAll('export function ','function ')+`\nreturn {${names}};`)(); }
 const {buildWodProtocolCompletion}=load('src/services/wodProtocolOutcome.js','buildWodProtocolCompletion');
 const {deriveWodExerciseStatuses}=load('src/services/wodRuntimeStatus.js','deriveWodExerciseStatuses');
-const present=load('src/utils/composerPresentation.js','formatComposerDose,composerWodProtocol,composerWodTimeSummary,composerMechanicIdentity,composerPreviewIssue');
+const present=load('src/utils/composerPresentation.js','formatComposerDose,composerWodProtocol,composerWodTimeSummary,composerMechanicIdentity,composerPreviewIssue,composerMechanicAdjustmentReason,composerWodRegionAdvisory');
 assert.notEqual(present.composerMechanicIdentity({key:'COUPLET'}),present.composerMechanicIdentity({key:'COUPLET',variant_key:'DESCENDING_COUPLET'}));
 assert.match(present.composerPreviewIssue({block_type:'WOD',reason:'EXERCISE_COUNT'}),/nombre de mouvements.*mécanique/);
 assert.match(present.composerPreviewIssue({block_type:'WOD',reason:'PREMIUM_REQUIRED'}),/mécanique.*Premium/);
 assert.doesNotMatch(present.composerPreviewIssue({block_type:'WOD'}),/Musculation|Renforcement/);
 assert.match(present.composerWodTimeSummary({minutes:40,time:{budget_minutes:40,prescribed_seconds:900,duration_semantic:'time_cap'},parameters:{cap_seconds:2400}}),/limite 40 min.*15 min.*avant/);
 assert.match(present.formatComposerDose({prescription_json:{reps_min:3,mechanic_overlay:{base_reps:3,increment_reps:2}}},'WOD',{mechanic:'COUPLET',variant_key:'DESCENDING_COUPLET',parameters:{rungs:4}}),/9 → 3 reps · −2/);
+assert.match(present.composerMechanicAdjustmentReason({reason_code:'EXERCISE_COUNT',contract:{min_exercises:4,max_exercises:7}}),/4 et 7 mouvements/);
+assert.match(present.composerMechanicAdjustmentReason({reason_code:'C4_PROTOCOL_REJECTED',details:['ATHLETE_WORKLOAD_ENVELOPE_EXCEEDED']}),/charge de travail/);
+assert.match(present.composerWodRegionAdvisory({time:{advisories:['EXPLICIT_TARGET_REGION_COHERENCE_60']}}),/conserver/);
+assert.equal(present.composerWodRegionAdvisory({time:{advisories:[]}}),null);
 console.log('PASS: variant identities, progression dose, WOD errors and honest duration semantics');
 if (!process.argv[2]) process.exit(0);
 const data=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
