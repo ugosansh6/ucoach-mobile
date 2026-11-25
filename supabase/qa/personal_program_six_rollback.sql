@@ -12,6 +12,13 @@ FOR f IN SELECT value FROM jsonb_array_elements($fixtures$[{"key":"calisthenie-1
  a:=week_plan_personal_program_v1(model,current_date,d,CASE WHEN env='OUTDOOR' THEN 'RUBBER' ELSE NULL END);
  IF a->>'status'<>'SAVED' THEN RAISE EXCEPTION 'Save failure % %',f->>'key',a; END IF;
  item:=(a->>'plan_item_id')::uuid;
+ -- A refused inventory must leave the saved plan available for the next valid check-in.
+ BEGIN
+ c:=week_compile_composer_day_j_v1(u,item,current_date,6,ARRAY['Aucune'],ARRAY[]::text[],env);
+ RAISE EXCEPTION 'QA_EXPECTED_INCOMPATIBILITY_%',c->>'status';
+ EXCEPTION WHEN OTHERS THEN
+ IF SQLERRM NOT LIKE 'COMPOSER_EXERCISE_INCOMPATIBLE_%' THEN RAISE; END IF;
+ END;
  c:=week_compile_composer_day_j_v1(u,item,current_date,6,ARRAY['Aucune'],g,env);
  IF c->>'status'<>'READY' THEN RAISE EXCEPTION 'Compile % %',f->>'key',c; END IF;
  sid:=(c->>'session_id')::uuid;
