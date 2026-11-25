@@ -9,11 +9,11 @@ import {getComposerPrescriptionPreview} from '../services/composerService';
 import {modelDateKey,validModelDate,canReusePersonalModel,personalModelMeta,sortPersonalModels,groupPersonalModels,personalProgramRows,buildPersonalProgramDraft,PROGRAM_GEAR,programDoseLabel} from '../utils/personalWorkoutModels';
 import {formatComposerDose,composerWodProtocol} from '../utils/composerPresentation';
 
-export default function PersonalModelsPage({importDate,showExercises}){
+export default function PersonalModelsPage({importDate,showExercises,initialGroup}){
  const {colors:c}=useUgerodTheme();
  const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[retry,setRetry]=useState(0);
  const [selectedId,setSelectedId]=useState(null),[busy,setBusy]=useState(false),[name,setName]=useState(null),[confirm,setConfirm]=useState(false);
- const [groupId,setGroupId]=useState(null);
+ const [groupId,setGroupId]=useState(initialGroup||null);
  const grouping=groupPersonalModels(rows);
  const group=grouping.groups.find(g=>g.id===groupId);
  const operation=useRef(false);
@@ -48,7 +48,7 @@ export default function PersonalModelsPage({importDate,showExercises}){
  return <SafeAreaView style={{flex:1,backgroundColor:c.background}}>
  <ScrollView contentContainerStyle={{padding:18,paddingBottom:40,gap:12}} keyboardShouldPersistTaps="handled">
  <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
-   {selected||group?<Pressable accessibilityLabel="Retour aux modèles" disabled={busy} onPress={()=>{if(!operation.current){if(selected)close();else setGroupId(null);}}}><Ionicons name="arrow-back" size={24} color={c.text}/></Pressable>:null}
+   {selected||group?<Pressable accessibilityLabel="Retour aux modèles" disabled={busy} onPress={()=>{if(!operation.current){if(selected)close();else {setGroupId(null);if(initialGroup)router.setParams({group:''});}}}}><Ionicons name="arrow-back" size={24} color={c.text}/></Pressable>:null}
    <Text style={{fontFamily:fontFamilies.display,fontSize:32,color:c.text,flex:1}}>{selected?'TON MODÈLE.':group?group.title.toUpperCase()+'.':'BIBLIOTHÈQUE.'}</Text>
    {!selected&&!group?<Pressable accessibilityLabel="Mon profil" onPress={()=>router.push('/profile')}><Ionicons name="person-circle-outline" size={30} color={c.text}/></Pressable>:null}
  </View>
