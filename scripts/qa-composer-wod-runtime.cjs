@@ -7,7 +7,7 @@ const assert=require('node:assert/strict');
 function load(file,names) { return new Function(fs.readFileSync(file,'utf8').replaceAll('export function ','function ')+`\nreturn {${names}};`)(); }
 const {buildWodProtocolCompletion}=load('src/services/wodProtocolOutcome.js','buildWodProtocolCompletion');
 const {deriveWodExerciseStatuses}=load('src/services/wodRuntimeStatus.js','deriveWodExerciseStatuses');
-const present=load('src/utils/composerPresentation.js','formatComposerDose,composerWodProtocol,composerWodTimeSummary,composerMechanicIdentity,composerPreviewIssue,composerMechanicAdjustmentReason,composerWodRegionAdvisory');
+const present=load('src/utils/composerPresentation.js','formatComposerDose,composerWodProtocol,composerWodTimeSummary,composerMechanicIdentity,composerPreviewIssue,composerMechanicAdjustmentReason,composerWodRegionAdvisory,composerWodDurationAdvisory');
 assert.notEqual(present.composerMechanicIdentity({key:'COUPLET'}),present.composerMechanicIdentity({key:'COUPLET',variant_key:'DESCENDING_COUPLET'}));
 assert.match(present.composerPreviewIssue({block_type:'WOD',reason:'EXERCISE_COUNT'}),/nombre de mouvements.*mécanique/);
 assert.match(present.composerPreviewIssue({block_type:'WOD',reason:'PREMIUM_REQUIRED'}),/mécanique.*Premium/);
@@ -18,6 +18,9 @@ assert.match(present.composerMechanicAdjustmentReason({reason_code:'EXERCISE_COU
 assert.match(present.composerMechanicAdjustmentReason({reason_code:'C4_PROTOCOL_REJECTED',details:['ATHLETE_WORKLOAD_ENVELOPE_EXCEEDED']}),/charge de travail/);
 assert.match(present.composerWodRegionAdvisory({time:{advisories:['EXPLICIT_TARGET_REGION_COHERENCE_60']}}),/conserver/);
 assert.equal(present.composerWodRegionAdvisory({time:{advisories:[]}}),null);
+assert.match(present.composerWodDurationAdvisory({time:{advisories:['LADDER_ATHLETE_VOLUME_TOO_SHORT_FOR_BUDGET']}}),/avant la durée/);
+assert.match(present.composerWodDurationAdvisory({time:{advisories:['PROGRESSIVE_EXPECTED_FAILURE_TOO_EARLY_FOR_BUDGET']}}),/sans augmenter le volume/);
+assert.equal(present.composerWodDurationAdvisory({time:{advisories:['PYRAMID_NO_COMPLETE_CYCLE']}}),null);
 console.log('PASS: variant identities, progression dose, WOD errors and honest duration semantics');
 if (!process.argv[2]) process.exit(0);
 const data=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));

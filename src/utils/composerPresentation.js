@@ -187,3 +187,8 @@ export function composerWodRegionAdvisory(block){
   return (block?.time?.advisories??[]).some(code=>['EXPLICIT_TARGET_REGION_COHERENCE','EXPLICIT_TARGET_REGION_COHERENCE_60','BACK_PRIMARY_MUSCLE_REQUIRED'].includes(code))
     ? 'Les mouvements sollicitent aussi d’autres zones que celle privilégiée. Tu peux conserver cette séance.' : null;
 }
+
+export function composerWodDurationAdvisory(block) {
+  return (block?.time?.advisories??[]).some(code=>['LADDER_ATHLETE_VOLUME_TOO_SHORT_FOR_BUDGET','PROGRESSIVE_EXPECTED_FAILURE_TOO_EARLY_FOR_BUDGET'].includes(code))
+    ? 'Le WOD peut se terminer avant la durée prévue. Tu peux conserver ce protocole sans augmenter le volume.' : null;
+}

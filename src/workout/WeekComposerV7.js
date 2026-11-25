@@ -40,7 +40,7 @@ import {
   composerPreviewIssue,
   composerMovementAction,
   composerMechanicDescription,
-  composerMechanicAdjustmentReason, composerWodRegionAdvisory,
+  composerMechanicAdjustmentReason, composerWodRegionAdvisory, composerWodDurationAdvisory,
   composerWodProtocol,
   currentComposerAssessment,
   formatComposerDose as formatPreviewDose,
@@ -448,6 +448,7 @@ function ComposerWodPreview({ block, loading, issue, environmentCode, styles, co
       </View>)}
     </View>
     {composerWodRegionAdvisory(block)?<Text style={styles.previewDetails}>{composerWodRegionAdvisory(block)}</Text>:null}
+    {composerWodDurationAdvisory(block)?<Text style={styles.previewDetails}>{composerWodDurationAdvisory(block)}</Text>:null}
     <Text style={styles.previewFootnote}>Prévision ajustable le jour J.</Text>
   </View>;
 }
@@ -2130,7 +2131,7 @@ export default function WeekComposerV7() {
                         return <Text style={styles.recapDose}>8 intervalles · 20 s effort / 10 s repos</Text>;
                       }
                       if (item.type === 'WOD') {
-                        return <><Text style={styles.recapDose}>{composerWodTimeSummary(prescription)}</Text><Text style={styles.recapDose}>{composerWodProtocol(prescription)}</Text>{composerWodRegionAdvisory(prescription)?<Text style={styles.previewDetails}>{composerWodRegionAdvisory(prescription)}</Text>:null}</>;
+                        return <><Text style={styles.recapDose}>{composerWodTimeSummary(prescription)}</Text><Text style={styles.recapDose}>{composerWodProtocol(prescription)}</Text>{composerWodRegionAdvisory(prescription)?<Text style={styles.previewDetails}>{composerWodRegionAdvisory(prescription)}</Text>:null}{composerWodDurationAdvisory(prescription)?<Text style={styles.previewDetails}>{composerWodDurationAdvisory(prescription)}</Text>:null}</>;
                       }
                       return null;
                     })()}
