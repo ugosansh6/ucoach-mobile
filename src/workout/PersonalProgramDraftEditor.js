@@ -4,24 +4,27 @@ import {Ionicons} from '@expo/vector-icons';
 import {router} from 'expo-router';
 import {fontFamilies} from '../constants/typography';
 import {newProgramPhase,duplicateProgramPhase,programDraftWeeks,programDraftIssues} from '../utils/personalProgramDrafts';
+import ProgramCoverEditor from '../components/programs/ProgramCoverEditor';
 import {personalModelMeta,canReusePersonalModel} from '../utils/personalWorkoutModels';
 
 export const localDraftId=()=>Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
 
 export default function PersonalProgramDraftEditor({draft,onChange,onSave,onBack,models,colors:c,busy}){
  const [picker,setPicker]=useState(null);
+ const [coverBusy,setCoverBusy]=useState(false);
  const [exitConfirm,setExitConfirm]=useState(false);
  const txt={fontFamily:fontFamilies.regular,fontSize:14,color:c.text},bold={...txt,fontFamily:fontFamilies.semiBold},muted={...txt,fontSize:12,color:c.textSecondary};
  const input={...txt,minHeight:44,paddingHorizontal:12,paddingVertical:10,borderRadius:10,borderWidth:1,borderColor:c.border,backgroundColor:c.surface};
  const updatePhase=(id,fn)=>onChange({...draft,phases:draft.phases.map(p=>p.id===id?fn(p):p)});
- const action=(label,icon,fn,primary=false,disabled=false)=><Pressable accessibilityRole="button" disabled={busy||disabled} onPress={fn} style={{minHeight:44,padding:12,borderRadius:10,backgroundColor:primary?c.accent:c.surfacePressed,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,opacity:busy||disabled?0.5:1}}><Ionicons name={icon} size={19} color={primary?c.textOnAccent:c.accent}/><Text style={{...bold,color:primary?c.textOnAccent:c.text}}>{label}</Text></Pressable>;
+ const action=(label,icon,fn,primary=false,disabled=false)=><Pressable accessibilityRole="button" disabled={busy||coverBusy||disabled} onPress={fn} style={{minHeight:44,padding:12,borderRadius:10,backgroundColor:primary?c.accent:c.surfacePressed,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,opacity:busy||coverBusy||disabled?0.5:1}}><Ionicons name={icon} size={19} color={primary?c.textOnAccent:c.accent}/><Text style={{...bold,color:primary?c.textOnAccent:c.text}}>{label}</Text></Pressable>;
  const issues=programDraftIssues(draft,models.filter(canReusePersonalModel));
  let cursor=1;
  return <View style={{gap:16}}>
- <Pressable accessibilityRole="button" onPress={()=>setExitConfirm(true)} disabled={busy} style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:44}}><Ionicons name="arrow-back" size={20} color={c.text}/><Text style={bold}>Mes programmes</Text></Pressable>
+ <Pressable accessibilityRole="button" onPress={()=>setExitConfirm(true)} disabled={busy||coverBusy} style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:44}}><Ionicons name="arrow-back" size={20} color={c.text}/><Text style={bold}>Mes programmes</Text></Pressable>
  {exitConfirm?<View accessibilityRole="alert" style={{padding:12,backgroundColor:c.surfacePressed,borderRadius:10,gap:8}}><Text style={txt}>Quitter sans enregistrer les dernières modifications ?</Text>{action('Continuer l’édition','pencil-outline',()=>setExitConfirm(false))}{action('Quitter sans enregistrer','exit-outline',onBack)}</View>:null}
  <Text style={{fontFamily:fontFamilies.display,fontSize:30,color:c.text}}>MON PROGRAMME.</Text>
  <Text style={muted}>Brouillon privé sur cet appareil. Les séances et leur planification restent inchangées.</Text>
+ <ProgramCoverEditor cover={draft.cover} onChange={cover=>onChange(current=>current?{...current,cover}:current)} onBusyChange={setCoverBusy} colors={c} disabled={busy}/>
  <Text style={bold}>Nom du programme</Text><TextInput accessibilityLabel="Nom du programme" style={input} editable={!busy} value={draft.title} maxLength={120} placeholder="Ex. Préparation Spartan" placeholderTextColor={c.textMuted} onChangeText={title=>onChange({...draft,title})}/>
  <Text style={bold}>Objectif</Text><TextInput accessibilityLabel="Objectif" style={{...input,minHeight:70,textAlignVertical:'top'}} editable={!busy} multiline value={draft.objective} maxLength={600} placeholder="Ex. Développer ma force et mon grip" placeholderTextColor={c.textMuted} onChangeText={objective=>onChange({...draft,objective})}/>
  <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}><Text style={bold}>Mes phases</Text><Text style={muted}>{programDraftWeeks(draft)} semaines</Text></View>
