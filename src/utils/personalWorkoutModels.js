@@ -57,3 +57,16 @@ export function programDoseLabel(d){
  const work=d.mode==='time'?'s':d.mode==='count'?d.count_unit:'reps';
  return d.sets+' × '+d.target+' '+work+' · repos '+d.rest_seconds+' s';
 }
+
+// Presentation grouping of the six known imported phases only. No inference from
+// editable display names, no mutation, and no automatic progression.
+export function groupPersonalModels(rows){
+ const groups=[{id:'calisthenie',title:'Callisthénie',subtitle:'Maison · Force au poids du corps',icon:'body-outline',models:[]},{id:'street',title:'Street Workout',subtitle:'Extérieur · Suspension et grip',icon:'fitness-outline',models:[]}];
+ const standalone=[];
+ for(const model of sortPersonalModels(rows??[])){
+  const key=String(model.source_key??'');
+  const group=model.origin==='PROGRAM'&&groups.find(g=>new RegExp('^'+g.id+'-\\d+-\\d+$').test(key));
+  if(group)group.models.push(model);else standalone.push(model);
+ }
+ return {groups:groups.filter(g=>g.models.length),standalone};
+}
