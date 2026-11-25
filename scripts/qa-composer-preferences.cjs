@@ -63,7 +63,7 @@ async function transport() {
     from(table){assert.equal(table,'skill_paths');return catalogue;},
     async rpc(name,args){
       calls.push([name,args]);
-      if(name==='week_save_composer_revision_v1'){stored=JSON.parse(JSON.stringify(args.p_draft));return {data:{composer_draft:stored}};}
+      if(name==='week_save_composer_with_model_v1'){stored=JSON.parse(JSON.stringify(args.p_draft));return {data:{composer_draft:stored}};}
       if(name==='week_read_composer_for_day_v1')return {data:{found:true,plan_item_id:'plan',composer_draft:stored}};
       if(name==='week_composer_prescription_preview_v1')return {data:{status:'PREVIEW'}};
       throw Error('Unexpected RPC '+name);
@@ -81,7 +81,7 @@ async function transport() {
   await tested.getComposerPrescriptionPreview({draft});
   assert.deepEqual(calls.find(x=>x[0]==='week_composer_prescription_preview_v1')[1].p_draft.preferences,preferences);
   await tested.saveComposerDraft({planItemId:'plan',draft,context:{duration_minutes:45},confirmReplacement:true});
-  const saveCall=calls.find(x=>x[0]==='week_save_composer_revision_v1')[1];
+  const saveCall=calls.find(x=>x[0]==='week_save_composer_with_model_v1')[1];
   assert.equal(saveCall.p_confirm_replacement,true);assert.deepEqual(saveCall.p_context,{duration_minutes:45});
   const loaded=await tested.getComposerForLocalDate('2026-11-20');
   assert.deepEqual(loaded.preferences,preferences);
