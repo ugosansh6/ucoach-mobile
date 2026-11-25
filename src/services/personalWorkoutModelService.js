@@ -26,3 +26,8 @@ export async function deletePersonalWorkoutModel(id){
  const user=await getAuthenticatedUserWithRetry();
  return runSupabaseRequestWithAuthRetry(()=>supabase.from(table).delete().eq('user_id',user.id).eq('id',id).select('id').single());
 }
+
+export async function planPersonalProgram(modelId,date,draft,surface=null){
+ await getAuthenticatedUserWithRetry();
+ return runSupabaseRequestWithAuthRetry(()=>supabase.rpc('week_plan_personal_program_v1',{p_model_id:modelId,p_date:date,p_draft:draft,p_surface:surface}));
+}

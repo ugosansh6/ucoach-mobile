@@ -473,7 +473,7 @@ export default function PreparationCheckinV4() {
   equipmentRef.current = preparation?.equipment ?? [];
   preparationRef.current = preparation;
 
-  const duration = DURATIONS.includes(Number(preparation?.duration))
+  const duration = (todayComposer?.draft?.personal_program_version==='PERSONAL_PROGRAM_V1'&&Number(preparation?.duration)===Number(todayComposer.draft.duration_minutes)) || DURATIONS.includes(Number(preparation?.duration))
     ? Number(preparation.duration)
     : 45;
   const environmentCode = String(preparation?.environmentCode ?? 'HOME').toUpperCase();
@@ -504,7 +504,7 @@ export default function PreparationCheckinV4() {
     preparation?.surfaceCode ?? selectedPlace?.surface ?? null;
   const outdoorContextComplete =
     environmentCode !== 'OUTDOOR' ||
-    Boolean(selectedPlace && effectiveOutdoorSurface);
+    Boolean((selectedPlace||todayComposer?.draft?.personal_program_version==='PERSONAL_PROGRAM_V1') && effectiveOutdoorSurface);
 
   const normalizedStatus = String(workout?.status ?? '').toLowerCase();
   const hasExistingSession =
@@ -551,6 +551,10 @@ export default function PreparationCheckinV4() {
 
       const current = Array.isArray(equipmentRef.current) ? equipmentRef.current : [];
       const allowedPresetNames = new Set(presetNames);
+      if(preparationRef.current?.personalProgramEquipment===true&&preparationRef.current?.equipmentEnvironmentCode===environment){
+        for(const entry of catalog??[])if((equipmentRef.current??[]).includes(entry.name))allowedPresetNames.add(entry.name);
+        setReferenceEquipment([...options,...(catalog??[]).filter(x=>allowedPresetNames.has(x.name)&&!presetNames.includes(x.name)).map(x=>({id:x.id,name:x.name,detail:'Séance personnelle'}))]);
+      }
       const storedEnvironment = String(
         preparationRef.current?.equipmentEnvironmentCode ?? ''
       ).toUpperCase();
@@ -654,6 +658,8 @@ export default function PreparationCheckinV4() {
             environmentCode: draft.environment_code ?? future.environment_code ?? 'HOME',
             region: legacyComposerTargetRegion(preferences),
             composerPreferences: preferences,
+            personalProgramEquipment:draft.personal_program_version==='PERSONAL_PROGRAM_V1',
+            ...(draft.personal_program_version==='PERSONAL_PROGRAM_V1'&&draft.environment_code==='OUTDOOR'?{surfaceCode:future.surface_code,surfaceSelectionSource:'user_selected'}:{}),
             ...(composerUsesOutdoorEngine(draft) ? {
               outdoorPlaceCode: draft.outdoor_context?.place_code,
               surfaceCode: draft.outdoor_context?.surface_code,

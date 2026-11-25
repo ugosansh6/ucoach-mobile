@@ -22,7 +22,8 @@ export function formatComposerDose(dose, blockType, block = null, { compactCard 
     const protocolDose = composerProgressionDose(dose, block);
     if (protocolDose) return protocolDose;
   }
-  if (dose.reps != null && Number.isFinite(Number(dose.reps))) {
+  if(dose.prescription_json?.execution_target_count!=null)work=`${dose.prescription_json.execution_target_count} ${dose.prescription_json.count_unit}`;
+  else if (dose.reps != null && Number.isFinite(Number(dose.reps))) {
     work = `${dose.reps} reps${dose.reps_semantics === 'per_side' ? ' / côté' : ''}`;
   } else if (dose.duration_seconds != null) work = `${dose.duration_seconds} s${dose.duration_semantics==='per_side'||dose.prescription_json?.duration_semantics==='per_side'?' / côté':''}`;
   else if (dose.distance_meters != null) work = `${dose.distance_meters} m`;

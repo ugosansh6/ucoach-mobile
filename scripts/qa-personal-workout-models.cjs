@@ -1,6 +1,6 @@
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const h=fs.readFileSync('src/utils/personalWorkoutModels.js','utf8').replaceAll('export function ','function ');
-const a=new Function(h+';return {validModelDate,canReusePersonalModel,personalModelMeta,sortPersonalModels};')();
+const a=new Function(h.replaceAll('export const ','const ')+';return {validModelDate,canReusePersonalModel,personalModelMeta,sortPersonalModels,personalProgramRows,buildPersonalProgramDraft};')();
 assert.equal(a.validModelDate('2026-11-30','2026-11-25'),true);
 assert.equal(a.validModelDate('2026-11-31','2026-11-25'),false);
 assert.equal(a.validModelDate('2026-11-24','2026-11-25'),false);
@@ -13,3 +13,6 @@ const ui=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');assert.match(ui
 assert.match(fs.readFileSync('src/services/composerService.js','utf8'),/week_save_composer_with_model_v1/);
 assert.match(fs.readFileSync('app/(tabs)/library.js','utf8'),/section==='models'\?<PersonalModelsPage/);
 console.log('PASS personal models routing, date validation, source completeness and ownership-scoped service wiring');
+const street={origin:'PROGRAM',name:'Test',source_payload:{week_start:21,environment_code:'OUTDOOR',exercises:[{name:'Monkey Bars',dose:'3 traversées maîtrisées',candidate_ids:['EX583']}]}};assert.equal(a.canReusePersonalModel(street),true);const draft=a.buildPersonalProgramDraft(street,a.personalProgramRows(street.source_payload));assert.equal(draft.architecture.blocks[1].exercises[0].authored_dose.count_unit,'traversées');assert.equal(draft.architecture.blocks[1].exercises[0].authored_dose.sets,3);
+const k=fs.readFileSync('src/utils/composerSkillExecution.js','utf8').replaceAll('export function ','function ');const x=new Function(k+';return {skillExecutionUnits,skillExecutionUpdates};')();const ex=[{sessionExerciseId:'a',name:'Monkey Bars',prescriptionJson:{sets:3,execution_target_count:1,count_unit:'traversées'}}];const units=x.skillExecutionUnits(ex);assert.equal(units.length,3);assert.equal(units[0].countUnit,'traversées');assert.equal(x.skillExecutionUpdates(ex,units,{[units[0].key]:{count_actual:1,count_unit:'traversées'}},false,'strength').a.performanceActualJson.gym_sets[0].count_actual,1);
+assert.match(fs.readFileSync('src/workout/PersonalModelsPage.js','utf8'),/Ajouter à Ma semaine/);

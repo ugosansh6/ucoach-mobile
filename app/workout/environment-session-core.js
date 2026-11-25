@@ -2833,7 +2833,7 @@ export default function EnvironmentSessionCore({
             executionEnabled={executionAllowed} />
         ) : structuredStrength && isComposerWorkout(workout) && currentExercises.some((e) => {
           const p = e.prescriptionJson ?? {};
-          return !usesReps(e) || p.reps_semantics === 'per_side';
+          return p.source==='PERSONAL_PROGRAM_V1' || !usesReps(e) || p.reps_semantics === 'per_side';
         }) ? (
           <ComposerSkillPlayer key={currentKey} blockType="strength" blockSets={blockParameters(currentBlock).sets} blockRestSeconds={blockParameters(currentBlock).rest_seconds} exercises={currentExercises} runtime={workout.strengthRuntime}
             onRuntimeChange={(strengthRuntime) => updateWorkout({ strengthRuntime })}
