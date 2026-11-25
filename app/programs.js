@@ -94,7 +94,7 @@ export default function ProgramsScreen(){
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[retry,setRetry]=useState(0),[category,setCategory]=useState('Tous');
  const operation=useRef(false),ownerRef=useRef(null);
  useFocusEffect(useCallback(()=>{let active=true;setLoading(true);setError('');
-  Promise.all([listPersonalWorkoutModels(),listLocalProgramDrafts()]).then(([items,local])=>{if(!active)return;if(ownerRef.current&&ownerRef.current!==local.ownerId)setDraft(null);ownerRef.current=local.ownerId;setOwnerId(local.ownerId);setModels(items);setDrafts(local.drafts);}).catch(()=>{if(active){setOwnerId(null);setModels([]);setDrafts([]);setDraft(null);setError('Impossible de charger tes programmes. Les brouillons locaux sont conservés.');}}).finally(()=>{if(active)setLoading(false)});
+  Promise.all([listPersonalWorkoutModels(),listLocalProgramDrafts()]).then(([items,local])=>{if(!active)return;if(ownerRef.current&&ownerRef.current!==local.ownerId)setDraft(null);ownerRef.current=local.ownerId;setOwnerId(local.ownerId);setModels(items);setDrafts(local.drafts);}).catch(()=>{if(active){setOwnerId(null);setModels([]);setDrafts([]);setError('Impossible de charger tes programmes. Les brouillons locaux sont conservés.');}}).finally(()=>{if(active)setLoading(false)});
   return ()=>{active=false};
  },[retry]));
  useEffect(()=>{if(requestedSection==='mine'||requestedSection==='discover')setSection(requestedSection)},[requestedSection]);
