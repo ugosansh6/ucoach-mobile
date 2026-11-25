@@ -119,10 +119,11 @@ async function testSavedHydration(){
   const draft={environment_code:'OUTDOOR',duration_minutes:60,equipment_ids:[],intent:{focus:'Conditioning'},architecture:{blocks},
    ...(modern?{outdoor_engine_version:'COMPOSER_OUTDOOR_V1',outdoor_context:{place_code:'PARK',surface_code:'GRASS',running_allowed:true},skill_engine_version:'C4_COMPOSER_SKILL_V1',mechanic:{key:'AMRAP'},wod_engine_version:'C4_COMPOSER_V2'}:{})};
   const original=JSON.stringify(draft),protocol={mechanic:'RUN_INTERVALS',duration_minutes:12};
+  const restoreManual=new Function(fs.readFileSync('src/utils/composerManualDose.js','utf8').replaceAll('export function ','function ')+';return restoreComposerManualEdits;')();
   const deps={active:true,dateKey:'2026-11-21',requestedPlanItemId:'item',params:{},DURATIONS:[60],COMPOSER_OUTDOOR_VERSION:'COMPOSER_OUTDOOR_V1',
    getWeekReadContract:async()=>({visibleItems:[{planItemId:'item',recommendedDate:'2026-11-21',plannedContext:{environmentCode:'OUTDOOR'}}]}),
    getEquipmentCatalog:async()=>[],getComposerForLocalDate:async()=>({planItemId:'item',draft}),getUserEnvironmentEquipmentPreset:async()=>[],buildReferenceEquipment:()=>[],
-   coachIntentFromItem:()=>null,readComposerPreferences:preferences,composerOutdoorContext:outdoor.composerOutdoorContext,firstParam:v=>v,
+   coachIntentFromItem:()=>null,readComposerPreferences:preferences,restoreComposerManualEdits:restoreManual,composerOutdoorContext:outdoor.composerOutdoorContext,firstParam:v=>v,
    getComposerCardioProposal:async context=>{cardioCalls.push(context);return [{id:'EX313',name:'Course',cardioProtocol:protocol}];},
    getComposerExerciseCandidates:async({blockType})=>{assert.notEqual(blockType,'CARDIO','Never hydrate a saved Cardio from the WOD exercise catalogue');return blocks.find(b=>b.type===blockType)?.exercises??[];},
    getComposerCandidateEvidence:async()=>({}),getComposerMechanicOptions:async args=>{formatCalls.push(args);return [{key:'AMRAP'},{key:'EMOM'}];}};
