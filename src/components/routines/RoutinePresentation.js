@@ -1,11 +1,13 @@
 import {Ionicons} from '@expo/vector-icons';
-import {useState} from 'react';
-import {ActivityIndicator,Pressable,Text,TextInput,View} from 'react-native';
+import {useEffect,useRef,useState} from 'react';
+import {ActivityIndicator,Animated,Keyboard,Pressable,Text,TextInput,View} from 'react-native';
 import Svg,{Circle} from 'react-native-svg';
 import {useUgerodTheme} from '../../contexts/UgerodThemeContext';
 import {fontFamilies} from '../../constants/typography';
 import ExerciseArtwork from '../exercises/ExerciseArtwork';
 import {ROUTINE_CATEGORIES,ROUTINE_DAYS,ROUTINE_MECHANICS,isIntervalRoutine,advanceRoutinePhase} from '../../services/routineContract';
+
+import {initialRoutineEditorState,openRoutineEditorSection,advanceRoutineEditor,routineEditorIssue,ROUTINE_EDITOR_SECTIONS} from './routineEditorNavigation';
 
 const categoryIcons={MOBILITY:'body-outline',CORE:'shield-checkmark-outline',PHYSIO:'heart-outline',CONDITIONING:'flame-outline'};
 const mechanics=[['SETS_REPS','Séries & maintien','list-outline'],['CIRCUIT','Circuit','repeat-outline'],['HIIT','Intervalles','timer-outline'],['TABATA','Tabata 20/10','flash-outline']];
@@ -40,10 +42,6 @@ function doseText(e,routine){
  if(isIntervalRoutine(routine.mechanic))return (routine.mechanic==='TABATA'?20:routine.parameters?.work_seconds||'—')+' s effort';
  const dose=e.doseMode==='TIME'||(e.doseMode==null&&e.duration_seconds!=null)?(e.duration_seconds||'—')+' s':(e.reps||'—')+' reps';
  return routine.mechanic==='CIRCUIT'?dose:(e.sets||'—')+' × '+dose;
-}
-function Section({number,title,subtitle,children}){
- const {colors:c}=useUgerodTheme(),s=theme(c);
- return <View style={{gap:12}}><View style={s.row}><View style={{height:32,width:32,borderRadius:10,backgroundColor:c.accentSoft,alignItems:'center',justifyContent:'center'}}><Text style={s.label}>{number}</Text></View><View style={{flex:1}}><Text style={{...s.heading,fontSize:25,lineHeight:28}}>{title}</Text>{subtitle?<Text style={s.muted}>{subtitle}</Text>:null}</View></View>{children}</View>;
 }
 function NumberField({title,value,onChange,unit}){
  const {colors:c}=useUgerodTheme(),s=theme(c);
@@ -83,28 +81,61 @@ export function RoutineDetail({routine,checkpoint,busy,onStart,onEdit,onCopy,onA
  </View>;
 }
 
-export function RoutineEditor({draft,busy,patch,changeExercise,move,addPersonal,openCatalogue,closeCatalogue,showCatalogue,catalogueLoading,filtered,search,setSearch,addCatalogue,save,catalogue}){
+function ProgressiveSection({index,title,summary,active,completed,onOpen,onLayout,children}){
  const {colors:c}=useUgerodTheme(),s=theme(c);
- const [expanded,setExpanded]=useState(null);
- const interval=isIntervalRoutine(draft.mechanic);
- const count=draft.exercises.length;
- const p=draft.parameters??{};
+ const entrance=useRef(new Animated.Value(0)).current;
+ useEffect(()=>{const animation=Animated.timing(entrance,{toValue:1,duration:180,useNativeDriver:true});animation.start();return()=>animation.stop();},[entrance]);
+ return <Animated.View onLayout={onLayout} style={{opacity:entrance,transform:[{translateY:entrance.interpolate({inputRange:[0,1],outputRange:[5,0]})}],gap:12}}>
+  <Pressable accessibilityRole="button" accessibilityState={{expanded:active}} accessibilityLabel={title+(active?'':', modifier')} onPress={onOpen} style={{...s.panel,flexDirection:'row',alignItems:'center',padding:13,gap:12,borderColor:active?c.accent:c.border}}>
+   <View style={{width:36,height:36,borderRadius:11,backgroundColor:completed&&!active?c.accent:c.accentSoft,alignItems:'center',justifyContent:'center'}}>{completed&&!active?<Ionicons name="checkmark" size={20} color={c.textOnAccent}/>:<Text style={s.label}>{String(index+1).padStart(2,'0')}</Text>}</View>
+   <View style={{flex:1,minWidth:0,gap:3}}><Text style={{...s.heading,fontSize:23,lineHeight:26}}>{title}</Text>{!active&&summary?<Text style={s.muted}>{summary}</Text>:null}</View>
+   <Ionicons name={active?'chevron-down':'create-outline'} size={20} color={c.textMuted}/>
+  </Pressable>
+  {active?<View style={{gap:12}}>{children}</View>:null}
+ </Animated.View>;
+}
+function DurationPicker({value,onChange}){
+ const {colors:c}=useUgerodTheme(),s=theme(c);
+ const n=/^[1-9][0-9]*$/.test(String(value))?Math.min(30,Number(value)):0;
+ return <View style={{...s.panel,gap:14}}>
+  <View style={{...s.row,justifyContent:'space-between'}}><IconButton icon="remove" label="Retirer une minute" disabled={n<=1} onPress={()=>onChange(String(Math.max(1,n-1)))}/><View style={{flex:1,alignItems:'center'}}><Text style={{fontFamily:fontFamilies.display,fontSize:68,lineHeight:74,color:c.text,fontVariant:['tabular-nums']}}>{n||'—'}</Text><Text style={s.muted}>MINUTES</Text></View><IconButton icon="add" label="Ajouter une minute" disabled={n>=30} onPress={()=>onChange(String(Math.min(30,n+1)))}/></View>
+  <View style={{flexDirection:'row',gap:6}}>{[5,10,15,20,30].map(v=><Pressable key={v} accessibilityRole="radio" accessibilityLabel={v+' minutes'} accessibilityState={{selected:n===v}} onPress={()=>onChange(String(v))} style={{flex:1,minHeight:44,borderRadius:9,alignItems:'center',justifyContent:'center',backgroundColor:n===v?c.accent:c.surfacePressed,borderWidth:1,borderColor:n===v?c.accent:c.border}}><Text style={{...s.label,color:n===v?c.textOnAccent:c.text}}>{v}</Text></Pressable>)}</View>
+  <Text style={s.muted}>30 minutes maximum · ajuste à la minute près avec + et −.</Text>
+ </View>;
+}
+export function RoutineEditor({draft,busy,patch,changeExercise,move,addPersonal,openCatalogue,closeCatalogue,showCatalogue,catalogueLoading,filtered,search,setSearch,addCatalogue,save,catalogue,onReveal,editing=false}){
+ const {colors:c}=useUgerodTheme(),s=theme(c);
+ const [nav,setNav]=useState(()=>initialRoutineEditorState(editing));
+ const [expanded,setExpanded]=useState(null),[issue,setIssue]=useState('');
+ const layouts=useRef({}),pending=useRef(null),activeRef=useRef(nav.active);
+ const interval=isIntervalRoutine(draft.mechanic),count=draft.exercises.length,p=draft.parameters??{};
  const duration=interval?Number(p.rounds)*count*(draft.mechanic==='TABATA'?30:Number(p.work_seconds)+Number(p.rest_seconds)):0;
- function addFree(){setExpanded(count);addPersonal();}
- function addExisting(e){setExpanded(count);addCatalogue(e);}
- function remove(i){patch({exercises:draft.exercises.filter((_,j)=>i!==j)});setExpanded(null);}
+ activeRef.current=nav.active;
+ function scrollTo(index){if(pending.current!==index||activeRef.current!==index||layouts.current[index]==null)return;pending.current=null;onReveal?.(layouts.current[index]);}
+ useEffect(()=>{if(pending.current!==nav.active)return;const frame=requestAnimationFrame(()=>scrollTo(nav.active));return()=>cancelAnimationFrame(frame);},[nav.active,nav.revealed]);
+ function layout(index,event){layouts.current[index]=event.nativeEvent.layout.y;if(pending.current===index&&activeRef.current===index)scrollTo(index);}
+ function open(index){if(busy||index===nav.active)return;Keyboard.dismiss();setIssue('');setExpanded(null);closeCatalogue();pending.current=index;setNav(old=>openRoutineEditorSection(old,index));}
+ function proceed(candidate=draft){if(busy)return;const message=routineEditorIssue(candidate,nav.active);if(message){setIssue(message);return;}Keyboard.dismiss();setIssue('');setExpanded(null);closeCatalogue();pending.current=Math.min(4,nav.active+1);setNav(advanceRoutineEditor);}
+ function selectCategory(category){patch({category});proceed({...draft,category});}
+ function selectMechanic(mechanic){if(busy)return;patch({mechanic});setIssue('');if(mechanic==='SETS_REPS')proceed({...draft,mechanic});}
+ function addFree(){setExpanded(count);setIssue('');addPersonal();}
+ function addExisting(e){setExpanded(count);setIssue('');addCatalogue(e);}
+ function remove(i){patch({exercises:draft.exercises.filter((_,j)=>i!==j)});setExpanded(null);setIssue('');}
  function reorder(i,delta){move(i,delta);setExpanded(i+delta);}
- return <View style={{gap:22}}>
-  <View style={{...s.panel,backgroundColor:c.accentSoft}}><Text style={s.eyebrow}>PERSONNALISE TA ROUTINE</Text><Text style={s.heading}>À TON RYTHME.</Text><Text style={s.muted}>Aucune prescription automatique. Tu choisis les mouvements et leur dosage.</Text></View>
-  <Section number="1" title="L’ESSENTIEL">
-   <View style={s.panel}><Text style={s.label}>Nom de la routine</Text><TextInput accessibilityLabel="Nom de la routine" value={draft.name} onChangeText={name=>patch({name})} placeholder="Ex. Mobilité du matin" maxLength={120} placeholderTextColor={c.textMuted} style={s.field}/><Text style={s.label}>Catégorie</Text>{[['MOBILITY','CORE'],['PHYSIO','CONDITIONING']].map((pair,i)=><View key={i} style={s.row}>{pair.map(key=><Choice key={key} title={ROUTINE_CATEGORIES[key]} icon={categoryIcons[key]} selected={draft.category===key} onPress={()=>patch({category:key})}/>)}</View>)}<NumberField title="Durée prévue" unit="min" value={draft.planned_minutes} onChange={planned_minutes=>patch({planned_minutes})}/><Text style={s.muted}>30 minutes maximum.</Text></View>
-  </Section>
-  <Section number="2" title="LE FORMAT">
-   {[mechanics.slice(0,2),mechanics.slice(2)].map((pair,i)=><View key={i} style={s.row}>{pair.map(([key,title,icon])=><Choice key={key} title={title} icon={icon} selected={draft.mechanic===key} onPress={()=>patch({mechanic:key})}/>)}</View>)}
-   {draft.mechanic!=='SETS_REPS'?<View style={s.panel}><View style={s.row}>{(draft.mechanic==='TABATA'?[['rounds','Tours','']]:draft.mechanic==='HIIT'?[['rounds','Tours',''],['work_seconds','Effort','s'],['rest_seconds','Repos','s']]:[['rounds','Tours',''],['rest_seconds','Repos entre tours','s']]).map(([key,title,unit])=><NumberField key={key} title={title} unit={unit} value={p[key]} onChange={v=>patch({parameters:{...p,[key]:v}})}/>)}</View>{draft.mechanic==='TABATA'?<Text style={s.muted}>20 s effort · 10 s repos par exercice et par tour.</Text>:null}{interval&&Number.isFinite(duration)&&duration>0?<Text style={{...s.label,color:duration>1800?c.error:c.text}}>Durée calculée : {Math.floor(duration/60)} min {duration%60} s</Text>:null}</View>:null}
+ function complete(){const message=routineEditorIssue(draft,4);if(message){setIssue(message);return;}Keyboard.dismiss();setIssue('');save();}
+ const titles=['QUEL TYPE DE ROUTINE ?','COMBIEN DE TEMPS ?','CHOISIS TON FORMAT','COMPOSE TA ROUTINE','FINALISE TA ROUTINE'];
+ const summaries=[ROUTINE_CATEGORIES[draft.category]??'À choisir',draft.planned_minutes?draft.planned_minutes+' min':'À définir',ROUTINE_MECHANICS[draft.mechanic]??'À choisir',count+' exercice'+(count===1?'':'s'),draft.name||'À nommer'];
+ const finalIssue=nav.active===4?routineEditorIssue(draft,4):'';
+ const sections=[
+ <View key="category" style={{gap:12}}><Text style={s.muted}>Choisis la catégorie de ta routine.</Text>{[['MOBILITY','CORE'],['PHYSIO','CONDITIONING']].map((pair,i)=><View key={i} style={s.row}>{pair.map(key=><Pressable key={key} accessibilityRole="radio" accessibilityState={{selected:draft.category===key}} disabled={busy} onPress={()=>selectCategory(key)} style={{flex:1,minWidth:0,minHeight:116,borderRadius:16,borderWidth:1,borderColor:draft.category===key?c.accent:c.border,backgroundColor:draft.category===key?c.accentSoft:c.surface,padding:14,justifyContent:'space-between',gap:12}}><View style={{...s.row,justifyContent:'space-between'}}><Ionicons name={categoryIcons[key]} size={32} color={c.text}/>{draft.category===key?<Ionicons name="checkmark-circle" size={19} color={c.secondaryAccent}/>:null}</View><Text style={{...s.label,fontSize:15}}>{ROUTINE_CATEGORIES[key]}</Text></Pressable>)}</View>)}</View>,
+ <View key="duration" style={{gap:12}}><DurationPicker value={draft.planned_minutes} onChange={planned_minutes=>{patch({planned_minutes});setIssue('');}}/><Button title="Continuer" icon="arrow-down-outline" primary disabled={busy} onPress={()=>proceed()}/></View>,
+ <View key="format" style={{gap:12}}>
+   {[mechanics.slice(0,2),mechanics.slice(2)].map((pair,i)=><View key={i} style={s.row}>{pair.map(([key,title,icon])=><Choice key={key} title={title} icon={icon} selected={draft.mechanic===key} onPress={()=>selectMechanic(key)}/>)}</View>)}
+   {draft.mechanic&&draft.mechanic!=='SETS_REPS'?<View style={s.panel}><View style={s.row}>{(draft.mechanic==='TABATA'?[['rounds','Tours','']]:draft.mechanic==='HIIT'?[['rounds','Tours',''],['work_seconds','Effort','s'],['rest_seconds','Repos','s']]:[['rounds','Tours',''],['rest_seconds','Repos entre tours','s']]).map(([key,title,unit])=><NumberField key={key} title={title} unit={unit} value={p[key]} onChange={v=>patch({parameters:{...p,[key]:v}})}/>)}</View>{draft.mechanic==='TABATA'?<Text style={s.muted}>20 s effort · 10 s repos par exercice et par tour.</Text>:null}{interval&&Number.isFinite(duration)&&duration>0?<Text style={{...s.label,color:duration>Number(draft.planned_minutes)*60?c.error:c.text}}>Durée calculée : {Math.floor(duration/60)} min {duration%60} s</Text>:null}</View>:null}
    <Text style={s.muted}>{interval?'Les intervalles s’appliquent à chaque exercice, repos final inclus.':'Les temps de maintien et de récupération doivent tenir dans la durée prévue.'}</Text>
-  </Section>
-  <Section number="3" title="MES EXERCICES" subtitle={count+' mouvement'+(count===1?'':'s')}>
+ {draft.mechanic&&draft.mechanic!=='SETS_REPS'?<Button title="Continuer" icon="arrow-down-outline" primary disabled={busy} onPress={()=>proceed()}/>:null}
+ </View>,
+ <View key="exercises" style={{gap:12}}><Text style={s.muted}>{count} mouvement{count===1?'':'s'} · {ROUTINE_MECHANICS[draft.mechanic]}</Text>
    {draft.exercises.map((e,i)=>{
     const image=(catalogue??[]).find(x=>x.id===e.exercise_id)?.imagePath;
     return <View key={i} style={s.panel}><Pressable accessibilityRole="button" accessibilityState={{expanded:expanded===i}} onPress={()=>setExpanded(expanded===i?null:i)} style={s.row}>{e.exercise_id?<ExerciseArtwork imagePath={image} colors={c} size={46}/>:<View style={{width:46,height:46,borderRadius:12,backgroundColor:c.surfacePressed,alignItems:'center',justifyContent:'center'}}><Ionicons name="create-outline" size={23} color={c.textSecondary}/></View>}<View style={{flex:1,gap:3}}><Text style={s.label}>{e.name||'Nouvel exercice personnel'}</Text><Text style={s.muted}>{i+1}. {doseText(e,draft)} · {e.exercise_id?'Catalogue':'Personnel'}</Text></View><Ionicons name={expanded===i?'chevron-up':'chevron-down'} size={20} color={c.textSecondary}/></Pressable>
@@ -116,11 +147,19 @@ export function RoutineEditor({draft,busy,patch,changeExercise,move,addPersonal,
    })}
    <View style={s.row}><View style={{flex:1}}><Button title="Catalogue" icon="search-outline" onPress={openCatalogue} disabled={busy}/></View><View style={{flex:1}}><Button title="Texte libre" icon="add-outline" onPress={addFree} disabled={busy}/></View></View>
    {showCatalogue?<View style={s.panel}><Text style={s.heading}>CHOISIR UN MOUVEMENT</Text><TextInput accessibilityLabel="Rechercher un mouvement" value={search} onChangeText={setSearch} placeholder="Rechercher un mouvement" placeholderTextColor={c.textMuted} style={s.field}/>{catalogueLoading?<ActivityIndicator color={c.accent}/>:filtered.map(e=><Pressable key={e.id} accessibilityRole="button" onPress={()=>addExisting(e)} style={{...s.row,paddingVertical:7,borderBottomWidth:1,borderBottomColor:c.border}}><ExerciseArtwork imagePath={e.imagePath} colors={c} size={44}/><Text style={{...s.label,flex:1}}>{e.name}</Text><Ionicons name="add-circle-outline" size={23} color={c.secondaryAccent}/></Pressable>)}<Text style={s.muted}>{filtered.length?'30 résultats maximum · affine ta recherche.':'Aucun mouvement affiché.'}</Text><Button title="Fermer" onPress={closeCatalogue}/></View>:null}
-  </Section>
-  <Section number="4" title="MA RÉCURRENCE" subtitle="Facultative">
-   <View style={s.panel}><DayStrip days={draft.recurrence_days} onChange={day=>patch({recurrence_days:draft.recurrence_days.includes(day)?draft.recurrence_days.filter(d=>d!==day):[...draft.recurrence_days,day]})}/><Text style={s.muted}>{draft.recurrence_days.length===0?'À la demande':draft.recurrence_days.length===7?'Tous les jours':'Les jours sélectionnés apparaissent dans ton programme du jour.'}</Text></View>
-  </Section>
-  <Button title="Enregistrer ma routine" icon="checkmark-outline" primary onPress={save} disabled={busy}/>
+ {interval&&Number.isFinite(duration)&&duration>0?<Text style={{...s.label,color:duration>Number(draft.planned_minutes)*60?c.error:c.text}}>Durée calculée : {Math.floor(duration/60)} min {duration%60} s</Text>:null}
+ <Button title="Continuer" icon="arrow-down-outline" primary disabled={busy||count===0} onPress={()=>proceed()}/>
+ </View>,
+ <View key="final" style={{gap:14}}>
+ <View style={s.panel}><Text style={s.label}>Nom de la routine</Text><TextInput accessibilityLabel="Nom de la routine" value={draft.name} onChangeText={name=>{patch({name});setIssue('');}} placeholder="Ex. Mobilité du matin" maxLength={120} placeholderTextColor={c.textMuted} style={s.field}/><Text style={s.label}>Quand souhaites-tu la réaliser ?</Text><DayStrip days={draft.recurrence_days} onChange={day=>patch({recurrence_days:draft.recurrence_days.includes(day)?draft.recurrence_days.filter(d=>d!==day):[...draft.recurrence_days,day]})}/><Text style={s.muted}>{draft.recurrence_days.length===0?'À la demande':draft.recurrence_days.length===7?'Tous les jours':'Les jours sélectionnés apparaissent dans ton programme du jour.'}</Text></View>
+ <View style={{...s.panel,backgroundColor:c.accentSoft}}><Text style={s.eyebrow}>TA ROUTINE</Text><Text style={s.heading}>{draft.name.trim()||'Ma routine'}</Text><View style={{...s.row,justifyContent:'space-between'}}><Text style={s.label}>{draft.planned_minutes||'—'} min</Text><Text style={s.label}>{count} exercice{count===1?'':'s'}</Text></View><Text style={s.muted}>{summaries[0]} · {summaries[2]}</Text>{draft.exercises.map((e,i)=><View key={i} style={{...s.row,borderTopWidth:1,borderTopColor:c.border,paddingTop:9}}><Text style={{...s.label,flex:1}}>{e.name||'Exercice à nommer'}</Text><Text style={s.muted}>{doseText(e,draft)}</Text></View>)}</View>
+ {finalIssue&&draft.name.trim()&&finalIssue!==issue?<Text accessibilityRole="alert" style={{...s.muted,color:c.error}}>{finalIssue}</Text>:null}
+ <Button title={editing?'Enregistrer la routine':'Créer ma routine'} icon="checkmark-outline" primary onPress={complete} disabled={busy||!draft.name.trim()}/>
+ </View>];
+ return <View style={{gap:16}}>
+  <View style={{...s.row,justifyContent:'space-between'}}><Text style={s.eyebrow}>{editing?'MODIFIER TA ROUTINE':'CRÉATION LIBRE'}</Text><Text style={s.muted}>{nav.active+1} / 5</Text></View>
+  <View style={{flexDirection:'row',gap:5}}>{ROUTINE_EDITOR_SECTIONS.map((key,i)=><View key={key} style={{flex:1,height:4,borderRadius:3,backgroundColor:i===nav.active?c.secondaryAccent:i<=nav.revealed?c.accent:c.border}}/>)}</View>
+  {ROUTINE_EDITOR_SECTIONS.slice(0,nav.revealed+1).map((key,i)=><ProgressiveSection key={key} index={i} title={titles[i]} summary={summaries[i]} active={nav.active===i} completed={i<nav.revealed&&!routineEditorIssue(draft,Math.min(i,3))} onOpen={()=>open(i)} onLayout={event=>layout(i,event)}>{sections[i]}{nav.active===i&&issue?<Text accessibilityRole="alert" style={{...s.label,color:c.error}}>{issue}</Text>:null}</ProgressiveSection>)}
  </View>;
 }
 export function RoutinePlayer({routine,step,running,busy,onToggle,onNext,onFinish,onAside,onAbandon}){
