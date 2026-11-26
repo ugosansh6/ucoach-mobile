@@ -645,7 +645,7 @@ export default function DashboardCoachV6Screen() {
                 <Pressable key={'routine:'+item.id} accessibilityRole="button" disabled={item.archived||Boolean(activeSessionId)} onPress={()=>router.push({pathname:'/routines',params:{routineId:item.id}})} style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
                   <Ionicons name={item.completed?'checkmark-circle-outline':'repeat-outline'} size={22} color={item.completed?palette.accent:palette.orange}/>
                   <View style={styles.todaySessionCopy}><Text style={styles.todaySessionName}>{item.name}</Text><Text style={styles.todaySessionMeta}>Routine · {item.plannedMinutes} min prévues</Text></View>
-                  <Text style={[styles.todaySessionStatus,{color:palette.textSecondary}]}>{item.completed?'Réalisée':'À faire'}</Text>
+                  <Text style={[styles.todaySessionStatus,{color:palette.textSecondary}]}>{item.active?'À reprendre':item.completed?'Réalisée':'À faire'}</Text>
                   <Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
                 </Pressable>))}
             </View>
