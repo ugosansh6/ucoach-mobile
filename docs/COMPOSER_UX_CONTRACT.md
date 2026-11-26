@@ -1,5 +1,12 @@
 # Composer avec UGEROD — UX/UI contract
 
+## Cadre d'entraînement — arbitrage validé du 26/11/2026
+
+Étape 0 uniquement : titre Bebas Neue, durée sous forme de molette à valeurs existantes (20/30/45/60/75/90, gestes horizontaux et +/-), quatre cartes photographiques Maison/Box/Salle/Extérieur, sélection contrastée, aucune coche décorative. Les images choisies par Ugo sont embarquées en WebP ; provenance dans `assets/composer-environments/README.md`. Manrope pour libellés et actions, thème commun. Matériel en ligne, ouvre le sélecteur existant. CTA Continuer fixe en bas.
+
+Extérieur : deux bottom sheets pour les lieux et surfaces exacts du référentiel existant ; pas d'ajout ni d'option vide. Choix obligatoires avant Continuer ; si une seule surface est dérivée, elle est renseignée sans sélection supplémentaire. Si le lieu change, conserver la surface uniquement lorsqu'elle est compatible ; ne jamais inventer une surface. Ne pas exposer de nouveau le lieu historique non sélectionnable. Course : garder la possibilité explicite sans course, notamment sur piste (réglage discret, ne pas écraser un choix explicite antérieur). Le matériel n'est pas déduit du lieu. Aucun ajout de spécificités facultatives à ce stade, aucun nouveau comportement moteur. Le lot d'adaptation environnementale reste à faire dans #29.
+
+
 ## Récapitulatif / validation de séance — décision du 25 novembre 2026
 
 Après validation par Ugo de la proposition graphique, l'étape finale de Ma semaine présente la séance comme un entraînement, non comme un rapport technique. Résumé contrasté (format réel, lieu, zones, orientation/cible et durées), blocs ouverts sur le fond de page séparés par un trait fin, traitement visuel distinct pour le WOD et sa mécanique, lignes d'exercices avec vignette réelle ou emplacement neutre, nom et prescription. Les actions de modification restent accessibles et « Valider ma séance » est fixe en bas de l'écran, hors du défilement. Les deux thèmes conservent les tokens existants ; aucun changement global du dashboard ni de Ma semaine.

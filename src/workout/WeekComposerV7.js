@@ -1,6 +1,8 @@
 import ComposerOutdoorCardioPreview from '../components/workout/ComposerOutdoorCardioPreview';
 import ComposerMovementOverview, { ComposerMovementTabs } from '../components/workout/ComposerMovementOverview';
-import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
+import { selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
+import { frameOutdoorPlace, frameSurfaceValid, frameCanContinue, frameSelectPlace, frameSelectSurface, frameSurfaceLabel, frameDurationStep, frameDurationDrag } from '../utils/composerFrame';
+import { Image as ExpoImage } from 'expo-image';
 import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
 import ComposerExercisePickerPage from './ComposerExercisePickerPage';
 import { pickerEquipmentMatches, pickerAddSessionEquipment } from '../utils/composerPickerPresentation';
@@ -95,6 +97,12 @@ const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
 const DURATIONS = [20, 30, 45, 60, 75, 90];
+const FRAME_PHOTOS = {
+  HOME: require('../../assets/composer-environments/home.webp'),
+  BOX: require('../../assets/composer-environments/box.webp'),
+  GYM: require('../../assets/composer-environments/gym.webp'),
+  OUTDOOR: require('../../assets/composer-environments/outdoor.webp'),
+};
 const ENVIRONMENTS = [
   { code: 'HOME', label: 'Maison', icon: 'home-outline' },
   { code: 'BOX', label: 'Box', icon: 'fitness-outline' },
@@ -290,74 +298,62 @@ function summarizeEquipment(referenceEquipment, equipmentIds) {
 }
 
 function DurationControl({ value, onChange, styles, colors }) {
-  const [trackWidth, setTrackWidth] = useState(0);
-  const index = Math.max(0, DURATIONS.indexOf(value));
-  const step = trackWidth > 0 ? trackWidth / (DURATIONS.length - 1) : 0;
-  const dragOriginXRef = useRef(0);
-  const indexRef = useRef(index);
-  const stepRef = useRef(step);
-  const widthRef = useRef(trackWidth);
-  const valueRef = useRef(value);
+  const currentRef = useRef(value);
+  const originRef = useRef(value);
   const onChangeRef = useRef(onChange);
-  indexRef.current = index;
-  stepRef.current = step;
-  widthRef.current = trackWidth;
-  valueRef.current = value;
+  currentRef.current = value;
   onChangeRef.current = onChange;
-
-  const updateRef = useRef(null);
-  updateRef.current = (x) => {
-    if (!widthRef.current || !stepRef.current) return;
-    const clamped = Math.max(0, Math.min(widthRef.current, x));
-    const nextIndex = Math.max(0, Math.min(DURATIONS.length - 1, Math.round(clamped / stepRef.current)));
-    const nextValue = DURATIONS[nextIndex];
-    if (nextValue !== valueRef.current) {
-      valueRef.current = nextValue;
-      onChangeRef.current(nextValue);
-    }
-  };
-
   const pan = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { dragOriginXRef.current = indexRef.current * stepRef.current; },
-    onPanResponderMove: (_event, gesture) => updateRef.current?.(dragOriginXRef.current + gesture.dx),
-    onPanResponderRelease: (_event, gesture) => updateRef.current?.(dragOriginXRef.current + gesture.dx),
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderGrant: () => { originRef.current = currentRef.current; },
+    onPanResponderMove: (_, gesture) => onChangeRef.current(frameDurationDrag(DURATIONS, originRef.current, gesture.dx)),
+    onPanResponderRelease: (_, gesture) => onChangeRef.current(frameDurationDrag(DURATIONS, originRef.current, gesture.dx)),
+    onPanResponderTerminationRequest: () => true,
   }), []);
-
-  const left = index * step;
-  // Same duration thresholds and colors as PreparationCheckinV4.
-  const durationColor = value <= 30
-    ? colors.accent
-    : value >= 75 ? colors.secondaryAccent : colors.text;
-  return (
-    <View style={styles.durationShell}>
-      <View style={styles.durationReadout}>
-        <Text style={[styles.durationValue, { color: durationColor }]}>{value}</Text>
-        <Text style={[styles.durationUnit, { color: durationColor }]}>MIN</Text>
+  const previous = frameDurationStep(DURATIONS, value, -1);
+  const next = frameDurationStep(DURATIONS, value, 1);
+  return <View style={styles.frameDuration}>
+    <Text style={styles.frameSectionTitle}>Durée</Text>
+    <View {...pan.panHandlers} style={styles.frameDial}
+      accessibilityRole="adjustable" accessible accessibilityLabel="Durée de la séance"
+      accessibilityValue={{ min: 20, max: 90, now: value, text: value + ' minutes' }}
+      accessibilityActions={[{name:'increment',label:'Augmenter'},{name:'decrement',label:'Diminuer'}]}
+      onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'increment') onChange(next); else if (event.nativeEvent.actionName === 'decrement') onChange(previous); }}>
+      <View style={styles.frameDialNumbers} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <Text style={styles.frameDialSide}>{previous === value ? ' ' : previous}</Text>
+        <Text style={styles.frameDialValue}>{value}</Text>
+        <Text style={styles.frameDialSide}>{next === value ? ' ' : next}</Text>
       </View>
-      <View style={styles.durationSliderColumn}>
-        <View
-          style={styles.durationTrackTouch}
-          onLayout={(event) => {
-            const width = event.nativeEvent.layout.width;
-            widthRef.current = width;
-            setTrackWidth(width);
-          }}
-        >
-          <View style={styles.durationTrack}>
-            <View style={[styles.durationProgress, { width: left, backgroundColor: durationColor }]} />
-            <View style={styles.durationHitRow}>
-              {DURATIONS.map((item) => <Pressable key={item} onPress={() => onChange(item)} style={styles.durationHit} />)}
-            </View>
-            <View {...pan.panHandlers} style={[styles.durationKnob, { left, borderColor: durationColor }]}>
-              <Ionicons name="stopwatch-outline" size={18} color={colors.text} />
-            </View>
-          </View>
-        </View>
+      <View style={styles.frameDialTicks} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        {Array.from({length:33}, (_,index) => <View key={index} style={[styles.frameDialTick, index % 4 === 0 && styles.frameDialTickLong, index === 16 && styles.frameDialTickCurrent]} />)}
       </View>
     </View>
-  );
+    <View style={styles.frameDialControls}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Diminuer la durée" accessibilityState={{disabled:previous===value}} disabled={previous===value}
+        onPress={() => onChange(previous)} style={[styles.frameDialButton, previous===value && styles.disabled]}>
+        <Ionicons name="remove" size={21} color={colors.text}/>
+      </Pressable>
+      <Text style={styles.frameDialUnit}>Minutes</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Augmenter la durée" accessibilityState={{disabled:next===value}} disabled={next===value}
+        onPress={() => onChange(next)} style={[styles.frameDialButton, next===value && styles.disabled]}>
+        <Ionicons name="add" size={21} color={colors.text}/>
+      </Pressable>
+    </View>
+  </View>;
+}
+
+function FrameSelectRow({ label, value, onPress, disabled = false, fixed = false, styles, colors }) {
+  const content = <>
+    <View style={styles.frameRowCopy}>
+      <Text style={styles.frameRowLabel}>{label}</Text>
+      <Text style={[styles.frameRowValue, !value && styles.frameRowPlaceholder]}>{value || 'Sélectionner'}</Text>
+    </View>
+    {!fixed ? <Ionicons name="chevron-down" size={20} color={colors.textSecondary} accessible={false}/> : null}
+  </>;
+  return fixed ? <View style={styles.frameRow}>{content}</View>
+    : <Pressable accessibilityRole="button" accessibilityLabel={label + ' : ' + (value || 'Sélectionner')} accessibilityState={{disabled}} disabled={disabled}
+      onPress={onPress} style={({pressed})=>[styles.frameRow,disabled&&styles.disabled,pressed&&styles.pressed]}>{content}</Pressable>;
 }
 
 function ChoiceChip({ label, selected, onPress, styles, colors, icon = null }) {
@@ -583,7 +579,7 @@ export default function WeekComposerV7() {
   const [environmentCode, setEnvironmentCode] = useState('HOME');
   const [outdoorEngineVersion, setOutdoorEngineVersion] = useState(COMPOSER_OUTDOOR_VERSION);
   const [outdoorContext, setOutdoorContext] = useState(() => composerOutdoorContext());
-  const selectedOutdoorPlace = OUTDOOR_PLACES.find((item) => item.code === outdoorContext.place_code);
+  const selectedOutdoorPlace = frameOutdoorPlace(outdoorContext);
   const outdoorEngine = environmentCode === 'OUTDOOR' && outdoorEngineVersion === COMPOSER_OUTDOOR_VERSION;
   const outdoorTransport = outdoorEngine ? { outdoor_engine_version: outdoorEngineVersion, outdoor_context: outdoorContext } : {};
   const [preferredRegions, setPreferredRegions] = useState([]);
@@ -598,6 +594,7 @@ export default function WeekComposerV7() {
   const [referenceEquipment, setReferenceEquipment] = useState([]);
   const [equipmentIds, setEquipmentIds] = useState([]);
   const [equipmentLoading, setEquipmentLoading] = useState(false);
+  const frameContinueDisabled = !frameCanContinue(environmentCode, outdoorContext, equipmentLoading);
   const [intent, setIntent] = useState(null);
   const composerPreferences = readComposerPreferences({
     preferred_regions: preferredRegions, skill_target_path_key: skillTargetPath,
@@ -1623,7 +1620,7 @@ export default function WeekComposerV7() {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <ScrollView style={step===5?{flex:1}:undefined} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.pageScroll,step === 5 && styles.recapScroll]}>
+      <ScrollView style={step===5||step===0?{flex:1}:undefined} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.pageScroll,step === 0 && styles.frameScroll,step === 5 && styles.recapScroll]}>
         <View style={styles.content}>
           <View style={styles.header}>
             <Pressable
@@ -1645,7 +1642,7 @@ export default function WeekComposerV7() {
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.eyebrow}>{dateLabel(dateKey)}</Text>
-              <Text style={[styles.title, step === 3 && styles.movementHeaderTitle]}>{step === 5?'Ta séance':'Composer'}<Text style={styles.dot}>.</Text></Text>
+              <Text accessibilityRole="header" style={[styles.title, step === 0 && styles.frameHeaderTitle, step === 3 && styles.movementHeaderTitle]}>{step === 0?'Ton cadre d’entraînement':step === 5?'Ta séance':'Composer'}<Text style={styles.dot}>.</Text></Text>
             </View>
             <Image source={brandIcon} style={[styles.brandIcon, step === 3 && styles.movementBrandIcon]} resizeMode="contain" />
           </View>
@@ -1672,96 +1669,59 @@ export default function WeekComposerV7() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           {step === 0 ? (
-            <View style={styles.stepWrap}>
-              <StageHeader kicker="CADRE" title="Ton cadre d’entraînement." styles={styles} />
-              <DurationControl value={duration} onChange={setDuration} styles={styles} colors={colors} />
-              <View style={styles.contextSection}>
-                <Text style={styles.contextSectionTitle}>LIEU D’ENTRAÎNEMENT</Text>
+            <View style={styles.frameWrap}>
+              <DurationControl value={duration} onChange={setDuration} styles={styles} colors={colors}/>
+              <View style={styles.frameSection}>
+                <Text accessibilityRole="header" style={styles.frameSectionTitle}>Lieu d’entraînement</Text>
                 <View style={styles.environmentGrid}>
-                  {ENVIRONMENTS.map((item) => {
+                  {ENVIRONMENTS.map(item => {
                     const selected = environmentCode === item.code;
-                    return (
-                      <Pressable
-                        key={item.code}
-                        onPress={() => chooseEnvironment(item.code)}
-                        disabled={equipmentLoading}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected, disabled: equipmentLoading }}
-                        accessibilityLabel={item.label}
-                        style={({ pressed }) => [
-                          styles.environmentChoice,
-                          selected && styles.environmentChoiceSelected,
-                          pressed && !equipmentLoading && styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name={item.icon}
-                          size={22}
-                          color={selected ? colors.textOnAccent : colors.accent}
-                        />
-                        <Text style={[styles.environmentChoiceLabel, selected && styles.environmentChoiceLabelSelected]}>
-                          {item.label}
-                        </Text>
-                        {selected ? (
-                          <Ionicons name="checkmark-circle" size={17} color={colors.textOnAccent} style={styles.environmentCheck} />
-                        ) : null}
-                      </Pressable>
-                    );
+                    return <Pressable key={item.code} accessibilityRole="radio" accessibilityLabel={item.label}
+                      accessibilityState={{selected,disabled:equipmentLoading}} disabled={equipmentLoading}
+                      onPress={() => { if (!selected) chooseEnvironment(item.code); }}
+                      style={({pressed})=>[styles.frameEnvironment,selected&&styles.frameEnvironmentSelected,pressed&&!equipmentLoading&&styles.pressed]}>
+                      <View style={styles.framePhoto}>
+                        <ExpoImage source={FRAME_PHOTOS[item.code]} style={styles.framePhotoImage} contentFit="cover" accessible={false}/>
+                      </View>
+                      <View style={[styles.frameEnvironmentLabelRow,selected&&styles.frameEnvironmentLabelRowSelected]}>
+                        <Text style={[styles.frameEnvironmentLabel,selected&&styles.frameEnvironmentLabelSelected]}>{item.label}</Text>
+                        {selected?<View style={styles.frameSelectedDot}/>:null}
+                      </View>
+                    </Pressable>;
                   })}
                 </View>
               </View>
-
-              {environmentCode === 'OUTDOOR' ? <View style={styles.contextSection}>
-                <Text style={styles.contextSectionTitle}>TON TERRAIN</Text>
-                <View style={styles.focusWrap}>
-                  {selectableOutdoorPlaces().map((place) => <ChoiceChip key={place.code} label={place.label}
-                    selected={outdoorContext.place_code === place.code}
-                    onPress={() => setOutdoorContext((current) => ({ ...current, place_code: place.code, surface_code: place.surface ?? null }))}
-                    styles={styles} colors={colors} />)}
+              {environmentCode === 'OUTDOOR' ? <View style={styles.frameOutdoorRows}>
+                <FrameSelectRow label="Environnement" value={selectedOutdoorPlace?.label}
+                  onPress={() => setSheet('outdoor-place')} styles={styles} colors={colors}/>
+                <FrameSelectRow label="Terrain" value={frameSurfaceLabel(outdoorContext)}
+                  disabled={!selectedOutdoorPlace} fixed={Boolean(selectedOutdoorPlace?.surface && frameSurfaceValid(outdoorContext))}
+                  onPress={() => setSheet('outdoor-terrain')} styles={styles} colors={colors}/>
+                {outdoorContext.place_code === 'ATHLETICS_TRACK' ?
+                  <View style={styles.frameRow}>
+                    <Text style={styles.frameInlineLabel}>{outdoorContext.running_allowed ? 'Course possible' : 'Sans course'}</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel={outdoorContext.running_allowed?'Choisir une séance sans course':'Autoriser la course'}
+                      onPress={()=>setOutdoorContext(current=>({...current,running_allowed:!current.running_allowed}))} style={styles.frameSmallAction}>
+                      <Text style={styles.frameActionText}>{outdoorContext.running_allowed ? 'Sans course' : 'Autoriser'}</Text>
+                    </Pressable>
+                  </View> :
+                  <Pressable accessibilityRole="switch" accessibilityLabel="Course possible" accessibilityState={{checked:outdoorContext.running_allowed}}
+                    onPress={()=>setOutdoorContext(current=>({...current,running_allowed:!current.running_allowed}))}
+                    style={styles.frameRow}>
+                    <Text style={styles.frameInlineLabel}>Course possible</Text>
+                    <View style={[styles.frameSwitch,outdoorContext.running_allowed&&styles.frameSwitchOn]}>
+                      <View style={[styles.frameSwitchKnob,outdoorContext.running_allowed&&styles.frameSwitchKnobOn]}/>
+                    </View>
+                  </Pressable>}
+              </View>:null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Modifier le matériel de cette séance" disabled={equipmentLoading}
+                onPress={()=>setSheet('equipment')} style={({pressed})=>[styles.frameEquipmentRow,pressed&&styles.pressed]}>
+                <View style={styles.frameRowCopy}>
+                  <Text style={styles.frameRowLabel}>Matériel disponible</Text>
+                  <Text style={styles.frameRowValue}>{equipmentLoading?'Chargement…':equipmentSummary}</Text>
                 </View>
-                {terrainOptionsForPlace(selectedOutdoorPlace).length ? <>
-                  <Text style={styles.sectionSmallHint}>Sur quel sol vas-tu t’entraîner ?</Text>
-                  <View style={styles.focusWrap}>{terrainOptionsForPlace(selectedOutdoorPlace).map((terrain) => <ChoiceChip
-                    key={terrain.code} label={terrain.label} selected={outdoorContext.surface_code === terrain.code}
-                    onPress={() => setOutdoorContext((current) => ({ ...current, surface_code: terrain.code }))}
-                    styles={styles} colors={colors} />)}</View>
-                </> : null}
-                <Text style={styles.sectionSmallHint}>La course est-elle possible pour cette séance ?</Text>
-                <View style={styles.focusWrap}>
-                  {[true, false].map((value) => <ChoiceChip key={String(value)} label={value ? 'Course possible' : 'Sans course'}
-                    selected={outdoorContext.running_allowed === value}
-                    onPress={() => setOutdoorContext((current) => ({ ...current, running_allowed: value }))}
-                    styles={styles} colors={colors} />)}
-                </View>
-                <Text style={styles.sectionSmallHint}>Le lieu ne déclare aucun matériel à ta place.</Text>
-              </View> : null}
-
-              <View style={styles.contextSection}>
-                <Text style={styles.contextSectionTitle}>MATÉRIEL DISPONIBLE</Text>
-                <Pressable
-                  onPress={() => setSheet('equipment')}
-                  accessibilityRole="button"
-                  accessibilityLabel="Choisir le matériel disponible pour cette séance"
-                  style={({ pressed }) => [styles.equipmentSummaryCard, pressed && styles.pressed]}
-                >
-                  <View style={styles.summaryIcon}>
-                    <Ionicons name="barbell-outline" size={21} color={colors.accent} />
-                  </View>
-                  <View style={styles.equipmentSummaryText}>
-                    <Text style={styles.equipmentSummaryValue}>
-                      {equipmentLoading ? 'Chargement…'
-                        : equipmentIds.length === 0 ? 'Poids du corps'
-                          : `${equipmentIds.length} équipement${equipmentIds.length > 1 ? 's' : ''} sélectionné${equipmentIds.length > 1 ? 's' : ''}`}
-                    </Text>
-                    {equipmentIds.length > 0 && !equipmentLoading ? (
-                      <Text style={styles.equipmentSummaryDetail} numberOfLines={1}>{equipmentSummary}</Text>
-                    ) : null}
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-                </Pressable>
-              </View>
-
-              <PrimaryButton label="CONTINUER" onPress={() => setStep(1)} disabled={equipmentLoading} styles={styles} colors={colors} />
+                <Text style={styles.frameActionText}>Modifier</Text>
+              </Pressable>
             </View>
           ) : null}
 
@@ -2205,6 +2165,14 @@ export default function WeekComposerV7() {
         </Pressable>
       </View>:null}
 
+      {step === 0 ? <View style={styles.frameFooter}>
+        <Pressable accessibilityRole="button" accessibilityState={{disabled:frameContinueDisabled}} disabled={frameContinueDisabled}
+          onPress={()=>{if(frameCanContinue(environmentCode,outdoorContext,equipmentLoading))setStep(1);}}
+          style={({pressed})=>[styles.recapValidate,frameContinueDisabled&&styles.disabled,pressed&&!frameContinueDisabled&&styles.pressed]}>
+          <Text style={styles.recapValidateText}>Continuer</Text>
+        </Pressable>
+      </View>:null}
+
       {detailExercise ? <ExerciseDetail key={detailExercise.id} visible exercise={detailExercise}
         dose={movementDose(detailExercise)} doseLabel={movementDoseLabel(detailExercise)}
         index={detailIndex} count={selectedCandidateObjects.length} colors={colors} isDark={isDark}
@@ -2246,6 +2214,31 @@ export default function WeekComposerV7() {
             />
           ))}
         </View>
+      </SheetShell>
+
+      <SheetShell visible={sheet === 'outdoor-place'} title="Environnement" onClose={()=>setSheet(null)} styles={styles} colors={colors}>
+        {selectableOutdoorPlaces().map(place=>{
+          const selected=place.code===outdoorContext.place_code;
+          return <Pressable key={place.code} accessibilityRole="radio" accessibilityState={{selected}}
+            onPress={()=>{setOutdoorContext(current=>frameSelectPlace(current,place.code));setSheet(null);}}
+            style={[styles.frameSheetOption,selected&&styles.frameSheetOptionSelected]}>
+            <Text style={[styles.frameSheetOptionText,selected&&styles.frameSheetOptionTextSelected]}>{place.label}</Text>
+            {selected?<Ionicons name="checkmark" size={20} color={colors.textOnAccent} accessible={false}/>:null}
+          </Pressable>;
+        })}
+      </SheetShell>
+      <SheetShell visible={sheet === 'outdoor-terrain'} title="Terrain" onClose={()=>setSheet(null)} styles={styles} colors={colors}>
+        {(selectedOutdoorPlace?.surface
+          ? [{code:selectedOutdoorPlace.surface,label:selectedOutdoorPlace.surface==='TRACK'?'Piste':selectedOutdoorPlace.surface==='SAND'?'Sable':'Herbe / sol souple'}]
+          : terrainOptionsForPlace(selectedOutdoorPlace)).map(terrain=>{
+          const selected=terrain.code===outdoorContext.surface_code;
+          return <Pressable key={terrain.code} accessibilityRole="radio" accessibilityState={{selected}}
+            onPress={()=>{setOutdoorContext(current=>frameSelectSurface(current,terrain.code));setSheet(null);}}
+            style={[styles.frameSheetOption,selected&&styles.frameSheetOptionSelected]}>
+            <Text style={[styles.frameSheetOptionText,selected&&styles.frameSheetOptionTextSelected]}>{terrain.label}</Text>
+            {selected?<Ionicons name="checkmark" size={20} color={colors.textOnAccent} accessible={false}/>:null}
+          </Pressable>;
+        })}
       </SheetShell>
 
       <SheetShell
@@ -2327,34 +2320,57 @@ function createStyles(colors) {
     kicker: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.35, color: colors.accent },
     question: { marginTop: 8, fontFamily: fontFamilies.display, fontSize: 29, lineHeight: 34, color: colors.text },
     helper: { marginTop: 10, fontFamily: fontFamilies.regular, fontSize: 14, lineHeight: 21, color: colors.textSecondary, maxWidth: 680 },
-    durationShell: { minHeight: 105, flexDirection: 'row', alignItems: 'center', gap: 20 },
-    durationReadout: { minWidth: 82 },
-    durationValue: { fontFamily: fontFamilies.display, fontSize: 52, lineHeight: 56, color: colors.text },
-    durationUnit: { fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.4, color: colors.accent },
-    durationSliderColumn: { flex: 1 },
-    durationTrackTouch: { height: 54, justifyContent: 'center' },
-    durationTrack: { height: 4, borderRadius: 2, backgroundColor: colors.border, position: 'relative' },
-    durationProgress: { position: 'absolute', left: 0, top: 0, height: 4, borderRadius: 2, backgroundColor: colors.accent },
-    durationHitRow: { position: 'absolute', left: -8, right: -8, top: -18, bottom: -18, flexDirection: 'row' },
-    durationHit: { flex: 1 },
-    durationKnob: { position: 'absolute', top: -18, marginLeft: -20, width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.accent, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    frameHeaderTitle: {fontSize:29,lineHeight:32,marginTop:3},
+    frameWrap:{marginTop:14,gap:20},
+    frameScroll:{paddingBottom:20},
+    frameSection:{gap:10},
+    frameSectionTitle:{fontFamily:fontFamilies.display,fontSize:23,lineHeight:26,color:colors.text},
+    frameDuration:{gap:2},
+    frameDial:{alignSelf:'center',width:'100%',maxWidth:390,paddingHorizontal:6},
+    frameDialNumbers:{minHeight:76,flexDirection:'row',alignItems:'center',justifyContent:'center'},
+    frameDialValue:{fontFamily:fontFamilies.display,fontSize:76,lineHeight:81,color:colors.text,textAlign:'center',minWidth:100},
+    frameDialSide:{flex:1,fontFamily:fontFamilies.display,fontSize:34,lineHeight:39,color:colors.textMuted,textAlign:'center'},
+    frameDialTicks:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between',height:24,paddingHorizontal:7},
+    frameDialTick:{width:1,height:8,backgroundColor:colors.borderStrong},
+    frameDialTickLong:{height:15},
+    frameDialTickCurrent:{height:22,width:3,backgroundColor:colors.secondaryAccent,borderRadius:2},
+    frameDialControls:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:18,marginTop:3},
+    frameDialButton:{width:44,height:44,borderRadius:22,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},
+    frameDialUnit:{fontFamily:fontFamilies.medium,fontSize:12,color:colors.textSecondary,minWidth:66,textAlign:'center'},
+    frameEnvironment:{width:'48%',flexGrow:1,overflow:'hidden',borderRadius:12,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},
+    frameEnvironmentSelected:{borderColor:colors.accent},
+    framePhoto:{width:'100%',aspectRatio:16/9,backgroundColor:colors.surfaceElevated??colors.surface},
+    framePhotoImage:{width:'100%',height:'100%'},
+    frameEnvironmentLabelRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:40,paddingHorizontal:12},
+    frameEnvironmentLabelRowSelected:{backgroundColor:colors.accent},
+    frameEnvironmentLabel:{fontFamily:fontFamilies.semiBold,fontSize:15,lineHeight:20,color:colors.text},
+    frameEnvironmentLabelSelected:{color:colors.textOnAccent},
+    frameSelectedDot:{width:8,height:8,borderRadius:4,backgroundColor:colors.secondaryAccent},
+    frameOutdoorRows:{borderTopWidth:1,borderTopColor:colors.border},
+    frameRow:{minHeight:64,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,paddingVertical:11,borderBottomWidth:1,borderBottomColor:colors.border},
+    frameRowCopy:{flex:1,minWidth:0,gap:4},
+    frameRowLabel:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:16,color:colors.textSecondary},
+    frameRowValue:{fontFamily:fontFamilies.semiBold,fontSize:17,lineHeight:23,color:colors.text},
+    frameRowPlaceholder:{color:colors.textMuted},
+    frameInlineLabel:{flex:1,fontFamily:fontFamilies.semiBold,fontSize:15,color:colors.text},
+    frameSmallAction:{minHeight:44,justifyContent:'center',paddingHorizontal:3},
+    frameActionText:{fontFamily:fontFamilies.semiBold,fontSize:13,color:colors.text,textDecorationLine:'underline'},
+    frameSwitch:{width:48,height:28,borderRadius:14,padding:3,justifyContent:'center',backgroundColor:colors.borderStrong},
+    frameSwitchOn:{backgroundColor:colors.accent},
+    frameSwitchKnob:{width:22,height:22,borderRadius:11,backgroundColor:colors.textOnAccent,alignSelf:'flex-start'},
+    frameSwitchKnobOn:{alignSelf:'flex-end'},
+    frameEquipmentRow:{minHeight:64,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:11,borderBottomWidth:1,borderBottomColor:colors.border},
+    frameFooter:{width:'100%',maxWidth:820,alignSelf:'center',paddingHorizontal:spacing.xl,paddingTop:10,paddingBottom:12,backgroundColor:colors.background,borderTopWidth:1,borderTopColor:colors.border},
+    frameSheetOption:{minHeight:52,borderRadius:10,paddingHorizontal:14,paddingVertical:10,marginBottom:6,backgroundColor:colors.background,flexDirection:'row',alignItems:'center',gap:10},
+    frameSheetOptionSelected:{backgroundColor:colors.accent},
+    frameSheetOptionText:{flex:1,fontFamily:fontFamilies.semiBold,fontSize:15,color:colors.text,lineHeight:21},
+    frameSheetOptionTextSelected:{color:colors.textOnAccent},
     summaryGrid: { marginTop: 14, flexDirection: 'row', gap: 12 },
     summaryCard: { flex: 1, minHeight: 82, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 11 },
     summaryIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
     summaryLabel: { fontFamily: fontFamilies.bold, fontSize: 9, letterSpacing: 1.1, color: colors.accent },
     summaryValue: { marginTop: 4, fontFamily: fontFamilies.semiBold, fontSize: 13, lineHeight: 18, color: colors.text },
-    contextSection: { marginTop: 18 },
-    contextSectionTitle: { marginBottom: 10, fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.15, color: colors.accent },
     environmentGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 10 },
-    environmentChoice: { width: '48%', minHeight: 89, borderRadius: 17, padding: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'space-between' },
-    environmentChoiceSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-    environmentChoiceLabel: { marginTop: 7, fontFamily: fontFamilies.semiBold, fontSize: 16, color: colors.text },
-    environmentChoiceLabelSelected: { color: colors.textOnAccent },
-    environmentCheck: { position: 'absolute', top: 13, right: 13 },
-    equipmentSummaryCard: { minHeight: 78, paddingHorizontal: 15, paddingVertical: 14, borderRadius: 17, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },
-    equipmentSummaryText: { flex: 1 },
-    equipmentSummaryValue: { fontFamily: fontFamilies.semiBold, fontSize: 15, lineHeight: 20, color: colors.text },
-    equipmentSummaryDetail: { marginTop: 4, fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 16, color: colors.textSecondary },
     directionSection: { marginBottom: 20 },
     directionEyebrow: { marginBottom: 10, fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent },
     coachDirectionCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 17, backgroundColor: colors.surface },
