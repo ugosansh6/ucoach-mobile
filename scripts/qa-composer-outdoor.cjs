@@ -122,7 +122,7 @@ async function testSavedHydration(){
   const restoreManual=new Function(fs.readFileSync('src/utils/composerManualDose.js','utf8').replaceAll('export function ','function ')+';return restoreComposerManualEdits;')();
   const deps={active:true,dateKey:'2026-11-21',requestedPlanItemId:'item',requestedModelId:null,explicitAdditional:false,params:{},getWeekViewDate:date=>({anchorDate:date}),DURATIONS:[60],COMPOSER_OUTDOOR_VERSION:'COMPOSER_OUTDOOR_V1',
    getWeekReadContract:async()=>({visibleItems:[{planItemId:'item',recommendedDate:'2026-11-21',plannedContext:{environmentCode:'OUTDOOR'}}]}),
-   getEquipmentCatalog:async()=>[],getComposerForLocalDate:async()=>({planItemId:'item',draft}),getUserEnvironmentEquipmentPreset:async()=>[],buildReferenceEquipment:()=>[],
+   getEquipmentCatalog:async()=>[],getComposerForLocalDate:async()=>({planItemId:'item',date:'2026-11-21',draft}),getUserEnvironmentEquipmentPreset:async()=>[],buildReferenceEquipment:()=>[],
    coachIntentFromItem:()=>null,readComposerPreferences:preferences,restoreComposerManualEdits:restoreManual,composerOutdoorContext:outdoor.composerOutdoorContext,firstParam:v=>v,
    getComposerCardioProposal:async context=>{cardioCalls.push(context);return [{id:'EX313',name:'Course',cardioProtocol:protocol}];},
    getComposerExerciseCandidates:async({blockType})=>{assert.notEqual(blockType,'CARDIO','Never hydrate a saved Cardio from the WOD exercise catalogue');return blocks.find(b=>b.type===blockType)?.exercises??[];},

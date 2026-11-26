@@ -24,7 +24,9 @@ export default function PreparationScreen() {
     date >= localDateKey();
 
   if (isWeekComposer) {
-    return <WeekComposerV7 />;
+    // A route for a different date or action must not retain the old editor state.
+    const identity=[date,firstParam(params?.origin),firstParam(params?.planItemId),firstParam(params?.modelId)].map(v=>v??'').join(':');
+    return <WeekComposerV7 key={identity} />;
   }
 
   return <PreparationCheckinV4 />;

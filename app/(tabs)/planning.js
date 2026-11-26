@@ -355,15 +355,15 @@ function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimi
       <Pressable accessibilityRole="button" accessibilityState={{disabled:blocked}} disabled={blocked}
         style={[styles.creationPrimary,{backgroundColor:blocked?palette.surface:palette.accent,borderColor:blocked?palette.border:palette.accent}]}
         onPress={() => router.push({pathname:'/workout/preparation',params:{
-          date:dateKey,entry:'week_assisted',...(planItemId?{planItemId}:{origin:'week_additional'}),
+          date:dateKey,entry:'week_assisted',...(planItemId?{planItemId,origin:'week_edit'}:{origin:'week_additional'}),
         }})}>
         <View style={styles.objectCopy}>
-          <Text style={[styles.creationTitle,{color:blocked?palette.textMuted:palette.onAccent}]}>{prepared?'Modifier ma séance':'Composer avec UGEROD'}</Text>
-          <Text style={[styles.creationSubtitle,{color:blocked?palette.textMuted:palette.onAccent}]}>{blocked?'5 séances déjà prévues':prepared?'Reprendre ta composition':'Une séance adaptée à tes objectifs'}</Text>
+          <Text style={[styles.creationTitle,{color:blocked?palette.textMuted:palette.onAccent}]}>{planItemId?(prepared?'Modifier cette séance':'Composer cette séance'):'Composer une nouvelle séance'}</Text>
+          <Text style={[styles.creationSubtitle,{color:blocked?palette.textMuted:palette.onAccent}]}>{blocked?'5 séances déjà prévues':planItemId?(prepared?'Reprendre ta composition':'Personnaliser cette proposition'):'Avec UGEROD'}</Text>
         </View>
         <Ionicons name="arrow-forward" size={19} color={blocked?palette.textMuted:palette.onAccent}/>
       </Pressable>
-      <View style={styles.creationSecondaryRow}>
+      {!planItemId?<View style={styles.creationSecondaryRow}>
         <Pressable accessibilityRole="button" accessibilityState={{disabled:plannedLater}} disabled={plannedLater} style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]}
           onPress={() => router.push({ pathname: '/workout/builder', params: { date: dateKey, entry: 'week_free' } })}>
           <Text style={[styles.creationTitle,{color:plannedLater?palette.textMuted:palette.text,textAlign:'center'}]}>Créer librement</Text>
@@ -373,7 +373,7 @@ function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimi
           <Text style={[styles.creationTitle,{color:palette.text,textAlign:'center'}]}>Importer</Text>
           <Text style={[styles.creationSubtitle,{color:palette.textMuted,textAlign:'center'}]}>Modèle ou partage</Text>
         </Pressable>
-      </View>
+      </View>:null}
     </View>
   );
 }
@@ -588,11 +588,11 @@ function DaySection({
             />
           );
         })}
-        {!isPast&&day.items.length>0&&!atLimit?<View>
-          <Pressable accessibilityRole="button" accessibilityState={{expanded:expandedKey===`empty:${day.key}`}} style={styles.addDayAction} onPress={()=>onToggleEmpty(day.key)}>
-            <Ionicons name="add" size={18} color={palette.textMuted}/><Text style={[styles.creationTitle,{color:palette.textMuted}]}>Ajouter une séance</Text>
+        {!isPast&&day.items.length>0?<View>
+          <Pressable accessibilityRole="button" disabled={atLimit} accessibilityState={{disabled:atLimit,expanded:expandedKey===`empty:${day.key}`}} style={[styles.addDayAction,{borderColor:palette.border,backgroundColor:palette.surface}]} onPress={()=>onToggleEmpty(day.key)}>
+            <Ionicons name="add" size={18} color={atLimit?palette.textMuted:palette.accent}/><Text style={[styles.creationTitle,{color:atLimit?palette.textMuted:palette.text,flex:1}]}>Ajouter une séance</Text>{atLimit?<Text style={[styles.creationSubtitle,{color:palette.textMuted}]}>Limite de 5</Text>:<Ionicons name={expandedKey===`empty:${day.key}`?'chevron-up':'chevron-down'} size={17} color={palette.textMuted}/>}
           </Pressable>
-          {expandedKey===`empty:${day.key}`?<CreationActions dateKey={day.key} palette={palette} onImport={onImport} atLimit={atLimit} futureWeek={futureWeek}/>:null}
+          {!atLimit&&expandedKey===`empty:${day.key}`?<CreationActions dateKey={day.key} palette={palette} onImport={onImport} atLimit={atLimit} futureWeek={futureWeek}/>:null}
         </View>:null}
       </View>
     </View>
@@ -715,7 +715,10 @@ export default function PlanningScreen() {
   const [moveFeedback, setMoveFeedback] = useState(null);
   const [importDay, setImportDay] = useState(null);
   const [shareValue, setShareValue] = useState('');
-  const [nextWeekOpen, setNextWeekOpen] = useState(null);
+  const [nextWeekOpen, setNextWeekOpen] = useState(()=>{
+    const target=Array.isArray(params?.week)?params.week[0]:params?.week;
+    return target===nextWeekRange(toLocalDateKey(startOfMonday())).start?target:null;
+  });
   const readSequence=useRef(0);
   const scrollRef=useRef(null);
   const mutationBusy=useRef(false);
@@ -785,7 +788,7 @@ export default function PlanningScreen() {
 
   const switchWeek = useCallback((target)=>{
     if(mutationBusy.current||draggingItem||movingItemId||removingItemId||openingSessionId)return;
-    readSequence.current+=1;setExpandedKey(null);setContract(null);setExercisePreviews({});setError(null);setMoveFeedback(null);setLoading(true);setRefreshing(false);setNextWeekOpen(target);scrollRef.current?.scrollTo({y:0,animated:false});
+    readSequence.current+=1;setExpandedKey(null);setContract(null);setExercisePreviews({});setError(null);setMoveFeedback(null);setLoading(true);setRefreshing(false);setNextWeekOpen(target);router.setParams({week:target??''});scrollRef.current?.scrollTo({y:0,animated:false});
   },[draggingItem,movingItemId,removingItemId,openingSessionId]);
 
   const visibleItems = useMemo(
@@ -1228,7 +1231,7 @@ const styles = StyleSheet.create({
   coachTipBody: { fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18 },
   creationActions: { gap: 8, marginTop: 15 },
   creationPrimary:{minHeight:66,borderWidth:1,borderRadius:12,padding:12,flexDirection:'row',alignItems:'center',gap:10},
-  addDayAction:{minHeight:44,flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:6},
+  addDayAction:{minHeight:44,flexDirection:'row',alignItems:'center',gap:8,paddingHorizontal:10,borderWidth:1,borderRadius:10},
   creationTitle:{fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:18},
   creationSubtitle:{fontFamily:fontFamilies.regular,fontSize:11,lineHeight:16,marginTop:3},
   creationSecondaryRow:{flexDirection:'row',gap:8},

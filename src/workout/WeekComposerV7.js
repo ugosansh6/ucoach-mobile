@@ -93,6 +93,7 @@ import {
 import {
   getWeekReadContract,
   getWeekViewDate,
+  getLocalDateKey,
 } from '../services/weeklyPlanService';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -727,10 +728,10 @@ export default function WeekComposerV7() {
         if (!active) return;
         const candidates = (contract?.visibleItems ?? []).filter((item) => item?.recommendedDate === dateKey && (!item?.sessionId || item.planItemId === requestedPlanItemId));
         if(requestedModelId&&!canReusePersonalModel(imported))throw new Error('Ce modèle est introuvable ou doit être complété.');
-        const item = requestedModelId?null:requestedPlanItemId
-          ? candidates.find((candidate) => candidate.planItemId === requestedPlanItemId) ?? null
-          : explicitAdditional?null:candidates.length===1?candidates[0]:null;
-        if(!requestedPlanItemId&&!requestedModelId&&!explicitAdditional&&candidates.length>1)throw new Error('Choisis la séance à modifier dans Ma semaine.');
+        // New creation has no existing target. An edit must identify its exact item.
+        const item = requestedModelId||explicitAdditional||!requestedPlanItemId?null:
+          candidates.find(candidate=>candidate.planItemId===requestedPlanItemId)??null;
+        if(explicitAdditional&&requestedPlanItemId)throw new Error('Action de création ambiguë. Reviens au planning.');
         if(requestedPlanItemId&&!requestedModelId&&!item)throw new Error('Cette séance n’est plus disponible à cette date.');
         const saved=item?.planItemId?await getComposerForLocalDate(dateKey,item.planItemId):null;
         if(!active)return;
@@ -1531,7 +1532,8 @@ export default function WeekComposerV7() {
         ...(outdoorEngine ? { surface_code: outdoorContext.surface_code, outdoor_place_code: outdoorContext.place_code } : {}),
         target_region: targetRegion,
       };
-      const planItemId = selectedItem?.planItemId ?? null;
+      const planItemId = requestedPlanItemId&&!requestedModelId&&!explicitAdditional?selectedItem?.planItemId??null:null;
+      if(requestedPlanItemId&&!requestedModelId&&(explicitAdditional||planItemId!==requestedPlanItemId))throw new Error('La séance à modifier n’est plus disponible.');
       const draft = { ...buildCurrentDraft(), prescription_preview: prescriptionPreview };
       if(!planItemId&&!creationRequest.current)creationRequest.current=newComposerCreationRequest();
       const saved = planItemId
@@ -1539,12 +1541,12 @@ export default function WeekComposerV7() {
         : await createAndSaveComposer({dateKey,draft,context,requestId:creationRequest.current});
       if (saved?.status === 'CONFIRM_REPLACEMENT_REQUIRED') { setSheet('confirm-revision'); return; }
       if (saved?.status !== 'SAVED') throw new Error('La séance n’a pas pu être enregistrée.');
-      if(!planItemId&&saved?.plan_item_id)setSelectedItem(item=>({...item,planItemId:saved.plan_item_id}));
+      if(!planItemId&&!saved?.plan_item_id)throw new Error('La nouvelle séance n’a pas été confirmée. Réessaie.');
       if (router.canGoBack()) router.back();
-      else router.replace('/(tabs)/planning');
+      else router.replace({pathname:'/(tabs)/planning',params:{week:getWeekViewDate(dateKey).prepareFuture?getLocalDateKey(getWeekViewDate(dateKey).anchorDate):''}});
     } catch (saveError) {
       console.warn('[WeekComposerV7] save failed', saveError);
-      setError(requestedModelId&&/already planned on this day/.test(String(saveError?.message))?'Une séance est déjà planifiée ce jour. Reviens à Mes modèles et choisis un jour libre.':saveError?.message ?? 'Impossible d’ajouter cette séance à Ma semaine.');
+      setError(/five planned sessions/i.test(String(saveError?.message))?'5 séances sont déjà prévues cette semaine. Retire un créneau pour en ajouter un.':saveError?.message ?? 'Impossible d’enregistrer cette séance.');
     } finally {
       savingRef.current=false;
       setBusy(false);
@@ -2226,7 +2228,7 @@ export default function WeekComposerV7() {
       </ScrollView>
       {step === 5 ? <View style={styles.recapFooter}>
         <Pressable accessibilityRole="button" accessibilityState={{disabled:recapValidationDisabled}} onPress={addToWeek} disabled={recapValidationDisabled} style={({pressed})=>[styles.recapValidate,recapValidationDisabled&&styles.disabled,pressed&&!recapValidationDisabled&&styles.pressed]}>
-          {busy?<ActivityIndicator color={colors.background} size="small"/>:null}<Text style={styles.recapValidateText}>{busy?'Enregistrement…':'Valider ma séance'}</Text>
+          {busy?<ActivityIndicator color={colors.background} size="small"/>:null}<Text style={styles.recapValidateText}>{busy?'Enregistrement…':requestedPlanItemId&&!explicitAdditional&&!requestedModelId?'Enregistrer les modifications':'Ajouter ma séance'}</Text>
         </Pressable>
       </View>:null}
 
