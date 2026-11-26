@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Modal,
   PanResponder,
   Pressable,
@@ -34,6 +35,9 @@ import { reloadWorkoutSession } from '../../src/services/workoutService';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import { fontFamilies } from '../../src/constants/typography';
+
+const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
+const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
 const WEEKDAY_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
 const MONTH_LABELS = [
@@ -293,7 +297,7 @@ function DragHandle({ item, palette, disabled, onStart, onMove, onDrop, onCancel
   return (
     <View
       {...panResponder.panHandlers}
-      style={[styles.dragHandle, { borderColor: palette.border }]}
+      style={styles.dragHandle}
       accessibilityRole="adjustable"
       accessibilityLabel={`Déplacer ${getShortSummary(item)}`}
       accessibilityHint="Fais glisser vers un autre jour de la semaine."
@@ -315,7 +319,8 @@ function RemoveButton({ item, palette, disabled, onPress }) {
       accessibilityLabel={`Supprimer ${getShortSummary(item)}`}
       accessibilityHint="Retirer cette séance de la semaine sans créer de retard."
     >
-      <Ionicons name="trash-outline" size={17} color={palette.textMuted} />
+      <Ionicons name="trash-outline" size={16} color={palette.textMuted} />
+      <Text style={[styles.removeActionText,{color:palette.textMuted}]}>Retirer la séance</Text>
     </TouchableOpacity>
   );
 }
@@ -415,16 +420,14 @@ function SessionDetails({ item, exercises, palette, onOpen, opening }) {
   const preview = Array.isArray(exercises) ? exercises.slice(0, 6) : [];
   return (
     <View style={[styles.detailPanel, { borderColor: palette.border }]}> 
-      <Text style={[styles.detailTitle, { color: palette.text }]}>{getShortSummary(item)}</Text>
       {preview.length > 0 ? (
         <View style={styles.detailSection}>
           <Text style={[styles.detailLabel, { color: palette.textMuted }]}>DANS LA SÉANCE</Text>
           <Text style={[styles.exercisePreviewLine, { color: palette.text }]}>{preview.map((exercise) => exercise.name).join('  ·  ')}</Text>
         </View>
       ) : (
-        <Text style={[styles.detailBody, { color: palette.textMuted }]}>Le contenu de cette séance est déjà construit.</Text>
+        null
       )}
-      {meta.length > 0 ? <Text style={[styles.detailMeta, { color: palette.textMuted }]}>{meta.join('  ·  ')}</Text> : null}
       {item?.displayState !== 'REALISEE' ? (
         <View style={{ marginTop: 15 }}>
           <ActionButton
@@ -440,97 +443,64 @@ function SessionDetails({ item, exercises, palette, onOpen, opening }) {
   );
 }
 
+function weekItemStateLabel(item) {
+  if (item?.displayState === 'REALISEE') return 'Réalisée';
+  if (item?.displayState === 'ACTIVE') return 'En cours';
+  return isBuiltSession(item) ? 'Prête' : 'À composer';
+}
+
 function WeekObject({
-  item, index, expanded, moving, exercises, palette, onToggle, onImport,
+  item, index, expanded, moving, exercises, palette, onToggle, onImport, isToday,
   onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
   onRequestRemove, removingItemId,
 }) {
   const built = isBuiltSession(item);
-  const tone = getTone(item, palette);
+  const done = item?.displayState === 'REALISEE';
+  const hero = isToday && !done;
   const meta = getMeta(item);
+  const foreground = hero ? palette.onAccent : done ? palette.textMuted : palette.text;
+  const secondary = hero ? palette.onAccent : palette.textMuted;
   return (
     <View style={[styles.objectWrap, moving && styles.objectMoving]}>
-      <View
-        style={[
-          built ? styles.sessionObject : styles.intentObject,
-          built
-            ? { backgroundColor: palette.surface, borderColor: palette.border, borderLeftColor: tone }
-            : { backgroundColor: palette.intentSoft, borderLeftColor: tone },
-        ]}
-      >
-        <Pressable style={styles.objectPressArea} onPress={onToggle} accessibilityRole="button">
+      <View style={[styles.weekObject, hero && styles.todayObject, hero && {backgroundColor: palette.accent}]}>
+        <Pressable style={styles.objectPressArea} onPress={onToggle} accessibilityRole="button" accessibilityState={{expanded}}>
           <View style={styles.objectCopy}>
-            <Text style={[built ? styles.sessionObjectTitle : styles.intentObjectTitle, { color: palette.text }]} numberOfLines={2}>
-              {getShortSummary(item)}
-            </Text>
-            {built && exercises?.length ? (
-              <Text style={[styles.objectSubline, { color: palette.textMuted }]} numberOfLines={1}>
-                {exercises.slice(0, 3).map((exercise) => exercise.name).join(' · ')}
-              </Text>
-            ) : null}
-            {meta.length > 0 ? <Text style={[styles.objectMeta, { color: palette.textMuted }]}>{meta.join('  ·  ')}</Text> : null}
+            <Text style={[styles.objectState, {color: secondary}]}>{hero ? 'AUJOURD’HUI · ' : ''}{weekItemStateLabel(item).toUpperCase()}</Text>
+            <Text style={[styles.sessionObjectTitle, {color: foreground}]}>{getShortSummary(item)}</Text>
+            {meta.length > 0 ? <Text style={[styles.objectMeta, {color: secondary}]}>{meta.join('  ·  ')}</Text> : null}
+            {hero ? <Text style={[styles.todayAction, {color: foreground}]}>{expanded?'Masquer les détails':built?'Voir ma séance':'Voir la proposition'}</Text> : null}
           </View>
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={17} color={palette.textMuted} />
+          <Ionicons name={done&&!expanded?'checkmark':expanded?'chevron-up':'chevron-down'} size={19} color={done&&!expanded?palette.accent:foreground}/>
         </Pressable>
-        <RemoveButton
-          item={item}
-          palette={palette}
+        <DragHandle item={item} palette={hero?{...palette,textMuted:palette.onAccent,border:palette.onAccent}:palette}
           disabled={moving || removingItemId === item?.planItemId}
-          onPress={onRequestRemove}
-        />
-        <DragHandle
-          item={item}
-          palette={palette}
-          disabled={moving || removingItemId === item?.planItemId}
-          onStart={onDragStart}
-          onMove={onDragMove}
-          onDrop={onDragDrop}
-          onCancel={onDragCancel}
-        />
+          onStart={onDragStart} onMove={onDragMove} onDrop={onDragDrop} onCancel={onDragCancel}/>
       </View>
       {expanded ? (
-        built
-          ? <SessionDetails
-              item={item}
-              exercises={exercises}
-              palette={palette}
-              onOpen={onOpenSession}
-              opening={openingSessionId === item?.sessionId}
-            />
-          : <IntentDetails item={item} dateKey={item.recommendedDate} palette={palette} onImport={onImport} />
+        <>
+          {built ? <SessionDetails item={item} exercises={exercises} palette={palette} onOpen={onOpenSession} opening={openingSessionId === item?.sessionId}/>
+            : <IntentDetails item={item} dateKey={item.recommendedDate} palette={palette} onImport={onImport}/>}
+          {canRemoveWeekItem(item)?<View style={styles.contextActions}>
+            <RemoveButton item={item} palette={palette} disabled={moving || removingItemId === item?.planItemId} onPress={onRequestRemove}/>
+          </View>:null}
+        </>
       ) : null}
     </View>
   );
 }
 
-function EmptyDay({ dateKey, expanded, isPast = false, palette, onToggle, onImport }) {
-  if (isPast) {
-    return (
-      <View style={styles.emptyDayWrap}>
-        <View style={[styles.pastDayCard, { backgroundColor: palette.pastDay, borderColor: palette.border }]}>
-          <View style={[styles.pastDayIcon, { backgroundColor: palette.pastDayIcon }]}>
-            <Ionicons name="time-outline" size={16} color={palette.textMuted} />
-          </View>
-          <View style={styles.pastDayCopy}>
-            <Text style={[styles.pastDayTitle, { color: palette.textMuted }]}>Journée passée</Text>
-            <Text style={[styles.pastDaySubtitle, { color: palette.textMuted }]}>Ce jour n’est plus disponible.</Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
+function EmptyDay({ dateKey, expanded, isPast = false, isToday = false, palette, onToggle, onImport }) {
+  if (isPast) return <View style={styles.emptyDayWrap}><Text style={[styles.emptyDayText,{color:palette.textMuted}]}>Aucune séance</Text></View>;
   return (
     <View style={styles.emptyDayWrap}>
-      <Pressable style={styles.emptyDayPress} onPress={onToggle} accessibilityRole="button">
-        <Text style={[styles.emptyDayText, { color: palette.textMuted }]}>Rien de prévu</Text>
-        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={17} color={palette.textMuted} />
-      </Pressable>
-      {expanded ? (
-        <View style={[styles.emptyActionsPanel, { borderColor: palette.border }]}> 
-          <CreationActions dateKey={dateKey} palette={palette} onImport={onImport} />
+      <Pressable style={[styles.emptyDayPress,isToday&&styles.todayObject,isToday&&{backgroundColor:palette.accent}]} onPress={onToggle} accessibilityRole="button" accessibilityState={{expanded}}>
+        <View style={styles.objectCopy}>
+          {isToday?<Text style={[styles.objectState,{color:palette.onAccent}]}>AUJOURD’HUI</Text>:null}
+          <Text style={[styles.emptyDayText, { color: isToday?palette.onAccent:palette.textMuted }]}>Rien de prévu</Text>
         </View>
-      ) : null}
+        <Ionicons name={expanded?'chevron-up':'add'} size={19} color={isToday?palette.onAccent:palette.textMuted}/>
+      </Pressable>
+      {expanded ? <View style={[styles.emptyActionsPanel,{borderColor:palette.border}]}><CreationActions dateKey={dateKey} palette={palette} onImport={onImport}/></View>:null}
     </View>
   );
 }
@@ -543,7 +513,6 @@ function DaySection({
 }) {
   const isToday = day.key === todayKey;
   const isPast = day.key < todayKey;
-  const isUnavailablePast = isPast && day.items.length === 0;
   const isTarget = dropTarget === day.key;
   return (
     <View
@@ -552,8 +521,7 @@ function DaySection({
       style={[
         styles.daySection,
         { borderBottomColor: palette.border },
-        isUnavailablePast && { opacity: 0.78 },
-        isTarget && { backgroundColor: palette.dropTarget, borderLeftColor: palette.accent, borderLeftWidth: 3 },
+        isTarget && { backgroundColor: palette.dropTarget },
       ]}
     >
       <Pressable
@@ -564,13 +532,11 @@ function DaySection({
         }}
         accessibilityRole="button"
       >
-        <Text style={[styles.dayName, { color: isToday ? palette.accent : palette.textMuted }]}>{day.label}</Text>
+        <Text style={[styles.dayName, { color: isToday ? palette.orange : palette.textMuted }]}>{day.label}</Text>
         <View style={[
           styles.dayNumberWrap,
-          isToday && { backgroundColor: palette.accent },
-          isUnavailablePast && { backgroundColor: palette.pastDayIcon },
         ]}> 
-          <Text style={[styles.dayNumber, { color: isToday ? palette.onAccent : isUnavailablePast ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
+          <Text style={[styles.dayNumber, { color: isToday ? palette.orange : isPast ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
         </View>
       </Pressable>
       <View style={styles.dayContent}>
@@ -579,6 +545,7 @@ function DaySection({
             dateKey={day.key}
             expanded={expandedKey === `empty:${day.key}`}
             isPast={isPast}
+            isToday={isToday}
             palette={palette}
             onToggle={() => onToggleEmpty(day.key)}
             onImport={onImport}
@@ -590,6 +557,7 @@ function DaySection({
               key={key}
               item={item}
               index={index}
+              isToday={isToday}
               expanded={expandedKey === `item:${key}`}
               moving={movingItemId === item.planItemId}
               exercises={exercisePreviews[item.sessionId] ?? []}
@@ -622,7 +590,7 @@ function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClo
           <View style={styles.sheetHandle} />
           <Text style={[styles.sheetTitle, { color: palette.text }]}>AJOUTER UNE SÉANCE</Text>
           <Text style={[styles.sheetIntro, { color: palette.textMuted }]}>
-            Choisis un jour libre pour ajouter une 4e ou 5e séance. Les journées déjà programmées restent inchangées.
+            Choisis un jour libre.
           </Text>
           <View style={styles.addDayList}>
             {selectableDays.map((day) => {
@@ -639,7 +607,7 @@ function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClo
                 ? 'Limite de 5 séances atteinte pour cette semaine.'
                 : occupied
                   ? 'Cette journée est déjà programmée.'
-                  : 'UGEROD préparera une intention cohérente avec le reste de ta semaine.';
+                  : '';
               return (
                 <TouchableOpacity
                   key={day.key}
@@ -763,7 +731,7 @@ function ImportModal({ visible, dateKey, palette, shareValue, onShareValueChange
 }
 
 export default function PlanningScreen() {
-  const { isDark } = useUgerodTheme();
+  const { isDark, colors } = useUgerodTheme();
   const { setGeneratedWorkout } = useWorkout();
   const params = useLocalSearchParams();
   const action = Array.isArray(params?.action) ? params.action[0] : params?.action;
@@ -789,19 +757,14 @@ export default function PlanningScreen() {
   const dayRects = useRef({});
   const feedbackTimerRef = useRef(null);
 
-  const palette = useMemo(() => isDark ? {
-    bg: '#0A0E0C', surface: '#121712', surfaceRaised: '#181E19', border: '#2A332B',
-    text: '#F4F2ED', textMuted: '#AEB6AE', accent: '#87977F', accentSoft: '#2A332B',
-    orange: '#FF6B19', onAccent: '#081009', intent: '#7D8A77', intentSoft: '#141A15',
-    session: '#A5B29E', done: '#778078', dropTarget: 'rgba(135,151,127,0.12)',
-    pastDay: '#111511', pastDayIcon: '#202620',
-  } : {
-    bg: '#F4F2ED', surface: '#FFFFFF', surfaceRaised: '#FAF9F5', border: '#D8D6CF',
-    text: '#151B16', textMuted: '#697169', accent: '#646F5E', accentSoft: '#E6E9E2',
-    orange: '#FF6B19', onAccent: '#FFFFFF', intent: '#8A9684', intentSoft: '#EEF0EA',
-    session: '#646F5E', done: '#899087', dropTarget: 'rgba(100,111,94,0.08)',
-    pastDay: '#ECEAE4', pastDayIcon: '#DFDDD5',
-  }, [isDark]);
+  const palette = useMemo(() => ({
+    bg: colors.background, surface: colors.surface, surfaceRaised: colors.surfaceElevated,
+    border: colors.border, text: colors.text, textMuted: colors.textSecondary,
+    accent: colors.accent, accentSoft: colors.accentSoft, orange: colors.secondaryAccent,
+    onAccent: colors.textOnAccent, intent: colors.textSecondary, intentSoft: colors.surface,
+    session: colors.accent, done: colors.textSecondary, dropTarget: colors.accentSoft,
+    pastDay: colors.surface, pastDayIcon: colors.surfacePressed,
+  }), [colors]);
 
   useEffect(() => {
     if (action === 'new') router.replace('/workout/builder');
@@ -1072,26 +1035,28 @@ export default function PlanningScreen() {
               <Ionicons name="arrow-back" size={20} color={palette.text} />
             </TouchableOpacity>
             <View style={styles.headerText}>
-              <Text style={[styles.eyebrow, { color: palette.accent }]}>COACH</Text>
               <Text style={[styles.title, { color: palette.text }]}>MA SEMAINE.</Text>
             </View>
             <TouchableOpacity
               style={[styles.profileButton, { backgroundColor: palette.surface, borderColor: palette.border }]}
               onPress={() => router.push('/profile')}
               accessibilityRole="button"
+              accessibilityLabel="Profil"
             >
-              <Ionicons name="person-outline" size={20} color={palette.text} />
+              <Image source={isDark?darkBrandIcon:lightBrandIcon} style={styles.brandIcon} resizeMode="contain" accessible={false}/>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.rangeLine}>
-            <Text style={[styles.rangeLabel, { color: palette.text }]}>{weekRange}</Text>
-            {contract?.completedActualCount > 0 ? (
-              <Text style={[styles.actualLabel, { color: palette.textMuted }]}> 
-                {contract.completedActualCount} {contract.completedActualCount > 1 ? 'séances réalisées' : 'séance réalisée'}
-              </Text>
-            ) : null}
-          </View>
+          <Text style={[styles.rangeLabel,{color:palette.textMuted}]}>{weekRange}</Text>
+          {contract ? <View style={[styles.weekProgress,{borderBottomColor:palette.border}]}>
+            <Text style={[styles.completedCount,{color:palette.accent}]}>{String(contract.completedActualCount ?? 0).padStart(2,'0')}</Text>
+            <View style={styles.progressCopy}>
+              <Text style={[styles.actualLabel,{color:palette.text}]}>{contract.completedActualCount === 1?'Séance réalisée':'Séances réalisées'}</Text>
+              <View style={styles.progressSegments} accessible={false}>
+                {daysWithItems.map(day=><View key={day.key} style={[styles.progressSegment,{backgroundColor:day.items.some(item=>item.displayState==='REALISEE')?palette.accent:palette.border}]}/>)}
+              </View>
+            </View>
+          </View>:null}
 
           {moveFeedback ? (
             <View style={[styles.moveFeedback, { backgroundColor: palette.surface, borderColor: palette.border }]} accessibilityLiveRegion="polite">
@@ -1160,9 +1125,7 @@ export default function PlanningScreen() {
                 <Ionicons name="add-circle-outline" size={20} color={planningSlotCount >= 5 ? palette.textMuted : palette.accent} />
                 <Text style={[styles.addSessionButtonText, { color: planningSlotCount >= 5 ? palette.textMuted : palette.text }]}>AJOUTER UNE SÉANCE</Text>
               </TouchableOpacity>
-              <Text style={[styles.addSessionHint, { color: palette.textMuted }]}>
-                {planningSlotCount >= 5 ? '5 séances sont déjà prévues.' : 'Pré-programmer une 4e ou 5e séance potentielle cette semaine.'}
-              </Text>
+              {planningSlotCount >= 5 ? <Text style={[styles.addSessionHint,{color:palette.textMuted}]}>5 séances sont déjà prévues.</Text>:null}
             </View>
           ) : null}
         </View>
@@ -1227,53 +1190,52 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingBottom: 46 },
   contentInner: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 14 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  backButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12 },
+  backButton: { width:44,height:44,alignItems:'center',justifyContent:'center' },
   headerText: { flex: 1, minWidth: 0 },
-  eyebrow: { fontFamily: fontFamilies.bold, fontSize: 11, lineHeight: 15, letterSpacing: 1.8, marginBottom: 3 },
   title: { fontFamily: fontFamilies.display, fontSize: 38, lineHeight: 41, letterSpacing: 1.4 },
-  profileButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  rangeLine: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginTop: 26, marginBottom: 8 },
-  rangeLabel: { fontFamily: fontFamilies.bold, fontSize: 13, lineHeight: 18, letterSpacing: 0.8 },
-  actualLabel: { fontFamily: fontFamilies.medium, fontSize: 12, lineHeight: 17 },
+  profileButton: { width:52,height:44,alignItems:'center',justifyContent:'center' },
+  brandIcon:{width:46,height:38},
+  rangeLabel: { fontFamily:fontFamilies.medium,fontSize:13,lineHeight:19,marginTop:10 },
+  actualLabel: { fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:19 },
+  weekProgress:{flexDirection:'row',alignItems:'center',gap:18,paddingVertical:16,borderBottomWidth:1},
+  completedCount:{fontFamily:fontFamilies.display,fontSize:54,lineHeight:58},
+  progressCopy:{flex:1,gap:8},
+  progressSegments:{flexDirection:'row',gap:5},
+  progressSegment:{flex:1,height:5,borderRadius:3},
   weekList: { width: '100%' },
-  daySection: { flexDirection: 'row', paddingVertical: 17, borderBottomWidth: 1, borderLeftColor: 'transparent', paddingLeft: 0 },
-  dayDateColumn: { width: 58, alignItems: 'flex-start', paddingTop: 3 },
-  dayName: { fontFamily: fontFamilies.bold, fontSize: 10, lineHeight: 14, letterSpacing: 1, marginBottom: 4 },
-  dayNumberWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  dayNumber: { fontFamily: fontFamilies.bold, fontSize: 15, lineHeight: 19 },
+  daySection: { flexDirection:'row',paddingVertical:12,borderBottomWidth:1,gap:8 },
+  dayDateColumn: { width:45,alignItems:'center',paddingTop:4 },
+  dayName: { fontFamily:fontFamilies.semiBold,fontSize:11,lineHeight:15,letterSpacing:0.7 },
+  dayNumberWrap:{minWidth:40,alignItems:'center',justifyContent:'center'},
+  dayNumber:{fontFamily:fontFamilies.display,fontSize:34,lineHeight:38},
   dayContent: { flex: 1, minWidth: 0, gap: 9 },
   objectWrap: { width: '100%' },
   objectMoving: { opacity: 0.48 },
-  intentObject: { minHeight: 70, borderLeftWidth: 3, borderRadius: 12, flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden' },
-  sessionObject: { minHeight: 82, borderWidth: 1, borderLeftWidth: 4, borderRadius: 16, flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden' },
-  objectPressArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: 13, paddingRight: 8, paddingVertical: 12, gap: 8 },
+  weekObject:{minHeight:66,flexDirection:'row',alignItems:'stretch'},
+  todayObject:{borderRadius:12,paddingHorizontal:10,paddingVertical:7},
+  objectState:{fontFamily:fontFamilies.semiBold,fontSize:10,lineHeight:15,letterSpacing:0.6},
+  todayAction:{fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:19,marginTop:8},
+  objectPressArea:{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',paddingVertical:8,paddingHorizontal:3,gap:8},
   objectCopy: { flex: 1, minWidth: 0 },
-  intentObjectTitle: { fontFamily: fontFamilies.bold, fontSize: 14, lineHeight: 19 },
-  sessionObjectTitle: { fontFamily: fontFamilies.display, fontSize: 23, lineHeight: 25, letterSpacing: 0.6 },
-  objectSubline: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 16, marginTop: 4 },
-  objectMeta: { fontFamily: fontFamilies.semiBold, fontSize: 10, lineHeight: 15, marginTop: 5 },
-  dragHandle: { width: 40, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1 },
+  sessionObjectTitle:{fontFamily:fontFamilies.display,fontSize:25,lineHeight:28,letterSpacing:0.5,marginTop:2},
+  objectMeta:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:17,marginTop:4},
+  dragHandle:{width:36,minHeight:44,alignItems:'center',justifyContent:'center'},
   dragHandleSpacer: { width: 10 },
-  removeButton: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  removeButton:{minHeight:44,flexDirection:'row',gap:6,alignItems:'center',justifyContent:'center',paddingHorizontal:8},
+  removeActionText:{fontFamily:fontFamilies.semiBold,fontSize:12,lineHeight:17},
+  contextActions:{alignItems:'flex-end'},
   dragDots: { width: 14, height: 22, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'space-between' },
   dragDot: { width: 4, height: 4, borderRadius: 2, marginHorizontal: 1, marginVertical: 1.5 },
   emptyDayWrap: { minHeight: 52, justifyContent: 'center' },
-  emptyDayPress: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 4 },
+  emptyDayPress:{minHeight:52,flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:6,gap:8},
   emptyDayText: { fontFamily: fontFamilies.medium, fontSize: 13, lineHeight: 19 },
-  pastDayCard: { minHeight: 56, borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 9 },
-  pastDayIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pastDayCopy: { flex: 1, minWidth: 0 },
-  pastDayTitle: { fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 17 },
-  pastDaySubtitle: { fontFamily: fontFamilies.regular, fontSize: 10, lineHeight: 14, marginTop: 1 },
   detailPanel: { marginTop: 9, borderTopWidth: 1, paddingTop: 14, paddingHorizontal: 2, paddingBottom: 4 },
-  detailTitle: { fontFamily: fontFamilies.display, fontSize: 25, lineHeight: 28, letterSpacing: 0.6 },
   detailBody: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20 },
   detailSection: { marginTop: 15 },
   detailLabel: { fontFamily: fontFamilies.bold, fontSize: 9, lineHeight: 13, letterSpacing: 1.05, marginBottom: 5 },
   explanationText: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20 },
   exercisePreviewLine: { fontFamily: fontFamilies.semiBold, fontSize: 13, lineHeight: 20 },
-  detailMeta: { fontFamily: fontFamilies.semiBold, fontSize: 11, lineHeight: 16, marginTop: 13 },
   coachTip: { marginTop: 14, borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   coachTipText: { flex: 1 },
   coachTipTitle: { fontFamily: fontFamilies.bold, fontSize: 9, lineHeight: 13, letterSpacing: 0.9, marginBottom: 3 },
@@ -1310,7 +1272,7 @@ const styles = StyleSheet.create({
   sheetCloseButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   sheetCloseText: { fontFamily: fontFamilies.bold, fontSize: 11, lineHeight: 15, letterSpacing: 0.8 },
   addSessionSection: { marginTop: 22, marginBottom: 6 },
-  addSessionButton: { minHeight: 50, borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 16 },
+  addSessionButton:{minHeight:50,borderWidth:1,borderRadius:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,paddingHorizontal:16},
   addSessionButtonText: { fontFamily: fontFamilies.bold, fontSize: 12, lineHeight: 16, letterSpacing: 0.8 },
   addSessionHint: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 7 },
   disabledRow: { opacity: 0.46 },

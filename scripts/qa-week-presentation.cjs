@@ -1,0 +1,23 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const ui=fs.readFileSync('app/(tabs)/planning.js','utf8');
+require('@babel/parser').parse(ui,{sourceType:'module',plugins:['jsx']});
+const read=(name,next)=>ui.slice(ui.indexOf('function '+name+'('),ui.indexOf('function '+next+'('));
+const api=new Function(read('isBuiltSession','canMoveWeekItem')+read('weekItemStateLabel','WeekObject')+read('canMoveWeekItem','canRemoveWeekItem')+read('canRemoveWeekItem','getTone')+';return {weekItemStateLabel,canMoveWeekItem,canRemoveWeekItem};')();
+for(const [item,label,move,remove] of [[{displayState:'PREVUE',planItemId:'a',recommendedDate:'2026-11-26'},'À composer',true,true],[{displayState:'PRETE',sessionId:'s',planItemId:'a',recommendedDate:'2026-11-26'},'Prête',true,true],[{displayState:'ACTIVE',sessionId:'s',planItemId:'a'},'En cours',false,false],[{displayState:'REALISEE',sessionId:'s',planItemId:'a'},'Réalisée',false,false]]){assert.equal(api.weekItemStateLabel(item),label);assert.equal(api.canMoveWeekItem(item),move);assert.equal(api.canRemoveWeekItem(item),remove);}
+assert.equal(api.canMoveWeekItem({displayState:'PRETE',planItemId:'a',recommendedDate:'2026-11-26',recommendedDateIsSoft:false}),false);
+assert.match(ui,/const \{ isDark, colors \} = useUgerodTheme/);
+assert.match(ui,/bg: colors.background/);
+assert.match(ui,/accent: colors.accent/);
+assert.match(ui,/orange: colors.secondaryAccent/);
+assert.match(ui,/completedActualCount/);
+assert.match(ui,/day.items.some\(item=>item.displayState==='REALISEE'\)/);
+assert.match(ui,/hero = isToday && !done/);
+assert.match(ui,/if \(isPast\) return/);
+assert.match(ui,/onDrop=\{onDragDrop\}/);
+assert.match(ui,/onPress=\{onRequestRemove\}/);
+assert.match(ui,/planningSlotCount >= 5/);
+assert.match(ui,/entry: 'week_assisted'/);
+assert.match(ui,/entry: 'week_free'/);
+assert.match(ui,/onImport\?\.\(dateKey\)/);
+console.log('PASS week presentation: shared theme, chronology, states and existing actions');

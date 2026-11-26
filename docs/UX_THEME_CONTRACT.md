@@ -100,3 +100,7 @@ La passe UX reste page par page. Les pages non encore auditées peuvent conserve
 Quand une page est reprise, elle est migrée vers les tokens partagés clair/sombre dans le même chantier, avec un seul code d'interface.
 
 Les anciens styles ou composants ne sont supprimés que lorsqu'ils ne sont plus utilisés par le parcours actif et qu'un filet de QA existe.
+
+## Ma semaine — présentation validée le 26/11/2026
+
+Chronologie verticale, fond et couleurs issus des tokens centraux, dates et titres Bebas Neue, textes Manrope. Nombre réel de séances réalisées et sept segments correspondant aux jours avec une séance réalisée visible (pas un objectif de sept séances). Aujourd'hui mis en avant en kaki, date orange ; séances réalisées discrètes et états explicites, journées vides sans cartes redondantes. Actions de création, import, ouverture et retrait dans les détails ; poignée de déplacement toujours disponible lorsque autorisée. Conserver intégralement les règles de planification, limites, restrictions et mutations existantes. Ma semaine reste facultative. Même UI dans les deux thèmes.
