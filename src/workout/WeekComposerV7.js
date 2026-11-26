@@ -1724,6 +1724,12 @@ export default function WeekComposerV7() {
               <View style={styles.frameSection}>
                 <Text accessibilityRole="header" style={styles.frameSectionTitle}>Choisir mon matériel</Text>
                 {equipmentLoading?<ActivityIndicator size="small" color={colors.accent}/>:<>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Modifier mon matériel" onPress={openProfileEquipment}
+                    style={({pressed})=>[styles.frameEquipmentRow,pressed&&styles.pressed]}>
+                    <ExpoImage source={FRAME_EQUIPMENT_PHOTO} style={styles.frameEquipmentPhoto} contentFit="cover" accessible={false}/>
+                    <View style={styles.frameRowCopy}><Text style={styles.frameEquipmentTitle}>Modifier mon matériel</Text></View>
+                    <Ionicons name="chevron-forward" size={19} color={colors.textSecondary} accessible={false}/>
+                  </Pressable>
                   <View style={styles.equipmentQuickRow}>
                     <Pressable accessibilityRole="button" accessibilityState={{selected:bodyweightOnly}}
                       onPress={() => setEquipmentIds([])}
@@ -1741,25 +1747,23 @@ export default function WeekComposerV7() {
                     <Text style={styles.frameEquipmentSubtitle}>Matériel retenu pour la séance</Text>
                     <Text style={styles.frameEquipmentCount}>{retainedEquipment.length}/{referenceEquipment.length}</Text>
                   </View>
-                  {referenceEquipment.length>0?<ScrollView horizontal nestedScrollEnabled alwaysBounceHorizontal={false} style={styles.frameEquipmentScroll} contentContainerStyle={styles.frameEquipmentTags}>
-                    {referenceEquipment.map(item=>{
-                      const selected=equipmentIds.includes(item.id);
-                      return <Pressable key={item.id} accessibilityRole="checkbox" accessibilityLabel={item.detail?item.name+', '+item.detail:item.name}
-                        accessibilityState={{checked:selected}} onPress={()=>toggleEquipment(item.id)}
-                        style={({pressed})=>[styles.frameEquipmentTag,selected&&styles.frameEquipmentTagSelected,pressed&&styles.pressed]}>
-                        <View style={styles.frameEquipmentTagCopy}>
-                          <Text style={[styles.frameEquipmentTagText,selected&&styles.frameEquipmentTagTextSelected]}>{item.name}</Text>
-                          {item.detail?<Text style={[styles.frameEquipmentTagDetail,selected&&styles.frameEquipmentTagDetailSelected]}>{item.detail}</Text>:null}
-                        </View>
-                      </Pressable>;
-                    })}
-                  </ScrollView>:<Text style={styles.frameEquipmentCount}>Aucun matériel enregistré pour ce lieu.</Text>}
-                  <Pressable accessibilityRole="button" accessibilityLabel="Modifier mon matériel" onPress={openProfileEquipment}
-                    style={({pressed})=>[styles.frameEquipmentRow,pressed&&styles.pressed]}>
-                    <ExpoImage source={FRAME_EQUIPMENT_PHOTO} style={styles.frameEquipmentPhoto} contentFit="cover" accessible={false}/>
-                    <View style={styles.frameRowCopy}><Text style={styles.frameEquipmentTitle}>Modifier mon matériel</Text></View>
-                    <Ionicons name="chevron-forward" size={19} color={colors.textSecondary} accessible={false}/>
-                  </Pressable>
+                  {referenceEquipment.length>0?<View style={styles.frameEquipmentTags}>
+                    {Array.from({length:Math.ceil(referenceEquipment.length/3)},(_,index)=>referenceEquipment.slice(index*3,index*3+3)).map(row=><View key={row[0].id} style={styles.frameEquipmentGridRow}>
+                      {row.map(item=>{
+                        const selected=equipmentIds.includes(item.id);
+                        return <Pressable key={item.id} accessibilityRole="checkbox" accessibilityLabel={item.detail?item.name+', '+item.detail:item.name}
+                          accessibilityState={{checked:selected}} onPress={()=>toggleEquipment(item.id)}
+                          style={({pressed})=>[styles.frameEquipmentTag,selected&&styles.frameEquipmentTagSelected,pressed&&styles.pressed]}>
+                          <View style={styles.frameEquipmentTagCopy}>
+                            <Text style={[styles.frameEquipmentTagText,selected&&styles.frameEquipmentTagTextSelected]}>{item.name}</Text>
+                            {item.detail?<Text style={[styles.frameEquipmentTagDetail,selected&&styles.frameEquipmentTagDetailSelected]}>{item.detail}</Text>:null}
+                          </View>
+                        </Pressable>;
+                      })}
+                      {Array.from({length:3-row.length},(_,index)=><View key={'empty-'+index} style={styles.frameEquipmentGridSpacer} accessible={false}/>)}
+                    </View>)}
+                  </View>:<Text style={styles.frameEquipmentCount}>Aucun matériel enregistré pour ce lieu.</Text>}
+
                 </>}
               </View>
             </View>
@@ -2357,20 +2361,21 @@ function createStyles(colors) {
     frameSwitchOn:{backgroundColor:colors.accent},
     frameSwitchKnob:{width:22,height:22,borderRadius:11,backgroundColor:colors.textOnAccent,alignSelf:'flex-start'},
     frameSwitchKnobOn:{alignSelf:'flex-end'},
-    frameEquipmentRow:{minHeight:73,flexDirection:'row',alignItems:'center',gap:12,padding:8,borderWidth:1,borderColor:colors.border,borderRadius:12,backgroundColor:colors.surface},
-    frameEquipmentPhoto:{width:76,height:57,borderRadius:8,backgroundColor:colors.surfacePressed},
-    frameEquipmentTitle:{fontFamily:fontFamilies.semiBold,fontSize:16,lineHeight:21,color:colors.text},
+    frameEquipmentRow:{minHeight:56,flexDirection:'row',alignItems:'center',gap:10,padding:7,borderWidth:1,borderColor:colors.border,borderRadius:12,backgroundColor:colors.surface},
+    frameEquipmentPhoto:{width:52,height:39,borderRadius:7,backgroundColor:colors.surfacePressed},
+    frameEquipmentTitle:{fontFamily:fontFamilies.semiBold,fontSize:14,lineHeight:19,color:colors.text},
     frameEquipmentCount:{fontFamily:fontFamilies.regular,fontSize:12,lineHeight:17,color:colors.textSecondary},
     frameEquipmentSummaryRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},
     frameEquipmentSubtitle:{flex:1,fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:18,color:colors.text,marginTop:2},
-    frameEquipmentScroll:{width:'100%',flexGrow:0},
-    frameEquipmentTags:{flexDirection:'row',alignItems:'stretch',gap:8,paddingBottom:5,paddingRight:8},
-    frameEquipmentTag:{minHeight:44,maxWidth:260,flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:12,paddingVertical:7,borderRadius:9,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surfacePressed},
+    frameEquipmentTags:{gap:8},
+    frameEquipmentGridRow:{flexDirection:'row',alignItems:'stretch',gap:8},
+    frameEquipmentGridSpacer:{flex:1,minWidth:0},
+    frameEquipmentTag:{flex:1,minWidth:0,minHeight:58,alignItems:'center',justifyContent:'center',paddingHorizontal:6,paddingVertical:7,borderRadius:9,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surfacePressed},
     frameEquipmentTagSelected:{backgroundColor:colors.accent,borderColor:colors.accent},
-    frameEquipmentTagCopy:{flexShrink:1,gap:2},
-    frameEquipmentTagText:{fontFamily:fontFamilies.medium,fontSize:13,lineHeight:18,color:colors.text},
+    frameEquipmentTagCopy:{width:'100%',alignItems:'center',gap:2},
+    frameEquipmentTagText:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:16,color:colors.text,textAlign:'center'},
     frameEquipmentTagTextSelected:{color:colors.textOnAccent},
-    frameEquipmentTagDetail:{fontFamily:fontFamilies.regular,fontSize:11,lineHeight:15,color:colors.textSecondary},
+    frameEquipmentTagDetail:{fontFamily:fontFamilies.regular,fontSize:11,lineHeight:15,color:colors.textSecondary,textAlign:'center'},
     frameEquipmentTagDetailSelected:{fontFamily:fontFamilies.regular,fontSize:11,lineHeight:15,color:colors.textOnAccent},
     frameFooter:{width:'100%',maxWidth:820,alignSelf:'center',paddingHorizontal:spacing.xl,paddingTop:10,paddingBottom:12,backgroundColor:colors.background,borderTopWidth:1,borderTopColor:colors.border},
     frameSheetOption:{minHeight:52,borderRadius:10,paddingHorizontal:14,paddingVertical:10,marginBottom:6,backgroundColor:colors.background,flexDirection:'row',alignItems:'center',gap:10},
