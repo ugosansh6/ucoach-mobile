@@ -30,17 +30,16 @@ export function frameSurfaceLabel(context) {
   return TERRAIN_OPTIONS.find(item => item.code === context.surface_code)?.label
     ?? (context.surface_code === 'TRACK' ? 'Piste' : '');
 }
-export function frameDurationIndex(durations, value) {
-  return durations.reduce((best, item, index) => Math.abs(item-value) < Math.abs(durations[best]-value) ? index : best, 0);
-}
 export function frameDurationStep(durations, value, direction) {
   if (direction > 0) return durations.find(item => item > value) ?? value;
   if (direction < 0) return [...durations].reverse().find(item => item < value) ?? value;
   return value;
 }
 export function frameDurationDrag(durations, value, dx) {
-  const offset = Math.round(-dx / 64);
-  if (!offset) return value;
-  const index = frameDurationIndex(durations, value);
-  return durations[Math.max(0, Math.min(durations.length-1, index+offset))];
+  const offset = -Math.sign(dx) * Math.round(Math.abs(dx) / 64);
+  let next = value;
+  for (let i = 0; i < Math.min(Math.abs(offset), durations.length); i++) {
+    next = frameDurationStep(durations, next, Math.sign(offset));
+  }
+  return next;
 }

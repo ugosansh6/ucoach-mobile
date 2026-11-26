@@ -40,7 +40,10 @@ for(let i=0;i<ds.length;i++){
 }
 assert.equal(api.frameDurationDrag(ds,50,0),50,'Do not silently normalize a restored duration');
 assert.equal(api.frameDurationStep(ds,50,1),60);assert.equal(api.frameDurationStep(ds,50,-1),45);
+assert.equal(api.frameDurationDrag(ds,50,-64),60);assert.equal(api.frameDurationDrag(ds,50,64),45);
+assert.equal(api.frameDurationDrag(ds,45,32),30);assert.equal(api.frameDurationDrag(ds,45,-32),60);
 const ui=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
+require('@babel/parser').parse(ui,{sourceType:'module',plugins:['jsx']});
 const frame=ui.slice(ui.indexOf('{step === 0 ? ('),ui.indexOf('{step === 1 ? ('));
 assert.match(frame,/ExpoImage source=\{FRAME_PHOTOS\[item.code\]\}/);
 assert.match(frame,/frameSurfaceLabel\(outdoorContext\)/);
