@@ -45,6 +45,15 @@ assert.equal(api.frameDurationDrag(ds,45,32),30);assert.equal(api.frameDurationD
 const ui=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
 require('@babel/parser').parse(ui,{sourceType:'module',plugins:['jsx']});
 const frame=ui.slice(ui.indexOf('{step === 0 ? ('),ui.indexOf('{step === 1 ? ('));
+const durationColorExpression=ui.match(/const durationColor = ([^;]+);/)[1];
+const durationColorFor=new Function('value','colors','return '+durationColorExpression);
+for(const colors of [{accent:'#646F5E',secondaryAccent:'#FF6B19',text:'#171A15'},{accent:'#646F5E',secondaryAccent:'#FF6B19',text:'#F7F9FC'}]){
+ for(const value of [20,30])assert.equal(durationColorFor(value,colors),colors.accent);
+ for(const value of [45,60,50])assert.equal(durationColorFor(value,colors),colors.text);
+ for(const value of [75,90])assert.equal(durationColorFor(value,colors),colors.secondaryAccent);
+}
+assert.match(ui,/style=\{\[styles\.frameDialValue, \{ color: durationColor \}\]\}/);
+
 assert.match(frame,/ExpoImage source=\{FRAME_PHOTOS\[item.code\]\}/);
 assert.match(frame,/frameSurfaceLabel\(outdoorContext\)/);
 assert.match(frame,/disabled=\{!selectedOutdoorPlace\}/);

@@ -313,6 +313,7 @@ function DurationControl({ value, onChange, styles, colors }) {
   }), []);
   const previous = frameDurationStep(DURATIONS, value, -1);
   const next = frameDurationStep(DURATIONS, value, 1);
+  const durationColor = [20, 30].includes(value) ? colors.accent : [75, 90].includes(value) ? colors.secondaryAccent : colors.text;
   return <View style={styles.frameDuration}>
     <Text style={styles.frameSectionTitle}>Durée</Text>
     <View {...pan.panHandlers} style={styles.frameDial}
@@ -322,7 +323,7 @@ function DurationControl({ value, onChange, styles, colors }) {
       onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'increment') onChange(next); else if (event.nativeEvent.actionName === 'decrement') onChange(previous); }}>
       <View style={styles.frameDialNumbers} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <Text style={styles.frameDialSide}>{previous === value ? ' ' : previous}</Text>
-        <Text style={styles.frameDialValue}>{value}</Text>
+        <Text style={[styles.frameDialValue, { color: durationColor }]}>{value}</Text>
         <Text style={styles.frameDialSide}>{next === value ? ' ' : next}</Text>
       </View>
       <View style={styles.frameDialTicks} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
