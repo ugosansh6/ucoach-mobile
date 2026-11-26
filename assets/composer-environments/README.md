@@ -1,5 +1,18 @@
 # Photographies des environnements — Composer
 
+## Visuels actifs — remplacement fourni par Ugo le 26/11/2026
+
+| Carte | Fichier actif |
+| --- | --- |
+| Maison | maison.jpg |
+| Box | box.webp |
+| Salle | salle.jpg |
+| Extérieur | outdoor2.jpg |
+
+Les trois nouveaux JPEG ont été ajoutés au dépôt par Ugo dans le commit `487da5d`. Les anciennes images WebP restent présentes pour permettre un retour arrière ; la Box ne change pas. Provenance, droits, résolution, poids et rendu des trois JPEG à vérifier. Le code utilise des fichiers locaux, sans requête externe.
+
+## Première sélection (archive)
+
 Visuels sélectionnés et fournis par Ugo le 26/11/2026. Recadrage 16:9, 640 × 360, WebP, métadonnées EXIF non reprises. Les fichiers sont embarqués dans l'application, pas de requêtes à Pexels au runtime.
 
 | Carte | Fichier | Source déclarée par le nom du fichier original fourni | Octets |

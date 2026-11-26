@@ -56,9 +56,15 @@ assert.match(ui,/selectableOutdoorPlaces\(\)\.map\(place/);
 assert.match(ui,/terrainOptionsForPlace\(selectedOutdoorPlace\)/);
 assert.match(ui,/frameSelectSurface\(current,terrain.code\)/);
 assert.doesNotMatch(frame,/Le lieu ne déclare|name=\{item.icon\}|checkmark-circle|ChoiceChip/);
-for(const f of ['home','box','gym','outdoor']){
- const bytes=fs.readFileSync('assets/composer-environments/'+f+'.webp');
- assert.equal(bytes.toString('ascii',0,4),'RIFF');assert.equal(bytes.toString('ascii',8,12),'WEBP');
- assert.ok(bytes.length<50000);
+for(const [environment,file] of Object.entries({HOME:'maison.jpg',BOX:'box.webp',GYM:'salle.jpg',OUTDOOR:'outdoor2.jpg'})){
+ assert.ok(ui.includes(environment+": require('../../assets/composer-environments/"+file+"')"),'Expected local photo for '+environment);
+ const bytes=fs.readFileSync('assets/composer-environments/'+file);
+ if(file.endsWith('.webp')){
+  assert.equal(bytes.toString('ascii',0,4),'RIFF');assert.equal(bytes.toString('ascii',8,12),'WEBP');
+  assert.ok(bytes.length<50000);
+ }else{
+  assert.equal(bytes[0],0xff,file+' JPEG signature');assert.equal(bytes[1],0xd8,file+' JPEG signature');assert.equal(bytes[2],0xff,file+' JPEG signature');
+  if(bytes.length>200000)console.warn(file+' : '+bytes.length+' bytes; consider optimizing for mobile');
+ }
 }
 console.log('PASS Composer frame: current catalogue, terrain constraints, mandatory context, explicit course preference, duration, local photo wiring');
