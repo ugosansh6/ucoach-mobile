@@ -97,19 +97,35 @@ async function withWeekReadTimeout(operation) {
   }
 }
 
+// A target day selects a calendar, not a simulated date of execution.
+export function getWeekViewDate(targetDate, today = new Date()) {
+  if (!targetDate) return { anchorDate: today, prepareFuture: false };
+  const [year, month, day] = normalizeWeekDateInput(targetDate, 'targetDate').split('-').map(Number);
+  const target = new Date(year,month-1,day,12);
+  const monday = (value) => {
+    const d = new Date(value); d.setHours(12,0,0,0);
+    d.setDate(d.getDate()-(d.getDay()+6)%7); return d;
+  };
+  const actualMonday = monday(today);
+  const targetMonday = monday(target);
+  const nextMonday = new Date(actualMonday); nextMonday.setDate(nextMonday.getDate()+7);
+  if (getLocalDateKey(actualMonday) === getLocalDateKey(targetMonday)) return {anchorDate:today,prepareFuture:false};
+  return {anchorDate:targetMonday,prepareFuture:getLocalDateKey(targetMonday)===getLocalDateKey(nextMonday)};
+}
+
 export async function getWeekReadContract({
   anchorDate = new Date(),
+  prepareFuture = false,
 } = {}) {
   return withWeekReadTimeout(async (signal) => {
     const userId = await getAuthenticatedUserId();
 
     const data = await runSupabaseRequestWithAuthRetry(() =>
       supabase.rpc(
-        'week_read_contract_v2',
-        {
-          p_user_id: userId,
-          p_anchor_date: getLocalDateKey(anchorDate),
-        }
+        prepareFuture ? 'week_prepare_future_v1' : 'week_read_contract_v2',
+        prepareFuture
+          ? {p_user_id:userId,p_week_start:getLocalDateKey(anchorDate)}
+          : {p_user_id:userId,p_anchor_date:getLocalDateKey(anchorDate)}
       ).abortSignal(signal)
     );
 
@@ -368,6 +384,8 @@ function normalizeWeekReadItem(item) {
     surfaceVisibility: source.surface_visibility ?? 'PRIMARY',
     userDebtCreated: Boolean(source.user_debt_created),
     sessionId: source.session_id ?? null,
+    hasComposerDraft: source.has_composer_draft === true,
+    composerTitle: source.composer_title ?? null,
     sessionStatus: source.session_status ?? null,
     provenance: {
       code: provenance.code ?? null,

@@ -91,6 +91,7 @@ import {
 import {
   createAssistedWeekPlanItem,
   getWeekReadContract,
+  getWeekViewDate,
 } from '../services/weeklyPlanService';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
@@ -570,6 +571,7 @@ export default function WeekComposerV7() {
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
 
   const [loading, setLoading] = useState(true);
+  const [loadFailed,setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState(0);
@@ -712,18 +714,22 @@ export default function WeekComposerV7() {
       try {
         setLoading(true);
         setError('');
-        const [contract, catalog, saved, imported] = await Promise.all([
-          getWeekReadContract({ anchorDate: new Date() }),
+        setLoadFailed(false);
+        const [contract, catalog, imported] = await Promise.all([
+          getWeekReadContract(getWeekViewDate(dateKey)),
           getEquipmentCatalog(),
-          getComposerForLocalDate(dateKey),
           requestedModelId?getPersonalWorkoutModel(requestedModelId):Promise.resolve(null),
         ]);
         if (!active) return;
         const candidates = (contract?.visibleItems ?? []).filter((item) => item?.recommendedDate === dateKey && (!item?.sessionId || item.planItemId === requestedPlanItemId));
         if(requestedModelId&&!canReusePersonalModel(imported))throw new Error('Ce modèle est introuvable ou doit être complété.');
         const item = requestedModelId?null:requestedPlanItemId
-          ? candidates.find((candidate) => candidate.planItemId === requestedPlanItemId) ?? candidates[0] ?? null
+          ? candidates.find((candidate) => candidate.planItemId === requestedPlanItemId) ?? null
           : candidates[0] ?? null;
+        if(requestedPlanItemId&&!requestedModelId&&!item)throw new Error('Cette séance n’est plus disponible à cette date.');
+        const saved=item?.planItemId?await getComposerForLocalDate(dateKey,item.planItemId):null;
+        if(!active)return;
+        if(item?.hasComposerDraft&&(!saved||saved.planItemId!==item.planItemId||saved.date!==dateKey||!Array.isArray(saved.draft?.architecture?.blocks)))throw new Error('La séance enregistrée ne peut pas être chargée.');
         setSelectedItem(item);
         setEquipmentCatalog(catalog ?? []);
         const future = item?.plannedContext?.futureContext ?? {};
@@ -857,7 +863,7 @@ export default function WeekComposerV7() {
         }
       } catch (loadError) {
         console.warn('[WeekComposerV7] load failed', loadError);
-        if (active) setError(requestedModelId?'Impossible de charger ce modèle. Reviens à Mes modèles.':'Impossible de charger le Composer pour le moment.');
+        if (active) {setLoadFailed(true);setError(requestedModelId?'Impossible de charger ce modèle. Reviens à Mes modèles.':'Impossible de charger le Composer pour le moment.');}
       } finally {
         if (active) setLoading(false);
       }
@@ -1551,6 +1557,16 @@ export default function WeekComposerV7() {
       </SafeAreaView>
     );
   }
+
+  if(loadFailed) return <SafeAreaView style={styles.screen}>
+    <StatusBar style={isDark?'light':'dark'}/>
+    <View style={styles.loadingWrap}>
+      <Text style={styles.muted}>{error}</Text>
+      <Pressable accessibilityRole="button" onPress={()=>router.canGoBack()?router.back():router.replace('/(tabs)/planning')}>
+        <Text style={styles.muted}>Revenir au planning</Text>
+      </Pressable>
+    </View>
+  </SafeAreaView>;
 
   const rawCoachChoice = coachIntentFromItem(selectedItem);
   const coachChoice = rawCoachChoice;

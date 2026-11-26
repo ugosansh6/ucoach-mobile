@@ -735,16 +735,15 @@ export async function saveComposerDraft({ planItemId, draft, context = null, con
  * Day-J read of a saved Composer structure. A Composer draft is not itself a
  * playable workout session; the future finalizer must materialize it first.
  */
-export async function getComposerForLocalDate(dateKey) {
+export async function getComposerForLocalDate(dateKey, planItemId = null) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey ?? ''))) {
     throw new Error('Invalid local date for Composer.');
   }
   const user = await getAuthenticatedUserWithRetry();
   const data = await runSupabaseRequestWithAuthRetry(() =>
-    supabase.rpc('week_read_composer_for_day_v1', {
-      p_user_id: user.id,
-      p_local_date: dateKey,
-    })
+    planItemId
+      ? supabase.rpc('week_read_composer_for_item_v1', {p_plan_item_id:planItemId})
+      : supabase.rpc('week_read_composer_for_day_v1', {p_user_id:user.id,p_local_date:dateKey})
   );
   if (!data?.found) return null;
   return {

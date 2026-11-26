@@ -24,6 +24,7 @@ import {
 
 import {
   getWeekReadContract,
+  getWeekViewDate,
   moveWeekPlanItem,
   removeWeekPlanItem,
   replanWeekAfterConfirmedRemoval,
@@ -160,6 +161,7 @@ function getEnvironmentLabel(code) {
 }
 
 function getShortSummary(item) {
+  if(!item?.sessionId&&item?.hasComposerDraft&&item?.composerTitle)return item.composerTitle;
   if (!item?.sessionId) {
     const userFacingTitle = item?.coachProjection?.presentation?.title;
     if (userFacingTitle) return userFacingTitle;
@@ -344,7 +346,7 @@ function ActionButton({ label, icon, primary = false, palette, onPress }) {
   );
 }
 
-function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimit = false }) {
+function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimit = false, futureWeek = false, prepared = false }) {
   const blocked = !planItemId && atLimit;
   return (
     <View style={styles.creationActions}>
@@ -354,16 +356,16 @@ function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimi
           date:dateKey,entry:'week_assisted',...(planItemId?{planItemId}:{origin:'week_additional'}),
         }})}>
         <View style={styles.objectCopy}>
-          <Text style={[styles.creationTitle,{color:blocked?palette.textMuted:palette.onAccent}]}>Composer avec UGEROD</Text>
-          <Text style={[styles.creationSubtitle,{color:blocked?palette.textMuted:palette.onAccent}]}>{blocked?'5 séances déjà prévues':'Une séance adaptée à tes objectifs'}</Text>
+          <Text style={[styles.creationTitle,{color:blocked?palette.textMuted:palette.onAccent}]}>{prepared?'Modifier ma séance':'Composer avec UGEROD'}</Text>
+          <Text style={[styles.creationSubtitle,{color:blocked?palette.textMuted:palette.onAccent}]}>{blocked?'5 séances déjà prévues':prepared?'Reprendre ta composition':'Une séance adaptée à tes objectifs'}</Text>
         </View>
         <Ionicons name="arrow-forward" size={19} color={blocked?palette.textMuted:palette.onAccent}/>
       </Pressable>
       <View style={styles.creationSecondaryRow}>
-        <Pressable accessibilityRole="button" style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]}
+        <Pressable accessibilityRole="button" accessibilityState={{disabled:futureWeek}} disabled={futureWeek} style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]}
           onPress={() => router.push({ pathname: '/workout/builder', params: { date: dateKey, entry: 'week_free' } })}>
-          <Text style={[styles.creationTitle,{color:palette.text,textAlign:'center'}]}>Créer librement</Text>
-          <Text style={[styles.creationSubtitle,{color:palette.textMuted,textAlign:'center'}]}>De A à Z</Text>
+          <Text style={[styles.creationTitle,{color:futureWeek?palette.textMuted:palette.text,textAlign:'center'}]}>Créer librement</Text>
+          <Text style={[styles.creationSubtitle,{color:palette.textMuted,textAlign:'center'}]}>{futureWeek?'Non disponible':'De A à Z'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]} onPress={() => onImport?.(dateKey)}>
           <Text style={[styles.creationTitle,{color:palette.text,textAlign:'center'}]}>Importer</Text>
@@ -374,8 +376,8 @@ function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimi
   );
 }
 
-function IntentDetails({ item, dateKey, palette, onImport, readOnly = false }) {
-  const profile = getIntentProfile(item);
+function IntentDetails({ item, dateKey, palette, onImport, readOnly = false, futureWeek = false }) {
+  const profile = item?.hasComposerDraft ? {} : getIntentProfile(item);
   return (
     <View style={[styles.detailPanel, { borderColor: palette.border }]}> 
       {profile.description ? (
@@ -387,7 +389,7 @@ function IntentDetails({ item, dateKey, palette, onImport, readOnly = false }) {
           <Text style={[styles.explanationText, { color: palette.text }]}>{profile.why.text}</Text>
         </View>
       ) : null}
-      {profile.examples.length > 0 ? (
+      {profile.examples?.length > 0 ? (
         <View style={styles.detailSection}>
           <Text style={[styles.detailLabel, { color: palette.textMuted }]}>EXERCICES QUI POURRAIENT APPARAÎTRE</Text>
           <Text style={[styles.exercisePreviewLine, { color: palette.text }]}>{profile.examples.join('  ·  ')}</Text>
@@ -405,6 +407,8 @@ function IntentDetails({ item, dateKey, palette, onImport, readOnly = false }) {
       {!readOnly?<CreationActions
         dateKey={dateKey}
         planItemId={item?.planItemId ?? null}
+        prepared={item?.hasComposerDraft}
+        futureWeek={futureWeek}
         palette={palette}
         onImport={onImport}
       />:null}
@@ -442,11 +446,11 @@ function SessionDetails({ item, exercises, palette, onOpen, opening, readOnly = 
 function weekItemStateLabel(item) {
   if (item?.displayState === 'REALISEE') return 'Réalisée';
   if (item?.displayState === 'ACTIVE') return 'En cours';
-  return isBuiltSession(item) ? 'Prête' : 'À composer';
+  return isBuiltSession(item) ? 'Prête' : item?.hasComposerDraft ? 'Préparée' : 'À composer';
 }
 
 function WeekObject({
-  item, index, expanded, moving, exercises, palette, onToggle, onImport, isToday, isPast,
+  item, index, expanded, moving, exercises, palette, onToggle, onImport, isToday, isPast, futureWeek,
   onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
   onRequestRemove, removingItemId,
 }) {
@@ -474,8 +478,8 @@ function WeekObject({
       </View>
       {expanded ? (
         <>
-          {built ? <SessionDetails item={item} exercises={exercises} palette={palette} onOpen={onOpenSession} opening={openingSessionId === item?.sessionId} readOnly={isPast}/>
-            : <IntentDetails item={item} dateKey={item.recommendedDate} palette={palette} onImport={onImport} readOnly={isPast}/>}
+          {built ? <SessionDetails item={item} exercises={exercises} palette={palette} onOpen={onOpenSession} opening={openingSessionId === item?.sessionId} readOnly={isPast||futureWeek}/>
+            : <IntentDetails item={item} dateKey={item.recommendedDate} palette={palette} onImport={onImport} readOnly={isPast} futureWeek={futureWeek}/>}
           {!isPast&&canRemoveWeekItem(item)?<View style={styles.contextActions}>
             <RemoveButton item={item} palette={palette} disabled={moving || removingItemId === item?.planItemId} onPress={onRequestRemove}/>
           </View>:null}
@@ -485,7 +489,7 @@ function WeekObject({
   );
 }
 
-function EmptyDay({ dateKey, expanded, isPast = false, isToday = false, palette, onToggle, onImport, atLimit = false }) {
+function EmptyDay({ dateKey, expanded, isPast = false, isToday = false, palette, onToggle, onImport, atLimit = false, futureWeek = false }) {
   if (isPast) return <View style={styles.emptyDayWrap}><Text style={[styles.emptyDayText,{color:palette.textMuted}]}>Aucune séance</Text></View>;
   return (
     <View style={styles.emptyDayWrap}>
@@ -496,13 +500,13 @@ function EmptyDay({ dateKey, expanded, isPast = false, isToday = false, palette,
         </View>
         <Ionicons name={expanded?'chevron-up':'add'} size={19} color={isToday?palette.onAccent:palette.textMuted}/>
       </Pressable>
-      {expanded ? <View style={[styles.emptyActionsPanel,{borderColor:palette.border}]}><CreationActions dateKey={dateKey} palette={palette} onImport={onImport} atLimit={atLimit}/></View>:null}
+      {expanded ? <View style={[styles.emptyActionsPanel,{borderColor:palette.border}]}><CreationActions dateKey={dateKey} palette={palette} onImport={onImport} atLimit={atLimit} futureWeek={futureWeek}/></View>:null}
     </View>
   );
 }
 
 function DaySection({
-  day, palette, todayKey, expandedKey, movingItemId, exercisePreviews, dropTarget, atLimit,
+  day, palette, todayKey, expandedKey, movingItemId, exercisePreviews, dropTarget, atLimit, futureWeek,
   registerDayRef, onToggleItem, onToggleEmpty, onImport,
   onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
   onRequestRemove, removingItemId,
@@ -547,6 +551,7 @@ function DaySection({
             isPast={isPast}
             isToday={isToday}
             atLimit={atLimit}
+            futureWeek={futureWeek}
             palette={palette}
             onToggle={() => onToggleEmpty(day.key)}
             onImport={onImport}
@@ -560,6 +565,7 @@ function DaySection({
               index={index}
               isToday={isToday}
               isPast={isPast}
+              futureWeek={futureWeek}
               expanded={expandedKey === `item:${key}`}
               moving={movingItemId === item.planItemId}
               exercises={exercisePreviews[item.sessionId] ?? []}
@@ -588,39 +594,6 @@ function nextWeekRange(weekStart) {
   const end = new Date(start);
   end.setDate(start.getDate()+6);
   return {start:toLocalDateKey(start),end:toLocalDateKey(end)};
-}
-
-function NextWeekPreview({ range, palette, isDark, onBack }) {
-  const days = buildWeekDays(range.start);
-  return (
-    <SafeAreaView style={[styles.safeArea,{backgroundColor:palette.bg}]}>
-      <StatusBar style={isDark?'light':'dark'}/>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.contentInner}>
-          <View style={styles.header}>
-            <Pressable style={styles.backButton} accessibilityRole="button" accessibilityLabel="Revenir à cette semaine" onPress={onBack}>
-              <Ionicons name="arrow-back" size={20} color={palette.text}/>
-            </Pressable>
-            <View style={styles.headerText}><Text style={[styles.title,{color:palette.text}]}>SEMAINE PROCHAINE.</Text></View>
-            <Image source={isDark?darkBrandIcon:lightBrandIcon} style={styles.brandIcon} resizeMode="contain" accessible={false}/>
-          </View>
-          <Text style={[styles.rangeLabel,{color:palette.textMuted}]}>{formatWeekRange(range.start,range.end)}</Text>
-          <Text style={[styles.futureNotice,{color:palette.textMuted}]}>La préparation de cette semaine n’est pas encore disponible.</Text>
-          {days.map(day=><View key={day.key} style={[styles.daySection,{borderBottomColor:palette.border}]}>
-            <View style={styles.dayDateColumn}>
-              <Text style={[styles.dayName,{color:palette.textMuted}]}>{day.label}</Text>
-              <Text style={[styles.dayNumber,{color:palette.text}]}>{day.date.getDate()}</Text>
-            </View>
-            <View style={styles.emptyDayWrap}><Text style={[styles.emptyDayText,{color:palette.textMuted}]}>À planifier</Text></View>
-          </View>)}
-          <Pressable style={[styles.nextWeekButton,{borderColor:palette.border,backgroundColor:palette.surface}]} onPress={onBack} accessibilityRole="button">
-            <Ionicons name="arrow-back" size={18} color={palette.text}/>
-            <Text style={[styles.creationTitle,{color:palette.text}]}>Revenir à cette semaine</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
 }
 
 function RemoveSessionModal({ item, visible, palette, removing, errorMessage, onClose, onConfirm }) {
@@ -731,7 +704,10 @@ export default function PlanningScreen() {
   const [moveFeedback, setMoveFeedback] = useState(null);
   const [importDay, setImportDay] = useState(null);
   const [shareValue, setShareValue] = useState('');
-  const [nextWeekOpen, setNextWeekOpen] = useState(false);
+  const [nextWeekOpen, setNextWeekOpen] = useState(null);
+  const readSequence=useRef(0);
+  const scrollRef=useRef(null);
+  const mutationBusy=useRef(false);
   const [removeItem, setRemoveItem] = useState(null);
   const [removingItemId, setRemovingItemId] = useState(null);
   const [removeErrorMessage, setRemoveErrorMessage] = useState(null);
@@ -758,29 +734,36 @@ export default function PlanningScreen() {
   }, []);
 
   const loadWeek = useCallback(async ({ refresh = false } = {}) => {
+    const request=++readSequence.current;
     if (action === 'new') return;
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const result = await getWeekReadContract({ anchorDate: new Date() });
+      const result = await getWeekReadContract(getWeekViewDate(nextWeekOpen));
+      if(request!==readSequence.current)return;
       setContract(result);
       const sessionIds = (result?.visibleItems ?? []).map((item) => item?.sessionId).filter(Boolean);
       try {
-        setExercisePreviews(await getWeekSessionExercisePreviews(sessionIds));
+        const previews=await getWeekSessionExercisePreviews(sessionIds);
+        if(request===readSequence.current)setExercisePreviews(previews);
       } catch (previewError) {
         console.warn('[MaSemaine] exercise preview failed', previewError);
-        setExercisePreviews({});
+        if(request===readSequence.current)setExercisePreviews({});
       }
     } catch (loadError) {
       console.warn('[MaSemaine] week_read_contract_v2 failed', loadError);
-      setError(loadError);
+      if(request===readSequence.current)setError(loadError);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if(request===readSequence.current){setLoading(false);setRefreshing(false);}
     }
-  }, [action]);
+  }, [action,nextWeekOpen]);
 
-  useFocusEffect(useCallback(() => { loadWeek(); }, [loadWeek]));
+  useFocusEffect(useCallback(() => { loadWeek(); return ()=>{readSequence.current+=1;}; }, [loadWeek]));
+
+  const switchWeek = useCallback((target)=>{
+    if(mutationBusy.current||draggingItem||movingItemId||removingItemId||openingSessionId)return;
+    readSequence.current+=1;setExpandedKey(null);setContract(null);setExercisePreviews({});setError(null);setMoveFeedback(null);setLoading(true);setRefreshing(false);setNextWeekOpen(target);scrollRef.current?.scrollTo({y:0,animated:false});
+  },[draggingItem,movingItemId,removingItemId,openingSessionId]);
 
   const visibleItems = useMemo(
     () => (contract?.visibleItems ?? []).filter((item) =>
@@ -789,10 +772,11 @@ export default function PlanningScreen() {
     ),
     [contract?.visibleItems]
   );
-  const weekDays = useMemo(() => buildWeekDays(contract?.weekStart), [contract?.weekStart]);
+  const weekDays = useMemo(() => buildWeekDays(contract?.weekStart??nextWeekOpen), [contract?.weekStart,nextWeekOpen]);
   const daysWithItems = useMemo(() => buildDaysWithItems(weekDays, visibleItems), [visibleItems, weekDays]);
   const nextRange = useMemo(() => nextWeekRange(contract?.weekStart), [contract?.weekStart]);
-  const weekRange = useMemo(() => formatWeekRange(contract?.weekStart, contract?.weekEnd), [contract?.weekStart, contract?.weekEnd]);
+  const futureWeek=Boolean(nextWeekOpen&&nextWeekOpen>toLocalDateKey(startOfMonday()));
+  const weekRange = useMemo(() => formatWeekRange(contract?.weekStart??nextWeekOpen, contract?.weekEnd??weekDays[6]?.key), [contract?.weekStart,contract?.weekEnd,nextWeekOpen,weekDays]);
   const todayKey = toLocalDateKey(new Date());
   const planningSlotCount = useMemo(
     () => Number.isFinite(contract?.planningSlotCount)
@@ -883,7 +867,8 @@ export default function PlanningScreen() {
     // Important: the week anchor selects the week for the mutation, while the
     // surface anchor must stay on the user's current local day. Reusing the
     // Monday weekStart for the read makes expired Monday opportunities visible again.
-    const surfaceAnchorDate = new Date();
+    const surfaceAnchorDate = getWeekViewDate(contract?.weekStart).anchorDate;
+    mutationBusy.current=true;
     setMovingItemId(item.planItemId);
     setContract((current) => withOptimisticWeekDate(current, item.planItemId, targetDate));
     clearDrag();
@@ -904,6 +889,7 @@ export default function PlanningScreen() {
       showMoveFeedback('Le déplacement n’a pas été enregistré.');
     } finally {
       setMovingItemId(null);
+      mutationBusy.current=false;
     }
   }, [clearDrag, contract?.weekStart, showMoveFeedback, todayKey]);
 
@@ -916,7 +902,8 @@ export default function PlanningScreen() {
     const planItemId = removeItem.planItemId;
     const sessionId = removeItem.sessionId;
     const weekAnchorDate = parseDateKey(contract?.weekStart) ?? new Date();
-    const surfaceAnchorDate = new Date();
+    const surfaceAnchorDate = getWeekViewDate(contract?.weekStart).anchorDate;
+    mutationBusy.current=true;
 
     // Server acknowledgement is the commit boundary. Refresh errors must NOT
     // turn a successful removal into a false "Impossible" message.
@@ -928,6 +915,7 @@ export default function PlanningScreen() {
       console.warn('[MaSemaine] removal RPC failed', removeRequestError);
       // A toast behind the modal is invisible; report the error in the sheet.
       setRemoveErrorMessage(weekRemovalFeedback(removeRequestError));
+      mutationBusy.current=false;
       return;
     } finally {
       setRemovingItemId(null);
@@ -963,16 +951,18 @@ export default function PlanningScreen() {
     }
     // Best-effort follow-up: the expensive Coach calculation does not gate
     // SQL removal confirmation, modal closure or the updated week display.
-    void replanWeekAfterConfirmedRemoval({
+    mutationBusy.current=false;
+    // The next week's intentions remain provisional until the transition.
+    if(!futureWeek) void replanWeekAfterConfirmedRemoval({
       planItemId, sessionId, anchorDate: weekAnchorDate,
     }).catch((replanError) => {
       console.warn('[MaSemaine] post-commit Coach replan deferred', replanError);
     });
-  }, [contract?.weekStart, removeItem, removingItemId, showMoveFeedback, todayKey]);
+  }, [contract?.weekStart, removeItem, removingItemId, showMoveFeedback, todayKey,futureWeek]);
 
   const handleOpenSession = useCallback(async (item) => {
     const sessionId = item?.sessionId ?? null;
-    if (!sessionId || openingSessionId) return;
+    if (!sessionId || openingSessionId || futureWeek) return;
 
     try {
       setOpeningSessionId(sessionId);
@@ -985,15 +975,15 @@ export default function PlanningScreen() {
     } finally {
       setOpeningSessionId(null);
     }
-  }, [openingSessionId, setGeneratedWorkout, showMoveFeedback]);
+  }, [openingSessionId, setGeneratedWorkout, showMoveFeedback,futureWeek]);
 
   if (action === 'new') return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
-  if (nextWeekOpen) return <NextWeekPreview range={nextRange} palette={palette} isDark={isDark} onBack={()=>setNextWeekOpen(false)}/>;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}> 
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -1004,7 +994,7 @@ export default function PlanningScreen() {
           <View style={styles.header}>
             <TouchableOpacity
               style={[styles.backButton, { backgroundColor: palette.surface, borderColor: palette.border }]}
-              onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')}
+              onPress={() => nextWeekOpen?switchWeek(null):router.canGoBack()?router.back():router.replace('/(tabs)')}
               accessibilityRole="button"
               accessibilityLabel="Retour"
               accessibilityHint="Revenir à l’écran précédent."
@@ -1012,7 +1002,7 @@ export default function PlanningScreen() {
               <Ionicons name="arrow-back" size={20} color={palette.text} />
             </TouchableOpacity>
             <View style={styles.headerText}>
-              <Text style={[styles.title, { color: palette.text }]}>MA SEMAINE.</Text>
+              <Text style={[styles.title, { color: palette.text }]}>{futureWeek?'SEMAINE PROCHAINE.':'MA SEMAINE.'}</Text>
             </View>
             <TouchableOpacity
               style={[styles.profileButton, { backgroundColor: palette.surface, borderColor: palette.border }]}
@@ -1025,7 +1015,7 @@ export default function PlanningScreen() {
           </View>
 
           <Text style={[styles.rangeLabel,{color:palette.textMuted}]}>{weekRange}</Text>
-          {contract ? <View style={[styles.weekProgress,{borderBottomColor:palette.border}]}>
+          {contract && !futureWeek ? <View style={[styles.weekProgress,{borderBottomColor:palette.border}]}>
             <Text style={[styles.completedCount,{color:palette.accent}]}>{String(contract.completedActualCount ?? 0).padStart(2,'0')}</Text>
             <View style={styles.progressCopy}>
               <Text style={[styles.actualLabel,{color:palette.text}]}>{contract.completedActualCount === 1?'Séance réalisée':'Séances réalisées'}</Text>
@@ -1034,6 +1024,8 @@ export default function PlanningScreen() {
               </View>
             </View>
           </View>:null}
+
+          {futureWeek&&contract?<Text style={[styles.futureNotice,{color:palette.textMuted}]}>Les intentions du coach sont provisoires.</Text>:null}
 
           {moveFeedback ? (
             <View style={[styles.moveFeedback, { backgroundColor: palette.surface, borderColor: palette.border }]} accessibilityLiveRegion="polite">
@@ -1063,6 +1055,7 @@ export default function PlanningScreen() {
                   palette={palette}
                   todayKey={todayKey}
                   atLimit={planningSlotCount >= 5}
+                  futureWeek={futureWeek}
                   expandedKey={expandedKey}
                   movingItemId={movingItemId}
                   exercisePreviews={exercisePreviews}
@@ -1087,10 +1080,14 @@ export default function PlanningScreen() {
             </View>
           )}
 
-          {!loading && contract ? (
+          {nextWeekOpen?<Pressable accessibilityRole="button" onPress={()=>switchWeek(null)}
+            style={[styles.nextWeekButton,{borderColor:palette.border,backgroundColor:palette.surface}]}>
+            <Ionicons name="arrow-back" size={20} color={palette.text}/>
+            <Text style={[styles.creationTitle,{color:palette.text}]}>Revenir à cette semaine</Text>
+          </Pressable>:!loading && contract ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Préparer ma semaine suivante"
               disabled={Boolean(draggingItem||movingItemId||removingItemId)}
-              onPress={()=>{setExpandedKey(null);setNextWeekOpen(true);}}
+              onPress={()=>switchWeek(nextRange.start)}
               style={[styles.nextWeekButton,{borderColor:palette.border,backgroundColor:palette.surface}]}>
               <View style={styles.objectCopy}>
                 <Text style={[styles.creationSubtitle,{color:palette.textMuted}]}>{formatWeekRange(nextRange.start,nextRange.end)}</Text>
