@@ -1,6 +1,6 @@
 import { checkpointComposerPlayerProgress } from '../../services/composerPlayerProgressService';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -47,6 +47,7 @@ export default function SessionFormatSheet({
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [changing, setChanging] = useState(null);
+  const changingRef=useRef(false);
   const [error, setError] = useState('');
 
   const loadOptions = useCallback(async () => {
@@ -86,13 +87,14 @@ export default function SessionFormatSheet({
     if (
       !option?.selectable ||
       option?.current ||
-      changing ||
+      changingRef.current || changing ||
       !workout?.sessionId
     ) {
       return;
     }
 
     try {
+      changingRef.current=true;
       setChanging(option.option_id ?? option.mechanic);
       setError('');
 
@@ -139,11 +141,15 @@ export default function SessionFormatSheet({
 
       onClose?.();
     } catch (changeError) {
+      if(changeError?.classification==='NOT_RECOMMENDED'){
+        setOptions(current=>current.map(item=>item.option_id===option.option_id?{...item,selectable:false,compatible:false,classification:'NOT_RECOMMENDED',rejectionMessage:changeError.message}:item));
+      }
       setError(
         changeError?.message ??
           'Impossible de changer le format.'
       );
     } finally {
+      changingRef.current=false;
       setChanging(null);
     }
   }
@@ -231,6 +237,11 @@ export default function SessionFormatSheet({
                     {option?.description ? (
                       <Text style={styles.optionDescription}>
                         {option.description}
+                      </Text>
+                    ) : null}
+                    {option?.rejectionMessage || option?.classification==='FINAL_VALIDATION_ON_SELECTION' || option?.classification==='PREMIUM_REQUIRED' ? (
+                      <Text style={styles.optionDescription}>
+                        {option.rejectionMessage??(option.classification==='PREMIUM_REQUIRED'?'Réservée à Premium':'Compatibilité à vérifier lors du choix')}
                       </Text>
                     ) : null}
                   </View>

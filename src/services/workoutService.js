@@ -1402,6 +1402,10 @@ function mapGeneratedWorkout(data, preparation) {
     meta: data?.meta ?? {},
   };
 }
+// Cache catalogue presentation only; never cache prescriptions or athlete context.
+const exerciseMetadataCache=new Map();
+const EXERCISE_METADATA_TTL_MS=5*60*1000;
+const EXERCISE_METADATA_MAX=500;
 async function enrichWorkoutExerciseMetadata(workout) {
   const source = Array.isArray(workout?.exercises)
     ? workout.exercises
@@ -1419,22 +1423,24 @@ async function enrichWorkoutExerciseMetadata(workout) {
     return workout;
   }
 
-  const { data, error } = await supabase
-    .from('exercises')
-    .select('id, description, instructions, tips, image_path')
-    .in('id', ids);
-
-  if (error) {
-    console.warn('Exercise metadata enrichment', error.message);
-    return workout;
+  const now=Date.now();
+  const metaById=new Map();
+  const missing=[];
+  for(const id of ids){
+    const cached=exerciseMetadataCache.get(id);
+    if(cached&&cached.expiresAt>now)metaById.set(id,cached.value);
+    else{exerciseMetadataCache.delete(id);missing.push(id);}
   }
-
-  const metaById = new Map(
-    (data ?? []).map((item) => [
-      item.id,
-      item,
-    ])
-  );
+  if(missing.length){
+    const {data,error}=await supabase.from('exercises')
+      .select('id, description, instructions, tips, image_path').in('id',missing);
+    if(error)console.warn('Exercise metadata enrichment',error.message);
+    else for(const item of data??[]){
+      metaById.set(item.id,item);
+      exerciseMetadataCache.set(item.id,{value:item,expiresAt:Date.now()+EXERCISE_METADATA_TTL_MS});
+    }
+    while(exerciseMetadataCache.size>EXERCISE_METADATA_MAX)exerciseMetadataCache.delete(exerciseMetadataCache.keys().next().value);
+  }
 
   return {
     ...workout,
@@ -2090,6 +2096,32 @@ export async function reloadWorkoutSession({
   };
 }
 
+// Preserve the C4 business classification even on non-2xx Edge responses.
+export function workoutFormatFailure(payload, fallback=null) {
+  const classification=String(payload?.classification??payload?.status??'').toUpperCase();
+  const values=[payload?.reason,payload?.reason_codes,payload?.reasons,payload?.quality_gate?.hard_gate_reasons,payload?.final_status].flat(Infinity).filter(v=>typeof v==='string');
+  const reasons=values.join(' ');
+  let message=null;
+  if(classification==='PREMIUM_REQUIRED')message='Cette mécanique est réservée à UGEROD Premium.';
+  else if(classification==='LOCKED_AFTER_WOD_START')message='La mécanique est verrouillée : le WOD a déjà commencé.';
+  else if(classification==='LOCKED_AFTER_FORMAT_CHANGE_LIMIT')message='La limite de 3 changements de mécanique est atteinte.';
+  else if(classification==='NOT_RECOMMENDED'){
+    if(/EXERCISE_COUNT|MOVEMENT_COUNT|STATION_COUNT|REQUIRES_.*EXERCISE|NOT_ENOUGH_EXERCISES/i.test(reasons))message='Le nombre de mouvements ne convient pas à cette mécanique.';
+    else if(/ATHLETE_WORKLOAD|VOLUME_EXCEEDS|WORKLOAD_ENVELOPE/i.test(reasons))message='Le dosage de cette mécanique dépasse la charge de travail validée.';
+    else if(/DURATION|TIME_CAP|CYCLE/i.test(reasons))message='Cette mécanique ne respecte pas la durée ou les cycles de ce WOD.';
+    else if(/EQUIPMENT|MATERIAL/i.test(reasons))message='Le matériel disponible ne permet pas cette mécanique.';
+    else if(/COMPLEXITY|TECHNICAL/i.test(reasons))message='La difficulté technique de cette mécanique ne convient pas à ce WOD.';
+    else message='Cette mécanique n’est pas compatible avec le WOD actuel. Choisis-en une autre.';
+  }
+  else if(payload?.error)message=String(payload.error);
+  else if(fallback)message=/non[- ]2xx status code/i.test(String(fallback))?'Impossible de vérifier cette mécanique pour le moment. Réessaie.':String(fallback);
+  if(!message)return null;
+  const error=new Error(message);
+  error.classification=classification||null;
+  error.reasonCodes=values;
+  return error;
+}
+
 export async function changeWorkoutFormat({
   sessionId,
   mechanic,
@@ -2135,52 +2167,13 @@ export async function changeWorkoutFormat({
       detail = null;
     }
 
-    throw new Error(
-      detail?.error ??
-        detail?.message ??
-        error?.message ??
-        'Impossible de changer le format.'
-    );
+    throw workoutFormatFailure(detail,error?.message??'Impossible de changer la mécanique.');
   }
 
-  if (data?.error) {
-    throw new Error(data.error);
-  }
-
-  if (
-    data?.classification ===
-    'PREMIUM_REQUIRED'
-  ) {
-    throw new Error(
-      'Ce format est réservé à UGEROD Premium.'
-    );
-  }
-
-  if (
-    data?.classification ===
-    'NOT_RECOMMENDED'
-  ) {
-    throw new Error(
-      'Ce format n’est pas adapté à cette séance.'
-    );
-  }
-
-  if (
-    data?.classification ===
-    'LOCKED_AFTER_WOD_START'
-  ) {
-    throw new Error(
-      'Le format est verrouillé : le WOD a déjà commencé.'
-    );
-  }
-
-  if (
-    data?.classification ===
-    'LOCKED_AFTER_FORMAT_CHANGE_LIMIT'
-  ) {
-    throw new Error(
-      'La limite de 3 changements de format est atteinte.'
-    );
+  const failure=workoutFormatFailure(data);
+  if(failure)throw failure;
+  if(data?.mutated!==true&&data?.status!=='NO_CHANGE'){
+    throw new Error('Le moteur n’a pas confirmé le changement de mécanique. Ta séance est conservée.');
   }
 
   return data;

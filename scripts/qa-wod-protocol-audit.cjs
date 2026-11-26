@@ -68,3 +68,26 @@ assert.match(completion,/executionFeedbackKind\(exercise\)/);
 assert.match(completion,/Arrêt avant la fin/);
 for(const path of ['app/workout/session-focused-core.js','app/workout/environment-session-core.js','app/workout/completion-v3.js'])require('@babel/parser').parse(fs.readFileSync(path,'utf8'),{sourceType:'module',plugins:['jsx']});
 console.log('PASS distinct protocol results, explicit adaptations and JSX syntax');
+
+const ws=fs.readFileSync('src/services/workoutService.js','utf8');
+const mapFailure=new Function(ws.slice(ws.indexOf('export function workoutFormatFailure('),ws.indexOf('export async function changeWorkoutFormat(')).replace('export function ','function ')+'\nreturn workoutFormatFailure;')();
+assert.match(mapFailure({classification:'NOT_RECOMMENDED',reasons:['ATHLETE_WORKLOAD_ENVELOPE_EXCEEDED']},'Edge Function returned a non-2xx status code').message,/charge de travail/);
+assert.match(mapFailure({classification:'PREMIUM_REQUIRED'}).message,/Premium/);
+assert.match(mapFailure(null,'Edge Function returned a non-2xx status code').message,/Impossible de vérifier/);
+assert.equal(mapFailure({status:'APPLIED',classification:'COMPATIBLE',mutated:true}),null);
+assert.equal(mapFailure({classification:'NOT_RECOMMENDED'}).classification,'NOT_RECOMMENDED');
+const formatSheet=fs.readFileSync('src/components/workout/SessionFormatSheet.js','utf8');
+assert.match(formatSheet,/changingRef.current \|\| changing/);
+assert.match(formatSheet,/selectable:false,compatible:false/);
+require('@babel/parser').parse(formatSheet,{sourceType:'module',plugins:['jsx']});
+const catalogueCalls=[];
+const fakeSupabase={from:()=>({select:()=>({in:async(_,ids)=>{catalogueCalls.push(ids);return {data:ids.map(id=>({id,description:id}))};}})})};
+const enrich=new Function('supabase',ws.slice(ws.indexOf('const exerciseMetadataCache='),ws.indexOf('async function resolveFocusForGeneration()'))+';return enrichWorkoutExerciseMetadata;')(fakeSupabase);
+(async()=>{
+ await enrich({exercises:[{id:'a'},{id:'b'}]});
+ const next=await enrich({exercises:[{id:'a'},{id:'c',prescription:'keep'}]});
+ assert.deepEqual(catalogueCalls,[['a','b'],['c']]);
+ assert.equal(next.exercises[1].prescription,'keep');
+ assert.equal(next.exercises[0].description,'a');
+ console.log('PASS structured format refusal, double-click guard, catalogue cache only');
+})().catch(error=>{console.error(error);process.exitCode=1;});

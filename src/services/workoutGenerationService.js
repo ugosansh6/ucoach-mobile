@@ -216,9 +216,10 @@ async function generateHomeBoxWorkoutSession(preparation, options = {}) {
 
 async function generateEnvironmentWorkoutSession(preparation) {
   const environmentCode = normalizeEnvironment(preparation?.environmentCode);
-  const focus = await resolveFocus();
-  const { inventory, availableEquipment } =
-    await buildSelectedInventory(preparation);
+  const [focus,{inventory,availableEquipment}]=await Promise.all([
+    resolveFocus(),
+    buildSelectedInventory(preparation),
+  ]);
 
   const params = {
     p_environment_code: environmentCode,
