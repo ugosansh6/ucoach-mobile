@@ -23,6 +23,7 @@ import { getCurrentProfile } from '../../services/profileService';
 import { getDashboardSnapshot, getLocalDateKey, getWeekReadContract, getTodayCompletedSessions } from '../../services/weeklyPlanService';
 import { reloadWorkoutSession } from '../../services/workoutService';
 import DashboardHistoryCalendarCoach from './DashboardHistoryCalendarCoach';
+import { getRoutineDay } from '../../services/routineService';
 
 const darkBrandIcon = require('../../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../../assets/branding/LOGO VERSION NOIR.png');
@@ -360,6 +361,9 @@ export default function DashboardCoachV6Screen() {
   const [resuming, setResuming] = useState(false);
   const [activePanel, setActivePanel] = useState(0);
   const [todayRows, setTodayRows] = useState([]);
+  const [routineRows,setRoutineRows]=useState([]);
+  const [routineError,setRoutineError]=useState(false);
+  const routineSequence=useRef(0);
   const todayReadSequence = useRef(0);
   const openingTodayRef = useRef(false);
 
@@ -397,6 +401,12 @@ export default function DashboardCoachV6Screen() {
     setTodayRows(buildTodaySessionRows(dateKey,plan.status==='fulfilled'?plan.value?.visibleItems:[],actual.status==='fulfilled'?actual.value:[]));
   }, []);
 
+  const loadRoutineRows=useCallback(async()=>{
+    const request=++routineSequence.current;const date=new Date();
+    try{const rows=await getRoutineDay(date);if(request===routineSequence.current&&getLocalDateKey(date)===getLocalDateKey()){setRoutineRows(rows);setRoutineError(false);}}
+    catch{if(request===routineSequence.current){setRoutineRows([]);setRoutineError(true);}}
+  },[]);
+
   useFocusEffect(
     useCallback(() => {
       activePanelRef.current = 0;
@@ -404,8 +414,9 @@ export default function DashboardCoachV6Screen() {
       pagerRef.current?.scrollTo?.({ x: 0, animated: false });
       loadDashboard();
       void loadTodayRows();
-      return ()=>{todayReadSequence.current+=1;};
-    }, [loadDashboard,loadTodayRows])
+      void loadRoutineRows();
+      return ()=>{todayReadSequence.current+=1;routineSequence.current+=1;};
+    }, [loadDashboard,loadTodayRows,loadRoutineRows])
   );
 
   const week = useMemo(() => createCurrentWeek(snapshot?.weekDays), [snapshot?.weekDays]);
@@ -493,7 +504,7 @@ export default function DashboardCoachV6Screen() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await Promise.all([loadDashboard(),loadTodayRows()]);
+      await Promise.all([loadDashboard(),loadTodayRows(),loadRoutineRows()]);
     } finally {
       setRefreshing(false);
     }
@@ -607,9 +618,10 @@ export default function DashboardCoachV6Screen() {
             <PagerTrack activeIndex={activePanel} onSelect={goToPanel} styles={styles} />
           </View>
 
-          {todayRows.length>0 ? (
+          {todayRows.length>0 || routineRows.length>0 ? (
             <View style={styles.todaySessions}>
-              <Text style={styles.todaySessionsTitle}>MES SÉANCES DU JOUR</Text>
+              <Text style={styles.todaySessionsTitle}>MON PROGRAMME DU JOUR</Text>
+              <Text style={styles.todaySessionMeta}>{todayRows.filter(r=>r.state==='completed').length}/{todayRows.length} séances · {routineRows.filter(r=>r.completed).length}/{routineRows.length} routines réalisées</Text>
               {todayRows.map(item=>{
                 const done=item.state==='completed';
                 const active=item.state==='active'||(!done&&Boolean(activeSessionId&&item.sessionId===activeSessionId));
@@ -629,8 +641,16 @@ export default function DashboardCoachV6Screen() {
                   </Pressable>
                 );
               })}
+              {routineRows.map(item=>(
+                <Pressable key={'routine:'+item.id} accessibilityRole="button" disabled={item.archived||Boolean(activeSessionId)} onPress={()=>router.push({pathname:'/routines',params:{routineId:item.id}})} style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
+                  <Ionicons name={item.completed?'checkmark-circle-outline':'repeat-outline'} size={22} color={item.completed?palette.accent:palette.orange}/>
+                  <View style={styles.todaySessionCopy}><Text style={styles.todaySessionName}>{item.name}</Text><Text style={styles.todaySessionMeta}>Routine · {item.plannedMinutes} min prévues</Text></View>
+                  <Text style={[styles.todaySessionStatus,{color:palette.textSecondary}]}>{item.completed?'Réalisée':'À faire'}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
+                </Pressable>))}
             </View>
           ) : null}
+          {routineError?<Pressable onPress={loadRoutineRows} style={styles.todaySessionRow}><Text style={styles.todaySessionMeta}>Routines non synchronisées · Réessayer</Text></Pressable>:null}
 
           <DashboardHistoryCalendarCoach
             week={week}
@@ -642,6 +662,17 @@ export default function DashboardCoachV6Screen() {
             palette={palette}
           />
 
+          <View style={styles.todaySessions}>
+            <Pressable accessibilityRole="button" onPress={()=>router.push('/routines')} style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
+              <Ionicons name="repeat-outline" size={22} color={palette.accent}/><View style={styles.todaySessionCopy}><Text style={styles.todaySessionName}>Mes routines</Text><Text style={styles.todaySessionMeta}>Créer et gérer mes routines</Text></View><Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={()=>router.push({pathname:'/(tabs)/library',params:{section:'models',importDate:'',group:''}})} style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
+              <Ionicons name="albums-outline" size={22} color={palette.accent}/><View style={styles.todaySessionCopy}><Text style={styles.todaySessionName}>Mes modèles</Text></View><Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={()=>router.push('/(tabs)/programmes')} style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
+              <Ionicons name="trophy-outline" size={22} color={palette.accent}/><View style={styles.todaySessionCopy}><Text style={styles.todaySessionName}>Programmes</Text></View><Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
+            </Pressable>
+          </View>
           <ContextualSlot learning={learning} styles={styles} palette={palette} />
 
           {error ? (
