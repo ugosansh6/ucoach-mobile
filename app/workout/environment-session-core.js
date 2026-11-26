@@ -1,4 +1,5 @@
 import { restoreRunningClock, isComposerWorkout } from '../../src/utils/composerPlayerProgress';
+import { deriveWodExerciseStatuses, protocolExercisePatch } from '../../src/services/wodRuntimeStatus';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -2619,11 +2620,10 @@ export default function EnvironmentSessionCore({
     }
 
     const updates = {};
+    const statuses=deriveWodExerciseStatuses({...currentBlock,exercises:currentExercises},runtime);
     for (const exercise of currentExercises) {
-      updates[exerciseKey(exercise)] = {
-        status: executionStatus,
-        userExecutionStatus: executionStatus,
-      };
+      const key=exerciseKey(exercise);
+      updates[key]=protocolExercisePatch(exercise,statuses.get(key)??executionStatus,runtime);
     }
     advanceWithUpdates(updates);
   }

@@ -48,3 +48,23 @@ for(const [mechanic,parameters,count,finishReason,seconds] of specs) {
  }
 }
 console.log('PASS: 15 existing families, timer semantics + partial/full outcomes and exercise statuses (30 synthetic cases; no device/history E2E)');
+
+const feedbackHelpers=new Function(fs.readFileSync('src/services/wodRuntimeStatus.js','utf8').replaceAll('export function ','function ')+'\nreturn {applyWodRuntimeStatuses,executionFeedbackKind,protocolExercisePatch};')();
+const movements=[{id:'a',sessionExerciseId:'a',blockKey:'wod',status:'pending'},{id:'b',sessionExerciseId:'b',blockKey:'wod',status:'pending'},{id:'c',sessionExerciseId:'c',blockKey:'wod',status:'pending'}];
+const partialRuntime={started:true,finished:true,mechanic:'CIRCUIT',finishReason:'manual_stop',completedRounds:1,parameters:{rounds:6},elapsedSeconds:120};
+const partialRows=feedbackHelpers.applyWodRuntimeStatuses(movements,{mechanic:'CIRCUIT',exercises:movements},partialRuntime);
+assert.deepEqual(partialRows.map(feedbackHelpers.executionFeedbackKind),['partial','partial','partial']);
+assert.deepEqual(partialRows.map(x=>x.userExecutionStatus),['adapted','adapted','adapted']);
+assert.equal(partialRows[0].performanceActualJson.execution_status_origin,'PROTOCOL_RESULT');
+const deliberate={...movements[0],status:'adapted',userExecutionStatus:'adapted',performanceActualJson:{execution_status_origin:'USER_EXPLICIT'}};
+assert.deepEqual(feedbackHelpers.protocolExercisePatch(deliberate,'completed',partialRuntime),{});
+assert.equal(feedbackHelpers.executionFeedbackKind(deliberate),'adapted');
+assert.equal(feedbackHelpers.executionFeedbackKind({status:'adapted'}),'adapted');
+assert.equal(feedbackHelpers.executionFeedbackKind({...movements[0],...feedbackHelpers.protocolExercisePatch(movements[0],'not_completed',partialRuntime)}),'not_reached');
+const finished=feedbackHelpers.applyWodRuntimeStatuses(movements,{mechanic:'CIRCUIT',exercises:movements},{...partialRuntime,finishReason:'rounds_complete',completedRounds:6});
+assert.deepEqual(finished.map(feedbackHelpers.executionFeedbackKind),['completed','completed','completed']);
+const completion=fs.readFileSync('app/workout/completion-v3.js','utf8');
+assert.match(completion,/executionFeedbackKind\(exercise\)/);
+assert.match(completion,/Arrêt avant la fin/);
+for(const path of ['app/workout/session-focused-core.js','app/workout/environment-session-core.js','app/workout/completion-v3.js'])require('@babel/parser').parse(fs.readFileSync(path,'utf8'),{sourceType:'module',plugins:['jsx']});
+console.log('PASS distinct protocol results, explicit adaptations and JSX syntax');

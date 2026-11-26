@@ -21,6 +21,7 @@ import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import { completeWorkoutSession } from '../../src/services/workoutService';
 import { buildWodProtocolCompletion } from '../../src/services/wodProtocolOutcome';
+import { executionFeedbackKind } from '../../src/services/wodRuntimeStatus';
 
 const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
@@ -185,6 +186,16 @@ function wodResultLine(runtime) {
   const rounds = Number(runtime?.completedRounds ?? 0);
   const reps = Number(runtime?.reps ?? runtime?.repsCompleted ?? runtime?.totalReps ?? 0);
 
+  const targetRounds=Number(runtime?.parameters?.rounds??0);
+  const mechanic=normalizeMechanic(runtime?.mechanic);
+  if(['CIRCUIT','FOR_TIME'].includes(mechanic)&&targetRounds>0&&runtime.finished){
+    const reason=runtime.finishReason==='time_cap'?' · Temps limite atteint':runtime.finishReason==='manual_stop'?' · Arrêt avant la fin':'';
+    return `${rounds} / ${targetRounds} tours${reason}`;
+  }
+  if(runtime.finishReason==='manual_stop'&&elapsed>=0){
+    const progress=rounds>0?`${rounds} tour${rounds>1?'s':''}`:`${Math.floor(elapsed/60)}:${String(Math.floor(elapsed%60)).padStart(2,'0')}`;
+    return progress+' · Arrêt avant la fin';
+  }
   if (rounds > 0 && reps > 0) return `${rounds} rounds + ${reps} reps`;
   if (rounds > 0) return `${rounds} round${rounds > 1 ? 's' : ''}`;
   if (elapsed > 0) {
@@ -444,7 +455,7 @@ export default function CompletionV3Screen() {
     (exercise) => executionStatus(exercise) !== 'not_completed'
   );
   const exceptionExercises = sourceExercises.filter(
-    (exercise) => executionStatus(exercise) !== 'completed'
+    (exercise) => ['adapted','not_completed','pending'].includes(executionFeedbackKind(exercise))
   );
 
   const difficulty = completion.rpe ?? null;
@@ -467,12 +478,13 @@ export default function CompletionV3Screen() {
     (exercise) => executionStatus(exercise) === 'completed'
   ).length;
   const adaptedCount = sourceExercises.filter(
-    (exercise) => executionStatus(exercise) === 'adapted'
+    (exercise) => executionFeedbackKind(exercise) === 'adapted'
   ).length;
   const skippedCount = sourceExercises.filter(
-    (exercise) => executionStatus(exercise) === 'not_completed'
+    (exercise) => executionFeedbackKind(exercise) === 'not_completed'
   ).length;
-  const realizedCount = completedCount + adaptedCount;
+  const partialCount=sourceExercises.filter(exercise=>executionFeedbackKind(exercise)==='partial').length;
+  const realizedCount = completedCount + adaptedCount + partialCount;
   const realizationRatio = sourceExercises.length > 0 ? realizedCount / sourceExercises.length : 1;
 
   const missingMetrics = performedExercises.flatMap((exercise) =>
@@ -678,6 +690,9 @@ export default function CompletionV3Screen() {
                           : null,
                         adaptedCount > 0
                           ? `${adaptedCount} adapté${adaptedCount > 1 ? 's' : ''}`
+                          : null,
+                        partialCount > 0
+                          ? `${partialCount} partiellement réalisé${partialCount > 1 ? 's' : ''}`
                           : null,
                         skippedCount > 0
                           ? `${skippedCount} non réalisé${skippedCount > 1 ? 's' : ''}`

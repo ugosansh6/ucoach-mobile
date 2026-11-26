@@ -644,7 +644,10 @@ export default function SessionFocusedCore({
       return;
     }
 
-    patchExercise(statusExercise, { status: value });
+    patchExercise(statusExercise, {
+      status:value,userExecutionStatus:value,
+      performanceActualJson:{...(statusExercise.performanceActualJson??{}),execution_status_origin:'USER_EXPLICIT'},
+    });
     setStatusExercise(null);
   }
 

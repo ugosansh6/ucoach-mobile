@@ -150,6 +150,37 @@ export function deriveWodExerciseStatuses(block, runtime) {
   return result;
 }
 
+// Preserve the existing persisted enum; record why the status was assigned.
+function explicitExecutionDecision(exercise) {
+  const actual=exercise?.performanceActualJson??exercise?.performance_actual_json??{};
+  return actual.execution_status_origin==='USER_EXPLICIT' ||
+    exercise?.adaptationSource==='manual' ||
+    Boolean(exercise?.executionReasonCode??exercise?.execution_reason_code);
+}
+
+export function protocolExercisePatch(exercise, nextStatus, runtime) {
+  if(!nextStatus||explicitExecutionDecision(exercise))return {};
+  return {
+    status:nextStatus,userExecutionStatus:nextStatus,
+    performanceActualJson:{
+      ...(exercise?.performanceActualJson??exercise?.performance_actual_json??{}),
+      execution_status_origin:'PROTOCOL_RESULT',
+      execution_detail:nextStatus==='adapted'?'PARTIAL':nextStatus==='not_completed'?'NOT_REACHED':'COMPLETE',
+      protocol_finish_reason:runtime?.finishReason??null,
+    },
+  };
+}
+
+export function executionFeedbackKind(exercise) {
+  const status=String(exercise?.userExecutionStatus??exercise?.user_execution_status??exercise?.status??'pending').toLowerCase();
+  const actual=exercise?.performanceActualJson??exercise?.performance_actual_json??{};
+  if(!explicitExecutionDecision(exercise)&&actual.execution_status_origin==='PROTOCOL_RESULT'){
+    if(actual.execution_detail==='PARTIAL'&&status==='adapted')return 'partial';
+    if(actual.execution_detail==='NOT_REACHED'&&['not_completed','skipped'].includes(status))return 'not_reached';
+  }
+  return status==='skipped'?'not_completed':status;
+}
+
 export function applyWodRuntimeStatuses(allExercises, block, runtime) {
   const source = Array.isArray(allExercises) ? allExercises : [];
   const statuses = deriveWodExerciseStatuses(block, runtime);
@@ -160,6 +191,6 @@ export function applyWodRuntimeStatuses(allExercises, block, runtime) {
     if (blockKey !== 'wod') return exercise;
     const key = exerciseKey(exercise);
     const nextStatus = key ? statuses.get(key) : null;
-    return nextStatus ? { ...exercise, status: nextStatus } : exercise;
+    return nextStatus ? { ...exercise, ...protocolExercisePatch(exercise,nextStatus,runtime) } : exercise;
   });
 }
