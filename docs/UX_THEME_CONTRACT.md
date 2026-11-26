@@ -8,8 +8,10 @@ Il ne doit jamais exister une version `light` et une version `dark` d'un même �
 
 ## Modes
 
-- `dark` : palette historique UGEROD, fond sombre, accent principal bleu, accent secondaire rouge.
-- `light` : fond blanc/clair, accent principal kaki, accent secondaire orange.
+- `dark` : fond sombre, accent principal kaki `#646F5E`, accent secondaire orange `#FF6B19`.
+- `light` : fond blanc/clair, accent principal kaki `#646F5E`, accent secondaire orange `#FF6B19`.
+
+Arbitrage explicite du 26/11/2026 : l'identité kaki/orange est commune aux deux thèmes. L'ancien bleu/rouge sombre reste historique ; aucune restauration.
 
 Le thème sombre et le thème clair utilisent exactement les mêmes composants. Une évolution du Player doit donc être contrôlée sur les deux thèmes dans le même chantier.
 
@@ -79,7 +81,7 @@ Il utilise notamment :
 Conséquence :
 
 - thème clair → kaki / orange ;
-- thème sombre → bleu / rouge.
+- thème sombre → kaki / orange.
 
 Le WOD, le Tabata et les blocs Salle / Extérieur doivent suivre automatiquement ce contrat.
 
