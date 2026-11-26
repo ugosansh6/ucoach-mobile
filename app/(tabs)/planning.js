@@ -344,40 +344,37 @@ function ActionButton({ label, icon, primary = false, palette, onPress }) {
   );
 }
 
-function CreationActions({ dateKey, planItemId = null, palette, onImport }) {
+function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimit = false }) {
+  const blocked = !planItemId && atLimit;
   return (
     <View style={styles.creationActions}>
-      <ActionButton
-        label="COMPOSER AVEC UGEROD"
-        icon="sparkles-outline"
-        primary
-        palette={palette}
-        onPress={() => router.push({
-          pathname: '/workout/preparation',
-          params: {
-            date: dateKey,
-            entry: 'week_assisted',
-            ...(planItemId ? { planItemId } : {}),
-          },
-        })}
-      />
-      <ActionButton
-        label="CRÉER LIBREMENT"
-        icon="create-outline"
-        palette={palette}
-        onPress={() => router.push({ pathname: '/workout/builder', params: { date: dateKey, entry: 'week_free' } })}
-      />
-      <ActionButton
-        label="IMPORTER UNE SÉANCE"
-        icon="download-outline"
-        palette={palette}
-        onPress={() => onImport?.(dateKey)}
-      />
+      <Pressable accessibilityRole="button" accessibilityState={{disabled:blocked}} disabled={blocked}
+        style={[styles.creationPrimary,{backgroundColor:blocked?palette.surface:palette.accent,borderColor:blocked?palette.border:palette.accent}]}
+        onPress={() => router.push({pathname:'/workout/preparation',params:{
+          date:dateKey,entry:'week_assisted',...(planItemId?{planItemId}:{origin:'week_additional'}),
+        }})}>
+        <View style={styles.objectCopy}>
+          <Text style={[styles.creationTitle,{color:blocked?palette.textMuted:palette.onAccent}]}>Composer avec UGEROD</Text>
+          <Text style={[styles.creationSubtitle,{color:blocked?palette.textMuted:palette.onAccent}]}>{blocked?'5 séances déjà prévues':'Une séance adaptée à tes objectifs'}</Text>
+        </View>
+        <Ionicons name="arrow-forward" size={19} color={blocked?palette.textMuted:palette.onAccent}/>
+      </Pressable>
+      <View style={styles.creationSecondaryRow}>
+        <Pressable accessibilityRole="button" style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]}
+          onPress={() => router.push({ pathname: '/workout/builder', params: { date: dateKey, entry: 'week_free' } })}>
+          <Text style={[styles.creationTitle,{color:palette.text,textAlign:'center'}]}>Créer librement</Text>
+          <Text style={[styles.creationSubtitle,{color:palette.textMuted,textAlign:'center'}]}>De A à Z</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]} onPress={() => onImport?.(dateKey)}>
+          <Text style={[styles.creationTitle,{color:palette.text,textAlign:'center'}]}>Importer</Text>
+          <Text style={[styles.creationSubtitle,{color:palette.textMuted,textAlign:'center'}]}>Modèle ou partage</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-function IntentDetails({ item, dateKey, palette, onImport }) {
+function IntentDetails({ item, dateKey, palette, onImport, readOnly = false }) {
   const profile = getIntentProfile(item);
   return (
     <View style={[styles.detailPanel, { borderColor: palette.border }]}> 
@@ -405,17 +402,17 @@ function IntentDetails({ item, dateKey, palette, onImport }) {
           </View>
         </View>
       ) : null}
-      <CreationActions
+      {!readOnly?<CreationActions
         dateKey={dateKey}
         planItemId={item?.planItemId ?? null}
         palette={palette}
         onImport={onImport}
-      />
+      />:null}
     </View>
   );
 }
 
-function SessionDetails({ item, exercises, palette, onOpen, opening }) {
+function SessionDetails({ item, exercises, palette, onOpen, opening, readOnly = false }) {
   const preview = Array.isArray(exercises) ? exercises.slice(0, 6) : [];
   return (
     <View style={[styles.detailPanel, { borderColor: palette.border }]}> 
@@ -427,7 +424,7 @@ function SessionDetails({ item, exercises, palette, onOpen, opening }) {
       ) : (
         <Text style={[styles.detailBody,{color:palette.textMuted}]}>Aucun aperçu disponible.</Text>
       )}
-      {item?.displayState !== 'REALISEE' ? (
+      {!readOnly && item?.displayState !== 'REALISEE' ? (
         <View style={{ marginTop: 15 }}>
           <ActionButton
             label={opening ? 'OUVERTURE…' : item?.displayState === 'ACTIVE' ? 'REPRENDRE LA SÉANCE' : 'OUVRIR LA SÉANCE'}
@@ -449,7 +446,7 @@ function weekItemStateLabel(item) {
 }
 
 function WeekObject({
-  item, index, expanded, moving, exercises, palette, onToggle, onImport, isToday,
+  item, index, expanded, moving, exercises, palette, onToggle, onImport, isToday, isPast,
   onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
   onRequestRemove, removingItemId,
 }) {
@@ -457,7 +454,7 @@ function WeekObject({
   const done = item?.displayState === 'REALISEE';
   const hero = isToday && !done;
   const meta = getMeta(item);
-  const foreground = hero ? palette.onAccent : done ? palette.textMuted : palette.text;
+  const foreground = hero ? palette.onAccent : isPast || done ? palette.pastText : palette.text;
   const secondary = hero ? palette.onAccent : palette.textMuted;
   return (
     <View style={[styles.objectWrap, moving && styles.objectMoving]}>
@@ -469,17 +466,17 @@ function WeekObject({
             {meta.length > 0 ? <Text style={[styles.objectMeta, {color: secondary}]}>{meta.join('  ·  ')}</Text> : null}
             {hero ? <Text style={[styles.todayAction, {color: foreground}]}>{expanded?'Masquer les détails':built?'Voir ma séance':'Voir la proposition'}</Text> : null}
           </View>
-          <Ionicons name={done&&!expanded?'checkmark':expanded?'chevron-up':'chevron-down'} size={19} color={done&&!expanded?palette.accent:foreground}/>
+          <Ionicons name={done&&!expanded?'checkmark':expanded?'chevron-up':'chevron-down'} size={19} color={done&&!expanded?(isPast?palette.pastText:palette.accent):foreground}/>
         </Pressable>
-        <DragHandle item={item} palette={hero?{...palette,textMuted:palette.onAccent,border:palette.onAccent}:palette}
+        {!isPast?<DragHandle item={item} palette={hero?{...palette,textMuted:palette.onAccent,border:palette.onAccent}:palette}
           disabled={moving || removingItemId === item?.planItemId}
-          onStart={onDragStart} onMove={onDragMove} onDrop={onDragDrop} onCancel={onDragCancel}/>
+          onStart={onDragStart} onMove={onDragMove} onDrop={onDragDrop} onCancel={onDragCancel}/>:null}
       </View>
       {expanded ? (
         <>
-          {built ? <SessionDetails item={item} exercises={exercises} palette={palette} onOpen={onOpenSession} opening={openingSessionId === item?.sessionId}/>
-            : <IntentDetails item={item} dateKey={item.recommendedDate} palette={palette} onImport={onImport}/>}
-          {canRemoveWeekItem(item)?<View style={styles.contextActions}>
+          {built ? <SessionDetails item={item} exercises={exercises} palette={palette} onOpen={onOpenSession} opening={openingSessionId === item?.sessionId} readOnly={isPast}/>
+            : <IntentDetails item={item} dateKey={item.recommendedDate} palette={palette} onImport={onImport} readOnly={isPast}/>}
+          {!isPast&&canRemoveWeekItem(item)?<View style={styles.contextActions}>
             <RemoveButton item={item} palette={palette} disabled={moving || removingItemId === item?.planItemId} onPress={onRequestRemove}/>
           </View>:null}
         </>
@@ -488,7 +485,7 @@ function WeekObject({
   );
 }
 
-function EmptyDay({ dateKey, expanded, isPast = false, isToday = false, palette, onToggle, onImport }) {
+function EmptyDay({ dateKey, expanded, isPast = false, isToday = false, palette, onToggle, onImport, atLimit = false }) {
   if (isPast) return <View style={styles.emptyDayWrap}><Text style={[styles.emptyDayText,{color:palette.textMuted}]}>Aucune séance</Text></View>;
   return (
     <View style={styles.emptyDayWrap}>
@@ -499,13 +496,13 @@ function EmptyDay({ dateKey, expanded, isPast = false, isToday = false, palette,
         </View>
         <Ionicons name={expanded?'chevron-up':'add'} size={19} color={isToday?palette.onAccent:palette.textMuted}/>
       </Pressable>
-      {expanded ? <View style={[styles.emptyActionsPanel,{borderColor:palette.border}]}><CreationActions dateKey={dateKey} palette={palette} onImport={onImport}/></View>:null}
+      {expanded ? <View style={[styles.emptyActionsPanel,{borderColor:palette.border}]}><CreationActions dateKey={dateKey} palette={palette} onImport={onImport} atLimit={atLimit}/></View>:null}
     </View>
   );
 }
 
 function DaySection({
-  day, palette, todayKey, expandedKey, movingItemId, exercisePreviews, dropTarget,
+  day, palette, todayKey, expandedKey, movingItemId, exercisePreviews, dropTarget, atLimit,
   registerDayRef, onToggleItem, onToggleEmpty, onImport,
   onDragStart, onDragMove, onDragDrop, onDragCancel, onOpenSession, openingSessionId,
   onRequestRemove, removingItemId,
@@ -520,6 +517,7 @@ function DaySection({
       style={[
         styles.daySection,
         { borderBottomColor: palette.border },
+        isPast && { backgroundColor: palette.pastDay },
         isTarget && { backgroundColor: palette.dropTarget },
       ]}
     >
@@ -530,12 +528,14 @@ function DaySection({
           else if (!isPast) onToggleEmpty(day.key);
         }}
         accessibilityRole="button"
+        disabled={isPast&&day.items.length===0}
+        accessibilityState={{disabled:isPast&&day.items.length===0}}
       >
         <Text style={[styles.dayName, { color: isToday ? palette.todayDate : palette.textMuted }]}>{day.label}</Text>
         <View style={[
           styles.dayNumberWrap,
         ]}> 
-          <Text style={[styles.dayNumber, { color: isToday ? palette.todayDate : isPast ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
+          <Text style={[styles.dayNumber, { color: isToday ? palette.todayDate : isPast ? palette.pastText : palette.text }]}>{day.date.getDate()}</Text>
         </View>
         {isToday?<View style={[styles.todayDateMarker,{backgroundColor:palette.orange}]} accessible={false}/>:null}
       </Pressable>
@@ -546,6 +546,7 @@ function DaySection({
             expanded={expandedKey === `empty:${day.key}`}
             isPast={isPast}
             isToday={isToday}
+            atLimit={atLimit}
             palette={palette}
             onToggle={() => onToggleEmpty(day.key)}
             onImport={onImport}
@@ -558,6 +559,7 @@ function DaySection({
               item={item}
               index={index}
               isToday={isToday}
+              isPast={isPast}
               expanded={expandedKey === `item:${key}`}
               moving={movingItemId === item.planItemId}
               exercises={exercisePreviews[item.sessionId] ?? []}
@@ -580,67 +582,47 @@ function DaySection({
   );
 }
 
-function AddSessionModal({ visible, days, todayKey, palette, currentCount, onClose, onSelectDay }) {
-  const atLimit = currentCount >= 5;
-  const selectableDays = days.filter((day) => day.key >= todayKey);
+function nextWeekRange(weekStart) {
+  const start = parseDateKey(weekStart) ?? startOfMonday();
+  start.setDate(start.getDate()+7);
+  const end = new Date(start);
+  end.setDate(start.getDate()+6);
+  return {start:toLocalDateKey(start),end:toLocalDateKey(end)};
+}
+
+function NextWeekPreview({ range, palette, isDark, onBack }) {
+  const days = buildWeekDays(range.start);
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={[styles.importSheet, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]} onPress={() => {}}>
-          <View style={styles.sheetHandle} />
-          <Text style={[styles.sheetTitle, { color: palette.text }]}>AJOUTER UNE SÉANCE</Text>
-          <Text style={[styles.sheetIntro, { color: palette.textMuted }]}>
-            Choisis un jour libre.
-          </Text>
-          <View style={styles.addDayList}>
-            {selectableDays.map((day) => {
-              const isToday = day.key === todayKey;
-              const count = day.items?.length ?? 0;
-              const occupied = count > 0;
-              const disabled = atLimit || occupied;
-              const title = occupied
-                ? 'Séance déjà prévue'
-                : isToday
-                  ? 'Aujourd’hui · créneau disponible'
-                  : 'Créneau disponible';
-              const subtitle = atLimit
-                ? 'Limite de 5 séances atteinte pour cette semaine.'
-                : occupied
-                  ? 'Cette journée est déjà programmée.'
-                  : '';
-              return (
-                <TouchableOpacity
-                  key={day.key}
-                  style={[styles.addDayRow, { borderColor: palette.border }, disabled && styles.disabledRow]}
-                  disabled={disabled}
-                  onPress={() => onSelectDay?.(day.key)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ajouter une séance ${day.label} ${day.date.getDate()}`}
-                >
-                  <View style={styles.addDayDate}>
-                    <Text style={[styles.addDayName, { color: disabled ? palette.textMuted : palette.text }]}>{day.label}</Text>
-                    <Text style={[styles.addDayNumber, { color: disabled ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
-                  </View>
-                  <View style={styles.addDayCopy}>
-                    <Text style={[styles.addDayTitle, { color: disabled ? palette.textMuted : palette.text }]}>{title}</Text>
-                    <Text style={[styles.addDaySubtitle, { color: palette.textMuted }]}>{subtitle}</Text>
-                  </View>
-                  {!disabled ? <Ionicons name="chevron-forward" size={18} color={palette.textMuted} /> : null}
-                </TouchableOpacity>
-              );
-            })}
+    <SafeAreaView style={[styles.safeArea,{backgroundColor:palette.bg}]}>
+      <StatusBar style={isDark?'light':'dark'}/>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.contentInner}>
+          <View style={styles.header}>
+            <Pressable style={styles.backButton} accessibilityRole="button" accessibilityLabel="Revenir à cette semaine" onPress={onBack}>
+              <Ionicons name="arrow-back" size={20} color={palette.text}/>
+            </Pressable>
+            <View style={styles.headerText}><Text style={[styles.title,{color:palette.text}]}>SEMAINE PROCHAINE.</Text></View>
+            <Image source={isDark?darkBrandIcon:lightBrandIcon} style={styles.brandIcon} resizeMode="contain" accessible={false}/>
           </View>
-          {atLimit ? (
-            <Text style={[styles.limitNote, { color: palette.textMuted }]}>5 séances sont déjà prévues cette semaine.</Text>
-          ) : null}
-          <TouchableOpacity style={[styles.sheetCloseButton, { borderColor: palette.border }]} onPress={onClose}>
-            <Text style={[styles.sheetCloseText, { color: palette.text }]}>FERMER</Text>
-          </TouchableOpacity>
-        </Pressable>
-      </Pressable>
-    </Modal>
+          <Text style={[styles.rangeLabel,{color:palette.textMuted}]}>{formatWeekRange(range.start,range.end)}</Text>
+          <Text style={[styles.futureNotice,{color:palette.textMuted}]}>La préparation de cette semaine n’est pas encore disponible.</Text>
+          {days.map(day=><View key={day.key} style={[styles.daySection,{borderBottomColor:palette.border}]}>
+            <View style={styles.dayDateColumn}>
+              <Text style={[styles.dayName,{color:palette.textMuted}]}>{day.label}</Text>
+              <Text style={[styles.dayNumber,{color:palette.text}]}>{day.date.getDate()}</Text>
+            </View>
+            <View style={styles.emptyDayWrap}><Text style={[styles.emptyDayText,{color:palette.textMuted}]}>À planifier</Text></View>
+          </View>)}
+          <Pressable style={[styles.nextWeekButton,{borderColor:palette.border,backgroundColor:palette.surface}]} onPress={onBack} accessibilityRole="button">
+            <Ionicons name="arrow-back" size={18} color={palette.text}/>
+            <Text style={[styles.creationTitle,{color:palette.text}]}>Revenir à cette semaine</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
+
 function RemoveSessionModal({ item, visible, palette, removing, errorMessage, onClose, onConfirm }) {
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={() => !removing && onClose?.()}>
@@ -749,7 +731,7 @@ export default function PlanningScreen() {
   const [moveFeedback, setMoveFeedback] = useState(null);
   const [importDay, setImportDay] = useState(null);
   const [shareValue, setShareValue] = useState('');
-  const [addSessionOpen, setAddSessionOpen] = useState(false);
+  const [nextWeekOpen, setNextWeekOpen] = useState(false);
   const [removeItem, setRemoveItem] = useState(null);
   const [removingItemId, setRemovingItemId] = useState(null);
   const [removeErrorMessage, setRemoveErrorMessage] = useState(null);
@@ -763,7 +745,7 @@ export default function PlanningScreen() {
     accent: colors.accent, accentSoft: colors.accentSoft, orange: colors.secondaryAccent,
     onAccent: colors.textOnAccent, intent: colors.textSecondary, intentSoft: colors.surface,
     session: colors.accent, done: colors.textSecondary, dropTarget: colors.accentSoft,
-    pastDay: colors.surface, pastDayIcon: colors.surfacePressed,
+    pastDay: colors.surface, pastText: colors.textMuted,
     todayDate: isDark ? colors.secondaryAccent : colors.text,
   }), [colors, isDark]);
 
@@ -809,6 +791,7 @@ export default function PlanningScreen() {
   );
   const weekDays = useMemo(() => buildWeekDays(contract?.weekStart), [contract?.weekStart]);
   const daysWithItems = useMemo(() => buildDaysWithItems(weekDays, visibleItems), [visibleItems, weekDays]);
+  const nextRange = useMemo(() => nextWeekRange(contract?.weekStart), [contract?.weekStart]);
   const weekRange = useMemo(() => formatWeekRange(contract?.weekStart, contract?.weekEnd), [contract?.weekStart, contract?.weekEnd]);
   const todayKey = toLocalDateKey(new Date());
   const planningSlotCount = useMemo(
@@ -889,7 +872,7 @@ export default function PlanningScreen() {
   }, [resolveDropTarget]);
 
   const performMove = useCallback(async (item, targetDate) => {
-    if (!canMoveWeekItem(item) || !targetDate) { clearDrag(); return; }
+    if (!canMoveWeekItem(item) || !targetDate || item.recommendedDate < todayKey) { clearDrag(); return; }
     if (targetDate < todayKey) {
       clearDrag();
       showMoveFeedback('Impossible de déplacer une séance sur une journée passée.');
@@ -929,7 +912,7 @@ export default function PlanningScreen() {
   }, [dropTargetDate, performMove, resolveDropTarget]);
 
   const handleRemoveWeekItem = useCallback(async () => {
-    if (!removeItem?.planItemId || removingItemId) return;
+    if (!removeItem?.planItemId || removingItemId || removeItem.recommendedDate < todayKey) return;
     const planItemId = removeItem.planItemId;
     const sessionId = removeItem.sessionId;
     const weekAnchorDate = parseDateKey(contract?.weekStart) ?? new Date();
@@ -985,15 +968,7 @@ export default function PlanningScreen() {
     }).catch((replanError) => {
       console.warn('[MaSemaine] post-commit Coach replan deferred', replanError);
     });
-  }, [contract?.weekStart, removeItem, removingItemId, showMoveFeedback]);
-
-  const handleAddSessionDay = useCallback((dateKey) => {
-    setAddSessionOpen(false);
-    router.push({
-      pathname: '/workout/preparation',
-      params: { date: dateKey, entry: 'week_assisted', origin: 'week_additional' },
-    });
-  }, []);
+  }, [contract?.weekStart, removeItem, removingItemId, showMoveFeedback, todayKey]);
 
   const handleOpenSession = useCallback(async (item) => {
     const sessionId = item?.sessionId ?? null;
@@ -1013,6 +988,7 @@ export default function PlanningScreen() {
   }, [openingSessionId, setGeneratedWorkout, showMoveFeedback]);
 
   if (action === 'new') return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
+  if (nextWeekOpen) return <NextWeekPreview range={nextRange} palette={palette} isDark={isDark} onBack={()=>setNextWeekOpen(false)}/>;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}> 
@@ -1086,6 +1062,7 @@ export default function PlanningScreen() {
                   day={day}
                   palette={palette}
                   todayKey={todayKey}
+                  atLimit={planningSlotCount >= 5}
                   expandedKey={expandedKey}
                   movingItemId={movingItemId}
                   exercisePreviews={exercisePreviews}
@@ -1111,24 +1088,18 @@ export default function PlanningScreen() {
           )}
 
           {!loading && contract ? (
-            <View style={styles.addSessionSection}>
-              <TouchableOpacity
-                style={[
-                  styles.addSessionButton,
-                  { borderColor: planningSlotCount >= 5 ? palette.border : palette.accent },
-                  planningSlotCount >= 5 && styles.disabledRow,
-                ]}
-                disabled={planningSlotCount >= 5}
-                onPress={() => setAddSessionOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Ajouter une séance à cette semaine"
-              >
-                <Ionicons name="add-circle-outline" size={20} color={planningSlotCount >= 5 ? palette.textMuted : palette.accent} />
-                <Text style={[styles.addSessionButtonText, { color: planningSlotCount >= 5 ? palette.textMuted : palette.text }]}>AJOUTER UNE SÉANCE</Text>
-              </TouchableOpacity>
-              {planningSlotCount >= 5 ? <Text style={[styles.addSessionHint,{color:palette.textMuted}]}>5 séances sont déjà prévues.</Text>:null}
-            </View>
-          ) : null}
+            <Pressable accessibilityRole="button" accessibilityLabel="Préparer ma semaine suivante"
+              disabled={Boolean(draggingItem||movingItemId||removingItemId)}
+              onPress={()=>{setExpandedKey(null);setNextWeekOpen(true);}}
+              style={[styles.nextWeekButton,{borderColor:palette.border,backgroundColor:palette.surface}]}>
+              <View style={styles.objectCopy}>
+                <Text style={[styles.creationSubtitle,{color:palette.textMuted}]}>{formatWeekRange(nextRange.start,nextRange.end)}</Text>
+                <Text style={[styles.nextWeekTitle,{color:palette.text}]}>PRÉPARER MA SEMAINE</Text>
+                <Text style={[styles.creationSubtitle,{color:palette.textMuted}]}>Semaine suivante</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={22} color={palette.text}/>
+            </Pressable>
+          ):null}
         </View>
       </ScrollView>
 
@@ -1148,16 +1119,6 @@ export default function PlanningScreen() {
           <DragDots color={palette.textMuted} />
         </View>
       ) : null}
-
-      <AddSessionModal
-        visible={addSessionOpen}
-        days={daysWithItems}
-        todayKey={todayKey}
-        palette={palette}
-        currentCount={planningSlotCount}
-        onClose={() => setAddSessionOpen(false)}
-        onSelectDay={handleAddSessionDay}
-      />
 
       <RemoveSessionModal
         visible={Boolean(removeItem)}
@@ -1243,6 +1204,14 @@ const styles = StyleSheet.create({
   coachTipTitle: { fontFamily: fontFamilies.bold, fontSize: 9, lineHeight: 13, letterSpacing: 0.9, marginBottom: 3 },
   coachTipBody: { fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18 },
   creationActions: { gap: 8, marginTop: 15 },
+  creationPrimary:{minHeight:66,borderWidth:1,borderRadius:12,padding:12,flexDirection:'row',alignItems:'center',gap:10},
+  creationTitle:{fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:18},
+  creationSubtitle:{fontFamily:fontFamilies.regular,fontSize:11,lineHeight:16,marginTop:3},
+  creationSecondaryRow:{flexDirection:'row',gap:8},
+  creationSecondary:{flex:1,minWidth:0,minHeight:61,borderWidth:1,borderRadius:12,padding:9,justifyContent:'center',alignItems:'center'},
+  nextWeekButton:{marginTop:20,marginBottom:8,borderWidth:1,borderRadius:12,padding:15,flexDirection:'row',alignItems:'center',gap:12},
+  nextWeekTitle:{fontFamily:fontFamilies.display,fontSize:25,lineHeight:28,marginTop:4},
+  futureNotice:{fontFamily:fontFamilies.regular,fontSize:13,lineHeight:19,marginVertical:16},
   actionButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 },
   actionButtonText: { fontFamily: fontFamilies.bold, fontSize: 11, lineHeight: 15, letterSpacing: 0.7 },
   emptyActionsPanel: { borderTopWidth: 1, marginTop: 2, paddingTop: 12, paddingBottom: 4 },
@@ -1273,20 +1242,6 @@ const styles = StyleSheet.create({
   shareFootnote: { fontFamily: fontFamilies.regular, fontSize: 10, lineHeight: 15, marginTop: 7 },
   sheetCloseButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   sheetCloseText: { fontFamily: fontFamilies.bold, fontSize: 11, lineHeight: 15, letterSpacing: 0.8 },
-  addSessionSection: { marginTop: 22, marginBottom: 6 },
-  addSessionButton:{minHeight:50,borderWidth:1,borderRadius:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,paddingHorizontal:16},
-  addSessionButtonText: { fontFamily: fontFamilies.bold, fontSize: 12, lineHeight: 16, letterSpacing: 0.8 },
-  addSessionHint: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 7 },
-  disabledRow: { opacity: 0.46 },
-  addDayList: { gap: 8, marginTop: 2 },
-  addDayRow: { minHeight: 62, borderWidth: 1, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  addDayDate: { width: 43, alignItems: 'center' },
-  addDayName: { fontFamily: fontFamilies.bold, fontSize: 9, lineHeight: 12, letterSpacing: 0.8 },
-  addDayNumber: { fontFamily: fontFamilies.bold, fontSize: 17, lineHeight: 21, marginTop: 1 },
-  addDayCopy: { flex: 1 },
-  addDayTitle: { fontFamily: fontFamilies.semiBold, fontSize: 12, lineHeight: 17 },
-  addDaySubtitle: { fontFamily: fontFamilies.regular, fontSize: 10, lineHeight: 15, marginTop: 2 },
-  limitNote: { fontFamily: fontFamilies.regular, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 10 },
   removeSheet: { width: '90%', maxWidth: 520, alignSelf: 'center', borderWidth: 1, borderRadius: 22, padding: 20 },
   removeIconWrap: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   removeTitle: { fontFamily: fontFamilies.display, fontSize: 26, lineHeight: 29, letterSpacing: 0.6 },
