@@ -55,6 +55,20 @@ for(const colors of [{accent:'#646F5E',secondaryAccent:'#FF6B19',text:'#171A15'}
 assert.match(ui,/style=\{\[styles\.frameDialValue, \{ color: durationColor \}\]\}/);
 
 assert.match(frame,/ExpoImage source=\{FRAME_PHOTOS\[item.code\]\}/);
+assert.match(frame,/ExpoImage source=\{FRAME_EQUIPMENT_PHOTO\}/);
+assert.match(frame,/onPress=\{\(\)=>setSheet\('equipment'\)\}/);
+assert.match(frame,/Matériel retenu pour la séance/);
+assert.match(frame,/retainedEquipmentNames.length\?retainedEquipmentNames:\['Poids du corps'\]/);
+assert.ok(frame.indexOf('Matériel retenu pour la séance')<frame.indexOf('styles.frameEquipmentTags'));
+const selectedNamesSource=ui.slice(ui.indexOf('function selectedEquipmentNames('),ui.indexOf('function DurationControl('));
+const selectedNames=new Function(selectedNamesSource+';return selectedEquipmentNames;')();
+const equipment=[{id:'E01',name:'Haltères'},{id:'E02',name:'Tapis'},{id:'E03',name:'Élastiques'}];
+assert.equal(selectedNames(equipment,['E01','E03']).join('|'),'Haltères|Élastiques');
+assert.equal(selectedNames(equipment,[]).length,0);
+assert.equal(selectedNames(equipment,['E02']).join('|'),'Tapis');
+assert.equal(selectedNames(equipment,['E01','E02','E03']).length,3);
+const thumb=fs.readFileSync('assets/composer-environments/equipment.webp');
+assert.equal(thumb.toString('ascii',0,4),'RIFF');assert.equal(thumb.toString('ascii',8,12),'WEBP');assert.ok(thumb.length<50000);
 assert.match(frame,/frameSurfaceLabel\(outdoorContext\)/);
 assert.match(frame,/disabled=\{!selectedOutdoorPlace\}/);
 assert.match(frame,/selectedOutdoorPlace\?\.surface && frameSurfaceValid\(outdoorContext\)/);

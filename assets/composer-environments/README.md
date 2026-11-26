@@ -23,3 +23,7 @@ Visuels sélectionnés et fournis par Ugo le 26/11/2026. Recadrage 16:9, 640 × 
 | Extérieur | outdoor.webp | Pexels / Ketut Subiyanto / 4804031 | 30 280 |
 
 Licence générale : https://www.pexels.com/license/ et https://help.pexels.com/hc/en-us/articles/360042295214-Can-I-use-the-photos-and-videos-for-a-commercial-project . La licence générale autorise l'usage commercial sous conditions. Les fiches individuelles n'ont pas pu être ouvertes lors de cette vérification ; provenance individuelle et droits éventuels des personnes/marques à confirmer avant publication commerciale. Les images illustrent uniquement les lieux, sans suggérer de soutien ou de partenariat.
+
+## Vignette matériel
+
+`equipment.webp` : photo fournie par Ugo le 26/11/2026 (haltères), recadrage 4:3, 320 × 240, WebP 10 436 octets, métadonnées non reprises. Source/licence individuelle à confirmer avant publication commerciale. Utilisée uniquement dans le bouton Choisir mon matériel, dans les deux thèmes.

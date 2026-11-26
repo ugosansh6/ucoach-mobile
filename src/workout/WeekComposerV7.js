@@ -97,6 +97,7 @@ const darkBrandIcon = require('../../assets/branding/ugerod-icon.png');
 const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
 const DURATIONS = [20, 30, 45, 60, 75, 90];
+const FRAME_EQUIPMENT_PHOTO = require('../../assets/composer-environments/equipment.webp');
 const FRAME_PHOTOS = {
   HOME: require('../../assets/composer-environments/home.webp'),
   BOX: require('../../assets/composer-environments/box.webp'),
@@ -286,12 +287,16 @@ function buildReferenceEquipment(catalog, inventory) {
     });
 }
 
-function summarizeEquipment(referenceEquipment, equipmentIds) {
+function selectedEquipmentNames(referenceEquipment, equipmentIds) {
   const selected = new Set((equipmentIds ?? []).map(String));
-  const names = (referenceEquipment ?? [])
+  return (referenceEquipment ?? [])
     .filter((item) => selected.has(String(item.id)))
     .map((item) => item.name)
     .filter(Boolean);
+}
+
+function summarizeEquipment(referenceEquipment, equipmentIds) {
+  const names = selectedEquipmentNames(referenceEquipment, equipmentIds);
   if (names.length === 0) return 'Poids du corps';
   if (names.length <= 2) return names.join(' · ');
   return `${names.slice(0, 2).join(' · ')} · +${names.length - 2}`;
@@ -1587,6 +1592,7 @@ export default function WeekComposerV7() {
   const wodBlock = architecture?.blocks?.find((block) => block.type === 'WOD') ?? null;
   const estimatedMinutes = architecture?.estimatedMinutes
     ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
+  const retainedEquipmentNames = selectedEquipmentNames(referenceEquipment, equipmentIds);
   const equipmentSummary = equipmentLoading ? 'Chargement…' : summarizeEquipment(referenceEquipment, equipmentIds);
   const allEquipmentSelected = referenceEquipment.length > 0
     && referenceEquipment.every((item) => equipmentIds.includes(item.id));
@@ -1715,14 +1721,24 @@ export default function WeekComposerV7() {
                     </View>
                   </Pressable>}
               </View>:null}
-              <Pressable accessibilityRole="button" accessibilityLabel="Modifier le matériel de cette séance" disabled={equipmentLoading}
-                onPress={()=>setSheet('equipment')} style={({pressed})=>[styles.frameEquipmentRow,pressed&&styles.pressed]}>
-                <View style={styles.frameRowCopy}>
-                  <Text style={styles.frameRowLabel}>Matériel disponible</Text>
-                  <Text style={styles.frameRowValue}>{equipmentLoading?'Chargement…':equipmentSummary}</Text>
-                </View>
-                <Text style={styles.frameActionText}>Modifier</Text>
-              </Pressable>
+              <View style={styles.frameSection}>
+                <Text accessibilityRole="header" style={styles.frameSectionTitle}>Matériel disponible</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Choisir mon matériel" accessibilityState={{disabled:equipmentLoading}} disabled={equipmentLoading}
+                  onPress={()=>setSheet('equipment')} style={({pressed})=>[styles.frameEquipmentRow,pressed&&!equipmentLoading&&styles.pressed]}>
+                  <ExpoImage source={FRAME_EQUIPMENT_PHOTO} style={styles.frameEquipmentPhoto} contentFit="cover" accessible={false}/>
+                  <View style={styles.frameRowCopy}>
+                    <Text style={styles.frameEquipmentTitle}>Choisir mon matériel</Text>
+                    <Text style={styles.frameEquipmentCount}>{equipmentLoading?'Chargement…':retainedEquipmentNames.length+' équipement'+(retainedEquipmentNames.length===1?'':'s')+' sélectionné'+(retainedEquipmentNames.length===1?'':'s')}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={19} color={colors.textSecondary} accessible={false}/>
+                </Pressable>
+                <Text style={styles.frameEquipmentSubtitle}>Matériel retenu pour la séance</Text>
+                {equipmentLoading?<ActivityIndicator size="small" color={colors.accent}/>:<View style={styles.frameEquipmentTags}>
+                  {(retainedEquipmentNames.length?retainedEquipmentNames:['Poids du corps']).map((name,index)=><View key={name+'-'+index} style={styles.frameEquipmentTag}>
+                    <Text style={styles.frameEquipmentTagText}>{name}</Text>
+                  </View>)}
+                </View>}
+              </View>
             </View>
           ) : null}
 
@@ -2360,7 +2376,14 @@ function createStyles(colors) {
     frameSwitchOn:{backgroundColor:colors.accent},
     frameSwitchKnob:{width:22,height:22,borderRadius:11,backgroundColor:colors.textOnAccent,alignSelf:'flex-start'},
     frameSwitchKnobOn:{alignSelf:'flex-end'},
-    frameEquipmentRow:{minHeight:64,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:11,borderBottomWidth:1,borderBottomColor:colors.border},
+    frameEquipmentRow:{minHeight:82,flexDirection:'row',alignItems:'center',gap:12,padding:8,borderWidth:1,borderColor:colors.border,borderRadius:12,backgroundColor:colors.surface},
+    frameEquipmentPhoto:{width:88,height:66,borderRadius:8,backgroundColor:colors.surfacePressed},
+    frameEquipmentTitle:{fontFamily:fontFamilies.semiBold,fontSize:16,lineHeight:21,color:colors.text},
+    frameEquipmentCount:{fontFamily:fontFamilies.regular,fontSize:12,lineHeight:17,color:colors.textSecondary},
+    frameEquipmentSubtitle:{fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:18,color:colors.textSecondary,marginTop:2},
+    frameEquipmentTags:{flexDirection:'row',flexWrap:'wrap',gap:7},
+    frameEquipmentTag:{maxWidth:'100%',paddingHorizontal:10,paddingVertical:6,borderRadius:7,backgroundColor:colors.surfacePressed},
+    frameEquipmentTagText:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:17,color:colors.text},
     frameFooter:{width:'100%',maxWidth:820,alignSelf:'center',paddingHorizontal:spacing.xl,paddingTop:10,paddingBottom:12,backgroundColor:colors.background,borderTopWidth:1,borderTopColor:colors.border},
     frameSheetOption:{minHeight:52,borderRadius:10,paddingHorizontal:14,paddingVertical:10,marginBottom:6,backgroundColor:colors.background,flexDirection:'row',alignItems:'center',gap:10},
     frameSheetOptionSelected:{backgroundColor:colors.accent},
