@@ -621,7 +621,7 @@ export default function DashboardCoachV6Screen() {
           {todayRows.length>0 || routineRows.length>0 ? (
             <View style={styles.todaySessions}>
               <Text style={styles.todaySessionsTitle}>MON PROGRAMME DU JOUR</Text>
-              <Text style={styles.todaySessionMeta}>{todayRows.filter(r=>r.state==='completed').length}/{todayRows.length} séances · {routineRows.filter(r=>r.completed).length}/{routineRows.length} routines réalisées</Text>
+              <Text style={styles.todaySessionMeta}>{[todayRows.length?todayRows.filter(r=>r.state==='completed').length+'/'+todayRows.length+' séances':null,routineRows.length?routineRows.filter(r=>r.completed).length+'/'+routineRows.length+' routines':null].filter(Boolean).join(' · ')} · réalisées</Text>
               {todayRows.map(item=>{
                 const done=item.state==='completed';
                 const active=item.state==='active'||(!done&&Boolean(activeSessionId&&item.sessionId===activeSessionId));
@@ -662,16 +662,28 @@ export default function DashboardCoachV6Screen() {
             palette={palette}
           />
 
-          <View style={styles.todaySessions}>
-            <Pressable accessibilityRole="button" onPress={()=>router.push('/routines')} style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
-              <Ionicons name="repeat-outline" size={22} color={palette.accent}/><View style={styles.todaySessionCopy}><Text style={styles.todaySessionName}>Mes routines</Text><Text style={styles.todaySessionMeta}>Créer et gérer mes routines</Text></View><Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
+          <View style={styles.trainingSpace}>
+            <Text style={styles.trainingSpaceTitle}>MON ESPACE D’ENTRAÎNEMENT</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Mes routines" onPress={()=>router.push('/routines')} style={({pressed})=>[styles.trainingCard,styles.trainingWide,pressed&&styles.pressed]}>
+              <Image source={activityPhoto} resizeMode="cover" style={styles.trainingPhoto} accessible={false}/>
+              <LinearGradient colors={['rgba(8,13,10,0.12)','rgba(8,13,10,0.62)','rgba(8,13,10,0.95)']} style={StyleSheet.absoluteFillObject}/>
+              <View style={styles.trainingTop}><View style={styles.trainingIcon}><Ionicons name="repeat-outline" size={22} color="#FFFFFF"/></View><Ionicons name="arrow-up-outline" style={styles.trainingArrow} size={22} color={palette.orange}/></View>
+              <View style={styles.trainingCardCopy}><Text style={styles.trainingEyebrow}>MES HABITUDES</Text><Text style={styles.trainingTitle}>Mes routines</Text><Text style={styles.trainingSubtitle}>Créer, répéter, entretenir.</Text></View>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={()=>router.push({pathname:'/(tabs)/library',params:{section:'models',importDate:'',group:''}})} style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
-              <Ionicons name="albums-outline" size={22} color={palette.accent}/><View style={styles.todaySessionCopy}><Text style={styles.todaySessionName}>Mes modèles</Text></View><Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={()=>router.push('/(tabs)/programmes')} style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
-              <Ionicons name="trophy-outline" size={22} color={palette.accent}/><View style={styles.todaySessionCopy}><Text style={styles.todaySessionName}>Programmes</Text></View><Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
-            </Pressable>
+            <View style={styles.trainingGrid}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Mes modèles" onPress={()=>router.push({pathname:'/(tabs)/library',params:{section:'models',importDate:'',group:''}})} style={({pressed})=>[styles.trainingCard,styles.trainingSmall,pressed&&styles.pressed]}>
+                <Image source={buildPhoto} resizeMode="cover" style={styles.trainingPhoto} accessible={false}/>
+                <LinearGradient colors={['rgba(8,13,10,0.16)','rgba(8,13,10,0.80)','rgba(8,13,10,0.98)']} style={StyleSheet.absoluteFillObject}/>
+                <View style={styles.trainingTop}><View style={styles.trainingIcon}><Ionicons name="albums-outline" size={18} color="#FFFFFF"/></View><Ionicons name="arrow-up-outline" style={styles.trainingArrow} size={20} color={palette.orange}/></View>
+                <View style={styles.trainingCardCopy}><Text style={styles.trainingTitleSmall}>Mes modèles</Text><Text style={styles.trainingSubtitle}>Mes séances à réutiliser</Text></View>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Programmes" onPress={()=>router.push('/(tabs)/programmes')} style={({pressed})=>[styles.trainingCard,styles.trainingSmall,pressed&&styles.pressed]}>
+                <Image source={coachPhoto} resizeMode="cover" style={styles.trainingPhoto} accessible={false}/>
+                <LinearGradient colors={['rgba(8,13,10,0.16)','rgba(8,13,10,0.80)','rgba(8,13,10,0.98)']} style={StyleSheet.absoluteFillObject}/>
+                <View style={styles.trainingTop}><View style={styles.trainingIcon}><Ionicons name="trophy-outline" size={18} color="#FFFFFF"/></View><Ionicons name="arrow-up-outline" style={styles.trainingArrow} size={20} color={palette.orange}/></View>
+                <View style={styles.trainingCardCopy}><Text style={styles.trainingTitleSmall}>Programmes</Text><Text style={styles.trainingSubtitle}>Mes objectifs sportifs</Text></View>
+              </Pressable>
+            </View>
           </View>
           <ContextualSlot learning={learning} styles={styles} palette={palette} />
 
@@ -699,12 +711,27 @@ function createStyles(p, isDark) {
     content: { paddingHorizontal: 18, paddingTop: 0, paddingBottom: 118 },
     contentInsideTabs: { paddingBottom: 34 },
 
+    trainingSpace:{marginTop:20,marginBottom:20,gap:10},
+    trainingSpaceTitle:{fontFamily:'BebasNeue_400Regular',fontSize:25,letterSpacing:0.8,color:p.text},
+    trainingCard:{backgroundColor:'#151D17',borderRadius:16,overflow:'hidden',padding:14,justifyContent:'space-between',borderWidth:1,borderColor:p.border},
+    trainingWide:{minHeight:172},
+    trainingSmall:{flex:1,minWidth:0,minHeight:158,padding:12},
+    trainingGrid:{flexDirection:'row',gap:10},
+    trainingPhoto:{...StyleSheet.absoluteFillObject,width:'100%',height:'100%'},
+    trainingTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
+    trainingIcon:{width:38,height:38,borderRadius:12,backgroundColor:'rgba(15,23,17,0.72)',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'rgba(255,255,255,0.16)'},
+    trainingArrow:{transform:[{rotate:'45deg'}]},
+    trainingCardCopy:{gap:2,marginTop:10},
+    trainingEyebrow:{fontFamily:'Manrope_700Bold',fontSize:10,letterSpacing:1.6,color:'#B6C5AE'},
+    trainingTitle:{fontFamily:'BebasNeue_400Regular',fontSize:36,lineHeight:39,color:'#F4F5F1'},
+    trainingTitleSmall:{fontFamily:'BebasNeue_400Regular',fontSize:25,lineHeight:28,color:'#F4F5F1'},
+    trainingSubtitle:{fontFamily:'Manrope_500Medium',fontSize:12,lineHeight:17,color:'#D2D9CE'},
     todaySessions:{marginBottom:12},
-    todaySessionsTitle:{fontFamily:'Manrope_700Bold',fontSize:11,letterSpacing:0.7,color:p.textMuted,marginBottom:4},
+    todaySessionsTitle:{fontFamily:'BebasNeue_400Regular',fontSize:25,letterSpacing:0.8,color:p.text,marginBottom:4},
     todaySessionRow:{minHeight:56,flexDirection:'row',alignItems:'center',gap:8,borderBottomWidth:1,borderBottomColor:p.border,paddingVertical:8},
     todaySessionCopy:{flex:1,gap:2},
-    todaySessionName:{fontFamily:'Manrope_600SemiBold',fontSize:13,color:p.text},
-    todaySessionMeta:{fontFamily:'Manrope_400Regular',fontSize:11,color:p.textMuted},
+    todaySessionName:{fontFamily:'Manrope_600SemiBold',fontSize:14,color:p.text},
+    todaySessionMeta:{fontFamily:'Manrope_400Regular',fontSize:12,color:p.textMuted},
     todaySessionStatus:{fontFamily:'Manrope_600SemiBold',fontSize:10,textAlign:'right'},
     loadingScreen: {
       flex: 1,
