@@ -64,7 +64,8 @@ async function transport() {
     async rpc(name,args){
       calls.push([name,args]);
       if(name==='week_save_composer_with_model_v1'){stored=JSON.parse(JSON.stringify(args.p_draft));return {data:{composer_draft:stored}};}
-      if(name==='week_read_composer_for_day_v1')return {data:{found:true,plan_item_id:'plan',composer_draft:stored}};
+      if(name==='week_read_composer_for_day_v1'){assert.equal(args.p_local_date,'2026-11-20');return {data:{found:true,plan_item_id:'plan',local_date:'2026-11-20',composer_draft:stored}};}
+      if(name==='week_read_composer_for_item_v1')return {data:{found:true,plan_item_id:'plan',local_date:'2026-11-20',composer_draft:stored}};
       if(name==='week_composer_prescription_preview_v1')return {data:{status:'PREVIEW'}};
       throw Error('Unexpected RPC '+name);
     },
@@ -87,6 +88,11 @@ async function transport() {
   assert.deepEqual(loaded.preferences,preferences);
   assert.deepEqual(loaded.draft,JSON.parse(JSON.stringify(draft)));
   assert.deepEqual(loaded.draft.architecture,legacy.architecture);
+  assert.equal(loaded.date,'2026-11-20');
+  assert.equal((await tested.getComposerForLocalDate('2026-11-20','plan')).planItemId,'plan');
+  assert.equal(calls.find(x=>x[0]==='week_read_composer_for_item_v1')[1].p_plan_item_id,'plan');
+  await assert.rejects(()=>tested.getComposerForLocalDate('2026-11-21','plan'),/date sélectionnée/);
+  await assert.rejects(()=>tested.getComposerForLocalDate('2026-11-20','other'),/date sélectionnée/);
   console.log('PASS: legacy/multi-zone preferences, conditional target, immutable blocks, fresh signatures and actual service transport');
 }
 transport().catch(error=>{console.error(error);process.exitCode=1;});
