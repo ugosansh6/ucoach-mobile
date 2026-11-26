@@ -26,4 +26,4 @@ Licence générale : https://www.pexels.com/license/ et https://help.pexels.com/
 
 ## Vignette matériel
 
-`equipment.webp` : photo fournie par Ugo le 26/11/2026 (haltères), recadrage 4:3, 320 × 240, WebP 10 436 octets, métadonnées non reprises. Source/licence individuelle à confirmer avant publication commerciale. Utilisée uniquement dans le bouton Choisir mon matériel, dans les deux thèmes.
+`equipment.webp` : photo fournie par Ugo le 26/11/2026 (haltères), recadrage 4:3, 320 × 240, WebP 10 436 octets, métadonnées non reprises. Source/licence individuelle à confirmer avant publication commerciale. Utilisée uniquement dans le bouton Modifier mon matériel, dans les deux thèmes.
