@@ -46,6 +46,10 @@ export async function markWorkoutSessionStarted({
     return result;
   }
 
+  if (result?.status === 'OTHER_SESSION_ACTIVE') {
+    throw new Error('Une autre séance est déjà en cours. Termine-la ou reprends-la avant de démarrer celle-ci.');
+  }
+
   if (result?.status !== 'IN_PROGRESS') {
     throw new Error(
       result?.status === 'CLOSED'
