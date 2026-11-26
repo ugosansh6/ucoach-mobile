@@ -2,23 +2,25 @@ import { supabase } from '../lib/supabase';
 import { getAuthenticatedUserWithRetry, runSupabaseRequestWithAuthRetry } from '../lib/supabaseAuthRetry';
 
 export const TRACKING_TYPES = { BODYWEIGHT:'bodyweight', LOAD:'load', REPS:'reps', TIME:'time', DISTANCE:'distance' };
-const FIELDS = 'id,name,display_name,body_region,movement_pattern,training_focus,description,instructions,tips,image_path,difficulty,exercise_family,tracking_modes';
-async function enrich(rows) {
+const FIELDS = 'id,name,display_name,body_region,exercise_type,movement_pattern,training_focus,description,instructions,tips,image_path,difficulty,exercise_family,tracking_modes';
+async function enrich(rows, pickerMetadata=false) {
   if (!rows?.length) return [];
   const ids=rows.map((e)=>e.id);
-  const [links, equipment] = await Promise.all([
+  const [links, equipment, backLinks] = await Promise.all([
     runSupabaseRequestWithAuthRetry(()=>supabase.from('exercise_equipment').select('exercise_id,equipment_id').in('exercise_id',ids)),
     runSupabaseRequestWithAuthRetry(()=>supabase.from('equipment').select('id,name')),
+    pickerMetadata?runSupabaseRequestWithAuthRetry(()=>supabase.from('exercise_muscles').select('exercise_id,muscle_id,priority').in('exercise_id',ids).in('muscle_id',['M02','M12','M13']).eq('priority','primary')):Promise.resolve([]),
   ]);
   const names=new Map((equipment??[]).map((e)=>[String(e.id),e.name]));
-  return rows.map((e)=>({ id:e.id, name:e.display_name||e.name, bodyRegion:e.body_region,
+  return rows.map((e)=>({ id:e.id, name:e.display_name||e.name, bodyRegion:e.body_region, originalName:e.name, exerciseType:e.exercise_type,
+    ...(pickerMetadata?{isBack:(backLinks??[]).some(link=>link.exercise_id===e.id),equipmentIds:[...new Set((links??[]).filter(link=>link.exercise_id===e.id).map(link=>String(link.equipment_id)))],equipmentOptions:[...new Set((links??[]).filter(link=>link.exercise_id===e.id).map(link=>String(link.equipment_id)))].map(id=>({id,name:names.get(id)??id}))}:{}),
     movementPattern:e.movement_pattern, trainingFocus:e.training_focus, exerciseFamily:e.exercise_family,
     description:e.description, instructions:e.instructions, tips:e.tips, imagePath:e.image_path,
     difficulty:e.difficulty, trackingModes:e.tracking_modes??[],
     equipmentNames:[...new Set((links??[]).filter((link)=>link.exercise_id===e.id && String(link.equipment_id)!=='E00').map((link)=>names.get(String(link.equipment_id))).filter(Boolean))],
   }));
 }
-export async function getExercises() {
+export async function getExercises({pickerMetadata=false}={}) {
   await getAuthenticatedUserWithRetry();
   const rows=[];
   for(let start=0;;start+=500){
@@ -27,7 +29,7 @@ export async function getExercises() {
   }
   // Equipment IN queries stay below API URL limits for the complete catalogue.
   const result=[];
-  for(let start=0;start<rows.length;start+=100)result.push(...await enrich(rows.slice(start,start+100)));
+  for(let start=0;start<rows.length;start+=100)result.push(...await enrich(rows.slice(start,start+100),pickerMetadata));
   return result.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
 }
 export async function getExerciseById(exerciseId) {

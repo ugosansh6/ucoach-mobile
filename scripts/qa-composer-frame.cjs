@@ -42,19 +42,27 @@ assert.equal(api.frameDurationDrag(ds,50,0),50,'Do not silently normalize a rest
 assert.equal(api.frameDurationStep(ds,50,1),60);assert.equal(api.frameDurationStep(ds,50,-1),45);
 assert.equal(api.frameDurationDrag(ds,50,-64),60);assert.equal(api.frameDurationDrag(ds,50,64),45);
 assert.equal(api.frameDurationDrag(ds,45,32),30);assert.equal(api.frameDurationDrag(ds,45,-32),60);
+const routineDurations=Array.from({length:30},(_,i)=>i+1);
+for(const value of routineDurations){
+ assert.equal(api.frameDurationStep(routineDurations,value,1),Math.min(30,value+1));
+ assert.equal(api.frameDurationStep(routineDurations,value,-1),Math.max(1,value-1));
+ assert.equal(api.frameDurationDrag(routineDurations,value,-64),Math.min(30,value+1));
+ assert.equal(api.frameDurationDrag(routineDurations,value,64),Math.max(1,value-1));
+}
 const ui=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
 require('@babel/parser').parse(ui,{sourceType:'module',plugins:['jsx']});
 const frame=ui.slice(ui.indexOf('{step === 0 ? ('),ui.indexOf('{step === 1 ? ('));
-const durationColorExpression=ui.match(/const durationColor = ([^;]+);/)[1];
+const shared=fs.readFileSync('src/components/creation/CreationFrameControls.js','utf8');require('@babel/parser').parse(shared,{sourceType:'module',plugins:['jsx']});
+const durationColorExpression=shared.match(/composerDurationColor\(value,colors\)\{return ([^;]+);/)[1];
 const durationColorFor=new Function('value','colors','return '+durationColorExpression);
 for(const colors of [{accent:'#646F5E',secondaryAccent:'#FF6B19',text:'#171A15'},{accent:'#646F5E',secondaryAccent:'#FF6B19',text:'#F7F9FC'}]){
  for(const value of [20,30])assert.equal(durationColorFor(value,colors),colors.accent);
  for(const value of [45,60,50])assert.equal(durationColorFor(value,colors),colors.text);
  for(const value of [75,90])assert.equal(durationColorFor(value,colors),colors.secondaryAccent);
 }
-assert.match(ui,/style=\{\[styles\.frameDialValue, \{ color: durationColor \}\]\}/);
+assert.match(shared,/style=\{\[styles\.frameDialValue, \{ color: durationColor \}\]\}/);
 
-assert.match(frame,/ExpoImage source=\{FRAME_PHOTOS\[item.code\]\}/);
+assert.match(frame,/PhotoChoiceGrid items=\{ENVIRONMENTS\} photos=\{FRAME_PHOTOS\}/);assert.match(shared,/ExpoImage source=\{photos\[item.code\]\}/);assert.match(frame,/DurationControl value=\{duration\} onChange=\{setDuration\} durations=\{DURATIONS\}/);
 assert.match(frame,/ExpoImage source=\{FRAME_EQUIPMENT_PHOTO\}/);
 assert.doesNotMatch(ui,/visible=\{sheet === 'equipment'\}|setSheet\('equipment'\)/);
 assert.match(frame,/Matériel retenu pour la séance/);
@@ -97,7 +105,7 @@ toggle('E02');assert.equal(displayedIds(),'E01|E02|E03');
 ids=[];assert.equal(displayedIds(),'E01|E02|E03');
 ids=originalInventory.map(item=>item.id);assert.equal(ids.join('|'),'E01|E02|E03');
 assert.ok(frame.indexOf('Matériel retenu pour la séance')<frame.indexOf('styles.frameEquipmentTags'));
-const selectedNamesSource=ui.slice(ui.indexOf('function selectedEquipmentNames('),ui.indexOf('function DurationControl('));
+const selectedNamesSource=ui.slice(ui.indexOf('function selectedEquipmentNames('),ui.indexOf('function FrameSelectRow('));
 const selectedNames=new Function(selectedNamesSource+';return selectedEquipmentNames;')();
 const equipment=[{id:'E01',name:'Haltères'},{id:'E02',name:'Tapis'},{id:'E03',name:'Élastiques'}];
 assert.equal(selectedNames(equipment,['E01','E03']).join('|'),'Haltères|Élastiques');

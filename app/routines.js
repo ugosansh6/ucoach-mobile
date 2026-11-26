@@ -1,11 +1,12 @@
 import {Ionicons} from '@expo/vector-icons';
 import {router,useFocusEffect,useLocalSearchParams} from 'expo-router';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {AppState,Pressable,SafeAreaView,ScrollView,Text,View} from 'react-native';
+import {AppState,Modal,Pressable,SafeAreaView,ScrollView,Text,View} from 'react-native';
 import {useUgerodTheme} from '../src/contexts/UgerodThemeContext';
 import {fontFamilies} from '../src/constants/typography';
 import {RoutineList,RoutineDetail,RoutineEditor,RoutinePlayer} from '../src/components/routines/RoutinePresentation';
-import {getExercises} from '../src/services/exerciseService';
+import ComposerExercisePickerPage from '../src/workout/ComposerExercisePickerPage';
+import {getExercises,getExerciseFavorites} from '../src/services/exerciseService';
 import {isIntervalRoutine,initialRoutineStep,advanceRoutinePhase,consumeRoutineSeconds,localRoutineDate,normalizeRoutineDraft} from '../src/services/routineContract';
 import {archiveRoutine,canStartRoutine,completeRoutine,loadRoutineScreen,saveRoutine,writeRoutineCheckpoint,clearRoutineCheckpoint} from '../src/services/routineService';
 
@@ -14,15 +15,15 @@ const personal=()=>({name:'',exercise_id:null,sets:'',reps:'',duration_seconds:'
 function fieldDraft(row){return {...row,parameters:{rounds:'',work_seconds:'',rest_seconds:'',...Object.fromEntries(Object.entries(row.parameters??{}).map(([k,v])=>[k,String(v)]))},planned_minutes:String(row.planned_minutes),exercises:row.exercises.map(e=>({...personal(),...e,sets:String(e.sets??''),reps:String(e.reps??''),duration_seconds:String(e.duration_seconds??''),doseMode:e.duration_seconds!=null?'TIME':'REPS'}))};}
 
 export default function RoutinesScreen(){
- const {colors}=useUgerodTheme();
+ const {colors,isDark}=useUgerodTheme();
  const params=useLocalSearchParams();const target=Array.isArray(params.routineId)?params.routineId[0]:params.routineId;
  const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[busy,setBusy]=useState(false);
- const [draft,setDraft]=useState(null),[editId,setEditId]=useState(null),[editingExisting,setEditingExisting]=useState(false),[catalogue,setCatalogue]=useState(null),[catalogueLoading,setCatalogueLoading]=useState(false),[search,setSearch]=useState(''),[showCatalogue,setShowCatalogue]=useState(false);
+ const [draft,setDraft]=useState(null),[editId,setEditId]=useState(null),[editingExisting,setEditingExisting]=useState(false),[catalogue,setCatalogue]=useState(null),[catalogueLoading,setCatalogueLoading]=useState(false),[catalogueError,setCatalogueError]=useState(false),[favoriteIds,setFavoriteIds]=useState([]),[showCatalogue,setShowCatalogue]=useState(false);
  const [playing,setPlaying]=useState(null),[step,setStep]=useState(null),[selected,setSelected]=useState(null);
  const [ownerId,setOwnerId]=useState(null),[checkpoint,setCheckpoint]=useState(null),[running,setRunning]=useState(false),[confirmAction,setConfirmAction]=useState(null);
  const checkpointRef=useRef(null),writeQueue=useRef(Promise.resolve()),lastTick=useRef(0),runningRef=useRef(false),ownerRef=useRef(null);
  const changeRunning=useCallback(value=>{runningRef.current=value;setRunning(value);},[]);
- const lock=useRef(false),targetHandled=useRef(null),scrollRef=useRef(null),editorTop=useRef(0);
+ const lock=useRef(false),targetHandled=useRef(null),scrollRef=useRef(null),editorTop=useRef(0),editorBackRef=useRef(null);
  const revealEditorSection=useCallback(y=>{scrollRef.current?.scrollTo({y:Math.max(0,editorTop.current+y-12),animated:true});},[]);
  const text={fontFamily:fontFamilies.regular,fontSize:14,color:colors.text};
  const label={...text,fontFamily:fontFamilies.semiBold};
@@ -33,19 +34,19 @@ export default function RoutinesScreen(){
  useEffect(()=>{const sub=AppState.addEventListener('change',state=>{if(state!=='active')changeRunning(false);});return()=>sub.remove();},[changeRunning]);
  function persist(next){checkpointRef.current=next;setCheckpoint(next);setStep(next.step);const task=writeQueue.current.catch(()=>{}).then(()=>writeRoutineCheckpoint(ownerId,next));writeQueue.current=task;task.catch(()=>{changeRunning(false);setError('La reprise n’a pas pu être sauvegardée. Réessaie.');});return task;}
  useEffect(()=>{if(!running||!playing)return;lastTick.current=Date.now();const timer=setInterval(()=>{if(!runningRef.current)return;if(AppState.currentState!=='active'&&AppState.currentState!=null){changeRunning(false);return;}const elapsed=Math.floor((Date.now()-lastTick.current)/1000);if(elapsed<1)return;lastTick.current+=elapsed*1000;const cp=checkpointRef.current;if(!cp||cp.step.remaining==null||cp.step.phase==='done'){changeRunning(false);return;}const next=consumeRoutineSeconds(playing,cp.step,elapsed);void persist({...cp,step:next}).catch(()=>{});if(next.remaining==null||next.phase==='done'||(!isIntervalRoutine(playing.mechanic)&&next.phase==='work'&&(next.index!==cp.step.index||next.setNumber!==cp.step.setNumber||next.round!==cp.step.round||cp.step.phase==='rest')))changeRunning(false);},200);return()=>clearInterval(timer);},[running,playing,ownerId]);
- const filtered=useMemo(()=>{const q=search.trim().toLocaleLowerCase('fr');return (catalogue??[]).filter(e=>!q||e.name.toLocaleLowerCase('fr').includes(q)).slice(0,30);},[catalogue,search]);
+ const pickerEquipment=useMemo(()=>{const names=new Map();for(const row of catalogue??[]){for(const item of row.equipmentOptions??[]){if(item.id!=='E00'&&!names.has(item.id))names.set(item.id,item.name);}}return [...names].map(([id,name])=>({id,name}));},[catalogue]);
  function edit(row=null,copy=false){if(row&&!copy&&checkpointRef.current?.routine.id===row.id){setError('Termine ou abandonne la routine avant de la modifier.');return;}setError('');setSelected(null);setDraft(row?{...fieldDraft(row),name:copy?row.name+' (copie)':row.name}:blank());setEditId(row&&!copy?row.id:null);setEditingExisting(Boolean(row));setShowCatalogue(false);}
  function patch(p){setDraft(d=>({...d,...p}));}
  function changeExercise(i,p){setDraft(d=>({...d,exercises:d.exercises.map((e,j)=>i===j?{...e,...p}:e)}));}
  function move(i,delta){setDraft(d=>{const a=[...d.exercises];const j=i+delta;if(j<0||j>=a.length)return d;[a[i],a[j]]=[a[j],a[i]];return {...d,exercises:a};});}
  function add(e){setDraft(d=>({...d,exercises:[...d.exercises,e]}));setShowCatalogue(false);}
- async function openCatalogue(){setShowCatalogue(true);if(catalogue||catalogueLoading)return;setCatalogueLoading(true);try{setCatalogue(await getExercises());}catch{setError('Impossible de charger le catalogue. Le texte libre reste disponible.');}finally{setCatalogueLoading(false);}}
+ async function openCatalogue(){setShowCatalogue(true);if(catalogueLoading)return;void getExerciseFavorites().then(setFavoriteIds).catch(()=>setFavoriteIds([]));if(catalogue)return;setCatalogueLoading(true);setCatalogueError(false);try{setCatalogue(await getExercises({pickerMetadata:true}));}catch{setCatalogueError(true);}finally{setCatalogueLoading(false);}}
  async function run(fn){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await fn();}catch(e){setError(e?.message||'Une erreur est survenue. Réessaie.');}finally{lock.current=false;setBusy(false);}}
  function save(){void run(async()=>{normalizeRoutineDraft(draft);const row=await saveRoutine(draft,editId);setRows(old=>editId?old.map(r=>r.id===row.id?row:r):[...old,row]);setDraft(null);setEditId(null);setSelected(row);});}
  function archive(row){setConfirmAction({label:'Supprimer la routine ?',note:'Tes jours de réalisation restent conservés.',perform:()=>run(async()=>{if(checkpointRef.current?.routine.id===row.id){await writeQueue.current.catch(()=>{});await clearRoutineCheckpoint(ownerId);setCheckpoint(null);checkpointRef.current=null;}await archiveRoutine(row.id);setRows(old=>old.filter(r=>r.id!==row.id));setSelected(null);})});}
  function start(row){void run(async()=>{if(!ownerId||loading)throw new Error('Compte indisponible.');if(!await canStartRoutine())throw new Error('Termine ou quitte ta séance en cours avant de lancer une routine.');const current=checkpointRef.current;if(current?.local_date===localRoutineDate()&&current.routine.id!==row.id)throw new Error('Une routine est à reprendre. Termine-la ou abandonne-la avant d’en lancer une autre.');const cp=current?.local_date===localRoutineDate()?current:{version:2,local_date:localRoutineDate(),routine:row,step:initialRoutineStep(row)};await persist(cp);setPlaying(cp.routine);changeRunning(false);setSelected(null);});}
  function abandon(){changeRunning(false);setConfirmAction({label:'Abandonner la routine ?',note:'Elle ne sera pas validée et la reprise sera effacée.',perform:()=>run(async()=>{changeRunning(false);await writeQueue.current.catch(()=>{});await clearRoutineCheckpoint(ownerId);checkpointRef.current=null;setCheckpoint(null);setPlaying(null);setStep(null);})});}
- function back(){if(playing){changeRunning(false);setPlaying(null);setStep(null);return;}if(draft){setDraft(null);setShowCatalogue(false);return;}if(selected){setSelected(null);return;}router.canGoBack()?router.back():router.replace('/(tabs)');}
+ function back(){if(playing){changeRunning(false);setPlaying(null);setStep(null);return;}if(draft){if(showCatalogue){setShowCatalogue(false);return;}if(editorBackRef.current?.())return;setConfirmAction({label:'Quitter la création ?',note:'Tes modifications non enregistrées seront perdues.',perform:()=>{setDraft(null);setShowCatalogue(false);}});return;}if(selected){setSelected(null);return;}router.canGoBack()?router.back():router.replace('/(tabs)');}
  function next(){void run(async()=>{const cp=checkpointRef.current;if(!cp||cp.step.phase!=='work'||cp.step.remaining!==null)return;await persist({...cp,step:advanceRoutinePhase(cp.routine,cp.step)});});}
  function finish(){void run(async()=>{const cp=checkpointRef.current;if(!cp||cp.step.phase!=='done')return;if(cp.local_date!==localRoutineDate())throw new Error('La routine a changé de jour. Abandonne la reprise et relance-la.');changeRunning(false);await writeQueue.current.catch(()=>{});await completeRoutine(cp.routine.id,new Date(),ownerId);await clearRoutineCheckpoint(ownerId);checkpointRef.current=null;setCheckpoint(null);setPlaying(null);setStep(null);router.replace('/(tabs)');});}
  return <SafeAreaView style={{flex:1,backgroundColor:colors.background}}><ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:18,paddingBottom:40,gap:18}}>
@@ -54,9 +55,9 @@ export default function RoutinesScreen(){
   {confirmAction?<View style={card}><Text style={label}>{confirmAction.label}</Text><Text style={muted}>{confirmAction.note}</Text>{btn('Confirmer',()=>{const f=confirmAction.perform;setConfirmAction(null);void f();},{primary:true})}{btn('Annuler',()=>setConfirmAction(null))}</View>:null}
   {checkpoint&&!playing&&!draft?<View style={card}><Text style={label}>Routine à reprendre · {checkpoint.routine.name}</Text>{btn('Reprendre',()=>start(checkpoint.routine),{primary:true})}{btn('Abandonner',abandon)}</View>:null}
   {playing&&step?<RoutinePlayer routine={playing} step={step} running={running} busy={busy} onToggle={()=>changeRunning(!runningRef.current)} onNext={next} onFinish={finish} onAside={back} onAbandon={abandon}/>
-  :draft?<View onLayout={event=>{editorTop.current=event.nativeEvent.layout.y;}}><RoutineEditor editing={editingExisting} onReveal={revealEditorSection} draft={draft} busy={busy} patch={patch} changeExercise={changeExercise} move={move} addPersonal={()=>add(personal())} openCatalogue={openCatalogue} closeCatalogue={()=>setShowCatalogue(false)} showCatalogue={showCatalogue} catalogueLoading={catalogueLoading} filtered={filtered} search={search} setSearch={setSearch} addCatalogue={e=>add({...personal(),name:e.name,exercise_id:e.id})} save={save} catalogue={catalogue}/></View>
+  :draft?<View onLayout={event=>{editorTop.current=event.nativeEvent.layout.y;}}><RoutineEditor editorBackRef={editorBackRef} editing={editingExisting} onReveal={revealEditorSection} draft={draft} busy={busy} patch={patch} changeExercise={changeExercise} move={move} addPersonal={()=>add(personal())} openCatalogue={openCatalogue} closeCatalogue={()=>setShowCatalogue(false)} save={save} catalogue={catalogue}/></View>
   :selected?<RoutineDetail routine={selected} checkpoint={checkpoint} busy={busy} onStart={()=>start(selected)} onEdit={()=>edit(selected)} onCopy={()=>edit(selected,true)} onArchive={()=>archive(selected)}/>
   :<RoutineList rows={rows} loading={loading} checkpoint={checkpoint} busy={busy} onOpen={setSelected} onStart={start} onCreate={()=>edit()}/>}
 
- </ScrollView></SafeAreaView>;
+ </ScrollView>{draft&&showCatalogue?<Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={()=>setShowCatalogue(false)}><ComposerExercisePickerPage colors={colors} isDark={isDark} blockLabel="Ma routine" rows={catalogue??[]} unrestricted equipmentIds={pickerEquipment.map(e=>e.id)} referenceEquipment={pickerEquipment} selectedRows={draft.exercises.filter(e=>e.exercise_id).map(e=>({id:e.exercise_id,name:e.name}))} selectedIds={draft.exercises.filter(e=>e.exercise_id).map(e=>e.exercise_id)} favoriteIds={favoriteIds} capacity={Infinity} replacementId={null} loading={catalogueLoading} error={catalogueError} onRetry={openCatalogue} onSelect={e=>add({...personal(),name:e.name,exercise_id:e.id})} onClose={()=>setShowCatalogue(false)} selectLabel="Ajouter à la routine"/></Modal>:null}</SafeAreaView>;
 }

@@ -1,8 +1,9 @@
 import ComposerOutdoorCardioPreview from '../components/workout/ComposerOutdoorCardioPreview';
 import ComposerMovementOverview, { ComposerMovementTabs } from '../components/workout/ComposerMovementOverview';
 import { selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
-import { frameOutdoorPlace, frameSurfaceValid, frameCanContinue, frameSelectPlace, frameSelectSurface, frameSurfaceLabel, frameDurationStep, frameDurationDrag } from '../utils/composerFrame';
+import { frameOutdoorPlace, frameSurfaceValid, frameCanContinue, frameSelectPlace, frameSelectSurface, frameSurfaceLabel } from '../utils/composerFrame';
 import { Image as ExpoImage } from 'expo-image';
+import {DurationControl,PhotoChoiceGrid} from '../components/creation/CreationFrameControls';
 import { COMPOSER_OUTDOOR_VERSION, composerOutdoorContext } from '../utils/composerOutdoor';
 import ComposerExercisePickerPage from './ComposerExercisePickerPage';
 import { pickerEquipmentMatches, pickerAddSessionEquipment } from '../utils/composerPickerPresentation';
@@ -18,7 +19,6 @@ import {
   ActivityIndicator,
   Image,
   Modal,
-  PanResponder,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -305,52 +305,6 @@ function summarizeEquipment(referenceEquipment, equipmentIds) {
   return `${names.slice(0, 2).join(' · ')} · +${names.length - 2}`;
 }
 
-function DurationControl({ value, onChange, styles, colors }) {
-  const currentRef = useRef(value);
-  const originRef = useRef(value);
-  const onChangeRef = useRef(onChange);
-  currentRef.current = value;
-  onChangeRef.current = onChange;
-  const pan = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
-    onPanResponderGrant: () => { originRef.current = currentRef.current; },
-    onPanResponderMove: (_, gesture) => onChangeRef.current(frameDurationDrag(DURATIONS, originRef.current, gesture.dx)),
-    onPanResponderRelease: (_, gesture) => onChangeRef.current(frameDurationDrag(DURATIONS, originRef.current, gesture.dx)),
-    onPanResponderTerminationRequest: () => true,
-  }), []);
-  const previous = frameDurationStep(DURATIONS, value, -1);
-  const next = frameDurationStep(DURATIONS, value, 1);
-  const durationColor = [20, 30].includes(value) ? colors.accent : [75, 90].includes(value) ? colors.secondaryAccent : colors.text;
-  return <View style={styles.frameDuration}>
-    <Text style={styles.frameSectionTitle}>Durée</Text>
-    <View {...pan.panHandlers} style={styles.frameDial}
-      accessibilityRole="adjustable" accessible accessibilityLabel="Durée de la séance"
-      accessibilityValue={{ min: 20, max: 90, now: value, text: value + ' minutes' }}
-      accessibilityActions={[{name:'increment',label:'Augmenter'},{name:'decrement',label:'Diminuer'}]}
-      onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'increment') onChange(next); else if (event.nativeEvent.actionName === 'decrement') onChange(previous); }}>
-      <View style={styles.frameDialNumbers} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <Text style={styles.frameDialSide}>{previous === value ? ' ' : previous}</Text>
-        <Text style={[styles.frameDialValue, { color: durationColor }]}>{value}</Text>
-        <Text style={styles.frameDialSide}>{next === value ? ' ' : next}</Text>
-      </View>
-      <View style={styles.frameDialTicks} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        {Array.from({length:33}, (_,index) => <View key={index} style={[styles.frameDialTick, index % 4 === 0 && styles.frameDialTickLong, index === 16 && styles.frameDialTickCurrent]} />)}
-      </View>
-    </View>
-    <View style={styles.frameDialControls}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Diminuer la durée" accessibilityState={{disabled:previous===value}} disabled={previous===value}
-        onPress={() => onChange(previous)} style={[styles.frameDialButton, previous===value && styles.disabled]}>
-        <Ionicons name="remove" size={21} color={colors.text}/>
-      </Pressable>
-      <Text style={styles.frameDialUnit}>Minutes</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Augmenter la durée" accessibilityState={{disabled:next===value}} disabled={next===value}
-        onPress={() => onChange(next)} style={[styles.frameDialButton, next===value && styles.disabled]}>
-        <Ionicons name="add" size={21} color={colors.text}/>
-      </Pressable>
-    </View>
-  </View>;
-}
 
 function FrameSelectRow({ label, value, onPress, disabled = false, fixed = false, styles, colors }) {
   const content = <>
@@ -1700,26 +1654,10 @@ export default function WeekComposerV7() {
 
           {step === 0 ? (
             <View style={styles.frameWrap}>
-              <DurationControl value={duration} onChange={setDuration} styles={styles} colors={colors}/>
+              <DurationControl value={duration} onChange={setDuration} durations={DURATIONS} colors={colors}/>
               <View style={styles.frameSection}>
                 <Text accessibilityRole="header" style={styles.frameSectionTitle}>Lieu d’entraînement</Text>
-                <View style={styles.environmentGrid}>
-                  {ENVIRONMENTS.map(item => {
-                    const selected = environmentCode === item.code;
-                    return <Pressable key={item.code} accessibilityRole="radio" accessibilityLabel={item.label}
-                      accessibilityState={{selected,disabled:equipmentLoading}} disabled={equipmentLoading}
-                      onPress={() => { if (!selected) chooseEnvironment(item.code); }}
-                      style={({pressed})=>[styles.frameEnvironment,selected&&styles.frameEnvironmentSelected,pressed&&!equipmentLoading&&styles.pressed]}>
-                      <View style={styles.framePhoto}>
-                        <ExpoImage source={FRAME_PHOTOS[item.code]} style={styles.framePhotoImage} contentFit="cover" accessible={false}/>
-                      </View>
-                      <View style={[styles.frameEnvironmentLabelRow,selected&&styles.frameEnvironmentLabelRowSelected]}>
-                        <Text style={[styles.frameEnvironmentLabel,selected&&styles.frameEnvironmentLabelSelected]}>{item.label}</Text>
-                        {selected?<View style={styles.frameSelectedDot}/>:null}
-                      </View>
-                    </Pressable>;
-                  })}
-                </View>
+                <PhotoChoiceGrid items={ENVIRONMENTS} photos={FRAME_PHOTOS} value={environmentCode} onChange={chooseEnvironment} colors={colors} disabled={equipmentLoading}/>
               </View>
               {environmentCode === 'OUTDOOR' ? <View style={styles.frameOutdoorRows}>
                 <FrameSelectRow label="Environnement" value={selectedOutdoorPlace?.label}
@@ -2350,27 +2288,6 @@ function createStyles(colors) {
     frameScroll:{paddingBottom:20},
     frameSection:{gap:10},
     frameSectionTitle:{fontFamily:fontFamilies.display,fontSize:23,lineHeight:26,color:colors.text},
-    frameDuration:{gap:2},
-    frameDial:{alignSelf:'center',width:'100%',maxWidth:390,paddingHorizontal:6},
-    frameDialNumbers:{minHeight:76,flexDirection:'row',alignItems:'center',justifyContent:'center'},
-    frameDialValue:{fontFamily:fontFamilies.display,fontSize:76,lineHeight:81,color:colors.text,textAlign:'center',minWidth:100},
-    frameDialSide:{flex:1,fontFamily:fontFamilies.display,fontSize:34,lineHeight:39,color:colors.textMuted,textAlign:'center'},
-    frameDialTicks:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between',height:24,paddingHorizontal:7},
-    frameDialTick:{width:1,height:8,backgroundColor:colors.borderStrong},
-    frameDialTickLong:{height:15},
-    frameDialTickCurrent:{height:22,width:3,backgroundColor:colors.secondaryAccent,borderRadius:2},
-    frameDialControls:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:18,marginTop:3},
-    frameDialButton:{width:44,height:44,borderRadius:22,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},
-    frameDialUnit:{fontFamily:fontFamilies.medium,fontSize:12,color:colors.textSecondary,minWidth:66,textAlign:'center'},
-    frameEnvironment:{width:'48%',flexGrow:1,overflow:'hidden',borderRadius:12,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},
-    frameEnvironmentSelected:{borderColor:colors.accent},
-    framePhoto:{width:'100%',aspectRatio:16/9,backgroundColor:colors.surfaceElevated??colors.surface},
-    framePhotoImage:{width:'100%',height:'100%'},
-    frameEnvironmentLabelRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:40,paddingHorizontal:12},
-    frameEnvironmentLabelRowSelected:{backgroundColor:colors.accent},
-    frameEnvironmentLabel:{fontFamily:fontFamilies.semiBold,fontSize:15,lineHeight:20,color:colors.text},
-    frameEnvironmentLabelSelected:{color:colors.textOnAccent},
-    frameSelectedDot:{width:8,height:8,borderRadius:4,backgroundColor:colors.secondaryAccent},
     frameOutdoorRows:{borderTopWidth:1,borderTopColor:colors.border},
     frameRow:{minHeight:64,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,paddingVertical:11,borderBottomWidth:1,borderBottomColor:colors.border},
     frameRowCopy:{flex:1,minWidth:0,gap:4},
@@ -2410,7 +2327,6 @@ function createStyles(colors) {
     summaryIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
     summaryLabel: { fontFamily: fontFamilies.bold, fontSize: 9, letterSpacing: 1.1, color: colors.accent },
     summaryValue: { marginTop: 4, fontFamily: fontFamilies.semiBold, fontSize: 13, lineHeight: 18, color: colors.text },
-    environmentGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 10 },
     directionSection: { marginBottom: 20 },
     directionEyebrow: { marginBottom: 10, fontFamily: fontFamilies.bold, fontSize: 10, letterSpacing: 1.1, color: colors.accent },
     coachDirectionCard: { position: 'relative', overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 17, backgroundColor: colors.surface },

@@ -7,13 +7,13 @@ import ExerciseDetail from '../components/exercises/ExerciseDetail';
 import { exerciseRegionLabel, exerciseMovementLabel } from '../utils/exerciseCatalogue';
 import { pickerZones, pickerTypes, filterPickerRows, pickerEquipmentMatches, pickerEquipmentOptions, pickerAddableEquipment } from '../utils/composerPickerPresentation';
 
-export default function ComposerExercisePickerPage({colors,isDark,brandIcon,blockLabel,rows,equipmentIds=[],referenceEquipment=[],equipmentSummary,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose,onAddEquipment}) {
+export default function ComposerExercisePickerPage({colors,isDark,brandIcon,blockLabel,rows,equipmentIds=[],referenceEquipment=[],equipmentSummary,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose,onAddEquipment,unrestricted=false,selectLabel='Ajouter à la séance'}) {
   const [zone,setZone]=useState(''),[type,setType]=useState(''),[equipment,setEquipment]=useState(''),[search,setSearch]=useState('');
   const [favoritesOnly,setFavoritesOnly]=useState(false),[view,setView]=useState('hub'),[limit,setLimit]=useState(40);
   const [pendingEquipment,setPendingEquipment]=useState([]);
   const [detailId,setDetailId]=useState(null);
   const styles=createStyles(colors);
-  const available=rows.filter(row=>pickerEquipmentMatches(row,equipmentIds)&&!selectedIds.includes(row.id));
+  const available=rows.filter(row=>(unrestricted||pickerEquipmentMatches(row,equipmentIds))&&(unrestricted||!selectedIds.includes(row.id)));
   const equipmentOptions=pickerEquipmentOptions(equipmentIds,referenceEquipment);
   const addableEquipment=pickerAddableEquipment(referenceEquipment,equipmentIds);
   const addingEquipment=view==='add-equipment';
@@ -50,7 +50,7 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
         <View style={{flex:1}}><Text style={styles.kicker}>{blockLabel.toUpperCase()}</Text><Text style={styles.title}>Choisir les exercices.</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={styles.iconButton}><Ionicons name="close" size={22} color={colors.text}/></Pressable>
       </View>
-      <View style={styles.equipmentScope}><Ionicons name="checkmark-circle-outline" size={17} color={colors.accent}/><Text style={[styles.muted,{flex:1}]}>Matériel de la séance : {equipmentSummary && equipmentSummary !== 'Poids du corps' ? 'Poids du corps · '+equipmentSummary : 'Poids du corps'}</Text></View>
+      {!unrestricted?<View style={styles.equipmentScope}><Ionicons name="checkmark-circle-outline" size={17} color={colors.accent}/><Text style={[styles.muted,{flex:1}]}>Matériel de la séance : {equipmentSummary && equipmentSummary !== 'Poids du corps' ? 'Poids du corps · '+equipmentSummary : 'Poids du corps'}</Text></View>:null}
       {replacementId?<Text style={styles.muted}>Remplacer : {selectedRows.find(row=>row.id===replacementId)?.name??'mouvement sélectionné'}</Text>:null}
       {atCapacity&&!replacementId?<View style={styles.notice}><Text style={styles.tileTitle}>Bloc complet</Text><Text style={styles.muted}>Choisis le mouvement à remplacer.</Text>
         {selectedRows.map(row=><Pressable key={row.id} onPress={()=>onReplacement(row.id)} style={styles.row}><Text style={styles.rowTitle}>{row.name}</Text><Ionicons name="swap-horizontal-outline" size={20} color={colors.accent}/></Pressable>)}</View>:null}
@@ -73,11 +73,11 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
         {addableEquipment.map(item=>{const id=String(item.id),checked=pendingEquipment.includes(id);return <Pressable key={id} accessibilityRole="checkbox" accessibilityState={{checked}} onPress={()=>setPendingEquipment(old=>old.includes(id)?old.filter(x=>x!==id):[...old,id])} style={[styles.row,checked&&styles.activeTile]}>
           <Ionicons name="barbell-outline" size={21} color={colors.accent}/><View style={{flex:1}}><Text style={styles.rowTitle}>{item.name}</Text>{item.detail?<Text style={styles.muted}>{item.detail}</Text>:null}</View><Ionicons name={checked?'checkmark-circle':'ellipse-outline'} size={23} color={colors.accent}/></Pressable>;})}
       </>:choosingCategory?<><Text style={styles.section}>{view==='zone'?'Zones du corps':view==='type'?'Types d’entraînement':'Matériel'}</Text><View style={styles.grid}>
-        {categoryCard({key:'',label:view==='equipment'?'Tout mon matériel':'Tous les exercices',icon:'grid-outline'},facetCount(''),()=>chooseFacet(''),!activeFacet)}
+        {categoryCard({key:'',label:view==='equipment'?(unrestricted?'Tout le matériel':'Tout mon matériel'):'Tous les exercices',icon:'grid-outline'},facetCount(''),()=>chooseFacet(''),!activeFacet)}
         {facetOptions.map(item=>categoryCard(item,facetCount(item.key),()=>chooseFacet(item.key),activeFacet===item.key))}
-      </View>{view==='equipment'&&onAddEquipment?<Pressable accessibilityRole="button" onPress={openAddEquipment} style={styles.browse}><Ionicons name="add-circle-outline" size={23} color={colors.accent}/><View style={{flex:1}}><Text style={styles.filterLabel}>Ajouter du matériel</Text><Text style={styles.muted}>Modifier le matériel de cette séance</Text></View><Ionicons name="chevron-forward" size={18} color={colors.accent}/></Pressable>:null}</>:!listVisible?<Pressable accessibilityRole="button" style={styles.browse} onPress={()=>{clearFilters();results();}}><View style={styles.tileIcon}><Ionicons name="grid-outline" size={24} color={colors.accent}/></View><View style={{flex:1}}><Text style={styles.tileTitle}>Tous les exercices</Text><Text style={styles.muted}>{available.length} exercices compatibles avec ton matériel</Text></View><Ionicons name="chevron-forward" color={colors.accent} size={20}/></Pressable>:<>
+      </View>{view==='equipment'&&onAddEquipment?<Pressable accessibilityRole="button" onPress={openAddEquipment} style={styles.browse}><Ionicons name="add-circle-outline" size={23} color={colors.accent}/><View style={{flex:1}}><Text style={styles.filterLabel}>Ajouter du matériel</Text><Text style={styles.muted}>Modifier le matériel de cette séance</Text></View><Ionicons name="chevron-forward" size={18} color={colors.accent}/></Pressable>:null}</>:!listVisible?<Pressable accessibilityRole="button" style={styles.browse} onPress={()=>{clearFilters();results();}}><View style={styles.tileIcon}><Ionicons name="grid-outline" size={24} color={colors.accent}/></View><View style={{flex:1}}><Text style={styles.tileTitle}>Tous les exercices</Text><Text style={styles.muted}>{available.length} exercices{unrestricted?' disponibles':' compatibles avec ton matériel'}</Text></View><Ionicons name="chevron-forward" color={colors.accent} size={20}/></Pressable>:<>
         <Text style={styles.section}>{filtered.length} exercice{filtered.length!==1?'s':''}</Text>
-        {!filtered.length&&!loading?<Text style={styles.muted}>Aucun exercice compatible. Modifie tes filtres, ta recherche ou le matériel de la séance.</Text>:null}
+        {!filtered.length&&!loading?<Text style={styles.muted}>{unrestricted?'Aucun exercice trouvé. Modifie tes filtres ou ta recherche.':'Aucun exercice compatible. Modifie tes filtres, ta recherche ou le matériel de la séance.'}</Text>:null}
         {filtered.slice(0,limit).map(row=><View key={row.id} style={styles.row}>
           <Pressable accessibilityRole="button" accessibilityLabel={'Détails de '+row.name} onPress={()=>setDetailId(row.id)} style={styles.exerciseInfo}>
           <View style={styles.thumb}>{/^https?:\/\//i.test(String(row.imagePath??''))?<Image source={{uri:row.imagePath}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>:<Ionicons name="barbell-outline" size={23} color={colors.textSecondary}/>}</View>
@@ -91,7 +91,7 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
     </ScrollView>
     {detailExercise?<ExerciseDetail key={detailExercise.id} exercise={detailExercise} colors={colors} isDark={isDark} brandIcon={brandIcon}
       index={detailIndex} count={filtered.length} onClose={()=>setDetailId(null)} closeLabel="Retour aux exercices"
-      onSelect={selectFromDetail} selectLabel={replacementId?'Choisir ce remplacement':'Ajouter à la séance'} selectDisabled={!canSelect}
+      onSelect={selectFromDetail} selectLabel={replacementId?'Choisir ce remplacement':selectLabel} selectDisabled={!canSelect}
       selectHint={!canSelect?'Bloc complet : choisis d’abord un mouvement à remplacer.':null}
       onPrevious={detailIndex>0?()=>setDetailId(filtered[detailIndex-1].id):null}
       onNext={detailIndex<filtered.length-1?()=>setDetailId(filtered[detailIndex+1].id):null}/>:null}
