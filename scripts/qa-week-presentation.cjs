@@ -103,3 +103,15 @@ assert.match(service,/\.gte\('completed_at',start.toISOString\(\)\)\.lt\('comple
 assert.match(service,/if\(data.length<pageSize\)break/);
 require('@babel/parser').parse(today,{sourceType:'module',plugins:['jsx']});
 console.log('PASS independent same-day creation, exact identity, hidden empty Today section, multiple actuals and exact routing');
+
+const calendar=fs.readFileSync('src/components/dashboard/DashboardHistoryCalendarCoach.js','utf8');
+require('@babel/parser').parse(calendar,{sourceType:'module',plugins:['jsx']});
+const historyHelpers=new Function(calendar.slice(calendar.indexOf('function formatDateKey('),calendar.indexOf('function getMonthLabel('))+calendar.slice(calendar.indexOf('function historyDateFromKey('),calendar.indexOf('function isSameMonth('))+';return {historyDateFromKey,distinctHistorySessions};')();
+assert.equal(historyHelpers.historyDateFromKey('2026-02-31'),null);
+assert.equal(historyHelpers.historyDateFromKey('2026-11-26').getDate(),26);
+assert.deepEqual(historyHelpers.distinctHistorySessions([{id:'b',completed_at:'2026-11-26T18:00:00Z'},{id:'a',completed_at:'2026-11-26T07:00:00Z'},{id:'b'}]).map(x=>x.id),['a','b']);
+assert.match(calendar,/getTodayCompletedSessions\(date\)/);
+assert.match(calendar,/if\(rows.length===1\)\{openHistorySession\(rows\[0\].id\)/);
+assert.match(calendar,/onPress=\{\(\)=>openHistorySession\(row.id\)\}/);
+assert.match(calendar,/onPress=\{\(\) => handleCalendarDayPress\(item\)\}/);
+console.log('PASS history: exact local day, all completed identities, single-session direct access and multi-session selection');

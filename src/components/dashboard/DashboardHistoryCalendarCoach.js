@@ -1,7 +1,8 @@
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
+  ScrollView,
   Pressable,
   StyleSheet,
   Text,
@@ -9,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { getDashboardSnapshot } from '../../services/weeklyPlanService';
+import { getDashboardSnapshot, getTodayCompletedSessions } from '../../services/weeklyPlanService';
 
 const CALENDAR_DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
@@ -67,6 +68,24 @@ function createMonthCalendar(displayedMonth, monthSessions) {
   return cells;
 }
 
+function historyDateFromKey(key) {
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(key??'')))return null;
+  const [year,month,day]=key.split('-').map(Number);
+  const date=new Date(year,month-1,day,12);
+  return formatDateKey(date)===key?date:null;
+}
+
+function distinctHistorySessions(rows) {
+  const unique=new Map();
+  for(const row of rows??[])if(row?.id&&!unique.has(row.id))unique.set(row.id,row);
+  return [...unique.values()].sort((a,b)=>String(a.completed_at??'').localeCompare(String(b.completed_at??''))||String(a.id).localeCompare(String(b.id)));
+}
+
+function historyTitle(row) {
+  const labels={Strength:'Force',Conditioning:'Conditioning','General Fitness':'Entraînement',Upper:'Haut du corps',Lower:'Jambes',Back:'Dos',Core:'Abdos / gainage','Full Body':'Full body'};
+  return [row.focus,row.target_region].filter(Boolean).map(value=>labels[value]??value).join(' · ')||'Séance';
+}
+
 function isSameMonth(left, right) {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -91,6 +110,8 @@ export default function DashboardHistoryCalendarCoach({
   );
   const [monthLoading, setMonthLoading] = useState(false);
   const [monthError, setMonthError] = useState(false);
+  const [historySelection,setHistorySelection]=useState(null);
+  const historyRequest=useRef(0);
 
   useEffect(() => {
     if (isSameMonth(displayedMonth, new Date())) {
@@ -130,9 +151,32 @@ export default function DashboardHistoryCalendarCoach({
     }
   }
 
-  function handleCalendarDayPress(item) {
-    if (!item.completed || !item.sessionId) return;
-    router.push(`/workout/${item.sessionId}`);
+  function closeHistorySelection(){
+    historyRequest.current+=1;
+    setHistorySelection(null);
+  }
+
+  function openHistorySession(id){
+    closeHistorySelection();
+    onCompletedDayPress({completed:true,sessionId:id});
+  }
+
+  async function handleCalendarDayPress(item) {
+    if(!item.completed)return;
+    const date=historyDateFromKey(item.key);
+    if(!date)return;
+    const request=++historyRequest.current;
+    setHistorySelection({date,loading:true,rows:[]});
+    try{
+      const rows=distinctHistorySessions(await getTodayCompletedSessions(date));
+      if(request!==historyRequest.current)return;
+      if(rows.length===1){openHistorySession(rows[0].id);return;}
+      setHistorySelection({date,loading:false,rows,error:rows.length===0?'Aucune séance retrouvée pour cette date.':null});
+    }catch(error){
+      if(request!==historyRequest.current)return;
+      console.warn('Coach dashboard history day',error);
+      setHistorySelection({date,loading:false,rows:[],error:'Impossible de charger les séances de cette journée.'});
+    }
   }
 
   return (
@@ -176,7 +220,7 @@ export default function DashboardHistoryCalendarCoach({
           <Pressable
             key={item.key}
             disabled={!item.completed}
-            onPress={() => onCompletedDayPress(item)}
+            onPress={() => handleCalendarDayPress(item)}
             style={[styles.dayItem, item.today && styles.dayItemToday]}
           >
             <Text style={[styles.dayLabel, item.today && styles.dayLabelToday]}>
@@ -314,10 +358,35 @@ export default function DashboardHistoryCalendarCoach({
           <Text style={styles.calendarInstruction}>
             {monthError
               ? 'Impossible de charger ce mois. Réessaie avec les flèches.'
-              : 'Appuie sur un jour coché pour revoir la séance réalisée.'}
+              : 'Appuie sur un jour coché pour revoir tes séances.'}
           </Text>
         </View>
       ) : null}
+
+      <Modal visible={Boolean(historySelection)} transparent animationType="fade" onRequestClose={closeHistorySelection}>
+        <View style={styles.historyOverlay}>
+          <View style={styles.historySheet}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyHeading}>{historySelection?.date?.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})??'Mes séances'}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={closeHistorySelection} hitSlop={10}>
+                <Ionicons name="close" size={22} color={palette.text}/>
+              </Pressable>
+            </View>
+            {historySelection?.loading?<ActivityIndicator color={palette.accent} style={styles.historyLoading}/>:null}
+            {historySelection?.error?<Text style={styles.historyMeta}>{historySelection.error}</Text>:null}
+            <ScrollView style={styles.historyScroll} showsVerticalScrollIndicator={false}>
+              {(historySelection?.rows??[]).map(row=><Pressable key={row.id} accessibilityRole="button" onPress={()=>openHistorySession(row.id)} style={styles.historyRow}>
+                <Ionicons name="checkmark-circle-outline" size={21} color={palette.accent}/>
+                <View style={{flex:1}}>
+                  <Text style={styles.historyTitle}>{historyTitle(row)}</Text>
+                  <Text style={styles.historyMeta}>{[row.completed_at?new Date(row.completed_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):null,Number(row.duration_minutes)>0?row.duration_minutes+' min':null].filter(Boolean).join(' · ')}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
+              </Pressable>)}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -547,6 +616,15 @@ function createStyles(p) {
       color: p.textSecondary,
       textAlign: 'center',
     },
+    historyOverlay:{flex:1,justifyContent:'center',padding:20,backgroundColor:'rgba(0,0,0,0.55)'},
+    historySheet:{width:'100%',maxWidth:460,maxHeight:'75%',alignSelf:'center',backgroundColor:p.surfaceElevated,borderRadius:18,borderWidth:1,borderColor:p.border,padding:16},
+    historyHeader:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:10,marginBottom:12},
+    historyHeading:{flex:1,fontFamily:'Manrope_700Bold',fontSize:15,color:p.text,textTransform:'capitalize'},
+    historyScroll:{flexGrow:0},
+    historyLoading:{marginVertical:16},
+    historyRow:{minHeight:55,flexDirection:'row',alignItems:'center',gap:9,paddingVertical:9,borderBottomWidth:1,borderBottomColor:p.border},
+    historyTitle:{fontFamily:'Manrope_600SemiBold',fontSize:13,color:p.text},
+    historyMeta:{fontFamily:'Manrope_400Regular',fontSize:11,color:p.textMuted,marginTop:3},
     pressed: { opacity: 0.68 },
   });
 }
