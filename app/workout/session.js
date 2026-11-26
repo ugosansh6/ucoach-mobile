@@ -2,6 +2,7 @@ import { composerRecordedInstanceIds } from '../../src/utils/composerPlayerProgr
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 
 import SessionCore from './session-core';
@@ -73,13 +74,24 @@ function verifyPlanBReplacement({ sourceWorkout, result, nextWorkout }) {
   }
 }
 
+// The root WorkoutContext is shared by all stack entries. A hidden Player
+// must never reload its old route identity over the currently visible Player.
 export default function SessionScreen() {
+  const isFocused = useIsFocused();
+  return isFocused ? <FocusedSessionScreen /> : null;
+}
+
+function FocusedSessionScreen() {
+  const navigation = useNavigation();
   const { workout, updateWorkout, setGeneratedWorkout, setGeneratedWorkoutPreservingProgress } = useWorkout();
   const routeParams = useLocalSearchParams();
   const routeSessionId = Array.isArray(routeParams?.sessionId)
     ? routeParams.sessionId[0]
     : routeParams?.sessionId;
-  const targetSessionId = String(routeSessionId || workout?.sessionId || '').trim();
+  const [replacementSessionId, setReplacementSessionId] = useState(null);
+  const targetSessionId = String(replacementSessionId || routeSessionId || workout?.sessionId || '').trim();
+  const closedCurrentSession = targetSessionId === workout?.sessionId &&
+    (workout?.sessionClosed || ['completed','abandoned'].includes(workout?.status));
   const playerDataReady = Boolean(
     targetSessionId && targetSessionId === workout?.sessionId && hasPlayableSessionBlocks(workout)
   );
@@ -136,9 +148,13 @@ export default function SessionScreen() {
     setPlayerReload({ status: 'loading', sessionId: targetSessionId, error: null });
     reloadWorkoutSession({
       sessionId: targetSessionId,
-      preparationSnapshot: workout?.preparationSnapshot ?? null,
+      preparationSnapshot: workout?.sessionId === targetSessionId ? workout?.preparationSnapshot ?? null : null,
     }).then((restored) => {
-      if (cancelled) return;
+      if (cancelled || !navigation.isFocused()) return;
+      if (restored?.sessionId === targetSessionId && restored?.sessionClosed) {
+        setPlayerReload({status:'error',sessionId:targetSessionId,error:'Cette séance est déjà terminée ou fermée. Retrouve-la dans ton historique.'});
+        return;
+      }
       if (restored?.sessionId !== targetSessionId || !hasPlayableSessionBlocks(restored)) {
         setPlayerReload({
           status: 'error', sessionId: targetSessionId,
@@ -151,6 +167,7 @@ export default function SessionScreen() {
       setPlayerReload({ status: 'ready', sessionId: targetSessionId, error: null });
     }).catch((error) => {
       if (cancelled) return;
+      if (!navigation.isFocused()) return;
       console.warn('[Player] session hydration failed', error);
       setPlayerReload({
         status: 'error', sessionId: targetSessionId,
@@ -158,7 +175,7 @@ export default function SessionScreen() {
       });
     });
     return () => { cancelled = true; };
-  }, [targetSessionId, playerDataReady, playerRetry, setGeneratedWorkoutPreservingProgress]);
+  }, [targetSessionId, playerDataReady, playerRetry, setGeneratedWorkoutPreservingProgress, navigation]);
 
   // Le backend est l'autorité du cycle de vie. On hydrate explicitement l'état
   // avant d'autoriser un player local à enregistrer une exécution ou à révéler le WOD.
@@ -169,7 +186,7 @@ export default function SessionScreen() {
     setLifecycleReady(false);
     setLifecycleSessionId(null);
 
-    if (!sessionId) {
+    if (!sessionId || sessionId !== targetSessionId || !playerDataReady || closedCurrentSession) {
       return () => {
         cancelled = true;
       };
@@ -177,7 +194,7 @@ export default function SessionScreen() {
 
     getWorkoutSessionLifecycle(sessionId)
       .then((lifecycle) => {
-        if (cancelled || lifecycle?.sessionId !== sessionId) return;
+        if (cancelled || !navigation.isFocused() || lifecycle?.sessionId !== sessionId) return;
 
         updateWorkout({
           sessionStarted: Boolean(lifecycle?.sessionStarted),
@@ -211,7 +228,7 @@ export default function SessionScreen() {
     return () => {
       cancelled = true;
     };
-  }, [workout?.sessionId]);
+  }, [workout?.sessionId, targetSessionId, playerDataReady, closedCurrentSession, navigation]);
 
   const lifecycleReadyForCurrentSession = Boolean(
     lifecycleReady &&
@@ -273,10 +290,10 @@ export default function SessionScreen() {
   const canChangeSkill = canRegeneratePlanB && hasSkill;
 
   useEffect(() => {
-    if (!playerDataReady || !workout?.sessionId || overviewShownForSessionRef.current === workout.sessionId) return;
+    if (!playerDataReady || closedCurrentSession || !lifecycleReadyForCurrentSession || !workout?.sessionId || overviewShownForSessionRef.current === workout.sessionId) return;
     overviewShownForSessionRef.current = workout.sessionId;
     if (!progressRecorded && !hasResumeCursor) setOverviewOpen(true);
-  }, [hasResumeCursor, playerDataReady, progressRecorded, workout?.sessionId]);
+  }, [hasResumeCursor, playerDataReady, closedCurrentSession, lifecycleReadyForCurrentSession, progressRecorded, workout?.sessionId]);
 
   useEffect(() => {
     if ((progressRecorded || authoritativeSessionStarted) && planBOpen) setPlanBOpen(false);
@@ -316,6 +333,7 @@ export default function SessionScreen() {
     try {
       setStartBusy(true);
       const result = await markWorkoutSessionStarted({ sessionId: workout.sessionId });
+      if (!navigation.isFocused()) return;
 
       if (result?.status === 'STALE_SESSION_REQUIRES_RECHECKIN') {
         Alert.alert(
@@ -362,6 +380,10 @@ export default function SessionScreen() {
       });
 
       verifyPlanBReplacement({ sourceWorkout, result, nextWorkout });
+      if (!navigation.isFocused()) return {ok:false,error:'La séance a changé. Reviens au Player.'};
+      // A replacement is a new session identity, not a reload of the previous URL.
+      setReplacementSessionId(nextWorkout.sessionId);
+      router.setParams({sessionId:nextWorkout.sessionId});
       setGeneratedWorkout({ ...nextWorkout, playerCursor: null });
       setPlanBOpen(false);
       setOverviewOpen(true);
@@ -400,6 +422,10 @@ export default function SessionScreen() {
       });
 
       verifyPlanBReplacement({ sourceWorkout, result, nextWorkout });
+      if (!navigation.isFocused()) return {ok:false,error:'La séance a changé. Reviens au Player.'};
+      // A replacement is a new session identity, not a reload of the previous URL.
+      setReplacementSessionId(nextWorkout.sessionId);
+      router.setParams({sessionId:nextWorkout.sessionId});
       setGeneratedWorkout({ ...nextWorkout, playerCursor: null });
       setPlanBOpen(false);
       setOverviewOpen(true);
@@ -440,9 +466,8 @@ export default function SessionScreen() {
     showPlanB: showPlanBEntry,
   };
 
-  if (!playerDataReady || playerReload.status !== 'ready' ||
-      playerReload.sessionId !== targetSessionId) {
-    const failed = playerReload.status === 'error';
+  if (closedCurrentSession || !playerDataReady) {
+    const failed = closedCurrentSession || (playerReload.status === 'error' && playerReload.sessionId === targetSessionId);
     return (
       <View style={[styles.root, {
         backgroundColor: colors.background,
@@ -450,9 +475,9 @@ export default function SessionScreen() {
       }]}>
         {failed ? null : <ActivityIndicator color={colors.accent} size="large" />}
         <Text style={{ color: colors.text, textAlign: 'center', marginTop: 20 }}>
-          {failed ? playerReload.error : 'Chargement de ta séance enregistrée…'}
+          {closedCurrentSession ? 'Cette séance est déjà terminée ou fermée. Retrouve-la dans ton historique.' : failed ? playerReload.error : 'Chargement de ta séance enregistrée…'}
         </Text>
-        {failed && targetSessionId ? (
+        {failed && !closedCurrentSession && targetSessionId ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => setPlayerRetry((value) => value + 1)}
@@ -464,10 +489,10 @@ export default function SessionScreen() {
         {failed ? (
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.replace('/workout/preparation')}
+            onPress={() => router.replace(closedCurrentSession ? '/(tabs)' : '/workout/preparation')}
             style={{ padding: 14, marginTop: 8 }}
           >
-            <Text style={{ color: colors.text }}>Revenir au check-in</Text>
+            <Text style={{ color: colors.text }}>{closedCurrentSession ? 'Revenir à Aujourd’hui' : 'Revenir au check-in'}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -479,11 +504,12 @@ export default function SessionScreen() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {usesSpecializedEnvironmentRuntime ? (
         <EnvironmentSessionCore
+          key={targetSessionId}
           environmentCode={environmentCode}
           {...commonPlayerActions}
         />
       ) : (
-        <SessionCore {...commonPlayerActions} />
+        <SessionCore key={targetSessionId} {...commonPlayerActions} />
       )}
 
       <SessionOverviewSheet

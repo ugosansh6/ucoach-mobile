@@ -115,3 +115,25 @@ assert.match(calendar,/if\(rows.length===1\)\{openHistorySession\(rows\[0\].id\)
 assert.match(calendar,/onPress=\{\(\)=>openHistorySession\(row.id\)\}/);
 assert.match(calendar,/onPress=\{\(\) => handleCalendarDayPress\(item\)\}/);
 console.log('PASS history: exact local day, all completed identities, single-session direct access and multi-session selection');
+
+const player=fs.readFileSync('app/workout/session.js','utf8');
+require('@babel/parser').parse(player,{sourceType:'module',plugins:['jsx']});
+const playerAST=require('@babel/parser').parse(player,{sourceType:'module',plugins:['jsx']});
+const wrapper=playerAST.program.body.find(node=>node.type==='ExportDefaultDeclaration'&&node.declaration.id?.name==='SessionScreen').declaration;
+const focusReturn=wrapper.body.body.find(node=>node.type==='ReturnStatement').argument;
+assert.equal(focusReturn.type,'ConditionalExpression');
+assert.equal(focusReturn.test.name,'isFocused');
+assert.equal(focusReturn.consequent.openingElement.name.name,'FocusedSessionScreen');
+assert.equal(focusReturn.alternate.type,'NullLiteral');
+// The retained first route cannot mount a context-writing Player when the second route owns focus.
+const ownsPlayer=new Function('isFocused','return '+focusReturn.test.name+' ? "mounted" : null;');
+assert.deepEqual([ownsPlayer(false),ownsPlayer(true)],[null,'mounted']);
+assert.match(player,/cancelled \|\| !navigation.isFocused\(\)/);
+assert.match(player,/sessionId !== targetSessionId \|\| !playerDataReady/);
+assert.match(player,/preparationSnapshot: workout\?\.sessionId === targetSessionId \?/);
+assert.match(player,/if \(closedCurrentSession \|\| !playerDataReady\)/);
+assert.equal((player.match(/router.setParams\(\{sessionId:nextWorkout.sessionId\}\)/g)??[]).length,2);
+assert.match(player,/key=\{targetSessionId\}/);
+const playerService=fs.readFileSync('src/services/workoutService.js','utf8');
+assert.match(playerService,/sessionClosed: \['completed','abandoned'\].includes\(data\?\.status\)/);
+console.log('PASS player identity: inactive stack entries unmounted, exact focus-owned hydration, no loading flash on ready data, Plan B route identity');

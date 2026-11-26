@@ -2050,6 +2050,8 @@ export async function reloadWorkoutSession({
 
   return {
     ...enriched,
+    status: data?.status ?? 'generated',
+    sessionClosed: ['completed','abandoned'].includes(data?.status),
     sessionStarted:
       data?.status === 'in_progress' ||
       Boolean(data?.started_at),
