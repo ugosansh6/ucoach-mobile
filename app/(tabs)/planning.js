@@ -416,7 +416,6 @@ function IntentDetails({ item, dateKey, palette, onImport }) {
 }
 
 function SessionDetails({ item, exercises, palette, onOpen, opening }) {
-  const meta = getMeta(item);
   const preview = Array.isArray(exercises) ? exercises.slice(0, 6) : [];
   return (
     <View style={[styles.detailPanel, { borderColor: palette.border }]}> 
@@ -426,7 +425,7 @@ function SessionDetails({ item, exercises, palette, onOpen, opening }) {
           <Text style={[styles.exercisePreviewLine, { color: palette.text }]}>{preview.map((exercise) => exercise.name).join('  ·  ')}</Text>
         </View>
       ) : (
-        null
+        <Text style={[styles.detailBody,{color:palette.textMuted}]}>Aucun aperçu disponible.</Text>
       )}
       {item?.displayState !== 'REALISEE' ? (
         <View style={{ marginTop: 15 }}>
@@ -532,12 +531,13 @@ function DaySection({
         }}
         accessibilityRole="button"
       >
-        <Text style={[styles.dayName, { color: isToday ? palette.orange : palette.textMuted }]}>{day.label}</Text>
+        <Text style={[styles.dayName, { color: isToday ? palette.todayDate : palette.textMuted }]}>{day.label}</Text>
         <View style={[
           styles.dayNumberWrap,
         ]}> 
-          <Text style={[styles.dayNumber, { color: isToday ? palette.orange : isPast ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
+          <Text style={[styles.dayNumber, { color: isToday ? palette.todayDate : isPast ? palette.textMuted : palette.text }]}>{day.date.getDate()}</Text>
         </View>
+        {isToday?<View style={[styles.todayDateMarker,{backgroundColor:palette.orange}]} accessible={false}/>:null}
       </Pressable>
       <View style={styles.dayContent}>
         {day.items.length === 0 ? (
@@ -764,7 +764,8 @@ export default function PlanningScreen() {
     onAccent: colors.textOnAccent, intent: colors.textSecondary, intentSoft: colors.surface,
     session: colors.accent, done: colors.textSecondary, dropTarget: colors.accentSoft,
     pastDay: colors.surface, pastDayIcon: colors.surfacePressed,
-  }), [colors]);
+    todayDate: isDark ? colors.secondaryAccent : colors.text,
+  }), [colors, isDark]);
 
   useEffect(() => {
     if (action === 'new') router.replace('/workout/builder');
@@ -1209,6 +1210,7 @@ const styles = StyleSheet.create({
   dayName: { fontFamily:fontFamilies.semiBold,fontSize:11,lineHeight:15,letterSpacing:0.7 },
   dayNumberWrap:{minWidth:40,alignItems:'center',justifyContent:'center'},
   dayNumber:{fontFamily:fontFamilies.display,fontSize:34,lineHeight:38},
+  todayDateMarker:{height:3,width:20,borderRadius:2,marginTop:3},
   dayContent: { flex: 1, minWidth: 0, gap: 9 },
   objectWrap: { width: '100%' },
   objectMoving: { opacity: 0.48 },

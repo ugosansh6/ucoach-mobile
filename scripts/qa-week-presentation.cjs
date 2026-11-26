@@ -13,6 +13,8 @@ assert.match(ui,/orange: colors.secondaryAccent/);
 assert.match(ui,/completedActualCount/);
 assert.match(ui,/day.items.some\(item=>item.displayState==='REALISEE'\)/);
 assert.match(ui,/hero = isToday && !done/);
+assert.match(ui,/todayDate: isDark \? colors.secondaryAccent : colors.text/);
+assert.match(ui,/styles.todayDateMarker/);
 assert.match(ui,/if \(isPast\) return/);
 assert.match(ui,/onDrop=\{onDragDrop\}/);
 assert.match(ui,/onPress=\{onRequestRemove\}/);
