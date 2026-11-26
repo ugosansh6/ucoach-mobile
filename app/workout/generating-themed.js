@@ -374,7 +374,7 @@ export default function GeneratingThemedScreen() {
               <Text style={styles.dangerButtonText}>RECALCULER LES ÉLÉMENTS RESTANTS</Text>
             </Pressable>
           ) : null}
-          <Pressable onPress={() => router.replace('/workout/preparation')} style={styles.secondaryButton}>
+          <Pressable onPress={() => router.replace(generationMode==='composer'?{pathname:'/workout/preparation',params:{date:composerLocalDate,planItemId:composerPlanItemId}}:'/workout/preparation')} style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonText}>RETOUR AU CHECK-IN</Text>
           </Pressable>
         </View>
@@ -392,7 +392,7 @@ export default function GeneratingThemedScreen() {
         bounces={false}
       >
         <View style={styles.header}>
-          <Pressable onPress={() => router.replace('/workout/preparation')} style={styles.backButton}>
+          <Pressable onPress={() => router.replace(generationMode==='composer'?{pathname:'/workout/preparation',params:{date:composerLocalDate,planItemId:composerPlanItemId}}:'/workout/preparation')} style={styles.backButton}>
             <Ionicons name="arrow-back" size={22} color={colors.text} />
           </Pressable>
           <View style={styles.headerSpacer} />

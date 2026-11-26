@@ -20,7 +20,7 @@ import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 import { useWorkout } from '../../contexts/WorkoutContext';
 import dashboardDarkHero from '../../assets/dashboard-dark-hero';
 import { getCurrentProfile } from '../../services/profileService';
-import { getDashboardSnapshot } from '../../services/weeklyPlanService';
+import { getDashboardSnapshot, getLocalDateKey } from '../../services/weeklyPlanService';
 import { reloadWorkoutSession } from '../../services/workoutService';
 import DashboardHistoryCalendarCoach from './DashboardHistoryCalendarCoach';
 
@@ -530,6 +530,13 @@ export default function DashboardCoachV6Screen() {
             <PagerTrack activeIndex={activePanel} onSelect={goToPanel} styles={styles} />
           </View>
 
+          <Pressable accessibilityRole="button" onPress={()=>router.push({pathname:'/workout/preparation',params:{entry:'week_assisted',date:getLocalDateKey(),origin:'week_additional'}})}
+            style={({pressed})=>[styles.additionalToday,pressed&&styles.pressed]}>
+            <Ionicons name="add" size={20} color={palette.accent}/>
+            <Text style={styles.additionalTodayText}>Ajouter une séance aujourd’hui</Text>
+            <Ionicons name="chevron-forward" size={17} color={palette.textMuted}/>
+          </Pressable>
+
           <DashboardHistoryCalendarCoach
             week={week}
             completed={completedSessions}
@@ -566,6 +573,8 @@ function createStyles(p, isDark) {
     content: { paddingHorizontal: 18, paddingTop: 0, paddingBottom: 118 },
     contentInsideTabs: { paddingBottom: 34 },
 
+    additionalToday:{minHeight:48,flexDirection:'row',alignItems:'center',gap:8,borderBottomWidth:1,borderBottomColor:p.border,marginBottom:12},
+    additionalTodayText:{flex:1,fontFamily:'Manrope_600SemiBold',fontSize:13,color:p.text},
     loadingScreen: {
       flex: 1,
       alignItems: 'center',

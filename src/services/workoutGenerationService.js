@@ -380,7 +380,7 @@ export async function finalizeComposerWorkoutSession({
   if (localDate !== localDateKey()) {
     throw new Error('La séance composée ne peut être finalisée que le jour prévu.');
   }
-  const planned = await getComposerForLocalDate(localDate);
+  const planned = await getComposerForLocalDate(localDate, planItemId);
   if (!planned || planned.planItemId !== planItemId) {
     throw new Error('La composition du jour est introuvable : reviens dans Ma semaine.');
   }

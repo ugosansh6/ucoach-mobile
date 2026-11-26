@@ -351,3 +351,7 @@ Software verification and its limits: [shared WOD delivery report](COMPOSER_SHAR
 ## Preview placement and hierarchy — 19 November 2026 (#40)
 
 Ugo validated the compact WOD preview and explicitly requested it immediately below the selected mechanic. Keep the selected option first, with its preview directly after the radio card and before complementary options. Use one main protocol instruction, a concise time line, aligned movement/dose rows and a short Day-J note. Reserved-time explanations belong behind an accessible information control. Preserve computed quantities, per-side semantics, loading/stale/error guards and both theme palettes. This is a presentation change, not a new prescription rule.
+
+### Plusieurs séances par jour — décision du 26/11/2026
+
+Ajout explicite depuis Ma semaine et Aujourd’hui : le créneau et la composition sont enregistrés ensemble, avec identité de requête pour empêcher un doublon lors d'une relance. Une création supplémentaire ne sélectionne jamais une composition déjà présente. L'import utilise la même capacité de création, limite existante de cinq créneaux conservée ; chaque séance reste déplaçable, modifiable et retirable indépendamment. Jour J : sélection explicite parmi plusieurs compositions, et relecture exacte par plan_item_id avant compilation. Verrous de génération partagés ; une autre séance ouverte bloque la compilation sans abandon automatique. Aucune nouvelle limite quotidienne ni règle de charge. Création libre datée demeure bloquée pour les dates futures (chantier distinct).

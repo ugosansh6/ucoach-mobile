@@ -87,9 +87,10 @@ import {
   getComposerSkillProposal,
   getComposerAutomaticSkillProposal,
   saveComposerDraft,
+  createAndSaveComposer,
+  newComposerCreationRequest,
 } from '../services/composerService';
 import {
-  createAssistedWeekPlanItem,
   getWeekReadContract,
   getWeekViewDate,
 } from '../services/weeklyPlanService';
@@ -565,6 +566,9 @@ export default function WeekComposerV7() {
   const params = useLocalSearchParams();
   const dateKey = firstParam(params?.date);
   const requestedPlanItemId = firstParam(params?.planItemId) ?? null;
+  const explicitAdditional = firstParam(params?.origin)==='week_additional';
+  const creationRequest=useRef(null);
+  const savingRef=useRef(false);
   const requestedModelId = firstParam(params?.modelId) ?? null;
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -725,7 +729,8 @@ export default function WeekComposerV7() {
         if(requestedModelId&&!canReusePersonalModel(imported))throw new Error('Ce modèle est introuvable ou doit être complété.');
         const item = requestedModelId?null:requestedPlanItemId
           ? candidates.find((candidate) => candidate.planItemId === requestedPlanItemId) ?? null
-          : candidates[0] ?? null;
+          : explicitAdditional?null:candidates.length===1?candidates[0]:null;
+        if(!requestedPlanItemId&&!requestedModelId&&!explicitAdditional&&candidates.length>1)throw new Error('Choisis la séance à modifier dans Ma semaine.');
         if(requestedPlanItemId&&!requestedModelId&&!item)throw new Error('Cette séance n’est plus disponible à cette date.');
         const saved=item?.planItemId?await getComposerForLocalDate(dateKey,item.planItemId):null;
         if(!active)return;
@@ -870,7 +875,7 @@ export default function WeekComposerV7() {
     }
     load();
     return () => { active = false; };
-  }, [dateKey, requestedPlanItemId, requestedModelId, params?.repair, params?.repairBlock]);
+  }, [dateKey, requestedPlanItemId, requestedModelId, explicitAdditional, params?.repair, params?.repairBlock]);
 
   async function chooseEnvironment(code) {
     setEnvironmentCode(code);
@@ -894,7 +899,7 @@ export default function WeekComposerV7() {
 
   function openProfileEquipment() {
     setSheet(null);
-    const returnTo = `/workout/preparation?entry=week_assisted&date=${encodeURIComponent(String(dateKey ?? ''))}${requestedPlanItemId ? `&planItemId=${encodeURIComponent(String(requestedPlanItemId))}` : ''}`;
+    const returnTo = `/workout/preparation?entry=week_assisted&date=${encodeURIComponent(String(dateKey ?? ''))}${requestedPlanItemId ? `&planItemId=${encodeURIComponent(String(requestedPlanItemId))}` : ''}${explicitAdditional?'&origin=week_additional':''}${requestedModelId?`&modelId=${encodeURIComponent(String(requestedModelId))}`:''}`;
     router.push({
       pathname: '/profile/equipment',
       params: { returnTo, environment: environmentCode, view: 'categories' },
@@ -1509,6 +1514,8 @@ export default function WeekComposerV7() {
   }, [loading, step, strengthRequestSignature]);
 
   async function addToWeek({ confirmReplacement = false } = {}) {
+    if(savingRef.current)return;
+    savingRef.current=true;
     try {
       setBusy(true);
       setError('');
@@ -1524,24 +1531,22 @@ export default function WeekComposerV7() {
         ...(outdoorEngine ? { surface_code: outdoorContext.surface_code, outdoor_place_code: outdoorContext.place_code } : {}),
         target_region: targetRegion,
       };
-      let planItemId = selectedItem?.planItemId ?? null;
-      if (!planItemId) {
-        const created = await createAssistedWeekPlanItem({ recommendedDate: dateKey, context });
-        planItemId = created?.planItemId ?? null;
-        if (planItemId) setSelectedItem((item) => ({ ...(item ?? {}), planItemId }));
-      }
-      if (!planItemId) throw new Error('Impossible de créer le créneau de semaine.');
-
+      const planItemId = selectedItem?.planItemId ?? null;
       const draft = { ...buildCurrentDraft(), prescription_preview: prescriptionPreview };
-      const saved = await saveComposerDraft({ planItemId, draft, context, confirmReplacement });
+      if(!planItemId&&!creationRequest.current)creationRequest.current=newComposerCreationRequest();
+      const saved = planItemId
+        ? await saveComposerDraft({ planItemId, draft, context, confirmReplacement })
+        : await createAndSaveComposer({dateKey,draft,context,requestId:creationRequest.current});
       if (saved?.status === 'CONFIRM_REPLACEMENT_REQUIRED') { setSheet('confirm-revision'); return; }
       if (saved?.status !== 'SAVED') throw new Error('La séance n’a pas pu être enregistrée.');
+      if(!planItemId&&saved?.plan_item_id)setSelectedItem(item=>({...item,planItemId:saved.plan_item_id}));
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/planning');
     } catch (saveError) {
       console.warn('[WeekComposerV7] save failed', saveError);
       setError(requestedModelId&&/already planned on this day/.test(String(saveError?.message))?'Une séance est déjà planifiée ce jour. Reviens à Mes modèles et choisis un jour libre.':saveError?.message ?? 'Impossible d’ajouter cette séance à Ma semaine.');
     } finally {
+      savingRef.current=false;
       setBusy(false);
     }
   }

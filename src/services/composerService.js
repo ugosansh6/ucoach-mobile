@@ -735,6 +735,33 @@ export async function saveComposerDraft({ planItemId, draft, context = null, con
  * Day-J read of a saved Composer structure. A Composer draft is not itself a
  * playable workout session; the future finalizer must materialize it first.
  */
+export function newComposerCreationRequest() {
+  // Retry identity, not a security credential.
+  return 'composer-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);
+}
+
+export async function createAndSaveComposer({dateKey,draft,context,requestId}) {
+  if(!requestId)throw new Error('Identifiant de création requis.');
+  const user=await getAuthenticatedUserWithRetry();
+  return runSupabaseRequestWithAuthRetry(()=>supabase.rpc('week_create_composer_plan_v1',{
+    p_user_id:user.id,p_date:dateKey,p_draft:draft,p_context:context,p_request_id:requestId,
+  }));
+}
+
+function normalizeSavedComposer(data) {
+  return {
+    planItemId:data.plan_item_id,sessionId:data.session_id??null,status:data.status,date:data.local_date,
+    draft:data.composer_draft??{},preferences:readComposerPreferences(data.composer_draft??{}),futureContext:data.future_context??{},
+  };
+}
+export async function listComposersForLocalDate(dateKey) {
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey??'')))throw new Error('Date de séance invalide.');
+  await getAuthenticatedUserWithRetry();
+  const data=await runSupabaseRequestWithAuthRetry(()=>supabase.rpc('week_list_composer_for_day_v1',{p_local_date:dateKey}));
+  if(!Array.isArray(data))throw new Error('Liste des séances indisponible.');
+  return data.map(normalizeSavedComposer);
+}
+
 export async function getComposerForLocalDate(dateKey, planItemId = null) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey ?? ''))) {
     throw new Error('Invalid local date for Composer.');
@@ -746,15 +773,8 @@ export async function getComposerForLocalDate(dateKey, planItemId = null) {
       : supabase.rpc('week_read_composer_for_day_v1', {p_user_id:user.id,p_local_date:dateKey})
   );
   if (!data?.found) return null;
-  return {
-    planItemId: data.plan_item_id,
-    sessionId: data.session_id ?? null,
-    status: data.status,
-    date: data.local_date,
-    draft: data.composer_draft ?? {},
-    preferences: readComposerPreferences(data.composer_draft ?? {}),
-    futureContext: data.future_context ?? {},
-  };
+  if(data.local_date!==dateKey||(planItemId&&data.plan_item_id!==planItemId))throw new Error('La séance ne correspond plus à la date sélectionnée.');
+  return normalizeSavedComposer(data);
 }
 
 export async function getComposerArchitectureProposal({ durationMinutes, environmentCode, outdoorContext = null, skillTargetPath = null }) {

@@ -349,6 +349,7 @@ function ActionButton({ label, icon, primary = false, palette, onPress }) {
 
 function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimit = false, futureWeek = false, prepared = false }) {
   const blocked = !planItemId && atLimit;
+  const plannedLater=dateKey>toLocalDateKey(new Date());
   return (
     <View style={styles.creationActions}>
       <Pressable accessibilityRole="button" accessibilityState={{disabled:blocked}} disabled={blocked}
@@ -363,10 +364,10 @@ function CreationActions({ dateKey, planItemId = null, palette, onImport, atLimi
         <Ionicons name="arrow-forward" size={19} color={blocked?palette.textMuted:palette.onAccent}/>
       </Pressable>
       <View style={styles.creationSecondaryRow}>
-        <Pressable accessibilityRole="button" accessibilityState={{disabled:futureWeek}} disabled={futureWeek} style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]}
+        <Pressable accessibilityRole="button" accessibilityState={{disabled:plannedLater}} disabled={plannedLater} style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]}
           onPress={() => router.push({ pathname: '/workout/builder', params: { date: dateKey, entry: 'week_free' } })}>
-          <Text style={[styles.creationTitle,{color:futureWeek?palette.textMuted:palette.text,textAlign:'center'}]}>Créer librement</Text>
-          <Text style={[styles.creationSubtitle,{color:palette.textMuted,textAlign:'center'}]}>{futureWeek?'Non disponible':'De A à Z'}</Text>
+          <Text style={[styles.creationTitle,{color:plannedLater?palette.textMuted:palette.text,textAlign:'center'}]}>Créer librement</Text>
+          <Text style={[styles.creationSubtitle,{color:palette.textMuted,textAlign:'center'}]}>{plannedLater?'Non disponible':'De A à Z'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" style={[styles.creationSecondary,{borderColor:palette.border,backgroundColor:palette.surface}]} onPress={() => onImport?.(dateKey)}>
           <Text style={[styles.creationTitle,{color:palette.text,textAlign:'center'}]}>Importer</Text>
@@ -481,6 +482,9 @@ function WeekObject({
         <>
           {built ? <SessionDetails item={item} exercises={exercises} palette={palette} onOpen={onOpenSession} opening={openingSessionId === item?.sessionId} readOnly={isPast||futureWeek}/>
             : <IntentDetails item={item} dateKey={item.recommendedDate} palette={palette} onImport={onImport} readOnly={isPast} futureWeek={futureWeek}/>}
+          {isToday&&!built&&item?.hasComposerDraft?<Pressable accessibilityRole="button" style={[styles.creationPrimary,{backgroundColor:palette.accent,borderColor:palette.accent}]} onPress={()=>router.push({pathname:'/workout/preparation',params:{date:item.recommendedDate,planItemId:item.planItemId}})}>
+            <Text style={[styles.creationTitle,{color:palette.onAccent,flex:1}]}>Préparer cette séance</Text><Ionicons name="arrow-forward" size={19} color={palette.onAccent}/>
+          </Pressable>:null}
           {!isPast&&canRemoveWeekItem(item)?<View style={styles.contextActions}>
             <RemoveButton item={item} palette={palette} disabled={moving || removingItemId === item?.planItemId} onPress={onRequestRemove}/>
           </View>:null}
@@ -584,6 +588,12 @@ function DaySection({
             />
           );
         })}
+        {!isPast&&day.items.length>0&&!atLimit?<View>
+          <Pressable accessibilityRole="button" accessibilityState={{expanded:expandedKey===`empty:${day.key}`}} style={styles.addDayAction} onPress={()=>onToggleEmpty(day.key)}>
+            <Ionicons name="add" size={18} color={palette.textMuted}/><Text style={[styles.creationTitle,{color:palette.textMuted}]}>Ajouter une séance</Text>
+          </Pressable>
+          {expandedKey===`empty:${day.key}`?<CreationActions dateKey={day.key} palette={palette} onImport={onImport} atLimit={atLimit} futureWeek={futureWeek}/>:null}
+        </View>:null}
       </View>
     </View>
   );
@@ -1218,6 +1228,7 @@ const styles = StyleSheet.create({
   coachTipBody: { fontFamily: fontFamilies.regular, fontSize: 12, lineHeight: 18 },
   creationActions: { gap: 8, marginTop: 15 },
   creationPrimary:{minHeight:66,borderWidth:1,borderRadius:12,padding:12,flexDirection:'row',alignItems:'center',gap:10},
+  addDayAction:{minHeight:44,flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:6},
   creationTitle:{fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:18},
   creationSubtitle:{fontFamily:fontFamilies.regular,fontSize:11,lineHeight:16,marginTop:3},
   creationSecondaryRow:{flexDirection:'row',gap:8},

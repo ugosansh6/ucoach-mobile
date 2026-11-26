@@ -2,7 +2,7 @@ import { composerUsesOutdoorEngine } from '../utils/composerOutdoor';
 import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
@@ -26,7 +26,7 @@ import {
   getEquipmentCatalog,
   getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
-import { getComposerForLocalDate } from '../services/composerService';
+import { listComposersForLocalDate } from '../services/composerService';
 import { readComposerPreferences, legacyComposerTargetRegion } from '../utils/composerPreferences';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
 import { preparationPrimaryActionLabel } from '../utils/preparationPrimaryActionLabel';
@@ -450,6 +450,8 @@ function SheetShell({ visible, title, onClose, children, styles, colors, footer 
 }
 
 export default function PreparationCheckinV4() {
+  const params=useLocalSearchParams();
+  const requestedPlanItemId=Array.isArray(params?.planItemId)?params.planItemId[0]:params?.planItemId;
   const { colors, isDark } = useUgerodTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
@@ -463,6 +465,8 @@ export default function PreparationCheckinV4() {
   const [equipmentNeedsLogin, setEquipmentNeedsLogin] = useState(false);
   const [painConfirmedToday, setPainConfirmedToday] = useState(false);
   const [todayComposer, setTodayComposer] = useState(null);
+  const [todayComposers,setTodayComposers]=useState([]);
+  const composerSelectionRequired=todayComposers.length>1&&!todayComposer;
   const [composerLoading, setComposerLoading] = useState(true);
   const [composerReadError, setComposerReadError] = useState(false);
   const hydratedComposerDateRef = useRef(null);
@@ -642,17 +646,22 @@ export default function PreparationCheckinV4() {
       setComposerReadError(false);
       try {
         const date = localDateKey();
-        const saved = await getComposerForLocalDate(date);
+        const choices=await listComposersForLocalDate(date);
         if (!active) return;
+        const saved=requestedPlanItemId?choices.find(item=>item.planItemId===requestedPlanItemId)??null:choices.length===1?choices[0]:null;
+        setTodayComposers(choices);
+        if(requestedPlanItemId&&!saved)throw new Error('La séance sélectionnée n’est plus disponible aujourd’hui.');
         setTodayComposer(saved);
-        if (saved && hydratedComposerDateRef.current !== date) {
+        const identity=saved?date+':'+saved.planItemId:null;
+        if (saved && hydratedComposerDateRef.current !== identity) {
           const future = saved.futureContext ?? {};
           const draft = saved.draft ?? {};
           const preferences = saved.preferences ?? readComposerPreferences(draft);
           const plannedEquipment = Array.isArray(future.equipment)
             ? future.equipment.filter(Boolean)
             : [];
-          hydratedComposerDateRef.current = date;
+          hydratedComposerDateRef.current = identity;
+          setPainConfirmedToday(false);
           updatePreparation({
             duration: Number(draft.duration_minutes ?? future.duration_minutes ?? 45),
             environmentCode: draft.environment_code ?? future.environment_code ?? 'HOME',
@@ -684,7 +693,7 @@ export default function PreparationCheckinV4() {
     }
     loadTodayComposer();
     return () => { active = false; };
-  }, [updatePreparation]));
+  }, [updatePreparation,requestedPlanItemId]));
 
   function handleBack() {
     if (router.canGoBack()) router.back();
@@ -783,6 +792,7 @@ export default function PreparationCheckinV4() {
   }
 
   function handleGenerate({ replaceExisting = false, ignoreComposer = false } = {}) {
+    if(composerSelectionRequired)return;
     if (composerLoading || composerReadError) {
       setSheet('composer-read-error');
       return;
@@ -852,6 +862,7 @@ export default function PreparationCheckinV4() {
     !equipmentLoading &&
     !composerLoading &&
     !composerReadError &&
+    !composerSelectionRequired &&
     painConfirmedToday &&
     outdoorContextComplete;
 
@@ -876,6 +887,19 @@ export default function PreparationCheckinV4() {
         </View>
 
         <Text style={styles.intro}>Ajuste ta séance du jour.</Text>
+        {todayComposers.length>1&&!composerReadError?<View style={styles.composerSavedCard}>
+          <Text style={styles.composerSavedKicker}>TES SÉANCES DU JOUR</Text>
+          {todayComposers.map((item,index)=><Pressable key={item.planItemId} accessibilityRole="button"
+            accessibilityState={{selected:todayComposer?.planItemId===item.planItemId}}
+            onPress={()=>router.setParams({planItemId:item.planItemId})}
+            style={[styles.composerChoice,{borderColor:todayComposer?.planItemId===item.planItemId?colors.accent:colors.border,backgroundColor:todayComposer?.planItemId===item.planItemId?colors.accentSoft:colors.surface}]}>
+            <View style={{flex:1,minWidth:0}}>
+              <Text style={styles.composerSavedBlockTitle}>{index+1}. {item.draft?.architecture?.title??item.draft?.intent?.label??'Séance personnalisée'}</Text>
+              <Text style={styles.composerSavedContext}>{item.draft?.duration_minutes} min · {({HOME:'Maison',BOX:'Box',GYM:'Salle',OUTDOOR:'Extérieur'})[item.draft?.environment_code]??''}</Text>
+            </View>
+            <Ionicons name={todayComposer?.planItemId===item.planItemId?'checkmark-circle':'chevron-forward'} size={20} color={colors.accent}/>
+          </Pressable>)}
+        </View>:null}
         {todayComposer ? (
           <View style={styles.composerSavedCard}>
             <Text style={styles.composerSavedKicker}>COMPOSÉE DANS MA SEMAINE</Text>
@@ -985,7 +1009,7 @@ export default function PreparationCheckinV4() {
                 <Ionicons name="play" size={21} color={colors.textOnAccent} />
               </Pressable>
 
-              <Pressable
+              {!todayComposer&&!composerSelectionRequired?<Pressable
                 onPress={() => handleGenerate({ replaceExisting: true })}
                 disabled={equipmentLoading}
                 style={({ pressed }) => [
@@ -994,21 +1018,21 @@ export default function PreparationCheckinV4() {
                   pressed && !equipmentLoading && styles.pressed,
                 ]}
               >
-                <Text style={styles.newSessionButtonText}>Générer une nouvelle séance</Text>
+                <Text style={styles.newSessionButtonText}>Remplacer la séance existante</Text>
                 <Ionicons name="refresh-outline" size={20} color={colors.accent} />
-              </Pressable>
+              </Pressable>:null}
             </>
           ) : (
             <Pressable
               onPress={() => handleGenerate()}
-              disabled={equipmentLoading}
+              disabled={equipmentLoading||composerSelectionRequired}
               style={({ pressed }) => [
                 styles.primaryButton,
                 !canGenerate && styles.primaryButtonPending,
                 pressed && !equipmentLoading && styles.pressed,
               ]}
             >
-              <Text style={styles.primaryButtonText}>{preparationPrimaryActionLabel({ hasComposer: Boolean(todayComposer), canGenerate })}</Text>
+              <Text style={styles.primaryButtonText}>{composerSelectionRequired?'Choisis ta séance':preparationPrimaryActionLabel({ hasComposer: Boolean(todayComposer), canGenerate })}</Text>
               <Ionicons name="arrow-forward" size={21} color={colors.textOnAccent} />
             </Pressable>
           )}
@@ -1279,6 +1303,7 @@ function createStyles(colors) {
     flexOne: { flex: 1 },
     pressed: { opacity: 0.76 },
 
+    composerChoice:{minHeight:52,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1,borderRadius:10,padding:10},
     composerSavedCard: { marginTop: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface, padding: 17 },
     composerSavedKicker: { fontFamily: MANROPE.bold, fontSize: 10, color: colors.accent, letterSpacing: 1 },
     composerSavedTitle: { marginTop: 8, fontFamily: MANROPE.bold, fontSize: 18, color: colors.text },
