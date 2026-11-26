@@ -754,6 +754,14 @@ function normalizeSavedComposer(data) {
     draft:data.composer_draft??{},preferences:readComposerPreferences(data.composer_draft??{}),futureContext:data.future_context??{},
   };
 }
+export function selectComposerForDay(choices, requestedId = null) {
+  if(requestedId) {
+    const item=choices.find(candidate=>candidate.planItemId===requestedId);
+    if(!item)throw new Error('La séance sélectionnée n’est plus disponible aujourd’hui.');
+    return item;
+  }
+  return choices.length===1?choices[0]:null;
+}
 export async function listComposersForLocalDate(dateKey) {
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey??'')))throw new Error('Date de séance invalide.');
   await getAuthenticatedUserWithRetry();

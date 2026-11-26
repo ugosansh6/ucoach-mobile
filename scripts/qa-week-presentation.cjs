@@ -35,7 +35,7 @@ assert.equal(dates('2026-11-23').end,'2026-12-06');
 assert.equal(dates('2026-12-28').start,'2027-01-04');
 assert.equal(dates('2026-12-28').end,'2027-01-10');
 assert.ok(!ui.includes('function NextWeekPreview('));
-assert.match(ui,/disabled=\{futureWeek\}/);
+assert.match(ui,/disabled=\{plannedLater\}/);
 assert.equal(api.weekItemStateLabel({hasComposerDraft:true}),'Préparée');
 assert.match(ui,/onPress=\{onRequestRemove\}/);
 assert.match(ui,/planningSlotCount >= 5/);
@@ -54,3 +54,26 @@ assert.match(ui,/result\?\.anticipatedActivationPending&&request===readSequence.
 assert.match(ui,/void activateAnticipatedWeek\(\).then/);
 assert.match(ui,/interaction===interactionVersion.current&&!mutationBusy.current/);
 assert.match(ui,/updated\?\.weekStart===result.weekStart/);
+
+// Same-day addition and explicit identity are end-to-end, not a date-based replacement.
+const composerService=fs.readFileSync('src/services/composerService.js','utf8');
+const choose=new Function(composerService.slice(composerService.indexOf('export function selectComposerForDay('),composerService.indexOf('export async function listComposersForLocalDate(')).replace('export ','')+';return selectComposerForDay;')();
+const a={planItemId:'one'},b={planItemId:'two'};
+assert.equal(choose([]),null);assert.equal(choose([a]),a);assert.equal(choose([a,b]),null);assert.equal(choose([a,b],'two'),b);
+assert.throws(()=>choose([a,b],'missing'),/plus disponible/);
+assert.match(ui,/day.items.length>0&&!atLimit/);
+assert.match(ui,/planItemId:item.planItemId/);
+const checkin=fs.readFileSync('src/workout/PreparationCheckinV4.js','utf8');
+assert.match(checkin,/selectComposerForDay\(choices,requestedPlanItemId\)/);
+assert.match(checkin,/if\(composerSelectionRequired\)return/);
+assert.match(checkin,/router.setParams\(\{planItemId:item.planItemId\}\)/);
+const generation=fs.readFileSync('src/services/workoutGenerationService.js','utf8');
+assert.match(generation,/getComposerForLocalDate\(localDate, planItemId\)/);
+const composer=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
+assert.match(composer,/explicitAdditional\?null:candidates.length===1/);
+assert.match(composer,/if\(savingRef.current\)return/);
+assert.match(composer,/await createAndSaveComposer/);
+assert.match(composerService,/week_create_composer_plan_v1/);
+const today=fs.readFileSync('src/components/dashboard/DashboardCoachV6Screen.js','utf8');
+assert.match(today,/entry:'week_assisted',date:getLocalDateKey\(\),origin:'week_additional'/);
+console.log('PASS independent same-day creation, explicit selection, exact day-J routing and Today addition');

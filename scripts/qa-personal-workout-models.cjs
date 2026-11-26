@@ -26,12 +26,12 @@ assert.match(fs.readFileSync('src/workout/PersonalModelsPage.js','utf8'),/Ajoute
    cut(' function changeDose(', ' const txt=')+
    cut(' function close()', ' function button(');
  const create=new Function(`
- let operation={current:false},busy=false,preview=null,error='',programRows=[{id:'old',authored_dose:{target:8}}],gearConfirmed=true,surface='ROAD',selectedId='old',name='old',confirm=true;
+ let operation={current:false},importRequest={current:null},busy=false,preview=null,error='',programRows=[{id:'old',authored_dose:{target:8}}],gearConfirmed=true,surface='ROAD',selectedId='old',name='old',confirm=true;
  let authored={equipment_ids:['E05']},ready=true,date='2026-11-25',selected={id:'old'},calls=0,resolve,reject,nav=0;
  const setBusy=v=>busy=v,setPreview=v=>preview=v,setError=v=>error=v,setProgramRows=v=>programRows=typeof v==='function'?v(programRows):v,setGearConfirmed=v=>gearConfirmed=v,setSurface=v=>surface=v,setSelectedId=v=>selectedId=v,setName=v=>name=v,setConfirm=v=>confirm=v,setRetry=()=>{};
  const personalProgramRows=source=>source.rows,modelDateKey=()=>date,validModelDate=()=>true,router={push:()=>nav++};
  const getComposerPrescriptionPreview=()=>{calls++;return new Promise((a,b)=>{resolve=a;reject=b;});};
- const planPersonalProgram=getComposerPrescriptionPreview;
+ const planPersonalProgram=getComposerPrescriptionPreview;const newComposerCreationRequest=()=> 'qa-request';
  `+handlers+`
  return {calculateProgram,submitProgram,changeDose,chooseVariant,selectModel,action,resolve:v=>resolve(v),reject:e=>reject(e),state:()=>({busy,preview,error,programRows,gearConfirmed,surface,selectedId,calls,nav})};
  `) ;

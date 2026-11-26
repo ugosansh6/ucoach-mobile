@@ -26,7 +26,7 @@ import {
   getEquipmentCatalog,
   getUserEnvironmentEquipmentPreset,
 } from '../services/equipmentService';
-import { listComposersForLocalDate } from '../services/composerService';
+import { listComposersForLocalDate, selectComposerForDay } from '../services/composerService';
 import { readComposerPreferences, legacyComposerTargetRegion } from '../utils/composerPreferences';
 import ComposerMuscleSelector from './ComposerMuscleSelector';
 import { preparationPrimaryActionLabel } from '../utils/preparationPrimaryActionLabel';
@@ -466,7 +466,7 @@ export default function PreparationCheckinV4() {
   const [painConfirmedToday, setPainConfirmedToday] = useState(false);
   const [todayComposer, setTodayComposer] = useState(null);
   const [todayComposers,setTodayComposers]=useState([]);
-  const composerSelectionRequired=todayComposers.length>1&&!todayComposer;
+  const composerSelectionRequired=(todayComposers.length>1&&!todayComposer)||Boolean(requestedPlanItemId&&todayComposer?.planItemId!==requestedPlanItemId);
   const [composerLoading, setComposerLoading] = useState(true);
   const [composerReadError, setComposerReadError] = useState(false);
   const hydratedComposerDateRef = useRef(null);
@@ -648,9 +648,8 @@ export default function PreparationCheckinV4() {
         const date = localDateKey();
         const choices=await listComposersForLocalDate(date);
         if (!active) return;
-        const saved=requestedPlanItemId?choices.find(item=>item.planItemId===requestedPlanItemId)??null:choices.length===1?choices[0]:null;
         setTodayComposers(choices);
-        if(requestedPlanItemId&&!saved)throw new Error('La séance sélectionnée n’est plus disponible aujourd’hui.');
+        const saved=selectComposerForDay(choices,requestedPlanItemId);
         setTodayComposer(saved);
         const identity=saved?date+':'+saved.planItemId:null;
         if (saved && hydratedComposerDateRef.current !== identity) {
@@ -891,7 +890,7 @@ export default function PreparationCheckinV4() {
           <Text style={styles.composerSavedKicker}>TES SÉANCES DU JOUR</Text>
           {todayComposers.map((item,index)=><Pressable key={item.planItemId} accessibilityRole="button"
             accessibilityState={{selected:todayComposer?.planItemId===item.planItemId}}
-            onPress={()=>router.setParams({planItemId:item.planItemId})}
+            onPress={()=>{if(todayComposer?.planItemId!==item.planItemId){setComposerLoading(true);setTodayComposer(null);setPainConfirmedToday(false);router.setParams({planItemId:item.planItemId});}}}
             style={[styles.composerChoice,{borderColor:todayComposer?.planItemId===item.planItemId?colors.accent:colors.border,backgroundColor:todayComposer?.planItemId===item.planItemId?colors.accentSoft:colors.surface}]}>
             <View style={{flex:1,minWidth:0}}>
               <Text style={styles.composerSavedBlockTitle}>{index+1}. {item.draft?.architecture?.title??item.draft?.intent?.label??'Séance personnalisée'}</Text>
