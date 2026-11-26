@@ -1592,7 +1592,8 @@ export default function WeekComposerV7() {
   const wodBlock = architecture?.blocks?.find((block) => block.type === 'WOD') ?? null;
   const estimatedMinutes = architecture?.estimatedMinutes
     ?? (architecture?.blocks ?? []).reduce((sum, item) => sum + Number(item.minutes ?? 0), 0);
-  const retainedEquipmentNames = selectedEquipmentNames(referenceEquipment, equipmentIds);
+  const retainedEquipment = referenceEquipment.filter(item=>equipmentIds.includes(item.id));
+  const excludedEquipment = referenceEquipment.filter(item=>!equipmentIds.includes(item.id));
   const equipmentSummary = equipmentLoading ? 'Chargement…' : summarizeEquipment(referenceEquipment, equipmentIds);
   const allEquipmentSelected = referenceEquipment.length > 0
     && referenceEquipment.every((item) => equipmentIds.includes(item.id));
@@ -1723,21 +1724,49 @@ export default function WeekComposerV7() {
               </View>:null}
               <View style={styles.frameSection}>
                 <Text accessibilityRole="header" style={styles.frameSectionTitle}>Matériel disponible</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel="Choisir mon matériel" accessibilityState={{disabled:equipmentLoading}} disabled={equipmentLoading}
-                  onPress={()=>setSheet('equipment')} style={({pressed})=>[styles.frameEquipmentRow,pressed&&!equipmentLoading&&styles.pressed]}>
+                <View style={styles.frameEquipmentRow}>
                   <ExpoImage source={FRAME_EQUIPMENT_PHOTO} style={styles.frameEquipmentPhoto} contentFit="cover" accessible={false}/>
                   <View style={styles.frameRowCopy}>
                     <Text style={styles.frameEquipmentTitle}>Choisir mon matériel</Text>
-                    <Text style={styles.frameEquipmentCount}>{equipmentLoading?'Chargement…':retainedEquipmentNames.length+' équipement'+(retainedEquipmentNames.length===1?'':'s')+' sélectionné'+(retainedEquipmentNames.length===1?'':'s')}</Text>
+                    <Text style={styles.frameEquipmentCount}>{equipmentLoading?'Chargement…':retainedEquipment.length+' équipement'+(retainedEquipment.length===1?'':'s')+' sélectionné'+(retainedEquipment.length===1?'':'s')}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={19} color={colors.textSecondary} accessible={false}/>
-                </Pressable>
-                <Text style={styles.frameEquipmentSubtitle}>Matériel retenu pour la séance</Text>
-                {equipmentLoading?<ActivityIndicator size="small" color={colors.accent}/>:<View style={styles.frameEquipmentTags}>
-                  {(retainedEquipmentNames.length?retainedEquipmentNames:['Poids du corps']).map((name,index)=><View key={name+'-'+index} style={styles.frameEquipmentTag}>
-                    <Text style={styles.frameEquipmentTagText}>{name}</Text>
-                  </View>)}
-                </View>}
+                </View>
+                {equipmentLoading?<ActivityIndicator size="small" color={colors.accent}/>:<>
+                  {referenceEquipment.length>0?<View style={styles.equipmentQuickRow}>
+                    <Pressable accessibilityRole="button" accessibilityState={{selected:allEquipmentSelected}}
+                      onPress={() => setEquipmentIds(referenceEquipment.map((item) => item.id))}
+                      style={[styles.equipmentQuickButton,allEquipmentSelected&&styles.equipmentQuickButtonSelected]}>
+                      <Text style={[styles.equipmentQuickText,allEquipmentSelected&&styles.equipmentQuickTextSelected]}>Tout mon matériel</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" accessibilityState={{selected:bodyweightOnly}}
+                      onPress={() => setEquipmentIds([])}
+                      style={[styles.equipmentQuickButton,bodyweightOnly&&styles.equipmentQuickButtonSelected]}>
+                      <Text style={[styles.equipmentQuickText,bodyweightOnly&&styles.equipmentQuickTextSelected]}>Poids du corps</Text>
+                    </Pressable>
+                  </View>:null}
+                  <Text style={styles.frameEquipmentSubtitle}>Matériel retenu pour la séance</Text>
+                  <ScrollView horizontal nestedScrollEnabled alwaysBounceHorizontal={false} style={styles.frameEquipmentScroll} contentContainerStyle={styles.frameEquipmentTags}>
+                    {retainedEquipment.length?retainedEquipment.map(item=><Pressable key={item.id} accessibilityRole="button" accessibilityLabel={'Retirer '+item.name+' de la séance'}
+                      onPress={()=>toggleEquipment(item.id)} style={({pressed})=>[styles.frameEquipmentTag,styles.frameEquipmentTagSelected,pressed&&styles.pressed]}>
+                      <View style={styles.frameEquipmentTagCopy}><Text style={[styles.frameEquipmentTagText,styles.frameEquipmentTagTextSelected]}>{item.name}</Text>
+                        {item.detail?<Text style={styles.frameEquipmentTagDetailSelected}>{item.detail}</Text>:null}</View>
+                      <Text style={styles.frameEquipmentTagRemove} accessible={false}>×</Text>
+                    </Pressable>):<View style={styles.frameEquipmentTag}><Text style={styles.frameEquipmentTagText}>Poids du corps</Text></View>}
+                  </ScrollView>
+                  {excludedEquipment.length>0?<><Text style={styles.frameEquipmentSubtitle}>Matériel à ajouter</Text>
+                    <ScrollView horizontal nestedScrollEnabled alwaysBounceHorizontal={false} style={styles.frameEquipmentScroll} contentContainerStyle={styles.frameEquipmentTags}>
+                      {excludedEquipment.map(item=><Pressable key={item.id} accessibilityRole="button" accessibilityLabel={'Ajouter '+item.name+' à la séance'}
+                        onPress={()=>toggleEquipment(item.id)} style={({pressed})=>[styles.frameEquipmentTag,pressed&&styles.pressed]}>
+                        <View style={styles.frameEquipmentTagCopy}><Text style={styles.frameEquipmentTagText}>{item.name}</Text>
+                          {item.detail?<Text style={styles.frameEquipmentTagDetail}>{item.detail}</Text>:null}</View>
+                        <Text style={styles.frameEquipmentTagAdd} accessible={false}>+</Text>
+                      </Pressable>)}
+                    </ScrollView></>:null}
+                  {referenceEquipment.length===0?<Text style={styles.frameEquipmentCount}>Aucun matériel enregistré pour ce lieu.</Text>:null}
+                  <Pressable accessibilityRole="button" onPress={openProfileEquipment} style={styles.frameEquipmentProfileLink}>
+                    <Text style={styles.frameActionText}>Modifier mon matériel enregistré</Text>
+                  </Pressable>
+                </>}
               </View>
             </View>
           ) : null}
@@ -2258,49 +2287,7 @@ export default function WeekComposerV7() {
         })}
       </SheetShell>
 
-      <SheetShell
-        visible={sheet === 'equipment'}
-        title="Matériel disponible"
-        onClose={() => setSheet(null)}
-        styles={styles}
-        colors={colors}
-        footer={<Pressable onPress={() => setSheet(null)} style={styles.sheetDoneButton}><Text style={styles.sheetDoneButtonText}>Terminé</Text></Pressable>}
-      >
-        <Text style={styles.sheetHelp}>Pour cette séance, tu peux désactiver temporairement ce qui n’est pas disponible.</Text>
-        {equipmentLoading ? (
-          <View style={styles.sheetLoading}><ActivityIndicator size="small" color={colors.accent} /></View>
-        ) : referenceEquipment.length === 0 ? (
-          <View style={styles.infoRow}><Ionicons name="body-outline" size={20} color={colors.accent} /><Text style={styles.infoText}>Aucun matériel enregistré ici. UGEROD composera au poids du corps.</Text></View>
-        ) : (
-          <>
-            <View style={styles.equipmentQuickRow}>
-              <Pressable
-                onPress={() => setEquipmentIds(referenceEquipment.map((item) => item.id))}
-                style={[styles.equipmentQuickButton, allEquipmentSelected && styles.equipmentQuickButtonSelected]}
-              >
-                <Ionicons name="checkmark-done-outline" size={18} color={allEquipmentSelected ? colors.textOnAccent : colors.accent} />
-                <Text style={[styles.equipmentQuickText, allEquipmentSelected && styles.equipmentQuickTextSelected]}>Tout mon matériel</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setEquipmentIds([])}
-                style={[styles.equipmentQuickButton, bodyweightOnly && styles.equipmentQuickButtonSelected]}
-              >
-                <Ionicons name="body-outline" size={18} color={bodyweightOnly ? colors.textOnAccent : colors.accent} />
-                <Text style={[styles.equipmentQuickText, bodyweightOnly && styles.equipmentQuickTextSelected]}>Poids du corps</Text>
-              </Pressable>
-            </View>
-            <View style={styles.equipmentGrid}>
-              {referenceEquipment.map((item) => (
-                <Pressable key={item.id} onPress={() => toggleEquipment(item.id)} style={[styles.equipmentChoice, equipmentIds.includes(item.id) && styles.equipmentChoiceSelected]}>
-                  <View style={{ flex: 1 }}><Text style={styles.equipmentChoiceTitle}>{item.name}</Text>{item.detail ? <Text style={styles.equipmentChoiceDetail}>{item.detail}</Text> : null}</View>
-                  <Ionicons name={equipmentIds.includes(item.id) ? 'checkmark-circle' : 'ellipse-outline'} size={21} color={equipmentIds.includes(item.id) ? colors.accent : colors.textMuted} />
-                </Pressable>
-              ))}
-            </View>
-          </>
-        )}
-        <Pressable onPress={openProfileEquipment} style={styles.inlineLink}><Text style={styles.inlineLinkText}>Modifier mon matériel</Text><Ionicons name="chevron-forward" size={18} color={colors.accent} /></Pressable>
-      </SheetShell>
+
 
 
     </SafeAreaView>
@@ -2381,9 +2368,18 @@ function createStyles(colors) {
     frameEquipmentTitle:{fontFamily:fontFamilies.semiBold,fontSize:16,lineHeight:21,color:colors.text},
     frameEquipmentCount:{fontFamily:fontFamilies.regular,fontSize:12,lineHeight:17,color:colors.textSecondary},
     frameEquipmentSubtitle:{fontFamily:fontFamilies.semiBold,fontSize:13,lineHeight:18,color:colors.textSecondary,marginTop:2},
-    frameEquipmentTags:{flexDirection:'row',flexWrap:'wrap',gap:7},
-    frameEquipmentTag:{maxWidth:'100%',paddingHorizontal:10,paddingVertical:6,borderRadius:7,backgroundColor:colors.surfacePressed},
-    frameEquipmentTagText:{fontFamily:fontFamilies.medium,fontSize:12,lineHeight:17,color:colors.text},
+    frameEquipmentScroll:{width:'100%',flexGrow:0},
+    frameEquipmentTags:{flexDirection:'row',alignItems:'stretch',gap:8,paddingBottom:5,paddingRight:8},
+    frameEquipmentTag:{minHeight:44,maxWidth:260,flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:12,paddingVertical:7,borderRadius:9,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surfacePressed},
+    frameEquipmentTagSelected:{backgroundColor:colors.accent,borderColor:colors.accent},
+    frameEquipmentTagCopy:{flexShrink:1,gap:2},
+    frameEquipmentTagText:{fontFamily:fontFamilies.medium,fontSize:13,lineHeight:18,color:colors.text},
+    frameEquipmentTagTextSelected:{color:colors.textOnAccent},
+    frameEquipmentTagDetail:{fontFamily:fontFamilies.regular,fontSize:11,lineHeight:15,color:colors.textSecondary},
+    frameEquipmentTagDetailSelected:{fontFamily:fontFamilies.regular,fontSize:11,lineHeight:15,color:colors.textOnAccent},
+    frameEquipmentTagRemove:{fontFamily:fontFamilies.semiBold,fontSize:20,lineHeight:24,color:colors.textOnAccent},
+    frameEquipmentTagAdd:{fontFamily:fontFamilies.semiBold,fontSize:20,lineHeight:24,color:colors.text},
+    frameEquipmentProfileLink:{minHeight:44,justifyContent:'center',alignSelf:'flex-start'},
     frameFooter:{width:'100%',maxWidth:820,alignSelf:'center',paddingHorizontal:spacing.xl,paddingTop:10,paddingBottom:12,backgroundColor:colors.background,borderTopWidth:1,borderTopColor:colors.border},
     frameSheetOption:{minHeight:52,borderRadius:10,paddingHorizontal:14,paddingVertical:10,marginBottom:6,backgroundColor:colors.background,flexDirection:'row',alignItems:'center',gap:10},
     frameSheetOptionSelected:{backgroundColor:colors.accent},
@@ -2584,18 +2580,11 @@ function createStyles(colors) {
     sheetHelp: { fontFamily: fontFamilies.regular, fontSize: 13, lineHeight: 20, color: colors.textSecondary, marginBottom: 14 },
     sheetNotice: { marginBottom: 14, padding: 12, borderRadius: 12, backgroundColor: colors.background, fontFamily: fontFamilies.medium, fontSize: 11, lineHeight: 17, color: colors.textSecondary },
     choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
-    equipmentQuickRow: { flexDirection: 'row', gap: 9, marginBottom: 14 },
+    equipmentQuickRow: { flexDirection: 'row', gap: 9 },
     equipmentQuickButton: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 10 },
     equipmentQuickButtonSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-    equipmentQuickText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: colors.accent },
+    equipmentQuickText: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.text, textAlign:'center' },
     equipmentQuickTextSelected: { color: colors.textOnAccent },
-    equipmentGrid: { gap: 8 },
-    equipmentChoice: { minHeight: 58, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },
-    equipmentChoiceSelected: { borderColor: colors.accent, backgroundColor: colors.surfaceElevated ?? colors.surface },
-    equipmentChoiceTitle: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: colors.text },
-    equipmentChoiceDetail: { marginTop: 3, fontFamily: fontFamilies.regular, fontSize: 11, color: colors.textSecondary },
-    inlineLink: { marginTop: 16, minHeight: 50, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    inlineLinkText: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: colors.accent },
     sheetDoneButton: { marginHorizontal: 20, minHeight: 50, borderRadius: 14, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
     sheetDoneButtonText: { fontFamily: fontFamilies.bold, fontSize: 12, letterSpacing: 0.8, color: colors.textOnAccent },
     sheetLoading: { minHeight: 90, alignItems: 'center', justifyContent: 'center' },

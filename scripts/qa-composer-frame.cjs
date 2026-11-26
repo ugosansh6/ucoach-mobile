@@ -56,9 +56,23 @@ assert.match(ui,/style=\{\[styles\.frameDialValue, \{ color: durationColor \}\]\
 
 assert.match(frame,/ExpoImage source=\{FRAME_PHOTOS\[item.code\]\}/);
 assert.match(frame,/ExpoImage source=\{FRAME_EQUIPMENT_PHOTO\}/);
-assert.match(frame,/onPress=\{\(\)=>setSheet\('equipment'\)\}/);
+assert.doesNotMatch(ui,/visible=\{sheet === 'equipment'\}|setSheet\('equipment'\)/);
 assert.match(frame,/Matériel retenu pour la séance/);
-assert.match(frame,/retainedEquipmentNames.length\?retainedEquipmentNames:\['Poids du corps'\]/);
+assert.match(frame,/retainedEquipment.length\?retainedEquipment.map/);
+assert.match(frame,/excludedEquipment.map/);
+assert.equal((frame.match(/<ScrollView horizontal nestedScrollEnabled/g)||[]).length,2);
+assert.equal((frame.match(/onPress=\{\(\)=>toggleEquipment\(item.id\)\}/g)||[]).length,2);
+assert.match(frame,/onPress=\{\(\) => setEquipmentIds\(referenceEquipment.map\(\(item\) => item.id\)\)\}/);
+assert.match(frame,/onPress=\{\(\) => setEquipmentIds\(\[\]\)\}/);
+assert.match(frame,/onPress=\{openProfileEquipment\}/);
+assert.match(frame,/item.detail/);
+assert.match(ui,/retainedEquipment = referenceEquipment.filter\(item=>equipmentIds.includes\(item.id\)\)/);
+assert.match(ui,/excludedEquipment = referenceEquipment.filter\(item=>!equipmentIds.includes\(item.id\)\)/);
+const toggleSource=ui.slice(ui.indexOf('function toggleEquipment('),ui.indexOf('function equipmentNames()'));
+let ids=['E01','E02','E03'];
+const toggle=new Function('setEquipmentIds',toggleSource+';return toggleEquipment;')(fn=>{ids=fn(ids);});
+toggle('E02');assert.equal(ids.join('|'),'E01|E03');toggle('E02');assert.equal(ids.join('|'),'E01|E03|E02');
+ids=[];toggle('E01');assert.equal(ids.join('|'),'E01');toggle('E01');assert.equal(ids.length,0);
 assert.ok(frame.indexOf('Matériel retenu pour la séance')<frame.indexOf('styles.frameEquipmentTags'));
 const selectedNamesSource=ui.slice(ui.indexOf('function selectedEquipmentNames('),ui.indexOf('function DurationControl('));
 const selectedNames=new Function(selectedNamesSource+';return selectedEquipmentNames;')();
