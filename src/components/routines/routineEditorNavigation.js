@@ -1,4 +1,4 @@
-import {ROUTINE_CATEGORIES,ROUTINE_MECHANICS,normalizeRoutineDraft} from '../../services/routineContract';
+import {ROUTINE_CATEGORIES,ROUTINE_MECHANICS,normalizeRoutineDraft,availableTabataBlocks,isBlockTabata} from '../../services/routineContract';
 export const ROUTINE_EDITOR_SECTIONS=['category','duration','format','exercises','final'];
 const editorPositive=v=>/^[1-9][0-9]{0,3}$/.test(String(v));
 const editorNonnegative=v=>String(v)==='0'||editorPositive(v);
@@ -12,7 +12,8 @@ export function routineEditorIssue(draft,section){
  if(section===1)return '';
  if(!Object.prototype.hasOwnProperty.call(ROUTINE_MECHANICS,draft.mechanic))return 'Choisis un format.';
  const p=draft.parameters??{};
- if(draft.mechanic!=='SETS_REPS'&&!editorPositive(p.rounds))return 'Renseigne le nombre de tours.';
+ if(draft.mechanic==='TABATA'&&!availableTabataBlocks(draft.planned_minutes).includes(Number(p.blocks)))return 'Choisis un Tabata compatible avec la durée prévue.';
+ if(draft.mechanic!=='SETS_REPS'&&!isBlockTabata(draft)&&!editorPositive(p.rounds))return 'Renseigne le nombre de tours.';
  if(['CIRCUIT','HIIT'].includes(draft.mechanic)&&!editorNonnegative(p.rest_seconds))return 'Renseigne la récupération (0 seconde est possible).';
  if(draft.mechanic==='HIIT'&&!editorPositive(p.work_seconds))return 'Renseigne le temps d’effort.';
  if(section===2)return '';

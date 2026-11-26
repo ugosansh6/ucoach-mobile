@@ -1,0 +1,22 @@
+begin;
+do $$ declare a uuid; b uuid; r uuid; n int; cfg jsonb:='{"blocks":2,"work_seconds":20,"rest_seconds":10}'; es jsonb:='[{"name":"Libre","exercise_id":null,"tabata_block":1},{"name":"Catalogue","exercise_id":"EX087","tabata_block":1},{"name":"Autre","exercise_id":null,"tabata_block":2}]'; begin
+ select id into a from auth.users order by id limit 1;
+ select id into b from auth.users where id<>a order by id limit 1;
+ if b is null then raise exception 'need two existing accounts'; end if;
+ perform set_config('request.jwt.claim.sub',a::text,true);
+ perform set_config('role','authenticated',true);
+ insert into public.user_routines(name,category,mechanic,parameters,planned_minutes,exercises) values('QA Tabata fixe','CONDITIONING','TABATA',cfg,12,es) returning id into r;
+ begin update public.user_routines set parameters='{"blocks":3,"work_seconds":20,"rest_seconds":10}' where id=r; raise exception '3 blocks accepted at 12 min'; exception when check_violation then null; end;
+ begin update public.user_routines set planned_minutes=9 where id=r; raise exception '2 blocks accepted at 9 min'; exception when check_violation then null; end;
+ begin update public.user_routines set exercises=es-2 where id=r; raise exception 'empty block accepted'; exception when check_violation then null; end;
+ begin update public.user_routines set exercises=jsonb_set(es,'{2,tabata_block}','3') where id=r; raise exception 'orphan block accepted'; exception when check_violation then null; end;
+ insert into public.user_routine_realizations(routine_id,local_date) values(r,date '2026-11-26') on conflict do nothing;
+ insert into public.user_routine_realizations(routine_id,local_date) values(r,date '2026-11-26') on conflict do nothing;
+ select count(*) into n from public.user_routine_realizations where routine_id=r; if n<>1 then raise exception 'duplicate completion'; end if;
+ perform set_config('request.jwt.claim.sub',b::text,true);
+ if exists(select 1 from public.user_routines where id=r) or exists(select 1 from public.user_routine_realizations where routine_id=r) then raise exception 'RLS leak'; end if;
+ perform set_config('role','postgres',true);
+ perform set_config('ugerod.routine_qa_v3','PASS',true);
+end $$;
+select current_setting('ugerod.routine_qa_v3') as result;
+rollback;

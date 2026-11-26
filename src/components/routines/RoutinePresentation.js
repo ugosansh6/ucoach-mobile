@@ -2,13 +2,14 @@ import {Ionicons} from '@expo/vector-icons';
 import {useEffect,useRef,useState} from 'react';
 import {DurationControl,PhotoChoiceGrid} from '../creation/CreationFrameControls';
 import ExerciseDetail from '../exercises/ExerciseDetail';
+import MechanicCarousel from '../creation/MechanicCarousel';
 import {getExerciseById} from '../../services/exerciseService';
 import {ActivityIndicator,Animated,Keyboard,Pressable,Text,TextInput,View} from 'react-native';
 import Svg,{Circle} from 'react-native-svg';
 import {useUgerodTheme} from '../../contexts/UgerodThemeContext';
 import {fontFamilies} from '../../constants/typography';
 import ExerciseArtwork from '../exercises/ExerciseArtwork';
-import {ROUTINE_CATEGORIES,ROUTINE_DAYS,ROUTINE_MECHANICS,isIntervalRoutine,advanceRoutinePhase} from '../../services/routineContract';
+import {ROUTINE_CATEGORIES,ROUTINE_DAYS,ROUTINE_MECHANICS,isIntervalRoutine,advanceRoutinePhase,isBlockTabata,availableTabataBlocks,tabataCycleExerciseIndices,routineTimeLimit} from '../../services/routineContract';
 
 import {initialRoutineEditorState,openRoutineEditorSection,advanceRoutineEditor,routineEditorIssue,ROUTINE_EDITOR_SECTIONS} from './routineEditorNavigation';
 
@@ -22,7 +23,6 @@ const ROUTINE_PHOTOS={
 const ROUTINE_DURATION_VALUES=Array.from({length:30},(_,i)=>i+1);
 const routineCategories=Object.entries(ROUTINE_CATEGORIES).map(([code,label])=>({code,label}));
 const categoryIcons={MOBILITY:'body-outline',CORE:'shield-checkmark-outline',PHYSIO:'heart-outline',CONDITIONING:'flame-outline'};
-const mechanics=[['SETS_REPS','Séries & maintien','list-outline'],['CIRCUIT','Circuit','repeat-outline'],['HIIT','Intervalles','timer-outline'],['TABATA','Tabata 20/10','flash-outline']];
 const order=[1,2,3,4,5,6,0];
 const clock=n=>Math.floor(n/60)+':'+String(n%60).padStart(2,'0');
 function theme(c){
@@ -51,6 +51,7 @@ function DayStrip({days=[],onChange}){
  })}</View>;
 }
 function doseText(e,routine){
+ if(isBlockTabata(routine))return 'Tabata '+(e.tabata_block??1)+' · 20 s effort';
  if(isIntervalRoutine(routine.mechanic))return (routine.mechanic==='TABATA'?20:routine.parameters?.work_seconds||'—')+' s effort';
  const dose=e.doseMode==='TIME'||(e.doseMode==null&&e.duration_seconds!=null)?(e.duration_seconds||'—')+' s':(e.reps||'—')+' reps';
  return routine.mechanic==='CIRCUIT'?dose:(e.sets||'—')+' × '+dose;
@@ -117,7 +118,8 @@ export function RoutineEditor({draft,busy,patch,changeExercise,move,addPersonal,
  const interval=isIntervalRoutine(draft.mechanic),count=draft.exercises.length,p=draft.parameters??{};
  const previousCount=useRef(count);
  useEffect(()=>{if(count>previousCount.current){setExpanded(count-1);setIssue('');}previousCount.current=count;},[count]);
- const duration=interval?Number(p.rounds)*count*(draft.mechanic==='TABATA'?30:Number(p.work_seconds)+Number(p.rest_seconds)):0;
+ const shownMechanic=draft.mechanic||'SETS_REPS',fixed=isBlockTabata(draft),allowedTabatas=availableTabataBlocks(draft.planned_minutes);
+ const duration=fixed?Number(p.blocks)*240:interval?Number(p.rounds)*count*(draft.mechanic==='TABATA'?30:Number(p.work_seconds)+Number(p.rest_seconds)):0;
  activeRef.current=nav.active;
  function scrollTo(index){if(pending.current!==index||activeRef.current!==index||layouts.current[index]==null)return;pending.current=null;onReveal?.(layouts.current[index]);}
  useEffect(()=>{if(pending.current!==nav.active)return;const frame=requestAnimationFrame(()=>scrollTo(nav.active));return()=>cancelAnimationFrame(frame);},[nav.active,nav.revealed]);
@@ -125,7 +127,8 @@ export function RoutineEditor({draft,busy,patch,changeExercise,move,addPersonal,
  function open(index){if(busy||index===nav.active)return;detailRequest.current+=1;setDetailLoading(null);setDetail(null);Keyboard.dismiss();setIssue('');setExpanded(null);closeCatalogue();pending.current=index;setNav(old=>openRoutineEditorSection(old,index));}
  function proceed(candidate=draft){if(busy)return;const message=routineEditorIssue(candidate,nav.active);if(message){setIssue(message);return;}Keyboard.dismiss();setIssue('');setExpanded(null);closeCatalogue();pending.current=Math.min(4,nav.active+1);setNav(advanceRoutineEditor);}
  function selectCategory(category){if(busy)return;patch({category,...(!draft.planned_minutes?{planned_minutes:'15'}:{})});proceed({...draft,category});}
- function selectMechanic(mechanic){if(busy)return;patch({mechanic});setIssue('');if(mechanic==='SETS_REPS')proceed({...draft,mechanic});}
+ function selectMechanic(mechanic){if(busy)return;patch({mechanic});setIssue('');}
+ function confirmMechanic(){const next={...draft,mechanic:shownMechanic};if(shownMechanic==='TABATA'&&!allowedTabatas.includes(Number(p.blocks))){setIssue('Choisis un nombre de Tabata disponible.');return;}patch({mechanic:shownMechanic});proceed(next);}
  useEffect(()=>{if(!editorBackRef)return;editorBackRef.current=()=>{if(nav.active===0)return false;open(nav.active-1);return true;};return()=>{editorBackRef.current=null;};},[nav.active,nav.revealed,busy]);
  useEffect(()=>()=>{detailRequest.current+=1;},[]);
  async function openDetail(e){if(!e.exercise_id)return;const request=++detailRequest.current;setDetailLoading(e.exercise_id);setIssue('');try{const exercise=(catalogue??[]).find(x=>x.id===e.exercise_id)??await getExerciseById(e.exercise_id);if(request!==detailRequest.current)return;if(!exercise)throw new Error('Fiche exercice indisponible.');setDetail(exercise);}catch(error){if(request===detailRequest.current)setIssue(error.message||'Fiche exercice indisponible.');}finally{if(request===detailRequest.current)setDetailLoading(null);}}
@@ -134,29 +137,29 @@ export function RoutineEditor({draft,busy,patch,changeExercise,move,addPersonal,
  function reorder(i,delta){move(i,delta);setExpanded(i+delta);}
  function complete(){const message=routineEditorIssue(draft,4);if(message){setIssue(message);return;}Keyboard.dismiss();setIssue('');save();}
  const titles=['QUEL TYPE DE ROUTINE ?','COMBIEN DE TEMPS ?','CHOISIS TON FORMAT','COMPOSE TA ROUTINE','FINALISE TA ROUTINE'];
- const summaries=[ROUTINE_CATEGORIES[draft.category]??'À choisir',draft.planned_minutes?draft.planned_minutes+' min':'À définir',ROUTINE_MECHANICS[draft.mechanic]??'À choisir',count+' exercice'+(count===1?'':'s'),draft.name||'À nommer'];
+ const summaries=[ROUTINE_CATEGORIES[draft.category]??'À choisir',draft.planned_minutes?draft.planned_minutes+' min':'À définir',fixed?'Tabata '+p.blocks:ROUTINE_MECHANICS[draft.mechanic]??'À choisir',count+' exercice'+(count===1?'':'s'),draft.name||'À nommer'];
  const finalIssue=nav.active===4?routineEditorIssue(draft,4):'';
  const sections=[
  <View key="category" style={{gap:12}}><PhotoChoiceGrid items={routineCategories} photos={ROUTINE_PHOTOS} value={draft.category} onChange={selectCategory} colors={c} disabled={busy} reselect/></View>,
  <View key="duration" style={{gap:12}}><DurationControl value={Number(draft.planned_minutes)||15} durations={ROUTINE_DURATION_VALUES} onChange={value=>{patch({planned_minutes:String(value)});setIssue('');}} colors={c} showTitle={false} accessibilityLabel="Durée de la routine" colorForValue={(_,colors)=>colors.text}/><Text style={s.muted}>30 minutes maximum.</Text><Button title="Continuer" icon="arrow-down-outline" primary disabled={busy} onPress={()=>proceed()}/></View>,
  <View key="format" style={{gap:12}}>
-   {[mechanics.slice(0,2),mechanics.slice(2)].map((pair,i)=><View key={i} style={s.row}>{pair.map(([key,title,icon])=><Choice key={key} title={title} icon={icon} selected={draft.mechanic===key} onPress={()=>selectMechanic(key)}/>)}</View>)}
-   {draft.mechanic&&draft.mechanic!=='SETS_REPS'?<View style={s.panel}><View style={s.row}>{(draft.mechanic==='TABATA'?[['rounds','Tours','']]:draft.mechanic==='HIIT'?[['rounds','Tours',''],['work_seconds','Effort','s'],['rest_seconds','Repos','s']]:[['rounds','Tours',''],['rest_seconds','Repos entre tours','s']]).map(([key,title,unit])=><NumberField key={key} title={title} unit={unit} value={p[key]} onChange={v=>patch({parameters:{...p,[key]:v}})}/>)}</View>{draft.mechanic==='TABATA'?<Text style={s.muted}>20 s effort · 10 s repos par exercice et par tour.</Text>:null}{interval&&Number.isFinite(duration)&&duration>0?<Text style={{...s.label,color:duration>Number(draft.planned_minutes)*60?c.error:c.text}}>Durée calculée : {Math.floor(duration/60)} min {duration%60} s</Text>:null}</View>:null}
-   <Text style={s.muted}>{interval?'Les intervalles s’appliquent à chaque exercice, repos final inclus.':'Les temps de maintien et de récupération doivent tenir dans la durée prévue.'}</Text>
- {draft.mechanic&&draft.mechanic!=='SETS_REPS'?<Button title="Continuer" icon="arrow-down-outline" primary disabled={busy} onPress={()=>proceed()}/>:null}
+ <MechanicCarousel value={shownMechanic} onChange={selectMechanic} colors={c} disabled={busy}/>
+ {shownMechanic==='TABATA'?<View style={s.panel}><Text style={s.label}>{draft.planned_minutes} minutes disponibles</Text>{allowedTabatas.length?<View style={s.row}>{allowedTabatas.map(blocks=><Pressable key={blocks} accessibilityRole="radio" accessibilityState={{selected:Number(p.blocks)===blocks}} onPress={()=>{patch({mechanic:'TABATA',parameters:{...p,blocks}});setIssue('');}} style={{flex:1,borderRadius:12,borderWidth:1,borderColor:Number(p.blocks)===blocks?c.accent:c.border,backgroundColor:Number(p.blocks)===blocks?c.accentSoft:c.surfacePressed,padding:10,alignItems:'center',gap:6}}><Text style={s.eyebrow}>TABATA {blocks}</Text><Text style={s.heading}>{blocks*4} min</Text><Text style={s.muted}>{blocks*8} cycles</Text></Pressable>)}</View>:<Text style={s.muted}>Un Tabata nécessite au moins 4 minutes. Modifie la durée pour le choisir.</Text>}{allowedTabatas.includes(Number(p.blocks))?<Text style={s.muted}>{Number(draft.planned_minutes)-Number(p.blocks)*4} min disponibles pour la préparation ou la récupération, sans ajout automatique.</Text>:null}</View>:shownMechanic!=='SETS_REPS'?<View style={s.panel}><View style={s.row}>{(shownMechanic==='HIIT'?[['rounds','Tours',''],['work_seconds','Effort','s'],['rest_seconds','Repos','s']]:[['rounds','Tours',''],['rest_seconds','Repos entre tours','s']]).map(([key,title,unit])=><NumberField key={key} title={title} unit={unit} value={p[key]} onChange={v=>patch({parameters:{...p,[key]:v}})}/>)}</View></View>:<Text style={s.muted}>Séries, répétitions et temps de maintien à définir pour chaque exercice.</Text>}
+ <Button title="Choisir ce format" icon="arrow-down-outline" primary disabled={busy||(shownMechanic==='TABATA'&&!allowedTabatas.includes(Number(p.blocks)))} onPress={confirmMechanic}/>
  </View>,
- <View key="exercises" style={{gap:12}}><Text style={s.muted}>{count} mouvement{count===1?'':'s'} · {ROUTINE_MECHANICS[draft.mechanic]}</Text>
+ <View key="exercises" style={{gap:12}}><Text style={s.muted}>{count} mouvement{count===1?'':'s'} · {fixed?'Tabata '+p.blocks:ROUTINE_MECHANICS[draft.mechanic]}</Text>{fixed?<Text style={s.muted}>Choisis le bloc de chaque mouvement. Les 8 cycles de chaque bloc alternent les mouvements dans l’ordre affiché.</Text>:null}
    {draft.exercises.map((e,i)=>{
     const image=(catalogue??[]).find(x=>x.id===e.exercise_id)?.imagePath;
     return <View key={i} style={s.panel}><Pressable accessibilityRole="button" accessibilityState={{expanded:expanded===i}} onPress={()=>setExpanded(expanded===i?null:i)} style={s.row}>{e.exercise_id?<ExerciseArtwork imagePath={image} colors={c} size={46}/>:<View style={{width:46,height:46,borderRadius:12,backgroundColor:c.surfacePressed,alignItems:'center',justifyContent:'center'}}><Ionicons name="create-outline" size={23} color={c.textSecondary}/></View>}<View style={{flex:1,gap:3}}><Text style={s.label}>{e.name||'Nouvel exercice personnel'}</Text><Text style={s.muted}>{i+1}. {doseText(e,draft)} · {e.exercise_id?'Catalogue':'Personnel'}</Text></View><Ionicons name={expanded===i?'chevron-up':'chevron-down'} size={20} color={c.textSecondary}/></Pressable>{e.exercise_id?<Pressable accessibilityRole="button" accessibilityLabel={'Fiche de '+e.name} disabled={detailLoading===e.exercise_id} onPress={()=>openDetail(e)} style={{...s.row,minHeight:44}}>{detailLoading===e.exercise_id?<ActivityIndicator color={c.accent}/>:<Ionicons name="information-circle-outline" size={20} color={c.accent}/>}<Text style={s.muted}>Voir la fiche exercice</Text></Pressable>:null}
      {expanded===i?<View style={{gap:12}}>{!e.exercise_id?<TextInput accessibilityLabel="Nom de l’exercice" value={e.name} onChangeText={name=>changeExercise(i,{name})} placeholder="Nom de l’exercice" placeholderTextColor={c.textMuted} style={s.field} maxLength={200}/>:null}
-      {!interval?<><View style={s.row}><Choice title="Répétitions" selected={e.doseMode!=='TIME'} onPress={()=>changeExercise(i,{doseMode:'REPS'})}/><Choice title="Maintien" selected={e.doseMode==='TIME'} onPress={()=>changeExercise(i,{doseMode:'TIME'})}/></View><View style={s.row}>{draft.mechanic==='SETS_REPS'?<NumberField title="Séries" value={e.sets} onChange={sets=>changeExercise(i,{sets})}/>:null}{e.doseMode==='TIME'?<NumberField title="Maintien" unit="s" value={e.duration_seconds} onChange={duration_seconds=>changeExercise(i,{duration_seconds})}/>:<NumberField title="Répétitions" value={e.reps} onChange={reps=>changeExercise(i,{reps})}/>}</View></>:<Text style={s.muted}>Les temps et tours sont définis par le format.</Text>}
+      {!interval?<><View style={s.row}><Choice title="Répétitions" selected={e.doseMode!=='TIME'} onPress={()=>changeExercise(i,{doseMode:'REPS'})}/><Choice title="Maintien" selected={e.doseMode==='TIME'} onPress={()=>changeExercise(i,{doseMode:'TIME'})}/></View><View style={s.row}>{draft.mechanic==='SETS_REPS'?<NumberField title="Séries" value={e.sets} onChange={sets=>changeExercise(i,{sets})}/>:null}{e.doseMode==='TIME'?<NumberField title="Maintien" unit="s" value={e.duration_seconds} onChange={duration_seconds=>changeExercise(i,{duration_seconds})}/>:<NumberField title="Répétitions" value={e.reps} onChange={reps=>changeExercise(i,{reps})}/>}</View></>:<Text style={s.muted}>Les temps et tours sont définis par le format.</Text>}{fixed?<View style={{gap:6}}><Text style={s.label}>Bloc Tabata</Text><View style={s.row}>{Array.from({length:Number(p.blocks)},(_,j)=>j+1).map(block=><Choice key={block} title={'Tabata '+block} selected={Number(e.tabata_block??1)===block} onPress={()=>changeExercise(i,{tabata_block:block})}/>)}</View></View>:null}
       <View style={s.row}><Text style={{...s.muted,flex:1}}>Position</Text><IconButton icon="arrow-up" label="Monter" disabled={busy||i===0} onPress={()=>reorder(i,-1)}/><IconButton icon="arrow-down" label="Descendre" disabled={busy||i===count-1} onPress={()=>reorder(i,1)}/><IconButton icon="trash-outline" label="Retirer l’exercice" danger disabled={busy} onPress={()=>remove(i)}/></View>
      </View>:null}
     </View>;
    })}
    <View style={s.row}><View style={{flex:1}}><Button title="Catalogue" icon="search-outline" onPress={openCatalogue} disabled={busy}/></View><View style={{flex:1}}><Button title="Texte libre" icon="add-outline" onPress={addFree} disabled={busy}/></View></View>
- {interval&&Number.isFinite(duration)&&duration>0?<Text style={{...s.label,color:duration>Number(draft.planned_minutes)*60?c.error:c.text}}>Durée calculée : {Math.floor(duration/60)} min {duration%60} s</Text>:null}
+ {fixed?<View style={s.panel}>{Array.from({length:Number(p.blocks)},(_,i)=>i+1).map(block=>{const indices=tabataCycleExerciseIndices(draft,block);return <View key={block} style={{gap:5}}><Text style={s.label}>TABATA {block} · 4 min</Text>{indices.length?<View style={{flexDirection:'row',gap:3,flexWrap:'wrap'}}>{indices.map((id,j)=><View key={j} style={{backgroundColor:c.accentSoft,borderRadius:6,padding:6}}><Text style={s.muted}>{j+1}. {draft.exercises[id]?.name||'À nommer'}</Text></View>)}</View>:<Text style={{...s.muted,color:c.error}}>Ajoute au moins un mouvement à ce bloc.</Text>}</View>;})}</View>:null}
+ {interval&&Number.isFinite(duration)&&duration>0?<Text style={{...s.label,color:duration>(fixed?Number(draft.planned_minutes)*60:routineTimeLimit(draft.planned_minutes))?c.error:c.text}}>Durée calculée : {Math.floor(duration/60)} min {duration%60} s</Text>:null}
  <Button title="Continuer" icon="arrow-down-outline" primary disabled={busy||count===0} onPress={()=>proceed()}/><Button title="Retour au format" icon="arrow-back-outline" disabled={busy} onPress={()=>open(2)}/>
  </View>,
  <View key="final" style={{gap:14}}>
@@ -183,11 +186,12 @@ export function RoutinePlayer({routine,step,running,busy,onToggle,onNext,onFinis
  const afterRest=nextStep.phase==='rest'?advanceRoutinePhase(routine,nextStep):null;
  const phaseLabel=rest?'RÉCUPÉRATION':interval?'EFFORT':step.remaining!=null?'MAINTIEN':'RÉPÉTITIONS';
  const ringColor=rest?c.accent:c.secondaryAccent;
- const progressLabel=routine.mechanic==='SETS_REPS'?'SÉRIE '+step.setNumber+' / '+current.sets:'TOUR '+step.round+' / '+routine.parameters.rounds;
+ const fixed=isBlockTabata(routine);
+ const progressLabel=fixed?'TABATA '+(Math.floor((step.round-1)/8)+1)+' / '+routine.parameters.blocks:routine.mechanic==='SETS_REPS'?'SÉRIE '+step.setNumber+' / '+current.sets:'TOUR '+step.round+' / '+routine.parameters.rounds;
  return <View style={{gap:17}}>
   <Text style={s.eyebrow}>{routine.name.toUpperCase()}</Text>
-  <View style={{...s.row,justifyContent:'space-between'}}><Text style={s.label}>{progressLabel}</Text><Text style={s.muted}>EXERCICE {step.index+1} / {routine.exercises.length}</Text></View>
-  <View style={{flexDirection:'row',gap:4}}>{routine.exercises.length<=16?routine.exercises.map((_,i)=><View key={i} style={{flex:1,height:5,borderRadius:3,backgroundColor:i<step.index?c.accent:i===step.index?c.secondaryAccent:c.border}}/>):<View style={{flex:1,height:5,borderRadius:3,backgroundColor:c.border,overflow:'hidden'}}><View style={{width:((step.index+1)/routine.exercises.length*100)+'%',height:5,backgroundColor:c.secondaryAccent}}/></View>}</View>
+  <View style={{...s.row,justifyContent:'space-between'}}><Text style={s.label}>{progressLabel}</Text><Text style={s.muted}>{fixed?'CYCLE '+((step.round-1)%8+1)+' / 8':'EXERCICE '+(step.index+1)+' / '+routine.exercises.length}</Text></View>
+  <View style={{flexDirection:'row',gap:4}}>{fixed?Array.from({length:8},(_,i)=><View key={i} style={{flex:1,height:5,borderRadius:3,backgroundColor:i<(step.round-1)%8?c.accent:i===(step.round-1)%8?c.secondaryAccent:c.border}}/>):routine.exercises.length<=16?routine.exercises.map((_,i)=><View key={i} style={{flex:1,height:5,borderRadius:3,backgroundColor:i<step.index?c.accent:i===step.index?c.secondaryAccent:c.border}}/>):<View style={{flex:1,height:5,borderRadius:3,backgroundColor:c.border,overflow:'hidden'}}><View style={{width:((step.index+1)/routine.exercises.length*100)+'%',height:5,backgroundColor:c.secondaryAccent}}/></View>}</View>
   <View style={{...s.panel,gap:18,paddingVertical:24,alignItems:'stretch'}}>
    <View style={{alignItems:'center',gap:8}}><CategoryMark category={routine.category} size={62}/><Text style={s.eyebrow}>{phaseLabel}</Text><Text style={{...s.heading,fontSize:36,lineHeight:39,textAlign:'center'}}>{rest?'RÉCUPÉRATION':current.name.toUpperCase()}</Text></View>
    {step.remaining!=null?<><View style={{width:220,height:220,alignSelf:'center',alignItems:'center',justifyContent:'center'}}><Svg width={220} height={220} viewBox="0 0 220 220" style={{position:'absolute'}}><Circle cx={110} cy={110} r={96} fill="none" stroke={c.borderStrong} strokeWidth={8}/><Circle cx={110} cy={110} r={96} fill="none" stroke={ringColor} strokeWidth={8} strokeLinecap="round" strokeDasharray={2*Math.PI*96} strokeDashoffset={2*Math.PI*96*(1-fraction)} rotation="-90" origin="110,110"/></Svg><Text style={{...s.eyebrow,color:c.textSecondary}}>{running?phaseLabel:'EN PAUSE'}</Text><Text style={{color:c.text,fontFamily:fontFamilies.display,fontSize:72,lineHeight:78,fontVariant:['tabular-nums']}}>{clock(step.remaining)}</Text><Text style={s.muted}>SUR {total} S</Text></View><Button title={running?'Pause':'Démarrer le chrono'} icon={running?'pause':'play'} primary onPress={onToggle} disabled={busy}/></>:<><View style={{alignItems:'center',paddingVertical:20}}><Text style={{color:c.text,fontFamily:fontFamilies.display,fontSize:96,lineHeight:100}}>{current.reps}</Text><Text style={s.eyebrow}>RÉPÉTITIONS</Text></View><Button title={routine.mechanic==='SETS_REPS'?'Valider la série':'Valider l’exercice'} primary icon="checkmark-outline" onPress={onNext} disabled={busy}/></>}

@@ -10,7 +10,7 @@ import {getExercises,getExerciseFavorites} from '../src/services/exerciseService
 import {isIntervalRoutine,initialRoutineStep,advanceRoutinePhase,consumeRoutineSeconds,localRoutineDate,normalizeRoutineDraft} from '../src/services/routineContract';
 import {archiveRoutine,canStartRoutine,completeRoutine,loadRoutineScreen,saveRoutine,writeRoutineCheckpoint,clearRoutineCheckpoint} from '../src/services/routineService';
 
-const blank=()=>({name:'',category:'',mechanic:'',parameters:{rounds:'',rest_seconds:'',work_seconds:''},planned_minutes:'',recurrence_days:[],exercises:[]});
+const blank=()=>({name:'',category:'',mechanic:'',parameters:{blocks:'',rounds:'',rest_seconds:'',work_seconds:''},planned_minutes:'',recurrence_days:[],exercises:[]});
 const personal=()=>({name:'',exercise_id:null,sets:'',reps:'',duration_seconds:'',doseMode:'REPS'});
 function fieldDraft(row){return {...row,parameters:{rounds:'',work_seconds:'',rest_seconds:'',...Object.fromEntries(Object.entries(row.parameters??{}).map(([k,v])=>[k,String(v)]))},planned_minutes:String(row.planned_minutes),exercises:row.exercises.map(e=>({...personal(),...e,sets:String(e.sets??''),reps:String(e.reps??''),duration_seconds:String(e.duration_seconds??''),doseMode:e.duration_seconds!=null?'TIME':'REPS'}))};}
 
