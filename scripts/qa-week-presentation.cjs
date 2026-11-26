@@ -43,3 +43,14 @@ assert.match(ui,/entry:'week_assisted'/);
 assert.match(ui,/entry: 'week_free'/);
 assert.match(ui,/onImport\?\.\(dateKey\)/);
 console.log('PASS week presentation: shared theme, chronology, states and existing actions');
+
+const service=fs.readFileSync('src/services/weeklyPlanService.js','utf8');
+require('@babel/parser').parse(service,{sourceType:'module'});
+assert.match(service,/anticipatedActivationPending: source.anticipated_activation_pending === true/);
+assert.match(service,/void activateAnticipatedWeek\(\).catch/);
+assert.match(service,/const activationRequests = new Map/);
+assert.match(service,/supabase.rpc\('week_activate_anticipated_v1',\{p_user_id:userId\}\)/);
+assert.match(ui,/result\?\.anticipatedActivationPending&&request===readSequence.current/);
+assert.match(ui,/void activateAnticipatedWeek\(\).then/);
+assert.match(ui,/interaction===interactionVersion.current&&!mutationBusy.current/);
+assert.match(ui,/updated\?\.weekStart===result.weekStart/);

@@ -24,6 +24,7 @@ import {
 
 import {
   getWeekReadContract,
+  activateAnticipatedWeek,
   getWeekViewDate,
   moveWeekPlanItem,
   removeWeekPlanItem,
@@ -708,6 +709,7 @@ export default function PlanningScreen() {
   const readSequence=useRef(0);
   const scrollRef=useRef(null);
   const mutationBusy=useRef(false);
+  const interactionVersion=useRef(0);
   const [removeItem, setRemoveItem] = useState(null);
   const [removingItemId, setRemovingItemId] = useState(null);
   const [removeErrorMessage, setRemoveErrorMessage] = useState(null);
@@ -735,6 +737,7 @@ export default function PlanningScreen() {
 
   const loadWeek = useCallback(async ({ refresh = false } = {}) => {
     const request=++readSequence.current;
+    const interaction=interactionVersion.current;
     if (action === 'new') return;
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(null);
@@ -749,6 +752,16 @@ export default function PlanningScreen() {
       } catch (previewError) {
         console.warn('[MaSemaine] exercise preview failed', previewError);
         if(request===readSequence.current)setExercisePreviews({});
+      }
+      if(result?.anticipatedActivationPending&&request===readSequence.current){
+        // Review separately from the calendar read. Never replace a newly edited
+        // or different week with a late response.
+        void activateAnticipatedWeek().then(async outcome=>{
+          const stillCurrent=()=>request===readSequence.current&&interaction===interactionVersion.current&&!mutationBusy.current;
+          if(!['ACTIVATED','NOT_PENDING'].includes(outcome?.status)||!stillCurrent())return;
+          const updated=await getWeekReadContract(getWeekViewDate(nextWeekOpen));
+          if(stillCurrent()&&updated?.weekStart===result.weekStart)setContract(updated);
+        }).catch(reason=>console.warn('[MaSemaine] anticipated activation deferred',reason));
       }
     } catch (loadError) {
       console.warn('[MaSemaine] week_read_contract_v2 failed', loadError);
@@ -843,6 +856,7 @@ export default function PlanningScreen() {
 
   const handleDragStart = useCallback((item, pageY) => {
     if (!canMoveWeekItem(item)) return;
+    interactionVersion.current+=1;
     measureDays();
     setDraggingItem(item);
     setDragY(pageY);
@@ -868,6 +882,7 @@ export default function PlanningScreen() {
     // surface anchor must stay on the user's current local day. Reusing the
     // Monday weekStart for the read makes expired Monday opportunities visible again.
     const surfaceAnchorDate = getWeekViewDate(contract?.weekStart).anchorDate;
+    interactionVersion.current+=1;
     mutationBusy.current=true;
     setMovingItemId(item.planItemId);
     setContract((current) => withOptimisticWeekDate(current, item.planItemId, targetDate));
@@ -903,6 +918,7 @@ export default function PlanningScreen() {
     const sessionId = removeItem.sessionId;
     const weekAnchorDate = parseDateKey(contract?.weekStart) ?? new Date();
     const surfaceAnchorDate = getWeekViewDate(contract?.weekStart).anchorDate;
+    interactionVersion.current+=1;
     mutationBusy.current=true;
 
     // Server acknowledgement is the commit boundary. Refresh errors must NOT
@@ -1025,7 +1041,7 @@ export default function PlanningScreen() {
             </View>
           </View>:null}
 
-          {futureWeek&&contract?<Text style={[styles.futureNotice,{color:palette.textMuted}]}>Les intentions du coach sont provisoires.</Text>:null}
+          {(futureWeek||contract?.anticipatedActivationPending)&&contract?<Text style={[styles.futureNotice,{color:palette.textMuted}]}>Les intentions du coach sont provisoires.</Text>:null}
 
           {moveFeedback ? (
             <View style={[styles.moveFeedback, { backgroundColor: palette.surface, borderColor: palette.border }]} accessibilityLiveRegion="polite">

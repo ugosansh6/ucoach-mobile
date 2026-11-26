@@ -52,6 +52,10 @@ export async function getDashboardSnapshot({
     )
   );
 
+  // A separate, idempotent review must never delay the Today dashboard.
+  if(getLocalDateKey(anchorDate)===getLocalDateKey()){
+    void activateAnticipatedWeek().catch(error=>console.warn('[Coach] anticipated activation deferred',error));
+  }
   return normalizeDashboardSnapshot(data);
 }
 
@@ -95,6 +99,20 @@ async function withWeekReadTimeout(operation) {
   } finally {
     clearTimeout(timerId);
   }
+}
+
+// Coalesce simultaneous Today / Ma semaine activation requests for one user.
+const activationRequests = new Map();
+export async function activateAnticipatedWeek() {
+  const userId = await getAuthenticatedUserId();
+  const existing=activationRequests.get(userId);
+  if(existing)return existing;
+  const operation=withWeekReadTimeout(signal=>runSupabaseRequestWithAuthRetry(()=>
+    supabase.rpc('week_activate_anticipated_v1',{p_user_id:userId}).abortSignal(signal)
+  ));
+  activationRequests.set(userId,operation);
+  try{return await operation;}
+  finally{if(activationRequests.get(userId)===operation)activationRequests.delete(userId);}
 }
 
 // A target day selects a calendar, not a simulated date of execution.
@@ -450,6 +468,7 @@ function normalizeWeekReadContract(data) {
     weekStart: source.week_start ?? null,
     weekEnd: source.week_end ?? null,
     weekStatus: source.week_status ?? null,
+    anticipatedActivationPending: source.anticipated_activation_pending === true,
     weeklySessionTarget:
       source.weekly_session_target == null
         ? null
