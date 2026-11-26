@@ -9,7 +9,21 @@ const model={origin:'COMPOSER',draft:{duration_minutes:60,architecture:{blocks:[
 assert.equal(a.canReusePersonalModel(source),false);assert.equal(a.canReusePersonalModel(model),true);
 assert.deepEqual(a.personalModelMeta(source),{environment:'Maison',count:1,duration:null,frequency:2});
 assert.equal(a.sortPersonalModels([model,source])[0],source);
-const ui=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');assert.match(ui,/requestedModelId\?null:requestedPlanItemId/);assert.match(ui,/imported\?\.draft\?\?saved.draft/);
+const ui=fs.readFileSync('src/workout/WeekComposerV7.js','utf8');
+// Test the actual selection expression, not its previous spelling.
+const selectionStart=ui.indexOf('const item = requestedModelId');
+const selectionEnd=ui.indexOf(';',selectionStart);
+assert.ok(selectionStart>=0&&selectionEnd>selectionStart,'Composer selection not found');
+const selectItem=new Function('requestedModelId','explicitAdditional','requestedPlanItemId','candidates',ui.slice(selectionStart,selectionEnd+1)+';return item;');
+const one={planItemId:'one'},two={planItemId:'two'};
+assert.equal(selectItem('model',false,'one',[one,two]),null,'Import never targets an existing item');
+assert.equal(selectItem(null,true,null,[one]),null,'Add never reuses a sole existing item');
+assert.equal(selectItem(null,false,null,[one]),null,'No explicit ID means no edit');
+assert.equal(selectItem(null,false,'two',[one,two]),two,'Edit selects exactly the requested item');
+assert.equal(selectItem(null,false,'missing',[one,two]),null,'Missing item must not select another');
+assert.match(ui,/if\(explicitAdditional&&requestedPlanItemId\)throw/);
+assert.match(ui,/if\(requestedPlanItemId&&!requestedModelId&&!item\)throw/);
+assert.match(ui,/imported\?\.draft\?\?saved.draft/);
 assert.match(fs.readFileSync('src/services/composerService.js','utf8'),/week_save_composer_with_model_v1/);
 assert.match(fs.readFileSync('app/(tabs)/library.js','utf8'),/section==='models'\?<PersonalModelsPage/);
 console.log('PASS personal models routing, date validation, source completeness and ownership-scoped service wiring');
