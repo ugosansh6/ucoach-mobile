@@ -56,12 +56,15 @@ assert.match(ui,/selectableOutdoorPlaces\(\)\.map\(place/);
 assert.match(ui,/terrainOptionsForPlace\(selectedOutdoorPlace\)/);
 assert.match(ui,/frameSelectSurface\(current,terrain.code\)/);
 assert.doesNotMatch(frame,/Le lieu ne déclare|name=\{item.icon\}|checkmark-circle|ChoiceChip/);
-for(const [environment,file] of Object.entries({HOME:'maison.jpg',BOX:'box.webp',GYM:'salle.jpg',OUTDOOR:'outdoor2.jpg'})){
+for(const [environment,file] of Object.entries({HOME:'home.webp',BOX:'box.webp',GYM:'salle2.png',OUTDOOR:'outdoor.webp'})){
  assert.ok(ui.includes(environment+": require('../../assets/composer-environments/"+file+"')"),'Expected local photo for '+environment);
  const bytes=fs.readFileSync('assets/composer-environments/'+file);
  if(file.endsWith('.webp')){
   assert.equal(bytes.toString('ascii',0,4),'RIFF');assert.equal(bytes.toString('ascii',8,12),'WEBP');
   assert.ok(bytes.length<50000);
+ }else if(file.endsWith('.png')){
+  assert.equal(bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a',file+' PNG signature');
+  if(bytes.length>200000)console.warn(file+' : '+bytes.length+' bytes; consider optimizing for mobile');
  }else{
   assert.equal(bytes[0],0xff,file+' JPEG signature');assert.equal(bytes[1],0xd8,file+' JPEG signature');assert.equal(bytes[2],0xff,file+' JPEG signature');
   if(bytes.length>200000)console.warn(file+' : '+bytes.length+' bytes; consider optimizing for mobile');

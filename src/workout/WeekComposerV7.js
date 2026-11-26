@@ -98,10 +98,10 @@ const lightBrandIcon = require('../../assets/branding/LOGO VERSION NOIR.png');
 
 const DURATIONS = [20, 30, 45, 60, 75, 90];
 const FRAME_PHOTOS = {
-  HOME: require('../../assets/composer-environments/maison.jpg'),
+  HOME: require('../../assets/composer-environments/home.webp'),
   BOX: require('../../assets/composer-environments/box.webp'),
-  GYM: require('../../assets/composer-environments/salle.jpg'),
-  OUTDOOR: require('../../assets/composer-environments/outdoor2.jpg'),
+  GYM: require('../../assets/composer-environments/salle2.png'),
+  OUTDOOR: require('../../assets/composer-environments/outdoor.webp'),
 };
 const ENVIRONMENTS = [
   { code: 'HOME', label: 'Maison', icon: 'home-outline' },

@@ -1,15 +1,15 @@
 # Photographies des environnements — Composer
 
-## Visuels actifs — remplacement fourni par Ugo le 26/11/2026
+## Visuels actifs — arbitrage du 26/11/2026
 
 | Carte | Fichier actif |
 | --- | --- |
-| Maison | maison.jpg |
+| Maison | home.webp |
 | Box | box.webp |
-| Salle | salle.jpg |
-| Extérieur | outdoor2.jpg |
+| Salle | salle2.png |
+| Extérieur | outdoor.webp |
 
-Les trois nouveaux JPEG ont été ajoutés au dépôt par Ugo dans le commit `487da5d`. Les anciennes images WebP restent présentes pour permettre un retour arrière ; la Box ne change pas. Provenance, droits, résolution, poids et rendu des trois JPEG à vérifier. Le code utilise des fichiers locaux, sans requête externe.
+Sur demande explicite d'Ugo : retour aux visuels initiaux Maison et Extérieur ; Box inchangée. Salle utilise la nouvelle version générée à partir de la photo de salle, sélectionnée par Ugo et ajoutée par ses soins au commit `4664603`. Fichiers locaux ; les JPEG intermédiaires restent conservés. Poids, rendu et éventuels droits de tiers du nouveau PNG à vérifier.
 
 ## Première sélection (archive)
 
