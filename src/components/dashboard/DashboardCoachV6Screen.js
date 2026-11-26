@@ -20,7 +20,7 @@ import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
 import { useWorkout } from '../../contexts/WorkoutContext';
 import dashboardDarkHero from '../../assets/dashboard-dark-hero';
 import { getCurrentProfile } from '../../services/profileService';
-import { getDashboardSnapshot, getLocalDateKey } from '../../services/weeklyPlanService';
+import { getDashboardSnapshot, getLocalDateKey, getWeekReadContract, getTodayCompletedSessions } from '../../services/weeklyPlanService';
 import { reloadWorkoutSession } from '../../services/workoutService';
 import DashboardHistoryCalendarCoach from './DashboardHistoryCalendarCoach';
 
@@ -302,6 +302,41 @@ function HeroPanel({
   );
 }
 
+function todaySessionLabel(value) {
+  const labels={Strength:'Force',Conditioning:'Conditioning','General Fitness':'Entraînement',Upper:'Haut du corps',Lower:'Jambes',Back:'Dos',Core:'Abdos / gainage','Full Body':'Full body',HOME:'Maison',BOX:'Box',GYM:'Salle',OUTDOOR:'Extérieur'};
+  return labels[value]??(value&&value!=='UNKNOWN'?String(value):null);
+}
+
+function buildTodaySessionRows(dateKey, items, completed) {
+  const rows=[];
+  const seenSessions=new Set();
+  const seenPlans=new Set();
+  const meta=(duration,environment)=>[Number(duration)>0?Number(duration)+' min':null,todaySessionLabel(environment)].filter(Boolean).join(' · ');
+  for(const item of items??[]){
+    if(item.recommendedDate!==dateKey||item.surfaceVisibility==='CONTEXT_ONLY'||!['PREVUE','PRETE','ACTIVE'].includes(item.displayState)||!item.planItemId||seenPlans.has(item.planItemId))continue;
+    if(item.sessionId&&seenSessions.has(item.sessionId))continue;
+    seenPlans.add(item.planItemId);
+    if(item.sessionId)seenSessions.add(item.sessionId);
+    const context=item.sessionSummary??item.plannedContext??{};
+    rows.push({key:'plan:'+item.planItemId,planItemId:item.planItemId,sessionId:item.sessionId??null,
+      state:item.displayState==='ACTIVE'?'active':'planned',hasComposerDraft:item.hasComposerDraft===true,
+      title:item.composerTitle??item.coachProjection?.presentation?.title??[todaySessionLabel(context.focus),todaySessionLabel(context.targetRegion)].filter(Boolean).join(' · '),
+      meta:meta(context.durationMinutes,context.plannedEnvironmentCode??context.environmentCode)});
+  }
+  const actualIds=new Set();
+  const actual=[];
+  for(const session of completed??[]){
+    if(!session.id||actualIds.has(session.id))continue;
+    actualIds.add(session.id);
+    actual.push({key:'session:'+session.id,sessionId:session.id,state:'completed',
+      title:[todaySessionLabel(session.focus),todaySessionLabel(session.target_region)].filter(Boolean).join(' · '),
+      meta:meta(session.duration_minutes,session.actual_environment_code??session.planned_environment_code),
+      time:session.completed_at??null});
+  }
+  // Actuals win over stale plan projections; never deduplicate by date or title.
+  return [...actual,...rows.filter(row=>!row.sessionId||!actualIds.has(row.sessionId))];
+}
+
 export default function DashboardCoachV6Screen() {
   const segments = useSegments();
   const insideTabs = segments?.[0] === '(tabs)';
@@ -324,6 +359,9 @@ export default function DashboardCoachV6Screen() {
   const [error, setError] = useState(null);
   const [resuming, setResuming] = useState(false);
   const [activePanel, setActivePanel] = useState(0);
+  const [todayRows, setTodayRows] = useState([]);
+  const todayReadSequence = useRef(0);
+  const openingTodayRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -344,13 +382,30 @@ export default function DashboardCoachV6Screen() {
     }
   }, []);
 
+  const loadTodayRows = useCallback(async () => {
+    const sequence=++todayReadSequence.current;
+    const anchorDate=new Date();
+    const dateKey=getLocalDateKey(anchorDate);
+    setTodayRows([]);
+    const [plan,actual]=await Promise.allSettled([
+      getWeekReadContract({anchorDate}),
+      getTodayCompletedSessions(anchorDate),
+    ]);
+    if(sequence!==todayReadSequence.current||dateKey!==getLocalDateKey())return;
+    if(plan.status==='rejected')console.warn('[Today] plan read',plan.reason);
+    if(actual.status==='rejected')console.warn('[Today] actuals read',actual.reason);
+    setTodayRows(buildTodaySessionRows(dateKey,plan.status==='fulfilled'?plan.value?.visibleItems:[],actual.status==='fulfilled'?actual.value:[]));
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       activePanelRef.current = 0;
       setActivePanel(0);
       pagerRef.current?.scrollTo?.({ x: 0, animated: false });
       loadDashboard();
-    }, [loadDashboard])
+      void loadTodayRows();
+      return ()=>{todayReadSequence.current+=1;};
+    }, [loadDashboard,loadTodayRows])
   );
 
   const week = useMemo(() => createCurrentWeek(snapshot?.weekDays), [snapshot?.weekDays]);
@@ -390,6 +445,28 @@ export default function DashboardCoachV6Screen() {
     }
   }
 
+  async function handleTodayRowPress(item) {
+    if(item.state==='completed'){router.push('/workout/'+item.sessionId);return;}
+    if(openingTodayRef.current||resuming)return;
+    // The existing active session has priority, including when another plan is selected.
+    if(activeSessionId&&activeSessionId!==item.sessionId)return;
+    if(item.sessionId){
+      openingTodayRef.current=true;
+      setResuming(true);
+      try{
+        const restored=await reloadWorkoutSession({sessionId:item.sessionId});
+        setGeneratedWorkout(restored);
+        router.push({pathname:'/workout/session',params:{sessionId:item.sessionId}});
+      }catch(openError){console.warn('[Today] open session',openError);setError('Impossible d’ouvrir cette séance.');}
+      finally{openingTodayRef.current=false;setResuming(false);}
+      return;
+    }
+    const date=getLocalDateKey();
+    router.push({pathname:'/workout/preparation',params:item.hasComposerDraft
+      ?{date,planItemId:item.planItemId}
+      :{entry:'week_assisted',date,origin:'week_edit',planItemId:item.planItemId}});
+  }
+
   function handleCompletedDayPress(item) {
     if (!item.completed || !item.sessionId) return;
     router.push(`/workout/${item.sessionId}`);
@@ -416,7 +493,7 @@ export default function DashboardCoachV6Screen() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await loadDashboard();
+      await Promise.all([loadDashboard(),loadTodayRows()]);
     } finally {
       setRefreshing(false);
     }
@@ -530,12 +607,30 @@ export default function DashboardCoachV6Screen() {
             <PagerTrack activeIndex={activePanel} onSelect={goToPanel} styles={styles} />
           </View>
 
-          <Pressable accessibilityRole="button" onPress={()=>router.push({pathname:'/workout/preparation',params:{entry:'week_assisted',date:getLocalDateKey(),origin:'week_additional'}})}
-            style={({pressed})=>[styles.additionalToday,pressed&&styles.pressed]}>
-            <Ionicons name="add" size={20} color={palette.accent}/>
-            <Text style={styles.additionalTodayText}>Ajouter une séance aujourd’hui</Text>
-            <Ionicons name="chevron-forward" size={17} color={palette.textMuted}/>
-          </Pressable>
+          {todayRows.length>0 ? (
+            <View style={styles.todaySessions}>
+              <Text style={styles.todaySessionsTitle}>MES SÉANCES DU JOUR</Text>
+              {todayRows.map(item=>{
+                const done=item.state==='completed';
+                const active=item.state==='active'||(!done&&Boolean(activeSessionId&&item.sessionId===activeSessionId));
+                const disabled=!done&&(resuming||Boolean(activeSessionId&&activeSessionId!==item.sessionId));
+                const time=done&&item.time?new Date(item.time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):null;
+                return (
+                  <Pressable key={item.key} accessibilityRole="button" accessibilityState={{disabled}}
+                    disabled={disabled} onPress={()=>handleTodayRowPress(item)}
+                    style={({pressed})=>[styles.todaySessionRow,pressed&&styles.pressed]}>
+                    <Ionicons name={done?'checkmark-circle-outline':active?'play-circle-outline':'calendar-outline'} size={22} color={done?palette.accent:palette.orange}/>
+                    <View style={styles.todaySessionCopy}>
+                      <Text style={styles.todaySessionName}>{item.title||'Séance'}</Text>
+                      {item.meta?<Text style={styles.todaySessionMeta}>{item.meta}</Text>:null}
+                    </View>
+                    <Text style={[styles.todaySessionStatus,{color:done?palette.textMuted:palette.textSecondary}]}>{done?(time?'Réalisée · '+time:'Réalisée'):active?'En cours':'À venir'}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={palette.textMuted}/>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
 
           <DashboardHistoryCalendarCoach
             week={week}
@@ -573,8 +668,13 @@ function createStyles(p, isDark) {
     content: { paddingHorizontal: 18, paddingTop: 0, paddingBottom: 118 },
     contentInsideTabs: { paddingBottom: 34 },
 
-    additionalToday:{minHeight:48,flexDirection:'row',alignItems:'center',gap:8,borderBottomWidth:1,borderBottomColor:p.border,marginBottom:12},
-    additionalTodayText:{flex:1,fontFamily:'Manrope_600SemiBold',fontSize:13,color:p.text},
+    todaySessions:{marginBottom:12},
+    todaySessionsTitle:{fontFamily:'Manrope_700Bold',fontSize:11,letterSpacing:0.7,color:p.textMuted,marginBottom:4},
+    todaySessionRow:{minHeight:56,flexDirection:'row',alignItems:'center',gap:8,borderBottomWidth:1,borderBottomColor:p.border,paddingVertical:8},
+    todaySessionCopy:{flex:1,gap:2},
+    todaySessionName:{fontFamily:'Manrope_600SemiBold',fontSize:13,color:p.text},
+    todaySessionMeta:{fontFamily:'Manrope_400Regular',fontSize:11,color:p.textMuted},
+    todaySessionStatus:{fontFamily:'Manrope_600SemiBold',fontSize:10,textAlign:'right'},
     loadingScreen: {
       flex: 1,
       alignItems: 'center',

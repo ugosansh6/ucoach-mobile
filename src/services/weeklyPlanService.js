@@ -59,6 +59,34 @@ export async function getDashboardSnapshot({
   return normalizeDashboardSnapshot(data);
 }
 
+// Owned completed sessions for the device's actual local day (including month boundaries).
+// Independent of the weekly plan and its slot count; no limit on the day's actuals.
+export async function getTodayCompletedSessions(anchorDate = new Date()) {
+  const userId = await getAuthenticatedUserId();
+  const start = new Date(anchorDate);
+  start.setHours(0,0,0,0);
+  const end = new Date(start);
+  end.setDate(end.getDate()+1);
+  return withWeekReadTimeout(async signal => {
+    const rows = [];
+    const pageSize = 200;
+    for(let offset=0;;offset+=pageSize){
+      const data=await runSupabaseRequestWithAuthRetry(()=>
+        supabase.from('workout_sessions')
+          .select('id,focus,target_region,duration_minutes,completed_at,actual_environment_code,planned_environment_code')
+          .eq('user_id',userId).eq('status','completed')
+          .gte('completed_at',start.toISOString()).lt('completed_at',end.toISOString())
+          .order('completed_at',{ascending:true}).order('id',{ascending:true})
+          .range(offset,offset+pageSize-1).abortSignal(signal)
+      );
+      if(!Array.isArray(data))throw new Error('Historique du jour indisponible.');
+      rows.push(...data);
+      if(data.length<pageSize)break;
+    }
+    return rows;
+  });
+}
+
 export async function getTrainingConsistency({
   anchorDate = new Date(),
   monthsBack = 24,
