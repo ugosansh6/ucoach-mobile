@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect, useSegments } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -34,6 +35,8 @@ const lightActivityPhoto = require('../../../assets/branding/mohamed-fareed-rbSN
 const darkBuildPhoto = require('../../../assets/branding/nexa-black-gu4bdVTq0CU-unsplash.jpg');
 const darkActivityPhoto = require('../../../assets/branding/victor-freitas-WvDYdXDzkhs-unsplash.jpg');
 
+// #56 — Dashboard-only typography trial; other screens keep their existing fonts.
+const dashboardTrialFonts = { BarlowCondensed_700Bold: require('../../../assets/fonts/BarlowCondensed-Bold.ttf') };
 const DAY_LABELS = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM'];
 
 const DARK_PALETTE = {
@@ -349,7 +352,9 @@ export default function DashboardCoachV6Screen() {
   const { setGeneratedWorkout } = useWorkout();
 
   const palette = isDark ? DARK_PALETTE : LIGHT_PALETTE;
-  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const [dashboardFontsLoaded] = useFonts(dashboardTrialFonts);
+  const headingFont = dashboardFontsLoaded ? 'BarlowCondensed_700Bold' : 'BebasNeue_400Regular';
+  const styles = useMemo(() => createStyles(palette, isDark, headingFont), [palette, isDark, headingFont]);
   const panelWidth = Math.max(viewportWidth, 280);
   const brandIcon = isDark ? darkBrandIcon : lightBrandIcon;
 
@@ -660,6 +665,7 @@ export default function DashboardCoachV6Screen() {
             initialMonthSessions={snapshot?.monthSessions ?? []}
             onCompletedDayPress={handleCompletedDayPress}
             palette={palette}
+            headingFont={dashboardFontsLoaded ? headingFont : undefined}
           />
 
           <View style={styles.trainingSpace}>
@@ -704,7 +710,7 @@ export default function DashboardCoachV6Screen() {
   );
 }
 
-function createStyles(p, isDark) {
+function createStyles(p, isDark, headingFont) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: p.background },
     safeArea: { flex: 1 },
@@ -712,7 +718,7 @@ function createStyles(p, isDark) {
     contentInsideTabs: { paddingBottom: 34 },
 
     trainingSpace:{marginTop:20,marginBottom:20,gap:10},
-    trainingSpaceTitle:{fontFamily:'BebasNeue_400Regular',fontSize:25,letterSpacing:0.8,color:p.text},
+    trainingSpaceTitle:{fontFamily:headingFont,fontSize:25,letterSpacing:0.8,color:p.text},
     trainingCard:{backgroundColor:'#151D17',borderRadius:16,overflow:'hidden',padding:14,justifyContent:'space-between',borderWidth:1,borderColor:p.border},
     trainingWide:{minHeight:172},
     trainingSmall:{flex:1,minWidth:0,minHeight:158,padding:12},
@@ -723,11 +729,11 @@ function createStyles(p, isDark) {
     trainingArrow:{transform:[{rotate:'45deg'}]},
     trainingCardCopy:{gap:2,marginTop:10},
     trainingEyebrow:{fontFamily:'Manrope_700Bold',fontSize:10,letterSpacing:1.6,color:'#B6C5AE'},
-    trainingTitle:{fontFamily:'BebasNeue_400Regular',fontSize:36,lineHeight:39,color:'#F4F5F1'},
-    trainingTitleSmall:{fontFamily:'BebasNeue_400Regular',fontSize:25,lineHeight:28,color:'#F4F5F1'},
+    trainingTitle:{fontFamily:headingFont,fontSize:36,lineHeight:39,color:'#F4F5F1'},
+    trainingTitleSmall:{fontFamily:headingFont,fontSize:25,lineHeight:28,color:'#F4F5F1'},
     trainingSubtitle:{fontFamily:'Manrope_500Medium',fontSize:12,lineHeight:17,color:'#D2D9CE'},
     todaySessions:{marginBottom:12},
-    todaySessionsTitle:{fontFamily:'BebasNeue_400Regular',fontSize:25,letterSpacing:0.8,color:p.text,marginBottom:4},
+    todaySessionsTitle:{fontFamily:headingFont,fontSize:25,letterSpacing:0.8,color:p.text,marginBottom:4},
     todaySessionRow:{minHeight:56,flexDirection:'row',alignItems:'center',gap:8,borderBottomWidth:1,borderBottomColor:p.border,paddingVertical:8},
     todaySessionCopy:{flex:1,gap:2},
     todaySessionName:{fontFamily:'Manrope_600SemiBold',fontSize:14,color:p.text},
@@ -828,10 +834,10 @@ function createStyles(p, isDark) {
     heroTitle: {
       maxWidth: '82%',
       marginBottom: 14,
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 40,
-      lineHeight: 41,
-      letterSpacing: 0.7,
+      fontFamily: headingFont,
+      fontSize: 36,
+      lineHeight: 39,
+      letterSpacing: 0.3,
       color: p.text,
     },
     greeting: {
@@ -891,10 +897,12 @@ function createStyles(p, isDark) {
     primaryCtaPressed: { transform: [{ scale: 0.992 }], opacity: 0.94 },
     primaryCtaDisabled: { opacity: 0.65 },
     primaryCtaText: {
-      fontFamily: 'BebasNeue_400Regular',
-      fontSize: 23,
-      lineHeight: 27,
-      letterSpacing: 1.05,
+      fontFamily: 'Manrope_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      letterSpacing: 0.2,
+      flexShrink: 1,
+      marginRight: 8,
       color: p.textOnAccent,
     },
 
