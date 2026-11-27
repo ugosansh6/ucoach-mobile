@@ -4,7 +4,7 @@ import {DurationControl,PhotoChoiceGrid} from '../creation/CreationFrameControls
 import ExerciseDetail from '../exercises/ExerciseDetail';
 import MechanicCarousel from '../creation/MechanicCarousel';
 import {getExerciseById} from '../../services/exerciseService';
-import {ActivityIndicator,Animated,Keyboard,Pressable,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Animated,Keyboard,Pressable,ScrollView,Text,TextInput,View} from 'react-native';
 import Svg,{Circle} from 'react-native-svg';
 import {useUgerodTheme} from '../../contexts/UgerodThemeContext';
 import {fontFamilies} from '../../constants/typography';
@@ -64,23 +64,31 @@ function Choice({title,icon,selected,onPress}){
  const {colors:c}=useUgerodTheme(),s=theme(c);
  return <Pressable accessibilityRole="radio" accessibilityState={{selected}} onPress={onPress} style={({pressed})=>({flex:1,minWidth:0,minHeight:58,borderWidth:1,borderColor:selected?c.accent:c.border,borderRadius:12,backgroundColor:selected?c.accentSoft:c.surface,flexDirection:'row',alignItems:'center',gap:8,padding:10,opacity:pressed?0.75:1})}>{icon?<Ionicons name={icon} size={22} color={selected?c.text:c.textMuted}/>:null}<Text style={{...s.label,flex:1,fontSize:13}}>{title}</Text>{selected?<Ionicons name="checkmark-circle" size={17} color={c.secondaryAccent}/>:null}</Pressable>;
 }
-export function RoutineList({rows,loading,checkpoint,busy,onOpen,onStart,onCreate}){
+export function RoutineList({rows,loading,checkpoint,busy,onOpen,onStart,onCreate,onEdit,onCopy,onArchive}){
  const {colors:c}=useUgerodTheme(),s=theme(c);
+ const [category,setCategory]=useState(''),[menuId,setMenuId]=useState(null);
+ const filters=[{code:'',label:'Toutes'},{code:'MOBILITY',label:'Mobilité'},{code:'CORE',label:'Gainage'},{code:'PHYSIO',label:'Kiné'},{code:'CONDITIONING',label:'Conditioning'}];
+ const visible=rows.filter(row=>!category||row.category===category);
  if(loading)return <ActivityIndicator color={c.accent}/>;
+ function action(fn,row){setMenuId(null);fn(row);}
  return <View style={{gap:14}}>
-  <View style={{...s.panel,backgroundColor:c.accentSoft,borderColor:c.borderStrong,gap:9}}>
-   <View style={s.row}><View style={{flex:1,gap:4}}><Text style={s.eyebrow}>TES HABITUDES</Text><Text style={{...s.heading,fontSize:36,lineHeight:39}}>UN PEU, SOUVENT.</Text><Text style={s.muted}>Tes routines, à ton rythme, en complément de tes séances.</Text></View><CategoryMark size={65}/></View>
-   <Button title="Créer une routine" icon="add-outline" primary disabled={busy} onPress={onCreate}/>
-  </View>
-  <View style={{...s.row,justifyContent:'space-between'}}><Text style={s.heading}>À TA DISPOSITION</Text><Text style={s.muted}>{rows.length} routine{rows.length===1?'':'s'}</Text></View>
-  {rows.length===0?<View style={{...s.panel,alignItems:'center',paddingVertical:28}}><CategoryMark size={60}/><Text style={s.label}>Aucune routine pour l’instant</Text><Text style={{...s.muted,textAlign:'center'}}>Mobilité, gainage, kiné ou conditioning : crée celle qui te convient.</Text></View>:rows.map(row=>{
-   const resume=checkpoint?.routine?.id===row.id;
+  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:7,paddingBottom:2}}>
+   {filters.map(item=><Pressable key={item.code} accessibilityRole="radio" accessibilityState={{selected:category===item.code}} disabled={busy} onPress={()=>{setCategory(item.code);setMenuId(null);}} style={({pressed})=>({minHeight:44,paddingHorizontal:13,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:category===item.code?c.accent:c.surface,borderWidth:1,borderColor:category===item.code?c.accent:c.border,opacity:pressed?0.75:1})}><Text style={{...s.label,fontSize:12,color:category===item.code?c.textOnAccent:c.text}}>{item.label}</Text></Pressable>)}
+  </ScrollView>
+  {visible.length===0?<View style={{...s.panel,alignItems:'center',paddingVertical:24}}><CategoryMark category={category||undefined} size={52}/><Text style={s.label}>{rows.length?'Aucune routine dans cette catégorie':'Aucune routine pour l’instant'}</Text>{rows.length?<Button title="Voir toutes les routines" compact onPress={()=>{setCategory('');setMenuId(null);}}/>:<Text style={{...s.muted,textAlign:'center'}}>Crée ta première routine pour la retrouver ici.</Text>}</View>:visible.map(row=>{
+   const resume=checkpoint?.routine?.id===row.id,menuOpen=menuId===row.id;
+   const mechanic=isBlockTabata(row)?'Tabata '+row.parameters.blocks:row.mechanic==='SETS_REPS'?'Séries & maintien':row.mechanic==='HIIT'?'Intervalles':ROUTINE_MECHANICS[row.mechanic];
    return <View key={row.id} style={s.panel}>
-    <Pressable accessibilityRole="button" accessibilityLabel={'Voir '+row.name} onPress={()=>onOpen(row)} style={s.row}><CategoryMark category={row.category}/><View style={{flex:1,minWidth:0,gap:3}}><Text style={s.eyebrow}>{ROUTINE_CATEGORIES[row.category]?.toUpperCase()}</Text><Text style={{...s.label,fontSize:17,lineHeight:23}}>{row.name}</Text><Text style={s.muted}>{row.planned_minutes} min · {row.exercises.length} exercices</Text></View><Ionicons name="chevron-forward" size={19} color={c.textMuted}/></Pressable>
-    {row.recurrence_days?.length?<View style={{gap:6}}><Text style={s.muted}>Jours prévus</Text><DayStrip days={row.recurrence_days}/></View>:<Text style={s.muted}>À la demande</Text>}
-    <View style={s.row}><View style={{flex:1}}><Button title={resume?'Reprendre':'Lancer'} icon="play-outline" primary disabled={busy} onPress={()=>onStart(row)}/></View><IconButton icon="options-outline" label={'Gérer '+row.name} onPress={()=>onOpen(row)} disabled={busy}/></View>
+    <View style={s.row}>
+     <Pressable accessibilityRole="button" accessibilityLabel={'Voir '+row.name} disabled={busy} onPress={()=>action(onOpen,row)} style={{...s.row,flex:1,minWidth:0}}><CategoryMark category={row.category}/><View style={{flex:1,minWidth:0,gap:3}}><Text style={s.eyebrow}>{ROUTINE_CATEGORIES[row.category]?.toUpperCase()}</Text><Text style={{...s.label,fontSize:17,lineHeight:23}}>{row.name}</Text><Text style={s.muted}>{row.planned_minutes} min · {row.exercises.length} exercice{row.exercises.length===1?'':'s'}{mechanic?' · '+mechanic:''}</Text></View></Pressable>
+     <Pressable accessibilityRole="button" accessibilityLabel={'Gérer '+row.name} accessibilityState={{expanded:menuOpen}} disabled={busy} onPress={()=>setMenuId(menuOpen?null:row.id)} style={{width:44,height:44,alignItems:'center',justifyContent:'center',borderRadius:10,backgroundColor:menuOpen?c.surfacePressed:c.surface}}><Ionicons name="ellipsis-vertical" size={22} color={c.text}/></Pressable>
+    </View>
+    {menuOpen?<View style={{borderRadius:12,borderWidth:1,borderColor:c.border,backgroundColor:c.surfacePressed,overflow:'hidden'}}>{[{label:'Modifier',icon:'create-outline',fn:onEdit},{label:'Dupliquer',icon:'copy-outline',fn:onCopy},{label:'Supprimer',icon:'trash-outline',fn:onArchive,danger:true}].map((item,i)=><Pressable key={item.label} accessibilityRole="button" disabled={busy} onPress={()=>action(item.fn,row)} style={({pressed})=>({minHeight:46,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:13,borderTopWidth:i?1:0,borderTopColor:c.border,opacity:pressed?0.65:1})}><Ionicons name={item.icon} size={19} color={item.danger?c.error:c.text}/><Text style={{...s.label,color:item.danger?c.error:c.text}}>{item.label}</Text></Pressable>)}</View>:null}
+    {row.recurrence_days?.length?<DayStrip days={row.recurrence_days}/>:<Text style={s.muted}>À la demande</Text>}
+    <Button title={resume?'Reprendre':'Lancer'} icon="play-outline" primary disabled={busy} onPress={()=>onStart(row)}/>
    </View>;
   })}
+  <Button title="Créer une routine" icon="add-outline" disabled={busy} onPress={onCreate}/>
  </View>;
 }
 
