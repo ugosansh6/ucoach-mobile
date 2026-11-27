@@ -36,6 +36,11 @@ const dash=fs.readFileSync('src/components/dashboard/DashboardCoachV6Screen.js',
 const routineList=presentation.slice(presentation.indexOf('export function RoutineList('),presentation.indexOf('export function RoutineDetail('));
 assert.ok(!/TES HABITUDES|UN PEU, SOUVENT|À TA DISPOSITION/.test(routineList));
 assert.match(routineList,/ellipsis-vertical/);assert.match(routineList,/fn:onEdit/);assert.match(routineList,/fn:onCopy/);assert.match(routineList,/fn:onArchive/);assert.match(routineList,/Reprendre/);assert.match(route,/onArchive=\{row=>\{archive\(row\)/);
+assert.match(routineList,/source=\{ROUTINE_PHOTOS\[row.category\]/);
+assert.match(routineList,/LinearGradient/);assert.match(routineList,/minHeight:172/);assert.match(routineList,/\{row.name\}/);
+assert.ok(!routineList.includes('onCreate'));
+assert.match(route,/library\?<Image source=\{isDark\?darkBrandIcon:lightBrandIcon\}/);
+assert.match(route,/<\/ScrollView>\{library\?<View[^\n]+btn\('Créer une routine',createFromLibrary/);
 const listFilter=new Function('rows','category',routineList.match(/const visible=rows.filter[^;]+;/)[0]+'return visible;');
 const samples=[{id:'m',category:'MOBILITY'},{id:'c',category:'CORE'},{id:'k',category:'PHYSIO'}];assert.deepEqual(listFilter(samples,''),samples);assert.deepEqual(listFilter(samples,'CORE'),[samples[1]]);assert.deepEqual(listFilter(samples,'CONDITIONING'),[]);
 assert.match(route,/onFinish=\{finish\}/);assert.match(route,/addPersonal=\{\(\)=>add\(personal\(\)\)\}/);assert.match(dash,/MON ESPACE D’ENTRAÎNEMENT/);assert.match(dash,/trainingGrid/);console.log('PASS routine contract, day rows, mechanics, timer transitions, resume, routes and JSX');
