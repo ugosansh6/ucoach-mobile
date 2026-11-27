@@ -13,12 +13,12 @@ import {ROUTINE_CATEGORIES,ROUTINE_DAYS,ROUTINE_MECHANICS,isIntervalRoutine,adva
 
 import {initialRoutineEditorState,openRoutineEditorSection,advanceRoutineEditor,routineEditorIssue,ROUTINE_EDITOR_SECTIONS} from './routineEditorNavigation';
 
-// Category photos supplied by the product owner; Conditioning retains its existing illustration.
+// Category photos approved by the product owner.
 const ROUTINE_PHOTOS={
  MOBILITY:require('../../../assets/routine-categories/mobility.webp'),
  CORE:require('../../../assets/routine-categories/core.webp'),
  PHYSIO:require('../../../assets/routine-categories/physio.webp'),
- CONDITIONING:require('../../../assets/branding/victor-freitas-WvDYdXDzkhs-unsplash.jpg'),
+ CONDITIONING:require('../../../assets/routine-categories/conditioning.webp'),
 };
 const ROUTINE_DURATION_VALUES=Array.from({length:30},(_,i)=>i+1);
 const routineCategories=Object.entries(ROUTINE_CATEGORIES).map(([code,label])=>({code,label}));
