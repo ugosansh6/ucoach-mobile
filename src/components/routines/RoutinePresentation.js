@@ -13,11 +13,11 @@ import {ROUTINE_CATEGORIES,ROUTINE_DAYS,ROUTINE_MECHANICS,isIntervalRoutine,adva
 
 import {initialRoutineEditorState,openRoutineEditorSection,advanceRoutineEditor,routineEditorIssue,ROUTINE_EDITOR_SECTIONS} from './routineEditorNavigation';
 
-// Provisional category illustrations from existing local assets; dedicated photos can replace these.
+// Category photos supplied by the product owner; Conditioning retains its existing illustration.
 const ROUTINE_PHOTOS={
- MOBILITY:require('../../../assets/composer-environments/home.webp'),
- CORE:require('../../../assets/branding/nexa-black-gu4bdVTq0CU-unsplash.jpg'),
- PHYSIO:require('../../../assets/composer-environments/equipment.webp'),
+ MOBILITY:require('../../../assets/routine-categories/mobility.webp'),
+ CORE:require('../../../assets/routine-categories/core.webp'),
+ PHYSIO:require('../../../assets/routine-categories/physio.webp'),
  CONDITIONING:require('../../../assets/branding/victor-freitas-WvDYdXDzkhs-unsplash.jpg'),
 };
 const ROUTINE_DURATION_VALUES=Array.from({length:30},(_,i)=>i+1);
