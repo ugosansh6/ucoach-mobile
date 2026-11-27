@@ -101,9 +101,8 @@ export default function DashboardHistoryCalendarCoach({
   initialMonthSessions,
   onCompletedDayPress,
   palette,
-  headingFont,
 }) {
-  const styles = useMemo(() => createStyles(palette, headingFont), [palette, headingFont]);
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [displayedMonth, setDisplayedMonth] = useState(new Date());
   const [monthSessions, setMonthSessions] = useState(
@@ -392,7 +391,7 @@ export default function DashboardHistoryCalendarCoach({
   );
 }
 
-function createStyles(p, headingFont) {
+function createStyles(p) {
   return StyleSheet.create({
     section: { marginTop: 26 },
     titleRow: {
@@ -402,9 +401,9 @@ function createStyles(p, headingFont) {
       marginBottom: 11,
     },
     sectionTitle: {
-      fontFamily: headingFont ?? 'Manrope_800ExtraBold',
-      fontSize: headingFont ? 18 : 10,
-      letterSpacing: headingFont ? 0.4 : 1.2,
+      fontFamily: 'Manrope_800ExtraBold',
+      fontSize: 10,
+      letterSpacing: 1.2,
       color: p.text,
     },
     monthLabel: {
@@ -527,7 +526,7 @@ function createStyles(p, headingFont) {
     },
     calendarMonthCenter: { alignItems: 'center' },
     fullCalendarMonth: {
-      fontFamily: headingFont ?? 'BebasNeue_400Regular',
+      fontFamily: 'BebasNeue_400Regular',
       fontSize: 24,
       lineHeight: 27,
       letterSpacing: 1.2,
