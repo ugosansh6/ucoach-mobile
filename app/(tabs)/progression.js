@@ -128,6 +128,7 @@ function movementEvidence(item) {
     icon: 'barbell-outline',
     eyebrow: status.eyebrow,
     title: item?.name ?? 'Mouvement observé',
+    exercise: item,
     value: metric ?? status.title,
     text: item?.signal === 'PROGRESSING'
       ? 'La référence récente monte, mais UGEROD attend encore une confirmation comparable.'
@@ -296,7 +297,8 @@ function equipmentOpportunityCopy(snapshot) {
   const equipment = joinEquipmentLabels(opportunity?.equipment_gap?.missing_equipment);
   if (!equipment) return null;
 
-  const target = opportunity?.target_exercise_name ?? 'ton objectif';
+  const targetExercise = opportunity?.target_exercise_name ? {exercise_id:opportunity.target_exercise_id ?? null,name:opportunity.target_exercise_name} : null;
+  const target = targetExercise ? 'ce mouvement' : 'ton objectif';
   const supportType = opportunity?.supports_opportunity_type;
   const benefit = supportType === 'CALIBRATION'
     ? `mieux calibrer ${target}`
@@ -312,6 +314,7 @@ function equipmentOpportunityCopy(snapshot) {
 
   return {
     equipment,
+    targetExercise,
     title: 'UNE SÉANCE MIEUX ÉQUIPÉE PEUT ÊTRE UTILE',
     text: `Si tu as accès à ${equipment} en salle ou ailleurs, UGEROD pourra ${benefit}. Ce n’est pas une obligation : ton programme continue avec ton matériel actuel.`,
     detail: `Opportunité détectée pour ${target}. UGEROD recommande un accès ponctuel au matériel, pas un achat.`,
@@ -348,31 +351,36 @@ function goalGapCopy(goalGap) {
   switch (goalGap?.status) {
     case 'TARGET_CALIBRATION_NEEDED':
       return {
-        title: target.toUpperCase(),
-        text: `UGEROD doit d’abord obtenir une mesure fiable sur ${target} avant de conclure sur le prochain cap. Une donnée manquante n’est pas une faiblesse.`,
+        title: target,
+        targetExercise: goalGap.target,
+        text: `UGEROD doit d’abord obtenir une mesure fiable sur ce mouvement avant de conclure sur le prochain cap. Une donnée manquante n’est pas une faiblesse.`,
         requirements: [],
       };
     case 'CALIBRATION_NEEDED':
       return {
-        title: target.toUpperCase(),
+        title: target,
+        targetExercise: goalGap.target,
         text: 'Le cap est identifié, mais certaines capacités nécessaires doivent encore être mesurées avant de conclure.',
         requirements,
       };
     case 'LIMITING_FACTORS_IDENTIFIED':
       return {
-        title: target.toUpperCase(),
+        title: target,
+        targetExercise: goalGap.target,
         text: 'UGEROD a identifié les capacités qui limitent probablement ce cap à partir de prérequis documentés.',
         requirements,
       };
     case 'REQUIREMENTS_SUPPORTED':
       return {
-        title: target.toUpperCase(),
+        title: target,
+        targetExercise: goalGap.target,
         text: 'Les prérequis documentés connus sont soutenus par les observations disponibles. UGEROD peut poursuivre la progression sans inventer de seuil supplémentaire.',
         requirements,
       };
     default:
       return {
-        title: target.toUpperCase(),
+        title: target,
+        targetExercise: goalGap.target,
         text: 'Ce cap reste actif. Aucun facteur limitant causal fiable n’est identifié pour le moment.',
         requirements,
       };
@@ -401,7 +409,7 @@ function EvidenceCard({ item, showDetails }) {
 
       <View style={styles.evidenceMain}>
         <Text style={styles.evidenceEyebrow}>{item.eyebrow}</Text>
-        <Text style={styles.evidenceTitle}>{item.title}</Text>
+        {item.exercise?<ExerciseName style={styles.evidenceTitle} exercise={item.exercise} fallback={item.title}/>:<Text style={styles.evidenceTitle}>{item.title}</Text>}
         <Text style={styles.evidenceValue}>{item.value}</Text>
         <Text style={styles.evidenceText}>{item.text}</Text>
         {showDetails ? <Text style={styles.evidenceDetail}>{item.detail}</Text> : null}
@@ -671,6 +679,7 @@ export default function ProgressionScreen() {
                   </View>
                 </View>
                 <Text style={styles.equipmentOpportunityTitle}>{equipmentOpportunity.title}</Text>
+                {equipmentOpportunity.targetExercise?<ExerciseName style={styles.equipmentOpportunityTitle} exercise={equipmentOpportunity.targetExercise}/>:null}
                 <Text style={styles.equipmentOpportunityText}>{equipmentOpportunity.text}</Text>
                 <View style={styles.equipmentOpportunityReason}>
                   <Ionicons name="information-circle-outline" size={15} color={colors.textMuted} />
@@ -686,7 +695,7 @@ export default function ProgressionScreen() {
                 </View>
                 <Text style={styles.capEyebrow}>TON PROCHAIN CAP</Text>
               </View>
-              <Text style={styles.capTitle}>{goalGap.title}</Text>
+              {goalGap.targetExercise?<ExerciseName style={styles.capTitle} exercise={goalGap.targetExercise} fallback={goalGap.title}/>:<Text style={styles.capTitle}>{goalGap.title}</Text>}
               <Text style={styles.capText}>{goalGap.text}</Text>
               {goalGap.requirements.length > 0 ? (
                 <View style={styles.capRequirements}>

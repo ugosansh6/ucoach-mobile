@@ -1330,24 +1330,21 @@ function GymCardioBlock({
   ]);
 
   const protocolSummary = useMemo(() => {
-    if (isMixedIntervals && supportExercise) {
-      return `${formatRunDuration(machineSeconds)} ${machineExercise?.name ?? 'machine'} · ${formatRunDuration(supportSeconds)} ${supportExercise.name}`;
-    }
     if (isMachineIntervals) {
       return `${formatRunDuration(workSeconds)} soutenu · ${formatRunDuration(recoverySeconds)} facile`;
     }
     return `${formatRunDuration(totalSeconds)} en continu`;
-  }, [
-    isMachineIntervals,
-    isMixedIntervals,
-    machineExercise?.name,
-    machineSeconds,
-    recoverySeconds,
-    supportExercise,
-    supportSeconds,
-    totalSeconds,
-    workSeconds,
-  ]);
+  }, [isMachineIntervals, recoverySeconds, totalSeconds, workSeconds]);
+
+  function renderProtocolSummary(style) {
+    if (isMixedIntervals && supportExercise) {
+      return <View style={{gap:4}}>
+        <ExerciseName exercise={machineExercise} fallback="Machine" prefix={formatRunDuration(machineSeconds)+' · '} style={style}/>
+        <ExerciseName exercise={supportExercise} prefix={formatRunDuration(supportSeconds)+' · '} style={style}/>
+      </View>;
+    }
+    return <Text style={style}>{protocolSummary}</Text>;
+  }
 
   function openReview() {
     if (!executionEnabled || !started || elapsed <= 0) return;
@@ -1429,7 +1426,7 @@ function GymCardioBlock({
         </View>
         <View style={cardioStyles.topCopy}>
           {isMixedIntervals?<Text style={cardioStyles.machineName}>Cardio alterné</Text>:<ExerciseName exercise={machineExercise} fallback="Cardio" style={cardioStyles.machineName}/>}
-          <Text style={cardioStyles.targetLabel}>{protocolSummary}</Text>
+          {renderProtocolSummary(cardioStyles.targetLabel)}
         </View>
       </View>
 
@@ -1457,10 +1454,10 @@ function GymCardioBlock({
         <>
           <View style={cardioStyles.protocolBox}>
             <Text style={cardioStyles.protocolTitle}>Protocole</Text>
-            <Text style={cardioStyles.protocolText}>{protocolSummary}</Text>
+            {renderProtocolSummary(cardioStyles.protocolText)}
             {isMixedIntervals && supportExercise ? (
               <Text style={cardioStyles.protocolHint}>
-                Alterne automatiquement entre {machineExercise?.name} et {supportExercise.name}.
+                Les deux mouvements s’enchaînent automatiquement.
               </Text>
             ) : isMachineIntervals ? (
               <Text style={cardioStyles.protocolHint}>

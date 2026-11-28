@@ -1956,12 +1956,7 @@ function DeckProtocol({
         <Text style={styles.deckRank}>
           {symbol} {card.rank}
         </Text>
-        <Text style={styles.deckExercise}>
-          {String(
-            exercise?.name ??
-              'EXERCICE'
-          ).toUpperCase()}
-        </Text>
+        <ExerciseName style={styles.deckExercise} exercise={exercise} fallback="Exercice"/>
         <Text style={styles.deckReps}>
           {numberOr(card.reps, 1)} REPS
         </Text>
@@ -2118,11 +2113,7 @@ function CurrentExerciseCard({
       ) : null}
 
       {nextExercise ? (
-        <Text style={styles.nextExercise}>
-          SUIVANT · {String(
-            nextExercise.name
-          ).toUpperCase()}
-        </Text>
+        <ExerciseName style={styles.nextExercise} exercise={nextExercise} prefix="Suivant · "/>
       ) : null}
     </View>
   );

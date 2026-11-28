@@ -32,6 +32,18 @@ const files=['app/_layout.js','app/profile/index.js','app/(tabs)/library.js','ap
 for(const p of files){const body=fs.readFileSync(p,'utf8');parser.parse(body,{sourceType:'module',plugins:['jsx']});}
 console.log('PASS 356 bilingual catalogue entries, mode switching, detail, no duplicate identical labels, personal/legacy fallback, accents and aliases, JSX syntax');
 
+// Secondary screen coverage: keep identifiers through the actual render paths.
+const coverage = [
+  ['src/components/workout/WodProtocolPlayer.js','<ExerciseName style={styles.deckExercise} exercise={exercise}'],
+  ['src/components/workout/WodProtocolPlayer.js','<ExerciseName style={styles.nextExercise} exercise={nextExercise}'],
+  ['app/workout/environment-session-core.js','<ExerciseName exercise={machineExercise} fallback="Machine" prefix='],
+  ['app/workout/environment-session-core.js','<ExerciseName exercise={supportExercise} prefix='],
+  ['app/(tabs)/progression.js','<ExerciseName style={styles.evidenceTitle} exercise={item.exercise}'],
+  ['app/(tabs)/progression.js','<ExerciseName style={styles.capTitle} exercise={goalGap.targetExercise}'],
+  ['app/(tabs)/progression.js','<ExerciseName style={styles.equipmentOpportunityTitle} exercise={equipmentOpportunity.targetExercise}'],
+];
+for(const [path,needle] of coverage)assert.ok(fs.readFileSync(path,'utf8').includes(needle),path+' '+needle);
+console.log('PASS secondary screen bilingual wiring: deck, next exercise, mixed cardio, progression evidence, cap and opportunity');
 async function testBuilderSearch() {
   const builderSource=fs.readFileSync('src/services/userSessionBuilderService.js','utf8').replace(/^import .*?;\s*/gm,'').replace(/export /g,'');
   const calls=[];
