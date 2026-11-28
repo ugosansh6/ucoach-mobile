@@ -15,7 +15,7 @@ const ZONE_PHOTOS = {
   Upper:require('../../assets/picker-zones/upper.webp'),
   Lower:require('../../assets/picker-zones/lower.webp'),
   Back:require('../../assets/picker-zones/back.webp'),
-  Core:require('../../assets/routine-categories/core.webp'),
+  Core:require('../../assets/picker-zones/core.webp'),
   'Full Body':require('../../assets/picker-zones/full.webp'),
 };
 
