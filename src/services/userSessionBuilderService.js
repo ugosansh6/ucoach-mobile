@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { exerciseSearchMatches } from '../utils/exerciseNames';
+import { exerciseSearchMatches, matchingExerciseNameIds } from '../utils/exerciseNames';
 
 const draftVersions = new Map();
 
@@ -164,11 +164,22 @@ export async function getUserSessionBuilderExercises({
     p_body_region: bodyRegion,
     p_include_unavailable: Boolean(includeUnavailable),
   };
+  if (String(query??'').trim()) {
+    // All catalogue IDs are matched before the server's eligibility and result limit.
+    // DEV v3 is search-only; v2 remains available on older environments.
+    const bilingual = await supabase.rpc('get_user_session_builder_exercises_v3', {
+      ...args, p_bilingual_match_ids: matchingExerciseNameIds(query),
+    });
+    if (!bilingual.error) return bilingual.data ?? {results:[]};
+    if (!['PGRST202','42883'].includes(bilingual.error.code)) {
+      throwRpcError(bilingual.error, 'Impossible de charger les exercices.');
+    }
+  }
   const { data, error } = await supabase.rpc('get_user_session_builder_exercises_v2', args);
   throwRpcError(error, 'Impossible de charger les exercices.');
   if (!String(query??'').trim()) return data ?? { results: [] };
-  // Preserve authoritative eligibility, warnings and existing server matches.
-  // The legacy RPC caps the eligible window at 150; no engine or database change.
+  // Compatibility only for environments where the v3 migration is not installed.
+  // The legacy RPC caps the eligible window at 150.
   const extra = await supabase.rpc('get_user_session_builder_exercises_v2', {...args,p_query:null,p_limit:150});
   if(extra.error) return data ?? {results:[]};
   const rows = new Map((data?.results??[]).map(row=>[row.exercise_id,row]));

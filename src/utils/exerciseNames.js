@@ -46,3 +46,9 @@ export function exerciseNameSearchAliases(exercise) {
   const e=exerciseNameEntry(exercise);
   return e?[...new Set([e.fr,e.en,...e.aliases])]:[];
 }
+
+// Compute matches against the full editorial catalogue before applying server eligibility.
+export function matchingExerciseNameIds(query) {
+  if (!normalizeExerciseSearch(query)) return [];
+  return Object.keys(catalogue).filter(id=>exerciseSearchMatches(id,query));
+}
