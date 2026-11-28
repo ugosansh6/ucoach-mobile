@@ -27,6 +27,7 @@ import {
 import { colors } from '../src/constants';
 import { OnboardingProvider } from '../src/contexts/OnboardingContext';
 import { UgerodThemeProvider } from '../src/contexts/UgerodThemeContext';
+import { ExerciseNameProvider } from '../src/contexts/ExerciseNameContext';
 import { WorkoutProvider } from '../src/contexts/WorkoutContext';
 
 export default function RootLayout() {
@@ -59,6 +60,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <UgerodThemeProvider>
+        <ExerciseNameProvider>
         <OnboardingProvider>
           <WorkoutProvider>
             {/*
@@ -79,6 +81,7 @@ export default function RootLayout() {
 
           </WorkoutProvider>
         </OnboardingProvider>
+        </ExerciseNameProvider>
       </UgerodThemeProvider>
     </SafeAreaProvider>
   );

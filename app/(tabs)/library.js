@@ -1,3 +1,5 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
+import { exerciseSearchMatches } from '../../src/utils/exerciseNames';
 import { router, useFocusEffect,useLocalSearchParams } from 'expo-router';
 import PersonalModelsPage from '../../src/workout/PersonalModelsPage';
 import { useCallback, useMemo, useState } from 'react';
@@ -23,7 +25,7 @@ function ExerciseLibraryScreen() {
     Promise.all([getExercises(),getExerciseFavorites()]).then(([catalogue,ids])=>{if(active){setRows(catalogue);setFavorites(ids)}}).catch(()=>{if(active)setError('Impossible de charger les exercices. Réessaie.');}).finally(()=>{if(active)setLoading(false)});
     return ()=>{active=false};
   },[retry]));
-  const visible=useMemo(()=>filterExerciseCatalogue(rows,filters,favorites),[rows,filters,favorites]);
+  const visible=useMemo(()=>filterExerciseCatalogue(rows,filters,favorites,exerciseSearchMatches),[rows,filters,favorites]);
   async function toggle(id){if(busy)return;setBusy(id);setError('');try{const selected=await setExerciseFavorite(id,!favorites.includes(id));setFavorites(ids=>selected?[...new Set([...ids,id])]:ids.filter(x=>x!==id));}catch{setError('Le favori n’a pas été enregistré. Réessaie.');}finally{setBusy(null)}}
   const text={color:colors.text,fontFamily:fontFamilies.regular,fontSize:14};
   return <SafeAreaView style={{flex:1,backgroundColor:colors.background}}>
@@ -39,7 +41,7 @@ function ExerciseLibraryScreen() {
     {loading?<ActivityIndicator color={colors.accent}/>:<FlatList data={visible} keyExtractor={e=>e.id} contentContainerStyle={{paddingHorizontal:18,paddingBottom:24}}
       ListEmptyComponent={<Text style={text}>Aucun exercice pour ces filtres.</Text>}
       renderItem={({item})=><View style={{flexDirection:'row',alignItems:'center',borderBottomWidth:1,borderBottomColor:colors.border,minHeight:76}}>
-        <Pressable onPress={()=>router.push(`/exercise/${encodeURIComponent(item.id)}`)} accessibilityRole="button" accessibilityLabel={`Voir ${item.name}`} style={{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',paddingVertical:9,gap:12}}><ExerciseArtwork imagePath={item.imagePath} colors={colors}/><View style={{flex:1,gap:4}}><Text style={{...text,fontFamily:fontFamilies.semiBold,fontSize:15,lineHeight:20}}>{item.name}</Text><Text style={{...text,color:colors.textSecondary,fontSize:12,lineHeight:17}}>{[exerciseRegionLabel(item.bodyRegion),exerciseMovementLabel(item.movementPattern)].filter(Boolean).join(' · ')}</Text></View></Pressable>
+        <Pressable onPress={()=>router.push(`/exercise/${encodeURIComponent(item.id)}`)} accessibilityRole="button" accessibilityLabel={`Voir ${item.name}`} style={{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',paddingVertical:9,gap:12}}><ExerciseArtwork imagePath={item.imagePath} colors={colors}/><View style={{flex:1,gap:4}}><ExerciseName exercise={item} style={{...text,fontFamily:fontFamilies.semiBold,fontSize:15,lineHeight:20}}/><Text style={{...text,color:colors.textSecondary,fontSize:12,lineHeight:17}}>{[exerciseRegionLabel(item.bodyRegion),exerciseMovementLabel(item.movementPattern)].filter(Boolean).join(' · ')}</Text></View></Pressable>
         <Pressable accessibilityRole="checkbox" accessibilityState={{checked:favorites.includes(item.id),disabled:busy!=null}} accessibilityLabel={`Favori : ${item.name}`} disabled={busy!=null} onPress={()=>toggle(item.id)} style={{width:44,minHeight:44,alignItems:'center',justifyContent:'center'}}><Ionicons name={favorites.includes(item.id)?'heart':'heart-outline'} size={21} color={colors.accent}/></Pressable>
       </View>}/>}
   </SafeAreaView>;

@@ -1,3 +1,4 @@
+import ExerciseName from '../components/exercises/ExerciseName';
 import ComposerOutdoorCardioPreview from '../components/workout/ComposerOutdoorCardioPreview';
 import ComposerMovementOverview, { ComposerMovementTabs } from '../components/workout/ComposerMovementOverview';
 import { selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
@@ -406,7 +407,7 @@ function ComposerWodPreview({ block, loading, issue, environmentCode, styles, co
     <View>
       {(block.exercises ?? []).map((dose, index) => <View key={dose.id}
         style={[styles.previewExerciseRow, index > 0 && styles.previewExerciseDivider]}>
-        <Text style={styles.previewExerciseName}>{dose.name}</Text>
+        <ExerciseName style={styles.previewExerciseName} exercise={dose}/>
         <Text style={styles.previewExerciseDose}>{formatPreviewDose(dose, 'WOD', block)}</Text>
       </View>)}
     </View>
@@ -505,7 +506,7 @@ function ExerciseCard({ exercise, doseLabel, selected, onOpenDetail, styles, col
         {imageUri && !imageFailed ? <Image source={{uri:imageUri}} resizeMode="contain" style={styles.exerciseThumbnailImage}
           onError={() => setImageFailed(true)} accessible={false} /> : <Ionicons name="image-outline" size={19} color={colors.textMuted} accessible={false}/>}
       </View>
-      <View style={styles.exerciseCopy}><Text style={styles.exerciseName}>{exercise.name}</Text>
+      <View style={styles.exerciseCopy}><ExerciseName style={styles.exerciseName} exercise={exercise}/>
         {doseLabel ? <Text style={styles.exerciseDose}>{doseLabel}</Text> : null}
       </View>
       <Ionicons name="chevron-forward" size={17} color={colors.textMuted}/>
@@ -2149,7 +2150,7 @@ export default function WeekComposerV7() {
                       return <View key={exercise.id} style={styles.recapExerciseRow}>
                         <ExerciseArtwork imagePath={exercise.imagePath} colors={colors} size={52}/>
                         <View style={{flex:1,minWidth:0}}>
-                          <Text style={styles.recapExercise}>{exercise.name}</Text>
+                          <ExerciseName style={styles.recapExercise} exercise={exercise}/>
                           {dose?<Text style={styles.recapDose}>{formatPreviewDose(dose,item.type,block,{compactCard:false})}</Text>:null}
                           {edited?<Text style={styles.recapExerciseMeta}>Personnalisé</Text>:null}
                         </View>

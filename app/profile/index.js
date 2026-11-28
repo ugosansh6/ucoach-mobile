@@ -20,6 +20,7 @@ import {
   typography,
   UGEROD_THEME_MODES,
 } from '../../src/constants';
+import { useExerciseNamePreference } from '../../src/contexts/ExerciseNameContext';
 import { useUgerodTheme } from '../../src/contexts/UgerodThemeContext';
 import { getCurrentProfile } from '../../src/services/profileService';
 import { getCurrentPrimaryGoal } from '../../src/services/goalsService';
@@ -359,6 +360,7 @@ export default function ProfileScreen() {
         <SectionTitle title="PARAMÈTRES" styles={styles} />
 
         <View style={styles.settingsCard}>
+          <ExerciseNameSetting styles={styles} colors={colors} />
           <ThemeSetting
             mode={mode}
             setThemeMode={setThemeMode}
@@ -513,6 +515,11 @@ function SimpleRow({
       <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
     </Pressable>
   );
+}
+
+function ExerciseNameSetting({styles,colors}) {
+  const {mode,setMode,ready}=useExerciseNamePreference();
+  return <View style={styles.themeRow}><View style={styles.rowIcon}><Ionicons name="language-outline" size={21} color={colors.accentStrong}/></View><View style={styles.themeMain}><Text style={styles.rowLabel}>NOMS DES EXERCICES</Text><View style={styles.themeSegmentedControl}>{[['bilingual','Bilingue'],['fr','Français'],['en','Anglais']].map(([value,label])=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:mode===value,disabled:!ready}} disabled={!ready} onPress={()=>setMode(value)} style={[styles.themeSegment,mode===value&&styles.themeSegmentSelected]}><Text style={[styles.themeSegmentText,mode===value&&styles.themeSegmentTextSelected]}>{label}</Text></Pressable>)}</View></View></View>;
 }
 
 function ThemeSetting({ mode, setThemeMode, styles, colors }) {

@@ -1,3 +1,4 @@
+import ExerciseName from '../exercises/ExerciseName';
 import { composerRecordedInstanceIds } from '../../utils/composerPlayerProgress';
 import { checkpointComposerPlayerProgress } from '../../services/composerPlayerProgressService';
 import { Ionicons } from '@expo/vector-icons';
@@ -318,9 +319,7 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
             <View style={styles.sheetHeader}>
               <View style={styles.flex}>
                 <Text style={styles.eyebrow}>{targetExercise ? 'ADAPTER L’EXERCICE' : 'OPTIONS DU BLOC'}</Text>
-                <Text style={styles.title}>
-                  {targetExercise?.name ?? current.block?.title ?? current.block?.block_name ?? current.key}
-                </Text>
+                {targetExercise?<ExerciseName exercise={targetExercise} style={styles.title}/>:<Text style={styles.title}>{current.block?.title ?? current.block?.block_name ?? current.key}</Text>}
                 <Text style={styles.body}>
                   {hasSwapChoice
                     ? 'Choisis uniquement si le mouvement ne te convient pas aujourd’hui.'

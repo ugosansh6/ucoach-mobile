@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { restoreRunningClock, isComposerWorkout } from '../../src/utils/composerPlayerProgress';
 import { deriveWodExerciseStatuses, protocolExercisePatch } from '../../src/services/wodRuntimeStatus';
 import { router } from 'expo-router';
@@ -386,7 +387,7 @@ function SimpleBlock({
       </View>
 
       <View style={focusedStyles.exerciseCard}>
-        <Text style={focusedStyles.exerciseName}>{exercise.name}</Text>
+        <ExerciseName style={focusedStyles.exerciseName} exercise={exercise}/>
         {exercise.prescription ? (
           <Text style={focusedStyles.exercisePrescription}>{exercise.prescription}</Text>
         ) : null}
@@ -673,7 +674,7 @@ function StrengthBlock({
                 <Text style={gymStyles.exerciseEyebrow}>
                   EXERCICE {exerciseIndex + 1}/{exercises.length}
                 </Text>
-                <Text style={gymStyles.exerciseName}>{exercise.name}</Text>
+                <ExerciseName style={gymStyles.exerciseName} exercise={exercise}/>
                 <Text style={gymStyles.exerciseSummary}>
                   {rows.length || '—'} {seriesLabel}
                   {repsEnabled ? ` · ${draft.reps || '—'} reps` : ''}
@@ -1014,7 +1015,7 @@ function ManualGymBlock({
           <View key={key} style={gymStyles.exerciseCard}>
             <View style={gymStyles.exerciseBody}>
               <Text style={gymStyles.exerciseEyebrow}>EXERCICE {index + 1}/{exercises.length}</Text>
-              <Text style={gymStyles.exerciseName}>{exercise.name}</Text>
+              <ExerciseName style={gymStyles.exerciseName} exercise={exercise}/>
               {exercise.prescription ? (
                 <Text style={gymStyles.exerciseSummary}>{exercise.prescription}</Text>
               ) : null}
@@ -1427,9 +1428,7 @@ function GymCardioBlock({
           <Ionicons name="fitness-outline" size={21} color={themeColors.accent} />
         </View>
         <View style={cardioStyles.topCopy}>
-          <Text style={cardioStyles.machineName}>
-            {isMixedIntervals ? 'Cardio alterné' : machineExercise?.name ?? 'Cardio'}
-          </Text>
+          {isMixedIntervals?<Text style={cardioStyles.machineName}>Cardio alterné</Text>:<ExerciseName exercise={machineExercise} fallback="Cardio" style={cardioStyles.machineName}/>}
           <Text style={cardioStyles.targetLabel}>{protocolSummary}</Text>
         </View>
       </View>
@@ -1439,9 +1438,7 @@ function GymCardioBlock({
           <>
             <Text style={cardioStyles.phaseLabel}>{phase.label}</Text>
             <Text style={cardioStyles.metricMain}>{displayMain}</Text>
-            <Text style={cardioStyles.activeExercise}>
-              {phase.activeExercise?.name ?? machineExercise?.name ?? 'Cardio'}
-            </Text>
+            <ExerciseName style={cardioStyles.activeExercise} exercise={phase.activeExercise??machineExercise} fallback={phase.activeExercise?.name ?? machineExercise?.name ?? 'Cardio'}/>
             <Text style={cardioStyles.secondaryMetric}>
               Passage {phase.round}/{repeats} · Total {formatClock(elapsed)} / {formatClock(totalSeconds)}
             </Text>

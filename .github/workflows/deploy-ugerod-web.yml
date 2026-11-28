@@ -60,6 +60,7 @@ jobs:
           node scripts/qa-composer-player-progress.cjs
           node scripts/qa-composer-progress-service.cjs
           node scripts/qa-exercise-catalogue.cjs
+          node scripts/qa-exercise-names.cjs
           node scripts/qa-composer-manual-dose.cjs
           node scripts/qa-composer-recap-ui.cjs
           node scripts/qa-personal-workout-models.cjs

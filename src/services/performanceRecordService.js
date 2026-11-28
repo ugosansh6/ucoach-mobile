@@ -1,3 +1,4 @@
+import { exerciseSearchMatches } from '../utils/exerciseNames';
 import { supabase } from '../lib/supabase';
 
 async function getAuthenticatedUser() {
@@ -61,27 +62,18 @@ export async function getStrengthCurve(exerciseId) {
 export async function searchRecordExercises(query = '') {
   await getAuthenticatedUser();
 
-  let request = supabase
-    .from('exercises')
-    .select('id, name, tracking_modes, prescription_type, exercise_family, movement_pattern')
-    .order('name', { ascending: true })
-    .limit(30);
-
-  const term = String(query ?? '').trim();
-
-  if (term) {
-    request = request.ilike('name', `%${term}%`);
+  // Catalogue-only search; retain original names and payload for writes.
+  const term=String(query??'').trim();
+  const rows=[];
+  for(let offset=0;;offset+=500){
+    const {data,error}=await supabase.from('exercises')
+      .select('id, name, display_name, tracking_modes, prescription_type, exercise_family, movement_pattern')
+      .order('name',{ascending:true}).order('id',{ascending:true}).range(offset,offset+499);
+    if(error)throw new Error(error.message);
+    rows.push(...(data??[]));
+    if(!data||data.length<500)break;
   }
-
-  const { data, error } = await request;
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data ?? []).filter(
-    (item) => Array.isArray(item.tracking_modes) && item.tracking_modes.length > 0
-  );
+  return rows.filter(row=>exerciseSearchMatches(row,term) && Array.isArray(row.tracking_modes) && row.tracking_modes.length>0).slice(0,30);
 }
 
 export async function getExerciseRecordMetricOptions(exerciseId) {

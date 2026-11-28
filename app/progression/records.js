@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -265,7 +266,7 @@ export default function PersonalRecordsScreen() {
                       <Pressable onPress={() => toggleExercise(group)} style={styles.exerciseHeader}>
                         <View style={styles.bookMark} />
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.exerciseName}>{group.name.toUpperCase()}</Text>
+                          <ExerciseName style={styles.exerciseName} exercise={group}/>
                           <Text style={styles.exerciseCount}>
                             {group.records.length} record{group.records.length > 1 ? 's' : ''} confirmé{group.records.length > 1 ? 's' : ''}
                           </Text>
@@ -567,7 +568,7 @@ function RecordEntryModal({ visible, onClose, onSaved }) {
                   <View style={styles.searchResults}>
                     {exercises.map((exercise) => (
                       <Pressable key={exercise.id} onPress={() => selectExercise(exercise)} style={styles.searchRow}>
-                        <Text style={styles.searchName}>{exercise.name}</Text>
+                        <ExerciseName style={styles.searchName} exercise={exercise}/>
                         <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                       </Pressable>
                     ))}
@@ -577,7 +578,7 @@ function RecordEntryModal({ visible, onClose, onSaved }) {
                 <Pressable onPress={() => { setSelectedExercise(null); setSelectedMetric(null); }} style={styles.selectionCard}>
                   <View>
                     <Text style={styles.selectionLabel}>MOUVEMENT</Text>
-                    <Text style={styles.selectionValue}>{selectedExercise.name.toUpperCase()}</Text>
+                    <ExerciseName style={styles.selectionValue} exercise={selectedExercise}/>
                   </View>
                   <Text style={styles.changeText}>CHANGER</Text>
                 </Pressable>

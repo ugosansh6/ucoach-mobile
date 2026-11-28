@@ -1,0 +1,3619 @@
+{
+  "EX_C03": {
+    "fr": "Superman statique",
+    "en": "Superman Hold",
+    "priority": "fr",
+    "aliases": [
+      "Superman Hold (Arch)",
+      "Superman statique",
+      "Superman Hold"
+    ]
+  },
+  "EX_L02": {
+    "fr": "Soulevé de terre roumain sur une jambe, sans charge",
+    "en": "Bodyweight Single-Leg Romanian Deadlift",
+    "priority": "fr",
+    "aliases": [
+      "Single Leg Romanian Deadlift (Au poids du corps)",
+      "RDL",
+      "Soulevé roumain unilatéral sans charge",
+      "Bodyweight Single-Leg Romanian Deadlift",
+      "Soulevé de terre roumain sur une jambe, sans charge"
+    ]
+  },
+  "EX001": {
+    "fr": "Pompes au mur",
+    "en": "Wall Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Pompe mur",
+      "Pompes au mur",
+      "Wall Push-up"
+    ]
+  },
+  "EX003": {
+    "fr": "Pompes inclinées",
+    "en": "Incline Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Pompe inclinée",
+      "Pompes inclinées",
+      "Incline Push-up"
+    ]
+  },
+  "EX006": {
+    "fr": "Pompes sur les genoux",
+    "en": "Knee Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Pompe genoux",
+      "Pompes sur les genoux",
+      "Knee Push-up"
+    ]
+  },
+  "EX009": {
+    "fr": "Pompes classiques",
+    "en": "Push-up",
+    "priority": "en",
+    "aliases": [
+      "Pompe classique",
+      "Push-ups",
+      "Pompes classiques",
+      "Push-up",
+      "pompe",
+      "pushup",
+      "push ups"
+    ]
+  },
+  "EX013": {
+    "fr": "Pompes diamant",
+    "en": "Diamond Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Pompe diamant",
+      "Pompes diamant",
+      "Diamond Push-up"
+    ]
+  },
+  "EX016": {
+    "fr": "Pompes archer",
+    "en": "Archer Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Archer Push-up",
+      "Pompes archer"
+    ]
+  },
+  "EX017": {
+    "fr": "Pompes en V sur les genoux",
+    "en": "Kneeling Pike Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Pike Push-up genoux",
+      "Pompes en V sur les genoux",
+      "Kneeling Pike Push-up"
+    ]
+  },
+  "EX020": {
+    "fr": "Pompes en V",
+    "en": "Pike Push-up",
+    "priority": "en",
+    "aliases": [
+      "Pike Push-up",
+      "Pompes en V"
+    ]
+  },
+  "EX024": {
+    "fr": "Dips sur banc",
+    "en": "Bench Dip",
+    "priority": "fr",
+    "aliases": [
+      "Dips sur banc",
+      "Bench Dip"
+    ]
+  },
+  "EX027": {
+    "fr": "Équilibre sur les mains au mur",
+    "en": "Wall Handstand Hold",
+    "priority": "en",
+    "aliases": [
+      "Handstand Hold mur",
+      "Handstand Hold",
+      "Équilibre sur les mains au mur",
+      "Wall Handstand Hold"
+    ]
+  },
+  "EX029": {
+    "fr": "Montée en équilibre au mur",
+    "en": "Wall Walk",
+    "priority": "en",
+    "aliases": [
+      "Wall Walk",
+      "Montée en équilibre au mur"
+    ]
+  },
+  "EX030": {
+    "fr": "Squat sur box",
+    "en": "Bodyweight Box Squat",
+    "priority": "fr",
+    "aliases": [
+      "Air Squat box",
+      "Squat sur box",
+      "Bodyweight Box Squat"
+    ]
+  },
+  "EX033": {
+    "fr": "Squat au poids du corps",
+    "en": "Air Squat",
+    "priority": "en",
+    "aliases": [
+      "Air Squat classique",
+      "Air Squat",
+      "Squat au poids du corps"
+    ]
+  },
+  "EX037": {
+    "fr": "Squat haltère contre la poitrine",
+    "en": "Dumbbell Goblet Squat",
+    "priority": "en",
+    "aliases": [
+      "Goblet Squat DB",
+      "Goblet squat haltère",
+      "Dumbbell Goblet Squat",
+      "Squat haltère contre la poitrine"
+    ]
+  },
+  "EX040": {
+    "fr": "Squat kettlebell à l’épaule",
+    "en": "Kettlebell Front Squat",
+    "priority": "fr",
+    "aliases": [
+      "Front Squat KB",
+      "Front squat kettlebell",
+      "Kettlebell Front Squat",
+      "Squat kettlebell à l’épaule"
+    ]
+  },
+  "EX043": {
+    "fr": "Pistol squat assisté",
+    "en": "Assisted Pistol Squat",
+    "priority": "fr",
+    "aliases": [
+      "Pistol Squat assisté",
+      "Assisted Pistol Squat",
+      "squat une jambe assisté"
+    ]
+  },
+  "EX044": {
+    "fr": "Pistol Squat",
+    "en": "Pistol Squat",
+    "priority": "fr",
+    "aliases": [
+      "Pistol Squat",
+      "squat une jambe"
+    ]
+  },
+  "EX045": {
+    "fr": "Squat latéral profond",
+    "en": "Cossack Squat",
+    "priority": "en",
+    "aliases": [
+      "Cossack Squat",
+      "Squat latéral profond"
+    ]
+  },
+  "EX048": {
+    "fr": "Fentes statiques",
+    "en": "Static Lunge",
+    "priority": "fr",
+    "aliases": [
+      "Fente statique",
+      "Fentes statiques",
+      "Static Lunge"
+    ]
+  },
+  "EX051": {
+    "fr": "Fentes arrière alternées",
+    "en": "Alternating Reverse Lunge",
+    "priority": "fr",
+    "aliases": [
+      "Fente arrière alternée",
+      "Fentes arrière",
+      "Fentes arrière alternées",
+      "Alternating Reverse Lunge"
+    ]
+  },
+  "EX054": {
+    "fr": "Fentes avant alternées",
+    "en": "Alternating Forward Lunge",
+    "priority": "fr",
+    "aliases": [
+      "Fente avant alternée",
+      "Fentes avant alternées",
+      "Alternating Forward Lunge"
+    ]
+  },
+  "EX057": {
+    "fr": "Fentes bulgares",
+    "en": "Bulgarian Split Squat",
+    "priority": "fr",
+    "aliases": [
+      "Fente bulgare",
+      "Fentes bulgares",
+      "Bulgarian Split Squat"
+    ]
+  },
+  "EX061": {
+    "fr": "Fentes marchées haltères",
+    "en": "Dumbbell Walking Lunge",
+    "priority": "fr",
+    "aliases": [
+      "Fente marchée DB",
+      "Fentes marchées haltères",
+      "Dumbbell Walking Lunge"
+    ]
+  },
+  "EX062": {
+    "fr": "Tirage TRX",
+    "en": "TRX Row",
+    "priority": "fr",
+    "aliases": [
+      "Tirage TRX",
+      "TRX Row"
+    ]
+  },
+  "EX065": {
+    "fr": "Suspension active",
+    "en": "Active Hang",
+    "priority": "fr",
+    "aliases": [
+      "Suspension active",
+      "Active Hang"
+    ]
+  },
+  "EX067": {
+    "fr": "Tractions assistées à l’élastique",
+    "en": "Band-Assisted Pull-up",
+    "priority": "fr",
+    "aliases": [
+      "Traction élastique",
+      "Tractions avec élastique",
+      "Band-Assisted Pull-up",
+      "Tractions assistées à l’élastique"
+    ]
+  },
+  "EX070": {
+    "fr": "Tractions excentriques",
+    "en": "Negative Pull-up",
+    "priority": "fr",
+    "aliases": [
+      "Traction excentrique",
+      "Tractions excentriques",
+      "Negative Pull-up"
+    ]
+  },
+  "EX071": {
+    "fr": "Tractions strictes",
+    "en": "Strict Pull-up",
+    "priority": "en",
+    "aliases": [
+      "Traction classique",
+      "Pull-ups",
+      "Tractions strictes",
+      "Strict Pull-up",
+      "traction",
+      "pullup",
+      "pull ups"
+    ]
+  },
+  "EX075": {
+    "fr": "Tractions en supination",
+    "en": "Chin-up",
+    "priority": "fr",
+    "aliases": [
+      "Traction supination (Chin-up)",
+      "Tractions en supination",
+      "Chin-up"
+    ]
+  },
+  "EX079": {
+    "fr": "Tractions poitrine-barre (C2B)",
+    "en": "Chest-to-Bar Pull-up (C2B)",
+    "priority": "en",
+    "aliases": [
+      "Chest to bar Pull-up",
+      "Chest-to-Bar",
+      "C2B",
+      "Tractions poitrine-barre (C2B)",
+      "Chest-to-Bar Pull-up (C2B)",
+      "chest to bar"
+    ]
+  },
+  "EX080": {
+    "fr": "Transition muscle-up",
+    "en": "Muscle-up Transition",
+    "priority": "fr",
+    "aliases": [
+      "Muscle-up transition",
+      "Transition muscle-up"
+    ]
+  },
+  "EX081": {
+    "fr": "Extension bras et jambe opposés sur le dos",
+    "en": "Dead Bug",
+    "priority": "en",
+    "aliases": [
+      "Dead Bug",
+      "Extensions croisées sur le dos",
+      "Extension bras et jambe opposés sur le dos"
+    ]
+  },
+  "EX084": {
+    "fr": "Crunch groupé",
+    "en": "Tuck Crunch",
+    "priority": "fr",
+    "aliases": [
+      "Tuck Crunch",
+      "Crunch groupé"
+    ]
+  },
+  "EX087": {
+    "fr": "Gainage sur le dos, épaules et jambes relevées",
+    "en": "Hollow Hold",
+    "priority": "en",
+    "aliases": [
+      "Hollow Hold",
+      "Gainage sur le dos",
+      "hollow body hold",
+      "Gainage creux",
+      "Gainage sur le dos, épaules et jambes relevées"
+    ]
+  },
+  "EX089": {
+    "fr": "Balancements sur le dos, corps gainé",
+    "en": "Hollow Rocks",
+    "priority": "en",
+    "aliases": [
+      "Hollow Rocks",
+      "Gainage sur le dos avec bascules",
+      "Balancements en gainage creux",
+      "Balancements sur le dos, corps gainé"
+    ]
+  },
+  "EX090": {
+    "fr": "Abdos en V",
+    "en": "V-Ups",
+    "priority": "fr",
+    "aliases": [
+      "V-Ups",
+      "Abdos en V"
+    ]
+  },
+  "EX091": {
+    "fr": "L-Sit au sol",
+    "en": "Floor L-Sit",
+    "priority": "en",
+    "aliases": [
+      "L-Sit au sol",
+      "L-Sit",
+      "Floor L-Sit"
+    ]
+  },
+  "EX093": {
+    "fr": "Planche sur les genoux",
+    "en": "Knee Plank",
+    "priority": "fr",
+    "aliases": [
+      "Planche genoux",
+      "Planche sur les genoux",
+      "Knee Plank"
+    ]
+  },
+  "EX095": {
+    "fr": "Planche de gainage",
+    "en": "Plank",
+    "priority": "fr",
+    "aliases": [
+      "Planche",
+      "Gainage planche",
+      "Planche de gainage",
+      "Plank",
+      "gainage frontal",
+      "planche abdominale"
+    ]
+  },
+  "EX097": {
+    "fr": "Planche dynamique (Commandos)",
+    "en": "Up-Down Plank",
+    "priority": "fr",
+    "aliases": [
+      "Planche dynamique (Commandos)",
+      "Commandos",
+      "Up-Down Plank"
+    ]
+  },
+  "EX098": {
+    "fr": "Planche latérale",
+    "en": "Side Plank",
+    "priority": "fr",
+    "aliases": [
+      "Side Plank",
+      "Planche latérale"
+    ]
+  },
+  "EX100": {
+    "fr": "Rotations du buste assis avec haltère",
+    "en": "Dumbbell Russian Twist",
+    "priority": "en",
+    "aliases": [
+      "Russian Twist DB",
+      "Rotations assises avec haltère",
+      "Dumbbell Russian Twist",
+      "Rotations du buste assis avec haltère"
+    ]
+  },
+  "EX101": {
+    "fr": "Extension bras et jambe opposés à quatre pattes",
+    "en": "Bird Dog",
+    "priority": "en",
+    "aliases": [
+      "Bird Dog",
+      "Extensions croisées à quatre pattes",
+      "bird-dog",
+      "Extension bras et jambe opposés à quatre pattes"
+    ]
+  },
+  "EX104": {
+    "fr": "Pont fessier",
+    "en": "Glute Bridge",
+    "priority": "fr",
+    "aliases": [
+      "Glute Bridge",
+      "Pont fessier"
+    ]
+  },
+  "EX107": {
+    "fr": "Hip thrust haltère",
+    "en": "Dumbbell Hip Thrust",
+    "priority": "en",
+    "aliases": [
+      "Hip Thrust DB",
+      "Hip thrust haltère",
+      "Dumbbell Hip Thrust"
+    ]
+  },
+  "EX110": {
+    "fr": "Swing russe kettlebell",
+    "en": "Russian Kettlebell Swing",
+    "priority": "en",
+    "aliases": [
+      "Kettlebell Swing Russe",
+      "KB Swing",
+      "Swing russe kettlebell",
+      "Russian Kettlebell Swing"
+    ]
+  },
+  "EX111": {
+    "fr": "Swing américain kettlebell",
+    "en": "American Kettlebell Swing",
+    "priority": "en",
+    "aliases": [
+      "Kettlebell Swing Américain",
+      "American KB Swing",
+      "Swing américain kettlebell",
+      "American Kettlebell Swing"
+    ]
+  },
+  "EX112": {
+    "fr": "Good Morning avec élastique",
+    "en": "Band Good Morning",
+    "priority": "en",
+    "aliases": [
+      "Good Morning Band",
+      "Bascule de hanches avec élastique",
+      "Band Good Morning",
+      "Good Morning avec élastique"
+    ]
+  },
+  "EX115": {
+    "fr": "Soulevé de terre roumain haltères",
+    "en": "Dumbbell Romanian Deadlift (RDL)",
+    "priority": "fr",
+    "aliases": [
+      "DB RDL (Soulevé de terre jambes tendues)",
+      "RDL",
+      "Soulevé de terre roumain haltères",
+      "Dumbbell Romanian Deadlift (RDL)",
+      "RDL haltères",
+      "soulevé de terre roumain"
+    ]
+  },
+  "EX118": {
+    "fr": "Développé épaules strict haltères",
+    "en": "Dumbbell Strict Press",
+    "priority": "fr",
+    "aliases": [
+      "DB Strict Press",
+      "Développé épaules strict haltères",
+      "Dumbbell Strict Press"
+    ]
+  },
+  "EX121": {
+    "fr": "Push press haltères",
+    "en": "Dumbbell Push Press",
+    "priority": "en",
+    "aliases": [
+      "DB Push Press",
+      "Push press haltères",
+      "Dumbbell Push Press"
+    ]
+  },
+  "EX122": {
+    "fr": "Développé Arnold kettlebell",
+    "en": "Kettlebell Arnold Press",
+    "priority": "fr",
+    "aliases": [
+      "KB Arnold Press",
+      "Développé Arnold kettlebell",
+      "Kettlebell Arnold Press"
+    ]
+  },
+  "EX125": {
+    "fr": "Arraché suspendu haltère",
+    "en": "Dumbbell Hang Snatch",
+    "priority": "fr",
+    "aliases": [
+      "DB Hang Snatch",
+      "Arraché suspendu haltère",
+      "Dumbbell Hang Snatch"
+    ]
+  },
+  "EX126": {
+    "fr": "Épaulé suspendu haltères",
+    "en": "Dumbbell Hang Clean",
+    "priority": "fr",
+    "aliases": [
+      "DB Hang Clean",
+      "Épaulé suspendu haltères",
+      "Dumbbell Hang Clean"
+    ]
+  },
+  "EX127": {
+    "fr": "Arraché kettlebell",
+    "en": "Kettlebell Snatch",
+    "priority": "fr",
+    "aliases": [
+      "KB Snatch",
+      "Arraché kettlebell",
+      "Kettlebell Snatch"
+    ]
+  },
+  "EX128": {
+    "fr": "Épaulé kettlebell",
+    "en": "Kettlebell Clean",
+    "priority": "fr",
+    "aliases": [
+      "KB Clean",
+      "Épaulé kettlebell",
+      "Kettlebell Clean"
+    ]
+  },
+  "EX129": {
+    "fr": "Devil press haltères",
+    "en": "Dumbbell Devil Press",
+    "priority": "en",
+    "aliases": [
+      "DB Devil Press",
+      "Devil press haltères",
+      "Dumbbell Devil Press"
+    ]
+  },
+  "EX130": {
+    "fr": "Thruster haltères",
+    "en": "Dumbbell Thruster",
+    "priority": "en",
+    "aliases": [
+      "DB Thruster",
+      "Thruster haltères",
+      "Dumbbell Thruster"
+    ]
+  },
+  "EX131": {
+    "fr": "Tirage bûcheron haltère",
+    "en": "Single-Arm Dumbbell Row",
+    "priority": "fr",
+    "aliases": [
+      "DB Row (Tirage Bûcheron)",
+      "Tirage bûcheron haltère",
+      "Single-Arm Dumbbell Row"
+    ]
+  },
+  "EX134": {
+    "fr": "Rowing haltères en planche",
+    "en": "Dumbbell Renegade Row",
+    "priority": "fr",
+    "aliases": [
+      "DB Renegade Row",
+      "Tirage haltères en planche",
+      "Dumbbell Renegade Row",
+      "Rowing haltères en planche"
+    ]
+  },
+  "EX135": {
+    "fr": "Écartés de bras avec élastique",
+    "en": "Band Pull-Apart",
+    "priority": "fr",
+    "aliases": [
+      "Band Pull-Apart",
+      "Ouverture des bras avec élastique",
+      "Écartés de bras avec élastique"
+    ]
+  },
+  "EX138": {
+    "fr": "Développé épaules avec élastique",
+    "en": "Band Overhead Press",
+    "priority": "fr",
+    "aliases": [
+      "Band Overhead Press",
+      "Développé épaules avec élastique"
+    ]
+  },
+  "EX141": {
+    "fr": "Pallof Press avec élastique",
+    "en": "Band Pallof Press",
+    "priority": "en",
+    "aliases": [
+      "Band Pallof Press",
+      "Poussée anti-rotation avec élastique",
+      "Pallof Press avec élastique"
+    ]
+  },
+  "EX144": {
+    "fr": "Sprawl",
+    "en": "Sprawl",
+    "priority": "fr",
+    "aliases": [
+      "Sprawl"
+    ]
+  },
+  "EX145": {
+    "fr": "Burpee sans pompe",
+    "en": "No-Push-up Burpee",
+    "priority": "fr",
+    "aliases": [
+      "Burpee sans pompe",
+      "No-Push-up Burpee"
+    ]
+  },
+  "EX146": {
+    "fr": "Burpee classique",
+    "en": "Burpee",
+    "priority": "fr",
+    "aliases": [
+      "Burpee classique",
+      "Burpees",
+      "Burpee"
+    ]
+  },
+  "EX147": {
+    "fr": "Burpee avec cible",
+    "en": "Target Burpee",
+    "priority": "fr",
+    "aliases": [
+      "Burpee Target",
+      "Burpee avec cible",
+      "Target Burpee"
+    ]
+  },
+  "EX148": {
+    "fr": "Sauts bras et jambes écartés",
+    "en": "Jumping Jack",
+    "priority": "en",
+    "aliases": [
+      "Jumping Jack",
+      "sauts écartés",
+      "jumping jacks",
+      "Sauts bras et jambes écartés"
+    ]
+  },
+  "EX149": {
+    "fr": "Montées de genoux en planche",
+    "en": "Mountain Climber",
+    "priority": "en",
+    "aliases": [
+      "Mountain Climber",
+      "grimpeur",
+      "mountain climbers",
+      "Montées de genoux en planche"
+    ]
+  },
+  "EX150": {
+    "fr": "Montées de genoux",
+    "en": "High Knees",
+    "priority": "fr",
+    "aliases": [
+      "High Knees (Montées de genoux)",
+      "Montées de genoux",
+      "High Knees"
+    ]
+  },
+  "EX151": {
+    "fr": "Sauts du patineur",
+    "en": "Skater Jumps",
+    "priority": "fr",
+    "aliases": [
+      "Skaters",
+      "Sauts du patineur",
+      "Skater Jumps"
+    ]
+  },
+  "EX152": {
+    "fr": "Saut sur box",
+    "en": "Box Jump",
+    "priority": "en",
+    "aliases": [
+      "Box Jump",
+      "Saut sur box"
+    ]
+  },
+  "EX153": {
+    "fr": "Montée sur box",
+    "en": "Box Step-up",
+    "priority": "fr",
+    "aliases": [
+      "Box Step-up",
+      "Montée sur box"
+    ]
+  },
+  "EX155": {
+    "fr": "Saut en longueur",
+    "en": "Broad Jump",
+    "priority": "fr",
+    "aliases": [
+      "Broad Jump (Saut en longueur)",
+      "Saut en longueur",
+      "Broad Jump"
+    ]
+  },
+  "EX156": {
+    "fr": "Sauts simples à la corde",
+    "en": "Single Under (SU)",
+    "priority": "en",
+    "aliases": [
+      "Single Under (Corde à sauter)",
+      "Single Unders",
+      "SU",
+      "Single Under (SU)",
+      "saut simple à la corde",
+      "Sauts simples à la corde"
+    ]
+  },
+  "EX157": {
+    "fr": "Doubles sauts à la corde",
+    "en": "Double Under (DU)",
+    "priority": "en",
+    "aliases": [
+      "Double Under",
+      "DU",
+      "Double Under (DU)",
+      "double saut à la corde",
+      "doubles unders",
+      "Doubles sauts à la corde"
+    ]
+  },
+  "EX158": {
+    "fr": "Dos rond / dos creux",
+    "en": "Cat Cow",
+    "priority": "fr",
+    "aliases": [
+      "Cat Cow",
+      "Dos rond / dos creux"
+    ]
+  },
+  "EX159": {
+    "fr": "Chien tête en bas",
+    "en": "Downward Dog",
+    "priority": "fr",
+    "aliases": [
+      "Downward Dog (Chien tête en bas)",
+      "Chien tête en bas",
+      "Downward Dog"
+    ]
+  },
+  "EX160": {
+    "fr": "Fente avec rotation du buste",
+    "en": "World's Greatest Stretch",
+    "priority": "fr",
+    "aliases": [
+      "World's Greatest Stretch",
+      "Fente avec rotation du buste"
+    ]
+  },
+  "EX161": {
+    "fr": "Étirement quadriceps pied surélevé",
+    "en": "Couch Stretch",
+    "priority": "fr",
+    "aliases": [
+      "Couch Stretch",
+      "Étirement quadriceps pied surélevé"
+    ]
+  },
+  "EX162": {
+    "fr": "Rotation du haut du dos à quatre pattes",
+    "en": "Thread the Needle",
+    "priority": "fr",
+    "aliases": [
+      "Thread the Needle",
+      "Rotation du dos à quatre pattes",
+      "Rotation du haut du dos à quatre pattes"
+    ]
+  },
+  "EX163": {
+    "fr": "Étirement fessier en pigeon",
+    "en": "Pigeon Pose",
+    "priority": "fr",
+    "aliases": [
+      "Pigeon Pose",
+      "Posture du pigeon",
+      "Étirement fessier en pigeon"
+    ]
+  },
+  "EX164": {
+    "fr": "Maintien en squat profond",
+    "en": "Deep Squat Hold",
+    "priority": "en",
+    "aliases": [
+      "Deep Squat Hold",
+      "Maintien en squat profond"
+    ]
+  },
+  "EX166": {
+    "fr": "Rotation du bassin sur le ventre",
+    "en": "Scorpion Stretch",
+    "priority": "fr",
+    "aliases": [
+      "Scorpion Stretch",
+      "Rotation du bassin sur le ventre"
+    ]
+  },
+  "EX201": {
+    "fr": "Marche sur les mains",
+    "en": "Handstand Walk",
+    "priority": "en",
+    "aliases": [
+      "Handstand Walk",
+      "Marche sur les mains"
+    ]
+  },
+  "EX203": {
+    "fr": "Handstand push-up strict au mur",
+    "en": "Strict Wall Handstand Push-up (HSPU)",
+    "priority": "en",
+    "aliases": [
+      "Strict HSPU (Handstand Push-up)",
+      "HSPU strict",
+      "HSPU",
+      "Handstand push-up strict au mur",
+      "Strict Wall Handstand Push-up (HSPU)"
+    ]
+  },
+  "EX301": {
+    "fr": "Marche avec haltères",
+    "en": "Dumbbell Farmer Carry",
+    "priority": "fr",
+    "aliases": [
+      "Farmer Carry haltères",
+      "Marche chargée haltères",
+      "Dumbbell Farmer Carry",
+      "Marche avec haltères"
+    ]
+  },
+  "EX302": {
+    "fr": "Marche avec haltère d’un côté",
+    "en": "Dumbbell Suitcase Carry",
+    "priority": "fr",
+    "aliases": [
+      "Suitcase Carry haltère",
+      "Marche haltère à une main",
+      "Dumbbell Suitcase Carry",
+      "Marche avec haltère d’un côté"
+    ]
+  },
+  "EX303": {
+    "fr": "Marche kettlebell devant l’épaule",
+    "en": "Kettlebell Front Rack Carry",
+    "priority": "fr",
+    "aliases": [
+      "Front Rack Carry kettlebell",
+      "Marche kettlebell devant l’épaule",
+      "Kettlebell Front Rack Carry",
+      "Marche kettlebell à l’épaule"
+    ]
+  },
+  "EX304": {
+    "fr": "Marche haltère au-dessus de la tête",
+    "en": "Dumbbell Overhead Carry",
+    "priority": "fr",
+    "aliases": [
+      "Overhead Carry haltère",
+      "Marche haltère bras levé",
+      "Dumbbell Overhead Carry",
+      "Marche haltère au-dessus de la tête"
+    ]
+  },
+  "EX305": {
+    "fr": "Squat avec lancer de ballon",
+    "en": "Wall Ball",
+    "priority": "en",
+    "aliases": [
+      "Wall Ball",
+      "Squat avec lancer de ballon"
+    ]
+  },
+  "EX306": {
+    "fr": "Lancer de ballon lesté au sol",
+    "en": "Medball Slam",
+    "priority": "fr",
+    "aliases": [
+      "Medball Slam",
+      "Lancer de medball au sol",
+      "Lancer de ballon lesté au sol"
+    ]
+  },
+  "EX307": {
+    "fr": "Développé au sol haltères",
+    "en": "Dumbbell Floor Press",
+    "priority": "fr",
+    "aliases": [
+      "DB Floor Press",
+      "Développé au sol haltères",
+      "Dumbbell Floor Press"
+    ]
+  },
+  "EX308": {
+    "fr": "Développé couché haltères",
+    "en": "Dumbbell Bench Press",
+    "priority": "fr",
+    "aliases": [
+      "DB Bench Press",
+      "Développé couché haltères",
+      "Dumbbell Bench Press"
+    ]
+  },
+  "EX309": {
+    "fr": "Soulevé de terre haltères",
+    "en": "Dumbbell Deadlift",
+    "priority": "fr",
+    "aliases": [
+      "DB Deadlift",
+      "Soulevé de terre haltères",
+      "Dumbbell Deadlift"
+    ]
+  },
+  "EX310": {
+    "fr": "Soulevé de terre kettlebell",
+    "en": "Kettlebell Deadlift",
+    "priority": "fr",
+    "aliases": [
+      "KB Deadlift",
+      "Soulevé de terre kettlebell",
+      "Kettlebell Deadlift"
+    ]
+  },
+  "EX311": {
+    "fr": "Marche de l'ours",
+    "en": "Bear Crawl",
+    "priority": "en",
+    "aliases": [
+      "Bear Crawl",
+      "Marche de l'ours"
+    ]
+  },
+  "EX312": {
+    "fr": "Course en aller-retour",
+    "en": "Shuttle Run",
+    "priority": "fr",
+    "aliases": [
+      "Shuttle Run",
+      "Course navette",
+      "Course en aller-retour"
+    ]
+  },
+  "EX313": {
+    "fr": "Course",
+    "en": "Running",
+    "priority": "fr",
+    "aliases": [
+      "Course",
+      "Running"
+    ]
+  },
+  "EX314": {
+    "fr": "Pas chassés",
+    "en": "Lateral Shuffle",
+    "priority": "fr",
+    "aliases": [
+      "Lateral Shuffle",
+      "Pas chassés"
+    ]
+  },
+  "EX315": {
+    "fr": "Touches d'épaules en planche",
+    "en": "Shoulder Tap",
+    "priority": "en",
+    "aliases": [
+      "Shoulder Tap",
+      "Shoulder Taps",
+      "Touches d'épaules en planche"
+    ]
+  },
+  "EX316": {
+    "fr": "Crunch vélo",
+    "en": "Bicycle Crunch",
+    "priority": "fr",
+    "aliases": [
+      "Bicycle Crunch",
+      "Crunch vélo"
+    ]
+  },
+  "EX317": {
+    "fr": "Crunch inversé",
+    "en": "Reverse Crunch",
+    "priority": "fr",
+    "aliases": [
+      "Reverse Crunch",
+      "Crunch inversé"
+    ]
+  },
+  "EX318": {
+    "fr": "Battements de jambes au sol",
+    "en": "Flutter Kicks",
+    "priority": "fr",
+    "aliases": [
+      "Flutter Kicks",
+      "Battements de jambes au sol"
+    ]
+  },
+  "EX319": {
+    "fr": "Touches de talons sur le dos",
+    "en": "Heel Taps",
+    "priority": "fr",
+    "aliases": [
+      "Heel Taps",
+      "Touches de talons au sol",
+      "Touches de talons sur le dos"
+    ]
+  },
+  "EX320": {
+    "fr": "Planche latérale avec rotation",
+    "en": "Side Plank Reach Through",
+    "priority": "fr",
+    "aliases": [
+      "Side Plank Reach Through",
+      "Planche latérale avec rotation"
+    ]
+  },
+  "EX321": {
+    "fr": "Tirage horizontal avec élastique",
+    "en": "Band Row",
+    "priority": "fr",
+    "aliases": [
+      "Band Row",
+      "Tirage horizontal avec élastique"
+    ]
+  },
+  "EX322": {
+    "fr": "Tirage vers le visage à l’élastique",
+    "en": "Band Face Pull",
+    "priority": "fr",
+    "aliases": [
+      "Band Face Pull",
+      "Tirage visage avec élastique",
+      "Tirage vers le visage à l’élastique"
+    ]
+  },
+  "EX323": {
+    "fr": "Flexions de cheville en fente",
+    "en": "Ankle Rocks",
+    "priority": "fr",
+    "aliases": [
+      "Ankle Rocks",
+      "Mobilité cheville en fente",
+      "Flexions de cheville en fente"
+    ]
+  },
+  "EX324": {
+    "fr": "Cercles d'épaules contrôlés",
+    "en": "Shoulder CARs",
+    "priority": "fr",
+    "aliases": [
+      "Shoulder CARs",
+      "CARs",
+      "Cercles d'épaules contrôlés",
+      "rotation épaule",
+      "shoulder CAR"
+    ]
+  },
+  "EX325": {
+    "fr": "Développé haltère à un genou",
+    "en": "Half-Kneeling Dumbbell Press",
+    "priority": "fr",
+    "aliases": [
+      "Half-Kneeling DB Press",
+      "Développé haltère en demi-fente",
+      "Half-Kneeling Dumbbell Press",
+      "Développé haltère à un genou"
+    ]
+  },
+  "EX401": {
+    "fr": "Good Morning sans charge",
+    "en": "Bodyweight Good Morning",
+    "priority": "en",
+    "aliases": [
+      "Bodyweight Good Morning",
+      "Bascule de hanches sans charge",
+      "Good Morning sans charge"
+    ]
+  },
+  "EX402": {
+    "fr": "Pont fessier sur une jambe",
+    "en": "Single-Leg Glute Bridge",
+    "priority": "fr",
+    "aliases": [
+      "Single-Leg Glute Bridge",
+      "Pont fessier sur une jambe"
+    ]
+  },
+  "EX403": {
+    "fr": "Pont fessier avec petits pas des talons",
+    "en": "Hamstring Walkout",
+    "priority": "fr",
+    "aliases": [
+      "Hamstring Walkout",
+      "Pont fessier avec marche des pieds",
+      "Pont fessier avec petits pas des talons"
+    ]
+  },
+  "EX404": {
+    "fr": "Pont fessier alterné",
+    "en": "Glute Bridge March",
+    "priority": "fr",
+    "aliases": [
+      "Glute Bridge March",
+      "Pont fessier alterné"
+    ]
+  },
+  "EX405": {
+    "fr": "Soulevé roumain unilatéral haltère",
+    "en": "Single-Leg Dumbbell Romanian Deadlift (RDL)",
+    "priority": "fr",
+    "aliases": [
+      "Single-Leg DB RDL",
+      "RDL",
+      "Soulevé roumain unilatéral haltère",
+      "Single-Leg Dumbbell Romanian Deadlift (RDL)"
+    ]
+  },
+  "EX406": {
+    "fr": "Balayage des bras sur le ventre",
+    "en": "Reverse Snow Angel",
+    "priority": "fr",
+    "aliases": [
+      "Reverse Snow Angel",
+      "Balayage des bras sur le ventre"
+    ]
+  },
+  "EX407": {
+    "fr": "Élévations des bras en W sur le ventre",
+    "en": "Prone W Raise",
+    "priority": "fr",
+    "aliases": [
+      "Prone W Raise",
+      "Élévations des bras en W",
+      "Élévations des bras en W sur le ventre"
+    ]
+  },
+  "EX408": {
+    "fr": "Rowing buste penché haltères",
+    "en": "Dumbbell Bent-Over Row",
+    "priority": "fr",
+    "aliases": [
+      "DB Bent-Over Row",
+      "Rowing buste penché haltères",
+      "Dumbbell Bent-Over Row"
+    ]
+  },
+  "EX409": {
+    "fr": "Oiseau haltères",
+    "en": "Dumbbell Reverse Fly",
+    "priority": "fr",
+    "aliases": [
+      "DB Reverse Fly",
+      "Oiseau haltères",
+      "Dumbbell Reverse Fly"
+    ]
+  },
+  "EX410": {
+    "fr": "Tirage vers le visage au TRX",
+    "en": "TRX Face Pull",
+    "priority": "fr",
+    "aliases": [
+      "TRX Face Pull",
+      "Tirage visage TRX",
+      "Tirage vers le visage au TRX"
+    ]
+  },
+  "EX411": {
+    "fr": "Tractions scapulaires",
+    "en": "Scapular Pull-up",
+    "priority": "fr",
+    "aliases": [
+      "Scapular Pull-Up",
+      "Tractions scapulaires",
+      "Tractions d’omoplates"
+    ]
+  },
+  "EX412": {
+    "fr": "Suspension bras fléchis",
+    "en": "Flexed-Arm Hang",
+    "priority": "fr",
+    "aliases": [
+      "Flexed-Arm Hang",
+      "Suspension bras fléchis"
+    ]
+  },
+  "EX413": {
+    "fr": "Tirage des coudes sur le ventre",
+    "en": "Prone Lat Pulldown",
+    "priority": "fr",
+    "aliases": [
+      "Prone Lat Pull-Down",
+      "Tirage des bras sur le ventre",
+      "Prone Lat Pulldown",
+      "Tirage des coudes sur le ventre"
+    ]
+  },
+  "EX414": {
+    "fr": "Rotations du buste assis sans charge",
+    "en": "Bodyweight Russian Twist",
+    "priority": "en",
+    "aliases": [
+      "Russian Twist poids du corps",
+      "Rotations assises sans charge",
+      "Bodyweight Russian Twist",
+      "Rotations du buste assis sans charge"
+    ]
+  },
+  "EX415": {
+    "fr": "Bascule du bassin en planche",
+    "en": "Plank Hip Dip",
+    "priority": "fr",
+    "aliases": [
+      "Plank Hip Dip",
+      "Hip Dips",
+      "Bascule du bassin en planche"
+    ]
+  },
+  "EX416": {
+    "fr": "Rotation diagonale avec élastique",
+    "en": "Band Wood Chop",
+    "priority": "fr",
+    "aliases": [
+      "Band Wood Chop",
+      "Rotation diagonale avec élastique",
+      "woodchop",
+      "wood chop",
+      "rotation bûcheron"
+    ]
+  },
+  "EX417": {
+    "fr": "Pas latéraux anti-rotation à l’élastique",
+    "en": "Band Anti-Rotation Walkout",
+    "priority": "fr",
+    "aliases": [
+      "Band Anti-Rotation Walkout",
+      "Pas latéraux anti-rotation à l’élastique"
+    ]
+  },
+  "EX418": {
+    "fr": "Montées de genoux croisées",
+    "en": "Cross-Body Knee Drive",
+    "priority": "fr",
+    "aliases": [
+      "Cross-Body Knee Drive",
+      "Montées de genoux croisées",
+      "genou coude opposé"
+    ]
+  },
+  "EX419": {
+    "fr": "Squat sauté",
+    "en": "Squat Jump",
+    "priority": "en",
+    "aliases": [
+      "Squat Jump",
+      "Squat sauté"
+    ]
+  },
+  "EX420": {
+    "fr": "Flexions de jambes au TRX",
+    "en": "TRX Hamstring Curl",
+    "priority": "fr",
+    "aliases": [
+      "TRX Hamstring Curl",
+      "Flexion des genoux TRX",
+      "Flexions de jambes au TRX"
+    ]
+  },
+  "EX421": {
+    "fr": "Flexions de cheville au mur",
+    "en": "Ankle Dorsiflexion Rock",
+    "priority": "fr",
+    "aliases": [
+      "Ankle Dorsiflexion Rock",
+      "Mobilité cheville",
+      "Mobilité cheville au mur",
+      "Flexions de cheville au mur"
+    ]
+  },
+  "EX422": {
+    "fr": "Rotations de hanches assis à 90/90",
+    "en": "90/90 Hip Switch",
+    "priority": "fr",
+    "aliases": [
+      "90/90 Hip Switch",
+      "90/90 hanches",
+      "Rotations de hanches 90/90",
+      "Rotations de hanches assis à 90/90"
+    ]
+  },
+  "EX423": {
+    "fr": "Étirement dynamique des adducteurs au sol",
+    "en": "Adductor Rock Back",
+    "priority": "fr",
+    "aliases": [
+      "Adductor Rock Back",
+      "Mobilité des adducteurs au sol",
+      "Étirement dynamique des adducteurs au sol"
+    ]
+  },
+  "EX424": {
+    "fr": "Fente dynamique bras levé",
+    "en": "Hip Flexor Rock + Reach",
+    "priority": "fr",
+    "aliases": [
+      "Hip Flexor Rock + Reach",
+      "Fente dynamique bras levé"
+    ]
+  },
+  "EX425": {
+    "fr": "Étirement dynamique des ischios",
+    "en": "Hamstring Sweep",
+    "priority": "fr",
+    "aliases": [
+      "Hamstring Sweep",
+      "Étirement dynamique des ischios"
+    ]
+  },
+  "EX426": {
+    "fr": "Cercles de hanches debout",
+    "en": "Standing Hip CARs",
+    "priority": "fr",
+    "aliases": [
+      "Standing Hip CARs",
+      "CARs",
+      "Cercles de hanches debout"
+    ]
+  },
+  "EX427": {
+    "fr": "Squat puis jambes tendues",
+    "en": "Squat to Stand",
+    "priority": "fr",
+    "aliases": [
+      "Squat to Stand",
+      "Squat dynamique",
+      "Squat et extension des jambes",
+      "Squat puis jambes tendues"
+    ]
+  },
+  "EX428": {
+    "fr": "Squat latéral assisté",
+    "en": "Assisted Lateral Squat Shift",
+    "priority": "fr",
+    "aliases": [
+      "Assisted Lateral Squat Shift",
+      "Squat latéral assisté"
+    ]
+  },
+  "EX429": {
+    "fr": "Recul des hanches vers le mur",
+    "en": "Hip Hinge Wall Drill",
+    "priority": "fr",
+    "aliases": [
+      "Hip Hinge Wall Drill",
+      "Bascule de hanches au mur",
+      "Recul des hanches vers le mur"
+    ]
+  },
+  "EX430": {
+    "fr": "Pont fessier statique",
+    "en": "Glute Bridge Iso Squeeze",
+    "priority": "fr",
+    "aliases": [
+      "Glute Bridge Iso Squeeze",
+      "Pont fessier",
+      "Pont fessier statique"
+    ]
+  },
+  "EX431": {
+    "fr": "Ouverture du genou allongé sur le côté",
+    "en": "Clamshell",
+    "priority": "fr",
+    "aliases": [
+      "Clamshell",
+      "Ouverture de hanche au sol",
+      "coquillage",
+      "clamshells",
+      "Ouverture du genou allongé sur le côté"
+    ]
+  },
+  "EX432": {
+    "fr": "Pas latéraux avec mini-élastique",
+    "en": "Mini-Band Lateral Walk",
+    "priority": "fr",
+    "aliases": [
+      "Mini-Band Lateral Walk",
+      "Pas latéraux avec mini-élastique"
+    ]
+  },
+  "EX433": {
+    "fr": "Extensions bras-jambe avec respiration",
+    "en": "Dead Bug Breathing",
+    "priority": "fr",
+    "aliases": [
+      "Dead Bug Breathing",
+      "Dead Bug respiration",
+      "Extensions croisées avec respiration",
+      "Extensions bras-jambe avec respiration"
+    ]
+  },
+  "EX434": {
+    "fr": "Extension bras et jambe opposés à quatre pattes (échauffement)",
+    "en": "Bird Dog Reach",
+    "priority": "fr",
+    "aliases": [
+      "Bird Dog Reach",
+      "Extensions croisées préparatoires",
+      "Extensions bras-jambe à quatre pattes (préparation)",
+      "Extension bras et jambe opposés à quatre pattes (échauffement)"
+    ]
+  },
+  "EX435": {
+    "fr": "Rotation du dos allongé",
+    "en": "Thoracic Open Book",
+    "priority": "fr",
+    "aliases": [
+      "Thoracic Open Book",
+      "Rotation du dos allongé"
+    ]
+  },
+  "EX436": {
+    "fr": "Glissés de bras dos au mur, avant-bras devant",
+    "en": "Scapular Wall Slide",
+    "priority": "fr",
+    "aliases": [
+      "Scapular Wall Slide",
+      "Glissés d’omoplates au mur",
+      "Glissés de bras au mur",
+      "Glissés de bras dos au mur, avant-bras devant"
+    ]
+  },
+  "EX437": {
+    "fr": "Glissés de bras dos au mur",
+    "en": "Wall Angel",
+    "priority": "fr",
+    "aliases": [
+      "Wall Angel",
+      "Glissés de bras dos au mur"
+    ]
+  },
+  "EX438": {
+    "fr": "Rotation externe d’épaule élastique",
+    "en": "Band External Rotation",
+    "priority": "fr",
+    "aliases": [
+      "Band External Rotation",
+      "Rotation externe d’épaule élastique"
+    ]
+  },
+  "EX439": {
+    "fr": "Pompes scapulaires au mur",
+    "en": "Scapular Wall Push",
+    "priority": "fr",
+    "aliases": [
+      "Scapular Wall Push",
+      "Pompes scapulaires au mur"
+    ]
+  },
+  "EX440": {
+    "fr": "Élévations des bras en Y sur le ventre",
+    "en": "Prone Y Raise",
+    "priority": "fr",
+    "aliases": [
+      "Prone Y Raise",
+      "Élévations des bras en Y",
+      "Élévations des bras en Y sur le ventre"
+    ]
+  },
+  "EX441": {
+    "fr": "Glissés d’avant-bras au mur avec poussée",
+    "en": "Serratus Wall Slide",
+    "priority": "fr",
+    "aliases": [
+      "Serratus Wall Slide",
+      "Glissés au mur avec poussée",
+      "Glissés d’avant-bras face au mur",
+      "Glissés d’avant-bras au mur avec poussée"
+    ]
+  },
+  "EX442": {
+    "fr": "Marche sur place",
+    "en": "March in Place",
+    "priority": "fr",
+    "aliases": [
+      "March in Place",
+      "Marche sur place"
+    ]
+  },
+  "EX443": {
+    "fr": "Jumping Jack sans saut",
+    "en": "Low-Impact Step Jack",
+    "priority": "fr",
+    "aliases": [
+      "Low Impact Step Jack",
+      "Step Jacks sans saut",
+      "Jumping jack sans saut",
+      "Low-Impact Step Jack",
+      "Jumping Jack sans saut"
+    ]
+  },
+  "EX444": {
+    "fr": "Cercles de bras",
+    "en": "Arm Circles",
+    "priority": "fr",
+    "aliases": [
+      "Arm Circles",
+      "Cercles de bras"
+    ]
+  },
+  "EX450": {
+    "fr": "Maintien en V inversé",
+    "en": "Pike Hold",
+    "priority": "en",
+    "aliases": [
+      "Pike Hold",
+      "Maintien en V inversé"
+    ]
+  },
+  "EX451": {
+    "fr": "Équilibre libre sur les mains",
+    "en": "Freestanding Handstand Hold",
+    "priority": "en",
+    "aliases": [
+      "Handstand Hold libre",
+      "Équilibre libre sur les mains",
+      "Freestanding Handstand Hold"
+    ]
+  },
+  "EX452": {
+    "fr": "Pas des pieds vers les mains en planche",
+    "en": "Pike Walk-In",
+    "priority": "fr",
+    "aliases": [
+      "Pike Walk-In",
+      "Marche des pieds vers les mains",
+      "Pas des pieds vers les mains en planche"
+    ]
+  },
+  "EX453": {
+    "fr": "Handstand push-up libre",
+    "en": "Freestanding Handstand Push-up (HSPU)",
+    "priority": "en",
+    "aliases": [
+      "HSPU libre",
+      "HSPU",
+      "Handstand push-up libre",
+      "Freestanding Handstand Push-up (HSPU)"
+    ]
+  },
+  "EX454": {
+    "fr": "Pompes à quatre pattes",
+    "en": "Quadruped Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Pompe quadrupédie",
+      "Pompes à quatre pattes",
+      "Quadruped Push-up"
+    ]
+  },
+  "EX455": {
+    "fr": "Pompes scapulaires sur genoux",
+    "en": "Kneeling Scapular Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Scapular Push-up genoux",
+      "Pompes scapulaires sur genoux",
+      "Kneeling Scapular Push-up",
+      "pompes omoplates genoux"
+    ]
+  },
+  "EX456": {
+    "fr": "Pompes en V pieds surélevés",
+    "en": "Elevated Pike Push-up",
+    "priority": "en",
+    "aliases": [
+      "Pike Push-up pieds surélevés",
+      "Pompes en V pieds surélevés",
+      "Elevated Pike Push-up"
+    ]
+  },
+  "EX457": {
+    "fr": "Handstand push-up partiel au mur",
+    "en": "Partial Wall Handstand Push-up (HSPU)",
+    "priority": "en",
+    "aliases": [
+      "HSPU amplitude partielle au mur",
+      "HSPU",
+      "Handstand push-up partiel au mur",
+      "Partial Wall Handstand Push-up (HSPU)"
+    ]
+  },
+  "EX458": {
+    "fr": "Handstand push-up excentrique au mur",
+    "en": "Negative Wall Handstand Push-up (HSPU)",
+    "priority": "en",
+    "aliases": [
+      "HSPU négatif au mur",
+      "HSPU",
+      "Handstand push-up excentrique au mur",
+      "Negative Wall Handstand Push-up (HSPU)"
+    ]
+  },
+  "EX459": {
+    "fr": "Handstand push-up kipping au mur",
+    "en": "Kipping Wall Handstand Push-up (HSPU)",
+    "priority": "en",
+    "aliases": [
+      "HSPU kipping au mur",
+      "HSPU",
+      "Handstand push-up kipping au mur",
+      "Kipping Wall Handstand Push-up (HSPU)"
+    ]
+  },
+  "EX460": {
+    "fr": "Transferts d’appui sur les mains au mur",
+    "en": "Wall Handstand Weight Shift",
+    "priority": "fr",
+    "aliases": [
+      "Handstand Weight Shift au mur",
+      "Transferts d’appui en handstand au mur",
+      "Wall Handstand Weight Shift",
+      "Transferts d’appui sur les mains au mur"
+    ]
+  },
+  "EX461": {
+    "fr": "Décollage d’une main en équilibre au mur",
+    "en": "Wall Handstand Hand Lift",
+    "priority": "fr",
+    "aliases": [
+      "Handstand Hand Lift au mur",
+      "Décollage de main en handstand au mur",
+      "Wall Handstand Hand Lift",
+      "Décollage d’une main en équilibre au mur"
+    ]
+  },
+  "EX462": {
+    "fr": "Touches d’épaules en handstand au mur",
+    "en": "Wall Handstand Shoulder Tap",
+    "priority": "fr",
+    "aliases": [
+      "Handstand Shoulder Tap au mur",
+      "Touches d’épaules en handstand au mur",
+      "Wall Handstand Shoulder Tap"
+    ]
+  },
+  "EX463": {
+    "fr": "Marche latérale sur les mains au mur",
+    "en": "Wall Handstand Lateral Walk",
+    "priority": "fr",
+    "aliases": [
+      "Handstand Lateral Walk au mur",
+      "Marche latérale sur les mains au mur",
+      "Wall Handstand Lateral Walk"
+    ]
+  },
+  "EX464": {
+    "fr": "Équilibre sur les mains, pieds décollés du mur",
+    "en": "Handstand Wall Float / Toe Pull",
+    "priority": "fr",
+    "aliases": [
+      "Handstand Wall Float / Toe Pull",
+      "Équilibre au mur pieds décollés",
+      "Équilibre sur les mains, pieds décollés du mur"
+    ]
+  },
+  "EX465": {
+    "fr": "Transferts d’appui sur les mains sans mur",
+    "en": "Freestanding Handstand Weight Shift",
+    "priority": "fr",
+    "aliases": [
+      "Handstand Weight Shift libre",
+      "Transferts d’appui en handstand libre",
+      "Freestanding Handstand Weight Shift",
+      "Transferts d’appui sur les mains sans mur"
+    ]
+  },
+  "EX466": {
+    "fr": "Premiers pas sur les mains",
+    "en": "Handstand First Steps",
+    "priority": "fr",
+    "aliases": [
+      "Handstand First Steps",
+      "Premiers pas sur les mains"
+    ]
+  },
+  "EX470": {
+    "fr": "Maintien bras tendus sur barres parallèles",
+    "en": "Parallel Bar Support Hold",
+    "priority": "fr",
+    "aliases": [
+      "Support Hold sur supports parallèles",
+      "Support Hold",
+      "Appui statique sur barres parallèles",
+      "Parallel Bar Support Hold",
+      "Maintien bras tendus sur barres parallèles"
+    ]
+  },
+  "EX471": {
+    "fr": "Dips excentriques barres parallèles",
+    "en": "Negative Parallel Bar Dip",
+    "priority": "fr",
+    "aliases": [
+      "Dip négatif aux barres parallèles",
+      "Dips négatifs",
+      "Dips excentriques barres parallèles",
+      "Negative Parallel Bar Dip"
+    ]
+  },
+  "EX472": {
+    "fr": "Dips stricts barres parallèles",
+    "en": "Strict Parallel Bar Dip",
+    "priority": "fr",
+    "aliases": [
+      "Dip strict aux barres parallèles",
+      "Dips",
+      "Dips stricts barres parallèles",
+      "Strict Parallel Bar Dip"
+    ]
+  },
+  "EX473": {
+    "fr": "L-Sit groupé sur parallettes",
+    "en": "Parallette Tuck L-Sit",
+    "priority": "en",
+    "aliases": [
+      "Tuck L-Sit parallettes",
+      "L-Sit groupé sur parallettes",
+      "Parallette Tuck L-Sit"
+    ]
+  },
+  "EX474": {
+    "fr": "L-Sit une jambe sur parallettes",
+    "en": "Parallette Single-Leg L-Sit",
+    "priority": "en",
+    "aliases": [
+      "L-Sit une jambe parallettes",
+      "L-Sit une jambe sur parallettes",
+      "Parallette Single-Leg L-Sit"
+    ]
+  },
+  "EX475": {
+    "fr": "L-Sit sur parallettes",
+    "en": "Parallette L-Sit",
+    "priority": "en",
+    "aliases": [
+      "L-Sit parallettes",
+      "L-Sit sur parallettes",
+      "Parallette L-Sit"
+    ]
+  },
+  "EX476": {
+    "fr": "Sauts avec doubles tapes aux cuisses",
+    "en": "Penguin Tap Double Under Drill",
+    "priority": "fr",
+    "aliases": [
+      "Penguin Tap Double Under",
+      "DU",
+      "Sauts avec doubles tapes aux cuisses",
+      "Penguin Tap Double Under Drill"
+    ]
+  },
+  "EX478": {
+    "fr": "Pistol squat avec appui manuel",
+    "en": "Support-Assisted Pistol Squat",
+    "priority": "fr",
+    "aliases": [
+      "Pistol Squat assisté support",
+      "Pistol assisté",
+      "Pistol squat avec appui manuel",
+      "Support-Assisted Pistol Squat"
+    ]
+  },
+  "EX479": {
+    "fr": "Pistol squat excentrique",
+    "en": "Negative Pistol Squat",
+    "priority": "fr",
+    "aliases": [
+      "Pistol Squat négatif contrôlé",
+      "Pistol squat excentrique",
+      "Negative Pistol Squat"
+    ]
+  },
+  "EX480": {
+    "fr": "L-Sit groupé au sol",
+    "en": "Floor Tuck L-Sit",
+    "priority": "en",
+    "aliases": [
+      "Tuck L-Sit au sol",
+      "Tuck L-Sit",
+      "L-Sit groupé au sol",
+      "Floor Tuck L-Sit"
+    ]
+  },
+  "EX481": {
+    "fr": "L-Sit une jambe au sol",
+    "en": "Floor Single-Leg L-Sit",
+    "priority": "en",
+    "aliases": [
+      "L-Sit une jambe au sol",
+      "L-Sit 1 jambe",
+      "Floor Single-Leg L-Sit"
+    ]
+  },
+  "EX482": {
+    "fr": "Relevés de genoux suspendus",
+    "en": "Hanging Knee Raise",
+    "priority": "fr",
+    "aliases": [
+      "Hanging Knee Raise",
+      "Relevés de genoux suspendus"
+    ]
+  },
+  "EX483": {
+    "fr": "Relevés de jambes tendues en suspension",
+    "en": "Hanging Leg Raise",
+    "priority": "fr",
+    "aliases": [
+      "Hanging Leg Raise",
+      "Relevés suspendus jambes tendues",
+      "Relevés de jambes tendues en suspension"
+    ]
+  },
+  "EX484": {
+    "fr": "Genoux aux coudes en suspension",
+    "en": "Knees-to-Elbows",
+    "priority": "en",
+    "aliases": [
+      "Knees-to-Elbows",
+      "Genoux aux coudes suspendus",
+      "Genoux aux coudes en suspension"
+    ]
+  },
+  "EX485": {
+    "fr": "Pieds à la barre sans élan",
+    "en": "Strict Toes-to-Bar (T2B)",
+    "priority": "en",
+    "aliases": [
+      "Toes-to-Bar strict",
+      "T2B",
+      "Toes-to-Bar strict (T2B)",
+      "Strict Toes-to-Bar (T2B)",
+      "Pieds à la barre sans élan"
+    ]
+  },
+  "EX486": {
+    "fr": "Pieds à la barre avec élan",
+    "en": "Kipping Toes-to-Bar (T2B)",
+    "priority": "en",
+    "aliases": [
+      "Toes-to-Bar kipping",
+      "T2B",
+      "Toes-to-Bar kipping (T2B)",
+      "Kipping Toes-to-Bar (T2B)",
+      "Pieds à la barre avec élan"
+    ]
+  },
+  "EX487": {
+    "fr": "Soulevé de terre barre",
+    "en": "Barbell Deadlift",
+    "priority": "fr",
+    "aliases": [
+      "Deadlift barre",
+      "Soulevé de terre barre",
+      "Barbell Deadlift"
+    ]
+  },
+  "EX488": {
+    "fr": "Soulevé de terre roumain barre",
+    "en": "Barbell Romanian Deadlift (RDL)",
+    "priority": "fr",
+    "aliases": [
+      "Romanian Deadlift barre",
+      "RDL",
+      "Soulevé de terre roumain barre",
+      "Barbell Romanian Deadlift (RDL)"
+    ]
+  },
+  "EX489": {
+    "fr": "Front squat barre",
+    "en": "Barbell Front Squat",
+    "priority": "en",
+    "aliases": [
+      "Front Squat barre",
+      "Barbell Front Squat"
+    ]
+  },
+  "EX490": {
+    "fr": "Push press barre",
+    "en": "Barbell Push Press",
+    "priority": "en",
+    "aliases": [
+      "Push Press barre",
+      "Barbell Push Press"
+    ]
+  },
+  "EX491": {
+    "fr": "Jeté sans fente barre",
+    "en": "Barbell Push Jerk",
+    "priority": "en",
+    "aliases": [
+      "Push Jerk barre",
+      "Jeté sans fente barre",
+      "Barbell Push Jerk"
+    ]
+  },
+  "EX492": {
+    "fr": "Thruster barre",
+    "en": "Barbell Thruster",
+    "priority": "en",
+    "aliases": [
+      "Thruster barre",
+      "Barbell Thruster"
+    ]
+  },
+  "EX493": {
+    "fr": "Épaulé suspendu à la barre, réception haute",
+    "en": "Barbell Hang Power Clean",
+    "priority": "en",
+    "aliases": [
+      "Hang Power Clean barre",
+      "Épaulé suspendu barre, réception haute",
+      "Barbell Hang Power Clean",
+      "Épaulé barre suspendue, réception haute",
+      "Épaulé suspendu à la barre, réception haute"
+    ]
+  },
+  "EX494": {
+    "fr": "Épaulé barre, réception haute",
+    "en": "Barbell Power Clean",
+    "priority": "en",
+    "aliases": [
+      "Power Clean barre",
+      "Épaulé barre, réception haute",
+      "Barbell Power Clean"
+    ]
+  },
+  "EX495": {
+    "fr": "Épaulé en squat barre",
+    "en": "Barbell Squat Clean",
+    "priority": "en",
+    "aliases": [
+      "Squat Clean barre",
+      "Épaulé en squat barre",
+      "Barbell Squat Clean"
+    ]
+  },
+  "EX496": {
+    "fr": "Tirage haut d'arraché barre",
+    "en": "Barbell Snatch High Pull",
+    "priority": "fr",
+    "aliases": [
+      "Snatch High Pull barre",
+      "Tirage haut d'arraché barre",
+      "Barbell Snatch High Pull"
+    ]
+  },
+  "EX497": {
+    "fr": "Arraché suspendu à la barre, réception haute",
+    "en": "Barbell Hang Power Snatch",
+    "priority": "en",
+    "aliases": [
+      "Hang Power Snatch barre",
+      "Arraché suspendu barre, réception haute",
+      "Barbell Hang Power Snatch",
+      "Arraché barre suspendue, réception haute",
+      "Arraché suspendu à la barre, réception haute"
+    ]
+  },
+  "EX498": {
+    "fr": "Arraché barre, réception haute",
+    "en": "Barbell Power Snatch",
+    "priority": "en",
+    "aliases": [
+      "Power Snatch barre",
+      "Arraché barre, réception haute",
+      "Barbell Power Snatch"
+    ]
+  },
+  "EX499": {
+    "fr": "Arraché en squat barre",
+    "en": "Barbell Squat Snatch",
+    "priority": "en",
+    "aliases": [
+      "Squat Snatch barre",
+      "Arraché en squat barre",
+      "Barbell Squat Snatch"
+    ]
+  },
+  "EX500": {
+    "fr": "Épaulé-jeté barre",
+    "en": "Barbell Clean & Jerk",
+    "priority": "en",
+    "aliases": [
+      "Clean & Jerk barre",
+      "Épaulé-jeté barre",
+      "Barbell Clean & Jerk"
+    ]
+  },
+  "EX501": {
+    "fr": "Rameur",
+    "en": "Rowing Ergometer",
+    "priority": "fr",
+    "aliases": [
+      "Rameur",
+      "Rowing Ergometer"
+    ]
+  },
+  "EX502": {
+    "fr": "Vélo",
+    "en": "Stationary Bike",
+    "priority": "fr",
+    "aliases": [
+      "Vélo / Bike",
+      "Vélo",
+      "Stationary Bike"
+    ]
+  },
+  "EX503": {
+    "fr": "Air Bike",
+    "en": "Air Bike",
+    "priority": "fr",
+    "aliases": [
+      "Air Bike / Assault Bike",
+      "Air Bike"
+    ]
+  },
+  "EX504": {
+    "fr": "Tirage aux anneaux",
+    "en": "Ring Row",
+    "priority": "en",
+    "aliases": [
+      "Ring Row",
+      "Tirage aux anneaux"
+    ]
+  },
+  "EX505": {
+    "fr": "Appui statique aux anneaux",
+    "en": "Ring Support Hold",
+    "priority": "fr",
+    "aliases": [
+      "Ring Support Hold",
+      "Support aux anneaux",
+      "Appui statique aux anneaux"
+    ]
+  },
+  "EX506": {
+    "fr": "SkiErg",
+    "en": "SkiErg",
+    "priority": "fr",
+    "aliases": [
+      "SkiErg"
+    ]
+  },
+  "EX507": {
+    "fr": "Poussée de traîneau",
+    "en": "Sled Push",
+    "priority": "fr",
+    "aliases": [
+      "Sled Push",
+      "Poussée de traîneau"
+    ]
+  },
+  "EX508": {
+    "fr": "Tirage de traîneau en reculant",
+    "en": "Backward Sled Drag",
+    "priority": "fr",
+    "aliases": [
+      "Backward Sled Drag",
+      "Traîneau en marche arrière",
+      "Tirage de traîneau en reculant"
+    ]
+  },
+  "EX509": {
+    "fr": "Marche avec sac lesté contre la poitrine",
+    "en": "Sandbag Bear Hug Carry",
+    "priority": "fr",
+    "aliases": [
+      "Sandbag Bear Hug Carry",
+      "Porté Sandbag",
+      "Marche sac contre poitrine",
+      "Marche avec sac lesté contre la poitrine"
+    ]
+  },
+  "EX510": {
+    "fr": "Squat avec sac lesté contre la poitrine",
+    "en": "Sandbag Front Squat",
+    "priority": "fr",
+    "aliases": [
+      "Sandbag Front Squat",
+      "Front Squat Sandbag",
+      "Squat sac contre poitrine",
+      "Squat avec sac lesté contre la poitrine"
+    ]
+  },
+  "EX511": {
+    "fr": "Vagues alternées à la corde ondulatoire",
+    "en": "Battle Rope Alternating Waves",
+    "priority": "en",
+    "aliases": [
+      "Battle Rope Alternating Waves",
+      "Battle Rope",
+      "Ondulations alternées corde lourde",
+      "Vagues alternées à la corde ondulatoire"
+    ]
+  },
+  "EX512": {
+    "fr": "Course sur tapis",
+    "en": "Treadmill Running",
+    "priority": "fr",
+    "aliases": [
+      "Course sur tapis",
+      "Treadmill Running"
+    ]
+  },
+  "EX513": {
+    "fr": "Tirage poulie basse",
+    "en": "Cable Row",
+    "priority": "fr",
+    "aliases": [
+      "Cable Row",
+      "Tirage poulie basse"
+    ]
+  },
+  "EX514": {
+    "fr": "Tirage vertical poulie",
+    "en": "Lat Pulldown",
+    "priority": "fr",
+    "aliases": [
+      "Lat Pulldown",
+      "Tirage vertical poulie"
+    ]
+  },
+  "EX515": {
+    "fr": "Développé pectoraux à la poulie",
+    "en": "Cable Chest Press",
+    "priority": "fr",
+    "aliases": [
+      "Cable Chest Press",
+      "Développé poitrine poulie",
+      "Développé pectoraux à la poulie"
+    ]
+  },
+  "EX516": {
+    "fr": "Marche avec gilet lesté",
+    "en": "Weighted Vest Walk",
+    "priority": "fr",
+    "aliases": [
+      "Marche avec gilet lesté",
+      "Marche lestée",
+      "Weighted Vest Walk"
+    ]
+  },
+  "EX517": {
+    "fr": "Montée sur marche",
+    "en": "Step-up",
+    "priority": "fr",
+    "aliases": [
+      "Step-up sur marche",
+      "Step-up",
+      "Montée sur marche"
+    ]
+  },
+  "EX518": {
+    "fr": "Montée sur marche basse préparatoire",
+    "en": "Low Step-up Prep",
+    "priority": "fr",
+    "aliases": [
+      "Step-up sur marche — préparation",
+      "Préparation Step-up",
+      "Montée sur marche basse préparatoire",
+      "Low Step-up Prep"
+    ]
+  },
+  "EX519": {
+    "fr": "Automassage mollets au rouleau",
+    "en": "Calf Foam Roll",
+    "priority": "fr",
+    "aliases": [
+      "Foam Roll mollets",
+      "Automassage mollets au rouleau",
+      "Calf Foam Roll"
+    ]
+  },
+  "EX520": {
+    "fr": "Automassage quadriceps au rouleau",
+    "en": "Quadriceps Foam Roll",
+    "priority": "fr",
+    "aliases": [
+      "Foam Roll quadriceps",
+      "Automassage quadriceps au rouleau",
+      "Quadriceps Foam Roll"
+    ]
+  },
+  "EX521": {
+    "fr": "Mobilité épaules à l'espalier",
+    "en": "Wall Bar Shoulder Mobility",
+    "priority": "fr",
+    "aliases": [
+      "Mobilité épaules à l’espalier",
+      "Mobilité épaules espalier",
+      "Mobilité épaules à l'espalier",
+      "Wall Bar Shoulder Mobility"
+    ]
+  },
+  "EX522": {
+    "fr": "Lancer de slam ball au sol",
+    "en": "Slam Ball",
+    "priority": "en",
+    "aliases": [
+      "Slam Ball",
+      "Lancer de slam ball au sol"
+    ]
+  },
+  "EX523": {
+    "fr": "Sit-up",
+    "en": "Sit-up",
+    "priority": "fr",
+    "aliases": [
+      "Sit-up"
+    ]
+  },
+  "EX524": {
+    "fr": "Crunch classique",
+    "en": "Crunch",
+    "priority": "fr",
+    "aliases": [
+      "Crunch classique",
+      "Crunch"
+    ]
+  },
+  "EX525": {
+    "fr": "Relevés de jambes au sol",
+    "en": "Lying Leg Raise",
+    "priority": "fr",
+    "aliases": [
+      "Lying Leg Raise",
+      "Relevé de jambes au sol",
+      "Relevés de jambes au sol"
+    ]
+  },
+  "EX526": {
+    "fr": "Crunch mains vers les pieds",
+    "en": "Toe Touch Crunch",
+    "priority": "fr",
+    "aliases": [
+      "Toe Touches",
+      "Crunch touches de pieds",
+      "Toe Touch Crunch",
+      "Crunch mains vers les pieds"
+    ]
+  },
+  "EX527": {
+    "fr": "Crunch à la poulie",
+    "en": "Cable Crunch",
+    "priority": "fr",
+    "aliases": [
+      "Cable Crunch",
+      "Crunch à la poulie"
+    ]
+  },
+  "EX528": {
+    "fr": "Roue abdominale",
+    "en": "Ab Wheel Rollout",
+    "priority": "fr",
+    "aliases": [
+      "Ab Wheel Rollout",
+      "Roue abdominale"
+    ]
+  },
+  "EX529": {
+    "fr": "Balancements en Superman",
+    "en": "Arch Rock",
+    "priority": "fr",
+    "aliases": [
+      "Arch Rock",
+      "Balancements en Superman"
+    ]
+  },
+  "EX530": {
+    "fr": "Extensions lombaires sur banc",
+    "en": "Back Extension",
+    "priority": "fr",
+    "aliases": [
+      "Back Extension",
+      "Extension lombaire",
+      "Extensions du dos sur banc",
+      "hyperextension",
+      "Extensions lombaires sur banc"
+    ]
+  },
+  "EX531": {
+    "fr": "Squat barre sur le dos",
+    "en": "Barbell Back Squat",
+    "priority": "fr",
+    "aliases": [
+      "Back Squat barre",
+      "Back Squat",
+      "Squat barre sur le dos",
+      "Barbell Back Squat"
+    ]
+  },
+  "EX532": {
+    "fr": "Développé épaules strict barre",
+    "en": "Barbell Strict Press",
+    "priority": "fr",
+    "aliases": [
+      "Strict Press barre",
+      "Shoulder Press barre",
+      "Développé épaules strict barre",
+      "Barbell Strict Press"
+    ]
+  },
+  "EX533": {
+    "fr": "Rowing buste penché barre",
+    "en": "Barbell Bent-Over Row",
+    "priority": "fr",
+    "aliases": [
+      "Bent-Over Row barre",
+      "Rowing barre",
+      "Rowing buste penché barre",
+      "Barbell Bent-Over Row"
+    ]
+  },
+  "EX534": {
+    "fr": "Hip thrust barre",
+    "en": "Barbell Hip Thrust",
+    "priority": "en",
+    "aliases": [
+      "Hip Thrust barre",
+      "Barbell Hip Thrust"
+    ]
+  },
+  "EX535": {
+    "fr": "Squat barre au-dessus de la tête",
+    "en": "Barbell Overhead Squat",
+    "priority": "en",
+    "aliases": [
+      "Overhead Squat barre",
+      "Overhead Squat",
+      "Squat barre bras levés",
+      "Barbell Overhead Squat",
+      "Squat barre au-dessus de la tête"
+    ]
+  },
+  "EX536": {
+    "fr": "Jeté en fente barre",
+    "en": "Barbell Split Jerk",
+    "priority": "en",
+    "aliases": [
+      "Split Jerk barre",
+      "Split Jerk",
+      "Jeté en fente barre",
+      "Barbell Split Jerk"
+    ]
+  },
+  "EX537": {
+    "fr": "Snatch Balance",
+    "en": "Snatch Balance",
+    "priority": "fr",
+    "aliases": [
+      "Snatch Balance"
+    ]
+  },
+  "EX538": {
+    "fr": "Épaulé medball",
+    "en": "Medball Clean",
+    "priority": "fr",
+    "aliases": [
+      "Medball Clean",
+      "Épaulé medball"
+    ]
+  },
+  "EX539": {
+    "fr": "Fentes marchées sans charge",
+    "en": "Bodyweight Walking Lunge",
+    "priority": "fr",
+    "aliases": [
+      "Walking Lunge poids du corps",
+      "Fentes marchées",
+      "Fentes marchées sans charge",
+      "Bodyweight Walking Lunge"
+    ]
+  },
+  "EX540": {
+    "fr": "Squat kettlebell contre la poitrine",
+    "en": "Kettlebell Goblet Squat",
+    "priority": "en",
+    "aliases": [
+      "Goblet Squat kettlebell",
+      "Goblet Squat KB",
+      "Kettlebell Goblet Squat",
+      "Goblet squat kettlebell",
+      "Squat kettlebell contre la poitrine"
+    ]
+  },
+  "EX541": {
+    "fr": "Fentes bulgares haltères",
+    "en": "Dumbbell Bulgarian Split Squat",
+    "priority": "fr",
+    "aliases": [
+      "Bulgarian Split Squat haltères",
+      "Fente bulgare haltères",
+      "Fentes bulgares haltères",
+      "Dumbbell Bulgarian Split Squat"
+    ]
+  },
+  "EX542": {
+    "fr": "Saut sur box avec franchissement",
+    "en": "Box Jump Over",
+    "priority": "en",
+    "aliases": [
+      "Box Jump Over",
+      "Saut avec franchissement de box",
+      "Saut sur box avec franchissement"
+    ]
+  },
+  "EX543": {
+    "fr": "Burpee avec franchissement de box",
+    "en": "Burpee Box Jump Over",
+    "priority": "en",
+    "aliases": [
+      "Burpee Box Jump Over",
+      "Burpee avec franchissement de box"
+    ]
+  },
+  "EX544": {
+    "fr": "Muscle-up à la barre",
+    "en": "Bar Muscle-up",
+    "priority": "en",
+    "aliases": [
+      "Bar Muscle-up",
+      "Muscle-up à la barre"
+    ]
+  },
+  "EX545": {
+    "fr": "Dips aux anneaux",
+    "en": "Ring Dip",
+    "priority": "en",
+    "aliases": [
+      "Ring Dip",
+      "Dips aux anneaux"
+    ]
+  },
+  "EX546": {
+    "fr": "Muscle-up aux anneaux",
+    "en": "Ring Muscle-up",
+    "priority": "en",
+    "aliases": [
+      "Ring Muscle-up",
+      "Muscle-up aux anneaux"
+    ]
+  },
+  "EX547": {
+    "fr": "Balancement en suspension",
+    "en": "Beat Swing / Kip Swing",
+    "priority": "fr",
+    "aliases": [
+      "Beat Swing / Kip Swing",
+      "Kip Swing",
+      "Balancement gymnique suspendu",
+      "Balancement en suspension"
+    ]
+  },
+  "EX548": {
+    "fr": "Tractions kipping",
+    "en": "Kipping Pull-up",
+    "priority": "en",
+    "aliases": [
+      "Kipping Pull-up",
+      "Tractions kipping"
+    ]
+  },
+  "EX549": {
+    "fr": "Tractions poitrine-barre avec élan",
+    "en": "Kipping Chest-to-Bar (C2B)",
+    "priority": "en",
+    "aliases": [
+      "Kipping Chest-to-Bar",
+      "Chest-to-Bar kipping",
+      "C2B",
+      "Tractions poitrine-barre kipping",
+      "Kipping Chest-to-Bar (C2B)",
+      "Tractions poitrine-barre avec élan"
+    ]
+  },
+  "EX550": {
+    "fr": "Dips sur barre droite",
+    "en": "Straight-Bar Dip",
+    "priority": "fr",
+    "aliases": [
+      "Straight-Bar Dip",
+      "Dip sur barre droite",
+      "Dips sur barre droite"
+    ]
+  },
+  "EX551": {
+    "fr": "Suspension en fausse prise aux anneaux",
+    "en": "False Grip Hang",
+    "priority": "fr",
+    "aliases": [
+      "False Grip Hang",
+      "Suspension false grip",
+      "Suspension en false grip",
+      "Suspension en fausse prise aux anneaux"
+    ]
+  },
+  "EX552": {
+    "fr": "Tirage anneaux en fausse prise",
+    "en": "False Grip Ring Row",
+    "priority": "fr",
+    "aliases": [
+      "False Grip Ring Row",
+      "Ring Row false grip",
+      "Tirage anneaux en false grip",
+      "Tirage anneaux en fausse prise"
+    ]
+  },
+  "EX553": {
+    "fr": "Transition muscle-up anneaux bas",
+    "en": "Low Ring Muscle-up Transition",
+    "priority": "fr",
+    "aliases": [
+      "Low Ring Muscle-up Transition",
+      "Transition Muscle-up anneaux bas"
+    ]
+  },
+  "EX554": {
+    "fr": "Muscle-up anneaux assisté",
+    "en": "Assisted Ring Muscle-up",
+    "priority": "fr",
+    "aliases": [
+      "Assisted Ring Muscle-up",
+      "Ring Muscle-up assisté",
+      "Muscle-up anneaux assisté"
+    ]
+  },
+  "EX555": {
+    "fr": "Verrouillage des pieds sur corde",
+    "en": "Rope Foot Lock / J-Hook Drill",
+    "priority": "fr",
+    "aliases": [
+      "Rope Foot Lock / J-Hook Drill",
+      "J-Hook corde",
+      "Verrouillage des pieds sur corde"
+    ]
+  },
+  "EX556": {
+    "fr": "Montée de corde assistée",
+    "en": "Assisted Rope Climb",
+    "priority": "fr",
+    "aliases": [
+      "Assisted Rope Climb",
+      "Rope Climb assisté",
+      "Montée de corde assistée"
+    ]
+  },
+  "EX557": {
+    "fr": "Montée de corde",
+    "en": "Rope Climb",
+    "priority": "fr",
+    "aliases": [
+      "Rope Climb",
+      "Montée de corde"
+    ]
+  },
+  "EX558": {
+    "fr": "Relevés de genoux suspendus avec élan",
+    "en": "Kipping Knee Raise",
+    "priority": "fr",
+    "aliases": [
+      "Kipping Knee Raise",
+      "Knee Raise kipping",
+      "Relevés de genoux kipping",
+      "Relevés de genoux suspendus avec élan"
+    ]
+  },
+  "EX559": {
+    "fr": "Tirage haut kettlebell",
+    "en": "Kettlebell High Pull",
+    "priority": "fr",
+    "aliases": [
+      "Kettlebell High Pull",
+      "KB High Pull",
+      "Tirage haut kettlebell"
+    ]
+  },
+  "EX560": {
+    "fr": "Relevé turc jusqu'au coude",
+    "en": "Turkish Get-Up to Elbow",
+    "priority": "fr",
+    "aliases": [
+      "Turkish Get-Up to Elbow",
+      "TGU jusqu au coude",
+      "TGU",
+      "Relevé turc jusqu'au coude"
+    ]
+  },
+  "EX561": {
+    "fr": "Relevé turc jusqu'à la main",
+    "en": "Turkish Get-Up to Hand",
+    "priority": "fr",
+    "aliases": [
+      "Turkish Get-Up to Hand",
+      "TGU jusqu à la main",
+      "TGU",
+      "Relevé turc jusqu'à la main"
+    ]
+  },
+  "EX562": {
+    "fr": "Relevé turc à genou",
+    "en": "Half Turkish Get-Up to Kneeling",
+    "priority": "fr",
+    "aliases": [
+      "Half Turkish Get-Up to Kneeling",
+      "Half Turkish Get-Up",
+      "TGU",
+      "Relevé turc à genou"
+    ]
+  },
+  "EX563": {
+    "fr": "Relevé turc complet",
+    "en": "Turkish Get-Up (TGU)",
+    "priority": "en",
+    "aliases": [
+      "Turkish Get-Up",
+      "TGU",
+      "Relevé turc complet",
+      "Turkish Get-Up (TGU)"
+    ]
+  },
+  "EX564": {
+    "fr": "Front lever groupé",
+    "en": "Tuck Front Lever",
+    "priority": "en",
+    "aliases": [
+      "Tuck Front Lever",
+      "Front lever groupé"
+    ]
+  },
+  "EX565": {
+    "fr": "Front lever groupé avancé",
+    "en": "Advanced Tuck Front Lever",
+    "priority": "en",
+    "aliases": [
+      "Advanced Tuck Front Lever",
+      "Front Lever advanced tuck",
+      "Front lever groupé avancé"
+    ]
+  },
+  "EX566": {
+    "fr": "Front lever jambes écartées",
+    "en": "Straddle Front Lever",
+    "priority": "en",
+    "aliases": [
+      "Straddle Front Lever",
+      "Front Lever straddle",
+      "Front lever jambes écartées"
+    ]
+  },
+  "EX567": {
+    "fr": "Front lever jambes tendues",
+    "en": "Front Lever",
+    "priority": "en",
+    "aliases": [
+      "Front Lever",
+      "Front lever jambes tendues"
+    ]
+  },
+  "EX568": {
+    "fr": "Appui penché bras tendus",
+    "en": "Planche Lean",
+    "priority": "en",
+    "aliases": [
+      "Planche Lean",
+      "Appui penché bras tendus"
+    ]
+  },
+  "EX569": {
+    "fr": "Planche gymnique groupée",
+    "en": "Tuck Planche",
+    "priority": "en",
+    "aliases": [
+      "Tuck Planche",
+      "Planche gymnique groupée"
+    ]
+  },
+  "EX570": {
+    "fr": "Planche gymnique groupée avancée",
+    "en": "Advanced Tuck Planche",
+    "priority": "en",
+    "aliases": [
+      "Advanced Tuck Planche",
+      "Planche gymnique groupée avancée"
+    ]
+  },
+  "EX571": {
+    "fr": "Planche gymnique jambes écartées",
+    "en": "Straddle Planche",
+    "priority": "en",
+    "aliases": [
+      "Straddle Planche",
+      "Planche gymnique jambes écartées"
+    ]
+  },
+  "EX572": {
+    "fr": "Planche gymnique",
+    "en": "Full Planche",
+    "priority": "fr",
+    "aliases": [
+      "Planche",
+      "Planche gymnastique",
+      "Planche gymnique",
+      "Full Planche"
+    ]
+  },
+  "EX573": {
+    "fr": "Pistol squat sur box",
+    "en": "Pistol Squat to Box",
+    "priority": "en",
+    "aliases": [
+      "Pistol Squat to Box",
+      "Pistol sur box",
+      "Pistol squat sur box"
+    ]
+  },
+  "EX574": {
+    "fr": "Tirage de traîneau",
+    "en": "Sled Pull",
+    "priority": "fr",
+    "aliases": [
+      "Sled Pull",
+      "Tirage de traîneau"
+    ]
+  },
+  "EX575": {
+    "fr": "Burpee saut en longueur",
+    "en": "Burpee Broad Jump",
+    "priority": "en",
+    "aliases": [
+      "Burpee Broad Jump",
+      "Burpee saut en longueur"
+    ]
+  },
+  "EX576": {
+    "fr": "Marche avec deux kettlebells",
+    "en": "Kettlebell Farmer Carry",
+    "priority": "fr",
+    "aliases": [
+      "Kettlebell Farmers Carry",
+      "Farmers Carry kettlebells",
+      "Marche chargée kettlebells",
+      "Kettlebell Farmer Carry",
+      "Marche avec deux kettlebells"
+    ]
+  },
+  "EX577": {
+    "fr": "Fentes marchées sac lesté",
+    "en": "Sandbag Walking Lunge",
+    "priority": "fr",
+    "aliases": [
+      "Sandbag Walking Lunge",
+      "Fentes marchées Sandbag",
+      "Fentes marchées sac lesté"
+    ]
+  },
+  "EX578": {
+    "fr": "Swing haltère",
+    "en": "Dumbbell Swing",
+    "priority": "en",
+    "aliases": [
+      "Dumbbell Swing",
+      "DB Swing",
+      "Swing haltère"
+    ]
+  },
+  "EX579": {
+    "fr": "Curl biceps kettlebell",
+    "en": "Kettlebell Biceps Curl",
+    "priority": "fr",
+    "aliases": [
+      "Kettlebell Biceps Curl",
+      "KB Biceps Curl",
+      "Curl biceps kettlebell",
+      "curl kettlebell"
+    ]
+  },
+  "EX580": {
+    "fr": "Tractions strictes assistées sur box",
+    "en": "Box-Assisted Strict Pull-up",
+    "priority": "fr",
+    "aliases": [
+      "Box-Assisted Strict Pull-up",
+      "Traction stricte assistée sur box",
+      "Tractions strictes assistées sur box"
+    ]
+  },
+  "EX581": {
+    "fr": "Tractions sautées",
+    "en": "Jumping Pull-up",
+    "priority": "en",
+    "aliases": [
+      "Jumping Pull-up",
+      "Tractions sautées"
+    ]
+  },
+  "EX582": {
+    "fr": "Tirage vertical à l'élastique",
+    "en": "Band Lat Pulldown",
+    "priority": "fr",
+    "aliases": [
+      "Band Lat Pulldown",
+      "Tirage vertical à l’élastique",
+      "Tirage vertical à l'élastique"
+    ]
+  },
+  "EX583": {
+    "fr": "Traversée suspendue d’échelle horizontale",
+    "en": "Monkey Bars",
+    "priority": "en",
+    "aliases": [
+      "Monkey Bars",
+      "Monkey Bars – traversée suspendue",
+      "Traversée d’échelle horizontale",
+      "échelle horizontale",
+      "échelle suspendue",
+      "Traversée suspendue d’échelle horizontale"
+    ]
+  },
+  "EX584": {
+    "fr": "Suspension à la serviette",
+    "en": "Towel Hang",
+    "priority": "en",
+    "aliases": [
+      "Towel Hang",
+      "Towel Hang – suspension à la serviette",
+      "Suspension à la serviette"
+    ]
+  },
+  "EX585": {
+    "fr": "Suspension bras tendus à la barre",
+    "en": "Dead Hang",
+    "priority": "en",
+    "aliases": [
+      "Dead Hang",
+      "Dead Hang – suspension à la barre",
+      "Suspension à la barre",
+      "suspension passive",
+      "Suspension bras tendus à la barre"
+    ]
+  },
+  "EXW001": {
+    "fr": "Passage debout-planche sans saut",
+    "en": "Down Up",
+    "priority": "fr",
+    "aliases": [
+      "Down Up",
+      "Down-Ups",
+      "Aller-retour en planche",
+      "Passage debout-planche sans saut"
+    ]
+  },
+  "EXW002": {
+    "fr": "Passage debout-planche pas à pas",
+    "en": "Step-Back Down Up",
+    "priority": "fr",
+    "aliases": [
+      "Step-Back Down Up",
+      "Down-Ups contrôlés",
+      "Aller-retour en planche pas à pas",
+      "Passage debout-planche pas à pas"
+    ]
+  },
+  "EXW003": {
+    "fr": "Squat avec élévation des bras",
+    "en": "Squat to Reach",
+    "priority": "fr",
+    "aliases": [
+      "Squat to Reach",
+      "Squat + bras hauts",
+      "Squat avec élévation des bras"
+    ]
+  },
+  "EXW004": {
+    "fr": "Petits rebonds de chevilles",
+    "en": "Low Pogo Bounce",
+    "priority": "fr",
+    "aliases": [
+      "Low Pogo Bounce",
+      "Petits rebonds",
+      "Petits rebonds de chevilles"
+    ]
+  },
+  "EXW005": {
+    "fr": "Bascule du corps en appui au mur",
+    "en": "Wall Shoulder Lean",
+    "priority": "fr",
+    "aliases": [
+      "Wall Shoulder Lean",
+      "Bascule du corps au mur",
+      "Bascule du corps en appui au mur"
+    ]
+  },
+  "EXW006": {
+    "fr": "Élévation des bras à genoux",
+    "en": "Tall-Kneeling Press Reach",
+    "priority": "fr",
+    "aliases": [
+      "Tall-Kneeling Press Reach",
+      "Élévation bras à genoux",
+      "Élévation des bras à genoux"
+    ]
+  },
+  "EXW007": {
+    "fr": "Sauts simples faciles à la corde",
+    "en": "Easy Single Under (SU)",
+    "priority": "en",
+    "aliases": [
+      "Easy Single Under",
+      "Single Unders faciles",
+      "SU",
+      "Single Under facile (SU)",
+      "Easy Single Under (SU)",
+      "Sauts simples faciles à la corde"
+    ]
+  },
+  "EXW008": {
+    "fr": "Montée sur box préparatoire",
+    "en": "Box Step-Up Prep",
+    "priority": "fr",
+    "aliases": [
+      "Box Step-Up Prep",
+      "Step-ups faciles",
+      "Montée sur box préparatoire"
+    ]
+  },
+  "EXW009": {
+    "fr": "Tirage haut sans charge",
+    "en": "High Pull Pattern Drill",
+    "priority": "fr",
+    "aliases": [
+      "High Pull Pattern Drill",
+      "Tirage haut technique",
+      "Tirage haut sans charge"
+    ]
+  },
+  "EXW010": {
+    "fr": "Élévations des bras en T sur le ventre",
+    "en": "Prone T Raise",
+    "priority": "fr",
+    "aliases": [
+      "Prone T Raise",
+      "Élévations des bras en T",
+      "Élévations des bras en T sur le ventre"
+    ]
+  },
+  "EXW011": {
+    "fr": "Élévations des bras Y-T-W sur le ventre",
+    "en": "Prone Y-T-W",
+    "priority": "fr",
+    "aliases": [
+      "Prone Y-T-W",
+      "Élévations des bras Y-T-W",
+      "Élévations des bras Y-T-W sur le ventre"
+    ]
+  },
+  "EXW012": {
+    "fr": "Cercles de poignets contrôlés",
+    "en": "Wrist CARs",
+    "priority": "fr",
+    "aliases": [
+      "Wrist CARs",
+      "Cercles de poignets",
+      "CARs",
+      "Cercles de poignets contrôlés"
+    ]
+  },
+  "EXW013": {
+    "fr": "Bascule sur les poignets à quatre pattes",
+    "en": "Quadruped Wrist Rock",
+    "priority": "fr",
+    "aliases": [
+      "Quadruped Wrist Rock",
+      "Mobilité poignets à 4 pattes",
+      "Bascule sur les poignets",
+      "wrist rock",
+      "mobilité poignets",
+      "Bascule sur les poignets à quatre pattes"
+    ]
+  },
+  "EXW014": {
+    "fr": "Transferts de poids sur les mains",
+    "en": "Palm Load Shift",
+    "priority": "fr",
+    "aliases": [
+      "Palm Load Shift",
+      "Appuis poignets",
+      "Transferts d'appui sur les mains",
+      "Transferts de poids sur les mains"
+    ]
+  },
+  "EXW015": {
+    "fr": "Pompes scapulaires à quatre pattes",
+    "en": "Quadruped Scapular Push-up",
+    "priority": "fr",
+    "aliases": [
+      "Quadruped Scapular Push-up",
+      "Pompes scapulaires à 4 pattes",
+      "Pompes scapulaires à quatre pattes",
+      "pompes omoplates quatre pattes"
+    ]
+  },
+  "EXW016": {
+    "fr": "Décollement des mains bras levés au mur",
+    "en": "Wall Overhead Lift-Off",
+    "priority": "fr",
+    "aliases": [
+      "Wall Overhead Lift-Off",
+      "Élévation bras au mur",
+      "Décollement des mains au mur",
+      "lift off épaule",
+      "Décollement des mains bras levés au mur"
+    ]
+  },
+  "EXW017": {
+    "fr": "Good Morning d’échauffement",
+    "en": "Bodyweight Good Morning Prep",
+    "priority": "en",
+    "aliases": [
+      "Bodyweight Good Morning",
+      "Good Morning",
+      "Bascule de hanches préparatoire",
+      "Bodyweight Good Morning Prep",
+      "Good Morning d’échauffement"
+    ]
+  },
+  "EXW018": {
+    "fr": "Bascule de hanches sur une jambe",
+    "en": "Single-Leg Hinge Reach",
+    "priority": "fr",
+    "aliases": [
+      "Single-Leg Hinge Reach",
+      "Hinge 1 jambe",
+      "Bascule de hanches sur une jambe"
+    ]
+  },
+  "EXW019": {
+    "fr": "Fente arrière avec extension des bras",
+    "en": "Reverse Lunge Reach",
+    "priority": "fr",
+    "aliases": [
+      "Reverse Lunge Reach",
+      "Fentes arrière + reach",
+      "Fente arrière avec extension des bras"
+    ]
+  },
+  "EXW020": {
+    "fr": "Transferts en fente latérale",
+    "en": "Lateral Lunge Shift",
+    "priority": "fr",
+    "aliases": [
+      "Lateral Lunge Shift",
+      "Fentes latérales",
+      "Transferts en fente latérale"
+    ]
+  },
+  "EXW021": {
+    "fr": "Squat lent sans charge",
+    "en": "Tempo Air Squat",
+    "priority": "fr",
+    "aliases": [
+      "Tempo Air Squat",
+      "Air Squats tempo",
+      "Squat lent sans charge"
+    ]
+  },
+  "EXW022": {
+    "fr": "Réception en quart de squat",
+    "en": "Snap Down to Athletic Stance",
+    "priority": "fr",
+    "aliases": [
+      "Snap Down to Athletic Stance",
+      "Réception athlétique",
+      "Réception en quart de squat"
+    ]
+  },
+  "EXW023": {
+    "fr": "Pas du patineur sans saut",
+    "en": "Low Lateral Skater Step",
+    "priority": "fr",
+    "aliases": [
+      "Low Lateral Skater Step",
+      "Pas patineur latéraux",
+      "Pas du patineur sans saut"
+    ]
+  },
+  "EXW024": {
+    "fr": "Bascule à quatre pattes, genoux décollés",
+    "en": "Bear Plank Rock",
+    "priority": "fr",
+    "aliases": [
+      "Bear Plank Rock",
+      "Bear Plank dynamique",
+      "Bascule en appui genoux décollés",
+      "Bascule à quatre pattes, genoux décollés"
+    ]
+  },
+  "EXW025": {
+    "fr": "Marche sur place gainée",
+    "en": "Marching Brace",
+    "priority": "fr",
+    "aliases": [
+      "Marching Brace",
+      "Marche sur place gainée"
+    ]
+  },
+  "EXW026": {
+    "fr": "Marche un bras levé",
+    "en": "Single-Arm Overhead Reach March",
+    "priority": "fr",
+    "aliases": [
+      "Single-Arm Overhead Reach March",
+      "Marche bras au-dessus",
+      "Marche un bras levé"
+    ]
+  },
+  "EXW027": {
+    "fr": "Gainage creux genoux repliés",
+    "en": "Tuck Hollow Brace",
+    "priority": "fr",
+    "aliases": [
+      "Tuck Hollow Brace",
+      "Gainage creux groupé",
+      "Gainage creux genoux repliés"
+    ]
+  },
+  "EXW028": {
+    "fr": "Relevés de jambes en position assise",
+    "en": "Seated Compression Lift",
+    "priority": "fr",
+    "aliases": [
+      "Seated Compression Lift",
+      "Relevés de jambes en position assise"
+    ]
+  },
+  "EXW029": {
+    "fr": "Pompes lentes au mur",
+    "en": "Wall Push-up Tempo",
+    "priority": "fr",
+    "aliases": [
+      "Wall Push-up Tempo",
+      "Pompes au mur lentes",
+      "Pompes lentes au mur"
+    ]
+  },
+  "EXW030": {
+    "fr": "Élévation des bras à genoux, vers l’avant",
+    "en": "Tall-Kneeling Lat Reach",
+    "priority": "fr",
+    "aliases": [
+      "Tall-Kneeling Lat Reach",
+      "Extension des bras à genoux",
+      "Élévation des bras à genoux, vers l’avant"
+    ]
+  },
+  "EXW031": {
+    "fr": "Transferts latéraux en squat profond",
+    "en": "Cossack Mobility Shift",
+    "priority": "fr",
+    "aliases": [
+      "Cossack Mobility Shift",
+      "Cossack Squat mobilité",
+      "Transferts latéraux en squat profond"
+    ]
+  },
+  "EXW032": {
+    "fr": "Mobilité dynamique jambes écartées",
+    "en": "Straddle Rock and Reach",
+    "priority": "fr",
+    "aliases": [
+      "Straddle Rock and Reach",
+      "Straddle dynamique",
+      "Mobilité dynamique jambes écartées"
+    ]
+  },
+  "EXW033": {
+    "fr": "Petits rebonds de relâchement",
+    "en": "Body Bounces",
+    "priority": "fr",
+    "aliases": [
+      "Body Bounces",
+      "Rebonds de relâchement",
+      "Petits rebonds de relâchement"
+    ]
+  },
+  "EXW034": {
+    "fr": "Rotations contrôlées du cou",
+    "en": "Cervical CARs",
+    "priority": "fr",
+    "aliases": [
+      "Cervical CARs",
+      "Neck Circle contrôlé",
+      "CARs",
+      "Rotations cervicales contrôlées",
+      "Rotations contrôlées du cou"
+    ]
+  },
+  "EXW035": {
+    "fr": "Cercles de bras alternés",
+    "en": "Arm Swimmers",
+    "priority": "fr",
+    "aliases": [
+      "Arm Swimmers",
+      "Arm Swim",
+      "Cercles de bras alternés"
+    ]
+  },
+  "EXW036": {
+    "fr": "Rotations du buste debout",
+    "en": "Standing Full Body Twist",
+    "priority": "fr",
+    "aliases": [
+      "Standing Full Body Twist",
+      "Full Twist",
+      "Rotations du buste debout"
+    ]
+  },
+  "EXW037": {
+    "fr": "Cercles de genoux contrôlés",
+    "en": "Knee CARs",
+    "priority": "fr",
+    "aliases": [
+      "Knee CARs",
+      "Cercles de genoux",
+      "CARs",
+      "Cercles de genoux contrôlés"
+    ]
+  },
+  "EXW038": {
+    "fr": "Mobilité des coudes et avant-bras",
+    "en": "Elbow CARs",
+    "priority": "fr",
+    "aliases": [
+      "Elbow CARs",
+      "Cercles de coudes",
+      "CARs",
+      "Mobilité coudes et avant-bras",
+      "mobilité coude",
+      "pronation supination",
+      "Mobilité des coudes et avant-bras"
+    ]
+  },
+  "EXW039": {
+    "fr": "Cercles de bassin",
+    "en": "Pelvic Circles",
+    "priority": "fr",
+    "aliases": [
+      "Pelvic Circles",
+      "Cercles de bassin"
+    ]
+  },
+  "EXW040": {
+    "fr": "Squat profond avec bras levé",
+    "en": "Deep Squat Reach",
+    "priority": "fr",
+    "aliases": [
+      "Deep Squat Reach",
+      "Squat profond avec bras levé"
+    ]
+  },
+  "GYM001": {
+    "fr": "Développé couché barre",
+    "en": "Barbell Bench Press",
+    "priority": "fr",
+    "aliases": [
+      "Barbell Bench Press",
+      "Développé couché barre"
+    ]
+  },
+  "GYM002": {
+    "fr": "Développé incliné haltères",
+    "en": "Incline Dumbbell Bench Press",
+    "priority": "fr",
+    "aliases": [
+      "Incline DB Bench Press",
+      "Développé incliné haltères",
+      "Incline Dumbbell Bench Press"
+    ]
+  },
+  "GYM003": {
+    "fr": "Presse pectoraux",
+    "en": "Machine Chest Press",
+    "priority": "fr",
+    "aliases": [
+      "Machine Chest Press",
+      "Chest Press machine",
+      "Presse pectoraux machine",
+      "Presse pectoraux"
+    ]
+  },
+  "GYM005": {
+    "fr": "Tirage horizontal machine",
+    "en": "Machine Seated Row",
+    "priority": "fr",
+    "aliases": [
+      "Machine Seated Row",
+      "Tirage horizontal machine"
+    ]
+  },
+  "GYM006": {
+    "fr": "Tirage vertical machine",
+    "en": "Machine Lat Pulldown",
+    "priority": "fr",
+    "aliases": [
+      "Machine Lat Pulldown",
+      "Tirage vertical machine"
+    ]
+  },
+  "GYM007": {
+    "fr": "Développé épaules machine",
+    "en": "Machine Shoulder Press",
+    "priority": "fr",
+    "aliases": [
+      "Machine Shoulder Press",
+      "Développé épaules machine"
+    ]
+  },
+  "GYM008": {
+    "fr": "Curl biceps haltères",
+    "en": "Dumbbell Biceps Curl",
+    "priority": "fr",
+    "aliases": [
+      "DB Biceps Curl",
+      "Curl biceps haltères",
+      "Dumbbell Biceps Curl"
+    ]
+  },
+  "GYM009": {
+    "fr": "Curl biceps barre",
+    "en": "Barbell Biceps Curl",
+    "priority": "fr",
+    "aliases": [
+      "Barbell Biceps Curl",
+      "Curl biceps barre"
+    ]
+  },
+  "GYM010": {
+    "fr": "Curl biceps poulie",
+    "en": "Cable Biceps Curl",
+    "priority": "fr",
+    "aliases": [
+      "Cable Biceps Curl",
+      "Curl biceps poulie"
+    ]
+  },
+  "GYM011": {
+    "fr": "Extension triceps poulie haute",
+    "en": "Cable Triceps Pushdown",
+    "priority": "fr",
+    "aliases": [
+      "Cable Triceps Pushdown",
+      "Extension triceps poulie",
+      "Extension triceps poulie haute"
+    ]
+  },
+  "GYM012": {
+    "fr": "Presse à cuisses",
+    "en": "Leg Press",
+    "priority": "fr",
+    "aliases": [
+      "Machine Leg Press",
+      "Presse à cuisses",
+      "Leg Press"
+    ]
+  },
+  "GYM013": {
+    "fr": "Extension des genoux à la machine",
+    "en": "Machine Leg Extension",
+    "priority": "en",
+    "aliases": [
+      "Machine Leg Extension",
+      "Leg Extension",
+      "Extension des jambes machine",
+      "Extension des genoux à la machine"
+    ]
+  },
+  "GYM014": {
+    "fr": "Flexion des genoux à la machine",
+    "en": "Machine Leg Curl",
+    "priority": "en",
+    "aliases": [
+      "Machine Leg Curl",
+      "Leg Curl",
+      "Flexion des jambes machine",
+      "Flexion des genoux à la machine"
+    ]
+  },
+  "GYM015": {
+    "fr": "Extensions de mollets à la machine",
+    "en": "Machine Calf Raise",
+    "priority": "fr",
+    "aliases": [
+      "Machine Calf Raise",
+      "Mollets machine",
+      "Extensions mollets machine",
+      "Extensions de mollets à la machine"
+    ]
+  },
+  "GYM016": {
+    "fr": "Hip thrust machine",
+    "en": "Machine Hip Thrust",
+    "priority": "en",
+    "aliases": [
+      "Machine Hip Thrust",
+      "Hip Thrust machine"
+    ]
+  },
+  "GYM017": {
+    "fr": "Hack squat machine",
+    "en": "Machine Hack Squat",
+    "priority": "en",
+    "aliases": [
+      "Machine Hack Squat",
+      "Hack Squat machine"
+    ]
+  },
+  "GYM018": {
+    "fr": "Écarté pectoraux machine",
+    "en": "Pec Deck",
+    "priority": "en",
+    "aliases": [
+      "Machine Pec Deck",
+      "Pec Deck",
+      "Écarté pectoraux machine"
+    ]
+  },
+  "GYM019": {
+    "fr": "Élévations latérales haltères",
+    "en": "Dumbbell Lateral Raise",
+    "priority": "fr",
+    "aliases": [
+      "DB Lateral Raise",
+      "Élévations latérales haltères",
+      "Dumbbell Lateral Raise"
+    ]
+  },
+  "GYM020": {
+    "fr": "Tirage vers le visage à la poulie",
+    "en": "Cable Face Pull",
+    "priority": "en",
+    "aliases": [
+      "Cable Face Pull",
+      "Face Pull poulie",
+      "Tirage visage à la poulie",
+      "Tirage vers le visage à la poulie"
+    ]
+  },
+  "GYM021": {
+    "fr": "Curl marteau haltères",
+    "en": "Dumbbell Hammer Curl",
+    "priority": "fr",
+    "aliases": [
+      "Hammer Curl haltères",
+      "Curl marteau",
+      "Curl marteau haltères",
+      "Dumbbell Hammer Curl"
+    ]
+  },
+  "GYM022": {
+    "fr": "Écarté à la poulie",
+    "en": "Cable Fly",
+    "priority": "fr",
+    "aliases": [
+      "Cable Fly",
+      "Écarté à la poulie"
+    ]
+  },
+  "GYM023": {
+    "fr": "Extension triceps au-dessus de la tête à la poulie",
+    "en": "Cable Overhead Triceps Extension",
+    "priority": "fr",
+    "aliases": [
+      "Cable Overhead Triceps Extension",
+      "Extension triceps au-dessus de la tête poulie",
+      "Extension triceps au-dessus de la tête à la poulie"
+    ]
+  },
+  "GYM024": {
+    "fr": "Abducteurs à la machine",
+    "en": "Machine Hip Abduction",
+    "priority": "fr",
+    "aliases": [
+      "Machine Hip Abduction",
+      "Abducteurs machine",
+      "Ouverture de hanches machine",
+      "Abducteurs à la machine"
+    ]
+  },
+  "GYM025": {
+    "fr": "Adducteurs à la machine",
+    "en": "Machine Hip Adduction",
+    "priority": "fr",
+    "aliases": [
+      "Machine Hip Adduction",
+      "Adducteurs machine",
+      "Fermeture de hanches machine",
+      "Adducteurs à la machine"
+    ]
+  },
+  "GYM026": {
+    "fr": "Squat barre guidée",
+    "en": "Smith Machine Squat",
+    "priority": "fr",
+    "aliases": [
+      "Smith Machine Squat",
+      "Squat Smith Machine",
+      "Squat barre guidée"
+    ]
+  },
+  "GYM027": {
+    "fr": "Développé couché barre guidée",
+    "en": "Smith Machine Bench Press",
+    "priority": "fr",
+    "aliases": [
+      "Smith Machine Bench Press",
+      "Développé couché Smith Machine",
+      "Développé couché barre guidée"
+    ]
+  },
+  "GYM028": {
+    "fr": "Soulevé de terre roumain barre guidée",
+    "en": "Smith Machine Romanian Deadlift (RDL)",
+    "priority": "fr",
+    "aliases": [
+      "Smith Machine Romanian Deadlift",
+      "RDL Smith Machine",
+      "RDL",
+      "Soulevé roumain barre guidée",
+      "Smith Machine Romanian Deadlift (RDL)",
+      "Soulevé de terre roumain barre guidée"
+    ]
+  }
+}

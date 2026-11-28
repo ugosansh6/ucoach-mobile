@@ -2,6 +2,10 @@
 
 Ce fichier conserve les repères et décisions durables. Les tâches et leurs preuves vivent dans les [issues GitHub](https://github.com/ugosansh6/ucoach-mobile/issues), sans backlog parallèle. L'assistant maintient ces références pendant le travail ; Ugo décrit son besoin et arbitre les choix produit.
 
+## Nomenclature des exercices — décision du 28 novembre 2026
+
+Le mode bilingue est le défaut : sur chaque carte ou bloc représentant un exercice, nom principal choisi pour sa compréhension (français ou terme anglais populaire), second nom immédiatement dessous, sans marge supplémentaire. Les modes Français et Anglais restent accessibles dans Profil > Paramètres ; la fiche détaillée présente les deux noms et la recherche accepte les deux langues et les alias. Un seul nom lorsque les deux sont identiques, texte libre et historique non référencé conservés. Référentiel de présentation V6 par ID séparé des noms historiques, sans effet sur la génération, les prescriptions ou les données sportives. Le lot latéralité reste distinct. Suivi et recette : #48.
+
 ## Synthèse Mouvements — décision du 24 novembre 2026
 
 Sur validation d'Ugo, la page Mouvements utilise trois cartes horizontales icône + valeur, sans libellés visibles « Durée / Lieu / Objectif », puis un quatrième bloc pour les zones ciblées (précision après recette du 24/11) et des onglets de blocs plus visibles avec leur durée. Les cartes d'exercices affichent une vignette, le nom et la prescription courte ; les grosses coches sont retirées, les détails donnent accès au matériel, à la charge et aux actions Remplacer/Retirer. Le lien « Ajuster les blocs et leurs durées » est retiré de cette page ; l'étape Structure reste accessible par le parcours existant. Les prescriptions et le moteur sont conservés. Les vignettes utilisent les images déjà disponibles ou un emplacement neutre ; la galerie d'exercices par images reste une perspective distincte. Contrat détaillé dans `docs/COMPOSER_UX_CONTRACT.md`, suivi dans #40.

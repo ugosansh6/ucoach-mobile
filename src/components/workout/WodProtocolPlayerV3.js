@@ -1,3 +1,4 @@
+import ExerciseName from '../exercises/ExerciseName';
 import {
   useCallback,
   useEffect,
@@ -754,7 +755,7 @@ function StartPanel({
           <View key={exercise?._uiKey ?? exercise?.sessionExerciseId ?? exercise?.id ?? index} style={styles.previewRow}>
             <View style={styles.previewIndex}><Text style={styles.previewIndexText}>{index + 1}</Text></View>
             <View style={styles.previewCopy}>
-              <Text style={styles.previewName}>{String(exercise?.name ?? 'Exercice')}</Text>
+              <ExerciseName style={styles.previewName} exercise={exercise} fallback={exercise?.name ?? 'Exercice'}/>
               <Text style={styles.previewPrescription}>
                 {previewPrescriptionForMechanic(mechanic, params, exercise)}
               </Text>
@@ -897,7 +898,7 @@ function RuntimeBody(props) {
     return <>
       <Metric value={`×${multiplier}`} label={`Étape ${manualStep} / ${totalSteps}`} styles={styles} large />
       <View style={styles.sequenceStrip}>{multipliers.map((value, idx) => <View key={`${idx}-${value}`} style={[styles.sequenceItem, idx === index && styles.sequenceItemActive]}><Text style={[styles.sequenceText, idx === index && styles.sequenceTextActive]}>×{value}</Text></View>)}</View>
-      <View style={styles.workList}>{exercises.map((exercise, idx) => <View key={exercise?._uiKey ?? exercise?.id ?? idx} style={styles.workRow}><Text style={styles.workName}>{exercise.name}</Text><Text style={styles.workPrescription}>
+      <View style={styles.workList}>{exercises.map((exercise, idx) => <View key={exercise?._uiKey ?? exercise?.id ?? idx} style={styles.workRow}><ExerciseName style={styles.workName} exercise={exercise}/><Text style={styles.workPrescription}>
           {pyramidReps(exercise, multiplier)} reps{repsSemanticsSuffix(exercise)}
         </Text></View>)}</View>
       <Action label={manualStep >= totalSteps ? 'Terminer le protocole' : 'Étape terminée'} icon="arrow-forward" onPress={() => onStep(totalSteps)} styles={styles} colors={colors} />
@@ -924,7 +925,7 @@ function RuntimeBody(props) {
       <Text style={styles.phaseMeta}>Carte {currentItemIndex + 1} / {deck.length}</Text>
       <View style={styles.deckCard}>
         <Text style={styles.deckRank}>{symbols[suitIndex - 1] ?? '•'} {card.rank}</Text>
-        <Text style={styles.deckName}>{exercise?.name ?? 'Exercice'}</Text>
+        <ExerciseName style={styles.deckName} exercise={exercise} fallback={exercise?.name ?? 'Exercice'}/>
         <Text style={styles.deckReps}>{numberOr(card.reps, 1)} reps</Text>
       </View>
       <Action label={currentItemIndex >= deck.length - 1 ? 'Terminer le deck' : 'Carte suivante'} icon="layers-outline" onPress={onDeckNext} styles={styles} colors={colors} />
@@ -997,11 +998,11 @@ function CurrentExercise({ exercise, nextExercise, prescriptionOverride = null, 
   if (!exercise) return null;
   return <View style={styles.currentCard}>
     <Text style={styles.currentLabel}>À faire maintenant</Text>
-    <Text style={styles.currentName}>{exercise.name}</Text>
+    <ExerciseName style={styles.currentName} exercise={exercise}/>
     <Text style={styles.currentPrescription}>
       {prescriptionOverride ?? exercisePrescription(exercise)}
     </Text>
-    {nextExercise ? <Text style={styles.nextText}>Ensuite · {nextExercise.name}</Text> : null}
+    {nextExercise ? <ExerciseName exercise={nextExercise} prefix="Ensuite · " style={styles.nextText}/> : null}
   </View>;
 }
 
@@ -1041,7 +1042,7 @@ function WorkList({ exercises, styles, elapsed = 0, paused = false }) {
   return <View style={styles.workList}>{exercises.map((exercise, index) => {
     const seconds = timedExerciseSeconds(exercise);
     return <View key={exercise?._uiKey ?? exercise?.sessionExerciseId ?? exercise?.id ?? index} style={styles.workRow}>
-      <Text style={styles.workName}>{exercise?.name ?? 'Exercice'}</Text>
+      <ExerciseName style={styles.workName} exercise={exercise} fallback={exercise?.name ?? 'Exercice'}/>
       <View style={{ gap: 8, alignItems: 'flex-end' }}>
         <Text style={styles.workPrescription}>{exercisePrescription(exercise)}</Text>
         {seconds ? <HoldTimer seconds={seconds} elapsed={elapsed} paused={paused} styles={styles} /> : null}
@@ -1051,7 +1052,7 @@ function WorkList({ exercises, styles, elapsed = 0, paused = false }) {
 }
 
 function StageList({ exercises, stage, direction, stageCount = null, styles }) {
-  return <View style={styles.workList}>{exercises.map((exercise, index) => <View key={exercise?._uiKey ?? exercise?.id ?? index} style={styles.workRow}><Text style={styles.workName}>{exercise?.name ?? 'Exercice'}</Text><Text style={styles.workPrescription}>{repsForStage(exercise, stage, direction, stageCount)} reps{repsSemanticsSuffix(exercise)}</Text></View>)}</View>;
+  return <View style={styles.workList}>{exercises.map((exercise, index) => <View key={exercise?._uiKey ?? exercise?.id ?? index} style={styles.workRow}><ExerciseName style={styles.workName} exercise={exercise} fallback={exercise?.name ?? 'Exercice'}/><Text style={styles.workPrescription}>{repsForStage(exercise, stage, direction, stageCount)} reps{repsSemanticsSuffix(exercise)}</Text></View>)}</View>;
 }
 
 function Action({ label, icon, onPress, disabled = false, styles, colors }) {

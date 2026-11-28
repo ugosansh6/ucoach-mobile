@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { restoreRunningClock } from '../../src/utils/composerPlayerProgress';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -913,7 +914,7 @@ export default function SessionFocusedCore({
             </View>
 
             <View style={styles.exerciseCard}>
-              <Text style={styles.exerciseName}>{displayExerciseName(activeExercise)}</Text>
+              <ExerciseName style={styles.exerciseName} exercise={activeExercise} fallback={displayExerciseName(activeExercise)}/>
               {exercisePrescription ? (
                 <Text style={styles.exercisePrescription}>{String(exercisePrescription)}</Text>
               ) : null}
@@ -1267,7 +1268,7 @@ export function FocusedTabata({
         <Text style={styles.timerExerciseLabel}>
           {!started ? 'Premier exercice' : resting && displayExerciseIndex === scheduledExerciseIndex && hasNextRound ? 'À venir' : 'Exercice actuel'}
         </Text>
-        <Text style={styles.timerExerciseName}>{displayExerciseName(activeExercise)}</Text>
+        <ExerciseName style={styles.timerExerciseName} exercise={activeExercise} fallback={displayExerciseName(activeExercise)}/>
         {activeExercise?.prescription ? (
           <Text style={[styles.timerExercisePrescription, { color: colors.accent }]}>{String(activeExercise.prescription)}</Text>
         ) : null}
@@ -1372,7 +1373,7 @@ function SwapModal({ visible, exercise, availability, busy, error, onClose, onSe
           <View style={styles.sheetHeader}>
             <View style={styles.sheetHeaderCopy}>
               <Text style={styles.sheetEyebrow}>Adapter l’exercice</Text>
-              <Text style={styles.sheetTitle}>{displayExerciseName(exercise)}</Text>
+              <ExerciseName style={styles.sheetTitle} exercise={exercise} fallback={displayExerciseName(exercise)}/>
             </View>
             <Pressable onPress={onClose} disabled={busy} style={styles.sheetClose}>
               <Ionicons name="close" size={20} color={colors.text} />
@@ -1422,7 +1423,7 @@ function StatusModal({ visible, exercise, onClose, onSelect, styles, colors }) {
           <View style={styles.sheetHeader}>
             <View style={styles.sheetHeaderCopy}>
               <Text style={styles.sheetEyebrow}>Statut de l’exercice</Text>
-              <Text style={styles.sheetTitle}>{displayExerciseName(exercise)}</Text>
+              <ExerciseName style={styles.sheetTitle} exercise={exercise} fallback={displayExerciseName(exercise)}/>
             </View>
             <Pressable onPress={onClose} style={styles.sheetClose}>
               <Ionicons name="close" size={20} color={colors.text} />

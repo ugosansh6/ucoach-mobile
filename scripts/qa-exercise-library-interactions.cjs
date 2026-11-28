@@ -12,9 +12,11 @@ function load(file){const filename=path.resolve(file);if(cache.has(filename))ret
   if(id==='react')return React;
   if(id==='expo-router')return {router:{push:v=>navigation.push(v),back:()=>navigation.push('back')},useLocalSearchParams:()=>({exerciseId:currentId}),useFocusEffect:cb=>React.useEffect(cb,[cb])};
   if(id==='@expo/vector-icons')return {Ionicons:'Icon'};
-  if(id==='react-native')return {View:'View',Text:'Text',Pressable:'Pressable',TextInput:'TextInput',SafeAreaView:'SafeAreaView',ScrollView:'ScrollView',ActivityIndicator:'ActivityIndicator',FlatList:({data,renderItem,ListEmptyComponent})=>React.createElement('List',null,data.length?data.map((item,index)=>React.createElement(React.Fragment,{key:item.id},renderItem({item,index}))):ListEmptyComponent)};
+  if(id==='react-native')return {StyleSheet:{flatten:s=>Array.isArray(s)?Object.assign({},...s.filter(Boolean)):s},View:'View',Text:'Text',Pressable:'Pressable',TextInput:'TextInput',SafeAreaView:'SafeAreaView',ScrollView:'ScrollView',ActivityIndicator:'ActivityIndicator',FlatList:({data,renderItem,ListEmptyComponent})=>React.createElement('List',null,data.length?data.map((item,index)=>React.createElement(React.Fragment,{key:item.id},renderItem({item,index}))):ListEmptyComponent)};
+  if(id.endsWith('ExerciseNameContext'))return {useExerciseNamePreference:()=>({mode:'bilingual'})};
   if(id.endsWith('UgerodThemeContext'))return {useUgerodTheme:()=>({colors:{background:dark?'#000':'#fff',surface:dark?'#111':'#eee',text:dark?'#fff':'#111',textSecondary:'#777',accent:'#636e5c',border:'#aaa',textOnAccent:'#fff'}})};
   if(id.endsWith('exerciseService'))return {getExercises:async()=>[row],getExerciseById:async id=>id===row.id?row:null,getExerciseFavorites:async()=>[...favorites],setExerciseFavorite:async(id,selected)=>{selected?favorites.add(id):favorites.delete(id);return selected}};
+  if(id.startsWith('.')&&id.endsWith('.json'))return require(path.resolve(path.dirname(filename),id));
   if(id.startsWith('.'))return load(path.resolve(path.dirname(filename),id+'.js'));
   return require(id);
  };new Function('require','module','exports',code)(req,mod,mod.exports);return mod.exports;

@@ -1,3 +1,4 @@
+import ExerciseName from './ExerciseName';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -54,7 +55,7 @@ export default function ExerciseDetail({ visible=true, exercise, dose, doseLabel
         </View>
         <View style={{gap:5}}>
           {Number.isInteger(index)&&count>0?<Text style={styles.kicker}>EXERCICE {index+1}/{count}</Text>:null}
-          <Text accessibilityRole="header" style={styles.title}>{exercise.name}</Text>
+          <ExerciseName exercise={exercise} detail accessibilityRole="header" style={styles.title}/>
           {doseLabel?<Text style={styles.dose}>{doseLabel}</Text>:null}
           {meta?<Text style={styles.muted}>{meta}</Text>:null}
         </View>

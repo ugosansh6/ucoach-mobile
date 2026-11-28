@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -202,6 +203,7 @@ function storyBlocksFromWorkout(workout) {
     }
 
     grouped.get(block).exercises.push({
+      exerciseId: exercise?.exerciseId ?? exercise?.exercise_id ?? exercise?.id,
       name: exercise?.name ?? exercise?.exerciseName ?? exercise?.id,
       status: executionStatus(exercise),
     });
@@ -277,6 +279,7 @@ function exercisePerformanceItems(workout, completion) {
 
     items.push({
       block,
+      exerciseId: exercise?.exerciseId ?? exercise?.exercise_id ?? exercise?.id,
       name: exercise?.name ?? exercise?.exerciseName ?? exercise?.id,
       value,
       meta,
@@ -490,7 +493,7 @@ function StoryPreview({ workout, performanceItems, blocks, styles }) {
       <View style={styles.storyPerformanceZone}>
         {primary ? (
           <View>
-            <Text style={styles.storyPerformanceLabel}>{primary.block} · {primary.name}</Text>
+            <ExerciseName exercise={primary} prefix={primary.block+' · '} style={styles.storyPerformanceLabel}/>
             <Text style={styles.storyPerformanceValue}>{primary.value}</Text>
             {primary.meta ? <Text style={styles.storyPerformanceMeta}>{primary.meta}</Text> : null}
           </View>
@@ -504,7 +507,7 @@ function StoryPreview({ workout, performanceItems, blocks, styles }) {
 
         {secondary ? (
           <View style={styles.storySecondaryPerformance}>
-            <Text style={styles.storySecondaryLabel}>{secondary.name}</Text>
+            <ExerciseName exercise={secondary} style={styles.storySecondaryLabel}/>
             <Text style={styles.storySecondaryValue}>{secondary.value}</Text>
           </View>
         ) : null}
@@ -677,7 +680,7 @@ export default function WorkoutDebriefScreen() {
                 <View key={`${item.block}-${item.name}-${index}`} style={styles.performanceItem}>
                   <View style={styles.performanceCopy}>
                     <Text style={styles.performanceBlock}>{item.block}</Text>
-                    <Text numberOfLines={1} style={styles.performanceName}>{item.name}</Text>
+                    <ExerciseName exercise={item} style={styles.performanceName}/>
                   </View>
                   <View style={styles.performanceValueWrap}>
                     <Text style={styles.performanceValue}>{item.value}</Text>
@@ -727,9 +730,7 @@ export default function WorkoutDebriefScreen() {
               {blocks.map((block) => (
                 <View key={block.key} style={styles.sessionDetailBlock}>
                   <Text style={styles.sessionDetailLabel}>{block.label}</Text>
-                  <Text style={styles.sessionDetailExercises}>
-                    {block.exercises.map((exercise) => exercise.name).join(' · ')}
-                  </Text>
+                  <View style={{gap:5}}>{block.exercises.map((exercise,index)=><ExerciseName key={index} exercise={exercise} style={styles.sessionDetailExercises}/>)}</View>
                 </View>
               ))}
             </View>

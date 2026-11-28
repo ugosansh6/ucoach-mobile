@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -274,9 +275,7 @@ export default function WorkoutHistoryDetailScreen() {
                       </View>
 
                       <View style={styles.exerciseMain}>
-                        <Text style={styles.exerciseName}>
-                          {exercise.name}
-                        </Text>
+                        <ExerciseName style={styles.exerciseName} exercise={exercise}/>
 
                         <Text style={styles.exercisePrescription}>
                           {exercise.prescription}
@@ -337,9 +336,7 @@ export default function WorkoutHistoryDetailScreen() {
                         </View>
 
                         <View style={styles.exerciseMain}>
-                          <Text style={styles.skippedName}>
-                            {exercise.name}
-                          </Text>
+                          <ExerciseName style={styles.skippedName} exercise={exercise}/>
 
                           <Text
                             style={

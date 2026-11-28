@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -425,7 +426,7 @@ function SessionDetails({ item, exercises, palette, onOpen, opening, readOnly = 
       {preview.length > 0 ? (
         <View style={styles.detailSection}>
           <Text style={[styles.detailLabel, { color: palette.textMuted }]}>DANS LA SÉANCE</Text>
-          <Text style={[styles.exercisePreviewLine, { color: palette.text }]}>{preview.map((exercise) => exercise.name).join('  ·  ')}</Text>
+          <View style={{gap:5}}>{preview.map((exercise,index)=><ExerciseName key={exercise.exerciseId??exercise.exercise_id??exercise.id??index} exercise={exercise} style={[styles.exercisePreviewLine,{color:palette.text}]}/>)}</View>
         </View>
       ) : (
         <Text style={[styles.detailBody,{color:palette.textMuted}]}>Aucun aperçu disponible.</Text>

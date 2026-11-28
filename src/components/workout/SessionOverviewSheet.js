@@ -1,3 +1,4 @@
+import ExerciseName from '../exercises/ExerciseName';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -518,9 +519,7 @@ export default function SessionOverviewSheet({
                               </View>
 
                               <View style={styles.exerciseCopy}>
-                                <Text style={[styles.exerciseName, current && styles.exerciseNameCurrent]}>
-                                  {exercise.name ?? 'Exercice'}
-                                </Text>
+                                <ExerciseName style={[styles.exerciseName, current && styles.exerciseNameCurrent]} exercise={exercise} fallback={exercise.name ?? 'Exercice'}/>
                                 {exercise.prescription ? (
                                   <PrescriptionLine text={exercise.prescription} styles={styles} />
                                 ) : null}
@@ -637,7 +636,7 @@ export default function SessionOverviewSheet({
             <View style={styles.swapHeader}>
               <View style={styles.swapHeaderCopy}>
                 <Text style={styles.swapEyebrow}>ADAPTER L’EXERCICE</Text>
-                <Text style={styles.swapTitle}>{swapExercise?.name ?? 'Exercice'}</Text>
+                <ExerciseName style={styles.swapTitle} exercise={swapExercise} fallback={swapExercise?.name ?? 'Exercice'}/>
               </View>
               <Pressable onPress={() => setSwapExercise(null)} disabled={swapBusy} style={styles.closeButton}>
                 <Ionicons name="close" size={21} color={colors.text} />
@@ -718,7 +717,7 @@ function ExerciseDetailModal({ visible, exercise, blockTitle, canSwap, onClose, 
         <View style={styles.detailHeader}>
           <View style={styles.detailHeaderCopy}>
             <Text style={styles.detailEyebrow}>{blockTitle ?? 'EXERCICE'}</Text>
-            <Text style={styles.detailTitle}>{exercise?.name ?? 'Exercice'}</Text>
+            <ExerciseName style={styles.detailTitle} exercise={exercise} fallback={exercise?.name ?? 'Exercice'} detail/>
           </View>
           <Pressable onPress={onClose} hitSlop={10} style={styles.closeButton}>
             <Ionicons name="close" size={22} color={colors.text} />

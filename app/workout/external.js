@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -231,7 +232,7 @@ function ExternalExerciseRow({ item, index, onChange, onRemove }) {
           <Text style={styles.exerciseNumberText}>{index + 1}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.exerciseName}>{item.exercise.name.toUpperCase()}</Text>
+          <ExerciseName style={styles.exerciseName} exercise={item.exercise}/>
           <Text style={styles.exerciseModes}>{modes.join(' · ').toUpperCase() || 'PERFORMANCE'}</Text>
         </View>
         <Pressable onPress={onRemove} hitSlop={8}>
@@ -338,7 +339,7 @@ function ExerciseSearchModal({ visible, onClose, onSelect }) {
             {results.map((exercise) => (
               <Pressable key={exercise.id} onPress={() => onSelect(exercise)} style={styles.searchRow}>
                 <View>
-                  <Text style={styles.searchName}>{exercise.name}</Text>
+                  <ExerciseName style={styles.searchName} exercise={exercise}/>
                   <Text style={styles.searchMeta}>{(exercise.tracking_modes ?? []).join(' · ').toUpperCase()}</Text>
                 </View>
                 <Ionicons name="add-circle-outline" size={19} color={colors.primaryLight} />

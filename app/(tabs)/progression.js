@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -692,7 +693,7 @@ export default function ProgressionScreen() {
                   {goalGap.requirements.map((item) => (
                     <View key={`${item?.exercise_id}-${item?.status}`} style={styles.capRequirementRow}>
                       <View style={styles.capRequirementMain}>
-                        <Text style={styles.capRequirementName}>{item?.exercise_name ?? 'Capacité'}</Text>
+                        <ExerciseName style={styles.capRequirementName} exercise={item} fallback={item?.exercise_name ?? 'Capacité'}/>
                         {item?.source?.source_title ? (
                           <Text style={styles.capRequirementSource}>{item.source.source_title}</Text>
                         ) : null}

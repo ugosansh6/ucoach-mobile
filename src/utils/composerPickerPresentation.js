@@ -31,10 +31,10 @@ export function pickerZoneMatches(row,zone) {
   if (zone==='Back') return row.isBack===true;
   return norm(row.bodyRegion)===norm(zone);
 }
-export function filterPickerRows(rows,{zone='',type='',equipment='',search='',favoritesOnly=false}={},favoriteIds=[]) {
+export function filterPickerRows(rows,{zone='',type='',equipment='',search='',favoritesOnly=false}={},favoriteIds=[],nameMatches=null) {
   const fav=new Set(favoriteIds),q=norm(search);
   return rows.filter(row=>pickerZoneMatches(row,zone)&&(!type||pickerType(row)===type)&&pickerEquipmentFacetMatches(row,equipment)&&
-    (!favoritesOnly||fav.has(row.id))&&(!q||norm([row.name,row.originalName,row.bodyRegion,row.movementPattern,
+    (!favoritesOnly||fav.has(row.id))&&(!q||nameMatches?.(row,search)||norm([row.name,row.originalName,row.bodyRegion,row.movementPattern,
       row.exerciseType,row.trainingFocus,pickerTypes.find(t=>t.key===pickerType(row))?.label,
       ...pickerZones.filter(z=>pickerZoneMatches(row,z.key)).map(z=>z.label),...(row.equipmentNames??[])].join(' ')).includes(q)));
 }

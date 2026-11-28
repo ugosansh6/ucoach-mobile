@@ -1,3 +1,4 @@
+import ExerciseName from '../exercises/ExerciseName';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import { useUgerodTheme } from '../../contexts/UgerodThemeContext';
@@ -65,7 +66,7 @@ export default function ComposerSkillPlayer({ exercises, runtime, onRuntimeChang
   if (!unit) return <View style={box}>{button('Continuer', () => finish(state.results ?? {}, true), !executionEnabled)}</View>;
   return <View style={box}>
     <Text style={{ ...text, color: colors.textSecondary }}>{blockType === 'skill' ? 'Skill' : blockType === 'warmup' ? 'Échauffement' : 'Renforcement'} · série {unit.setIndex} / {unit.sets}{unit.side ? ` · côté ${unit.side === 'left' ? 'gauche' : 'droit'}` : ''}</Text>
-    <Text style={{ ...text, fontSize: 28, fontWeight: '700' }}>{unit.exercise.name}</Text>
+    <ExerciseName style={{ ...text, fontSize: 28, fontWeight: '700' }} exercise={unit.exercise}/>
     <Text style={text}>{unit.test ? 'Tentative · renseigne ton résultat' : unit.reps ? `${unit.reps} répétitions` : unit.seconds ? `${unit.seconds} secondes` : unit.count ? `${unit.count} ${unit.countUnit}` : `${unit.distance} mètres`}</Text>
     {unit.instruction?<Text style={text}>{unit.instruction}</Text>:null}
     {unit.tempoDown||unit.tempoPause?<Text style={text}>{unit.tempoDown?'Descente '+unit.tempoDown+' s. ':''}{unit.tempoPause?'Pause '+unit.tempoPause+' s.':''}</Text>:null}

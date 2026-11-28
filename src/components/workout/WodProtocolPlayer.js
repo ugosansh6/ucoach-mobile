@@ -1,3 +1,4 @@
+import ExerciseName from '../exercises/ExerciseName';
 import {
   useCallback,
   useEffect,
@@ -1803,9 +1804,7 @@ function PyramidProtocol({
             key={exercise._uiKey ?? exercise.id}
             style={styles.stageRow}
           >
-            <Text style={styles.stageName}>
-              {String(exercise.name).toUpperCase()}
-            </Text>
+            <ExerciseName style={styles.stageName} exercise={exercise}/>
             <Text style={styles.stageReps}>
               {pyramidReps(
                 exercise,
@@ -2079,9 +2078,7 @@ function StageExerciseList({
           key={exercise._uiKey ?? exercise.id}
           style={styles.stageRow}
         >
-          <Text style={styles.stageName}>
-            {String(exercise.name).toUpperCase()}
-          </Text>
+          <ExerciseName style={styles.stageName} exercise={exercise}/>
           <Text style={styles.stageReps}>
             {repsForStage(
               exercise,
@@ -2109,9 +2106,7 @@ function CurrentExerciseCard({
       <Text style={styles.currentLabel}>
         EXERCICE ACTUEL
       </Text>
-      <Text style={styles.currentName}>
-        {String(exercise.name).toUpperCase()}
-      </Text>
+      <ExerciseName style={styles.currentName} exercise={exercise}/>
       <Text style={styles.currentPrescription}>
         {exercise.prescription}
       </Text>

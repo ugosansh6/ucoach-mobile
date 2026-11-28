@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -266,7 +267,7 @@ export default function ProgressionDetailScreen() {
                   <Card key={item.exercise_id}>
                     <View style={styles.rowBetween}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.itemTitle}>{item.name}</Text>
+                        <ExerciseName style={styles.itemTitle} exercise={item}/>
                         <Text style={styles.signalText}>{signalLabel(item.signal)}</Text>
                       </View>
                       <Text style={styles.confidenceText}>{percent01(item.confidence) ?? '—'}</Text>
@@ -309,7 +310,7 @@ export default function ProgressionDetailScreen() {
                     <Card key={item.exercise_id}>
                       <View style={styles.rowBetween}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.itemTitle}>{item.name}</Text>
+                          <ExerciseName style={styles.itemTitle} exercise={item}/>
                           <Text style={styles.signalText}>{signalLabel(item.signal)}</Text>
                         </View>
                         <Text style={styles.confidenceText}>{percent01(item.confidence) ?? '—'}</Text>

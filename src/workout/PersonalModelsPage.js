@@ -1,3 +1,4 @@
+import ExerciseName from '../components/exercises/ExerciseName';
 import { router,useFocusEffect } from 'expo-router';
 import {useCallback,useRef,useState} from 'react';
 import {ActivityIndicator,Pressable,SafeAreaView,ScrollView,Text,TextInput,View} from 'react-native';
@@ -64,8 +65,8 @@ export default function PersonalModelsPage({importDate,showExercises,initialGrou
  {selected.origin==='PROGRAM'?<>
    {authored?<><View style={card}><Text style={bold}>Échauffement 5 min · Renforcement</Text><Text style={muted}>2 séances par semaine · Sans Tabata · {preview?.duration_minutes?preview.duration_minutes+' min estimées':'Durée calculée selon tes choix'}</Text><Text style={muted}>Confirme le matériel et la date en bas de la séance pour l’ajouter à Ma semaine.</Text>{button('Estimer la durée','timer-outline',calculateProgram,{disabled:!gearConfirmed})}</View>
    {programRows.map((e,i)=><View key={i} style={card}>
-      <Text style={bold}>{e.name}</Text><Text style={muted}>{programDoseLabel(e.authored_dose)}</Text>
-      {e.candidates.length>1?<View style={{flexDirection:'row',gap:8}}>{e.candidates.map(id=><Pressable key={id} disabled={busy} onPress={()=>chooseVariant(i,id)} style={{...card,flex:1,borderColor:e.id===id?c.accent:c.border}}><Text style={txt}>{({EX009:'Strictes',EX003:'Inclinées',EX071:'Strictes',EX067:'Assistées (élastique)'})[id]??id}</Text></Pressable>)}</View>:null}
+      <ExerciseName style={bold} exercise={e}/><Text style={muted}>{programDoseLabel(e.authored_dose)}</Text>
+      {e.candidates.length>1?<View style={{flexDirection:'row',gap:8}}>{e.candidates.map(id=><Pressable key={id} disabled={busy} onPress={()=>chooseVariant(i,id)} style={{...card,flex:1,borderColor:e.id===id?c.accent:c.border}}><ExerciseName exercise={id} fallback={({EX009:'Strictes',EX003:'Inclinées',EX071:'Strictes',EX067:'Assistées (élastique)'})[id]??id} style={txt}/></Pressable>)}</View>:null}
       <View style={{flexDirection:'row',gap:8}}>{[['sets','Séries'],['target',e.authored_dose.mode==='time'?'Secondes':e.authored_dose.mode==='count'?e.authored_dose.count_unit:'Reps'],['rest_seconds','Repos (s)']].map(([k,label])=><View key={k} style={{flex:1,gap:4}}><Text style={muted}>{label}</Text><TextInput accessibilityLabel={e.name+' '+label} editable={!busy} keyboardType="number-pad" value={String(e.authored_dose[k]??'')} onChangeText={v=>changeDose(i,k,v)} style={input}/></View>)}</View>
       {e.authored_dose.range_min!=null?<Text style={muted}>Fourchette d’origine : {e.authored_dose.range_min}–{e.authored_dose.range_max}</Text>:null}
       {e.authored_dose.tempo_eccentric_seconds?<Text style={muted}>Descente : {e.authored_dose.tempo_eccentric_seconds} s</Text>:null}
@@ -79,7 +80,7 @@ export default function PersonalModelsPage({importDate,showExercises,initialGrou
    {(selected.draft.architecture?.blocks??[]).map((b,i)=>{const preview=selected.draft.prescription_preview?.blocks?.find(x=>x.type===b.type);return <View key={i} style={card}>
      <Text style={bold}>{b.label??b.type} · {b.minutes} min</Text>
      {b.type==='WOD'&&preview?<Text style={muted}>{composerWodProtocol(preview)}</Text>:null}
-     {(b.exercises??[]).map((e,j)=>{const dose=preview?.exercises?.find(x=>x.id===e.id);return <View key={j} style={{gap:4,paddingVertical:6,borderTopWidth:1,borderTopColor:c.border}}><Text style={bold}>{e.name??e.id}</Text><Text style={muted}>{dose?formatComposerDose(dose,b.type,preview):'Prescription à recalculer'}</Text></View>})}
+     {(b.exercises??[]).map((e,j)=>{const dose=preview?.exercises?.find(x=>x.id===e.id);return <View key={j} style={{gap:4,paddingVertical:6,borderTopWidth:1,borderTopColor:c.border}}><ExerciseName style={bold} exercise={e} fallback={e.name??e.id}/><Text style={muted}>{dose?formatComposerDose(dose,b.type,preview):'Prescription à recalculer'}</Text></View>})}
    </View>})}
    <View style={card}><Text style={bold}>Planifier une occurrence</Text><Text style={muted}>Choisis un jour. Tu retrouveras le récapitulatif pour vérifier et adapter la séance avant validation.</Text><TextInput accessibilityLabel="Date de la séance" placeholder="AAAA-MM-JJ" placeholderTextColor={c.textSecondary} editable={!busy} value={date} onChangeText={v=>{if(!operation.current)setDate(v);}} style={input}/>{button('Réutiliser ce modèle','calendar-outline',()=>router.push({pathname:'/workout/preparation',params:{entry:'week_assisted',date,modelId:selected.id}}),{primary:true,disabled:!canReusePersonalModel(selected)||!validModelDate(date)})}</View>
  </>}

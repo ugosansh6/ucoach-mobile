@@ -1,9 +1,9 @@
 export const exerciseRegionLabel = (value) => ({Upper:'Haut du corps',Lower:'Bas du corps',Core:'Abdos et gainage','Full Body':'Corps entier','Full body':'Corps entier',Back:'Dos'}[value] ?? value ?? '');
 const normalized = (value) => String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-export function filterExerciseCatalogue(rows, { search='', region='', family='', focus='', favoritesOnly=false }={}, favoriteIds=[]) {
+export function filterExerciseCatalogue(rows, { search='', region='', family='', focus='', favoritesOnly=false }={}, favoriteIds=[],nameMatches=null) {
   const favorites=new Set(favoriteIds);const query=normalized(search.trim());
   return (rows??[]).filter((e)=>(!region||e.bodyRegion===region)&&(!family||e.movementPattern===family)&&(!focus||e.trainingFocus===focus)
-    &&(!favoritesOnly||favorites.has(e.id))&&(!query||normalized([e.name,e.bodyRegion,e.movementPattern,e.trainingFocus,...(e.equipmentNames??[])].join(' ')).includes(query)));
+    &&(!favoritesOnly||favorites.has(e.id))&&(!query||nameMatches?.(e,search)||normalized([e.name,e.bodyRegion,e.movementPattern,e.trainingFocus,...(e.equipmentNames??[])].join(' ')).includes(query)));
 }
 export function exerciseMovementLabel(value) {
   const raw=String(value??'').trim();const key=raw.toLowerCase().replace(/[_-]+/g,' ');

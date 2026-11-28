@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
@@ -21,7 +22,7 @@ export default function ExerciseDetailScreen() {
   return <SafeAreaView style={{flex:1,backgroundColor:colors.background}}><ScrollView contentContainerStyle={{padding:18,gap:15}}>
     <Pressable accessibilityLabel="Retour aux exercices" onPress={()=>router.back()} style={{alignSelf:'flex-start',paddingVertical:8}}><Ionicons name="arrow-back" size={26} color={colors.text}/></Pressable>
     {loading?<ActivityIndicator color={colors.accent}/>:exercise?<>
-      <Text style={{...text,fontFamily:fontFamilies.display,fontSize:32,lineHeight:36}}>{exercise.name}</Text>
+      <ExerciseName exercise={exercise} detail style={{...text,fontSize:26,lineHeight:32}}/>
       <ExerciseArtwork imagePath={exercise.imagePath} colors={colors} hero/>
       <Text style={{...text,color:colors.textSecondary}}>{[exerciseRegionLabel(exercise.bodyRegion),exerciseMovementLabel(exercise.movementPattern),exercise.difficulty].filter(Boolean).join(' · ')}</Text>
       <View style={card}><Text style={{...text,fontFamily:fontFamilies.semiBold}}>Matériel</Text><Text style={text}>{exercise.equipmentNames.join(' · ')||'Poids du corps'}</Text></View>
