@@ -9,16 +9,15 @@ import ExerciseDetail from '../components/exercises/ExerciseDetail';
 import { exerciseRegionLabel, exerciseMovementLabel } from '../utils/exerciseCatalogue';
 import { pickerZones, pickerTypes, filterPickerRows, pickerEquipmentMatches, pickerEquipmentOptions, pickerAddableEquipment } from '../utils/composerPickerPresentation';
 
-// Existing UGEROD editorial assets, used as category illustrations (not exercise demonstrations).
+// UGEROD category illustrations, not individual exercise demonstrations.
 const ZONE_PHOTOS = {
-  '':require('../../assets/routine-categories/mobility.webp'),
-  Upper:require('../../assets/composer-environments/gym.webp'),
-  Lower:require('../../assets/composer-environments/home.webp'),
-  Back:require('../../assets/branding/D63D5DFF-3FC3-4338-8B37-0394114880F6.jpeg'),
+  '':require('../../assets/picker-zones/all.webp'),
+  Upper:require('../../assets/picker-zones/upper.webp'),
+  Lower:require('../../assets/picker-zones/lower.webp'),
+  Back:require('../../assets/picker-zones/back.webp'),
   Core:require('../../assets/routine-categories/core.webp'),
-  'Full Body':require('../../assets/routine-categories/conditioning.webp'),
+  'Full Body':require('../../assets/picker-zones/full.webp'),
 };
-const GENERAL_CATALOGUE_PHOTO=require('../../assets/composer-environments/box.webp');
 
 export default function ComposerExercisePickerPage({colors,isDark,brandIcon,blockLabel,rows,equipmentIds=[],referenceEquipment=[],equipmentSummary,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose,onAddEquipment,unrestricted=false,inlineFilters=false,fixedType='',selectLabel='Ajouter à la séance'}) {
   const [zone,setZone]=useState(''),[type,setType]=useState(''),[equipment,setEquipment]=useState(''),[search,setSearch]=useState('');
@@ -74,7 +73,7 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
           {[{key:'',label:'Tous'},...pickerZones].map(item=>{
             const active=zone===item.key;
             return <Pressable key={item.key||'all'} accessibilityRole="radio" accessibilityState={{checked:active}} accessibilityLabel={item.label} onPress={()=>{setZone(item.key);setLimit(40);}} style={[styles.photoCard,active&&styles.photoCardActive]}>
-              <ExpoImage source={!item.key&&!fixedType?GENERAL_CATALOGUE_PHOTO:ZONE_PHOTOS[item.key]} contentFit="cover" style={styles.photoImage} accessible={false}/>
+              <ExpoImage source={ZONE_PHOTOS[item.key]} contentFit="cover" style={styles.photoImage} accessible={false}/>
               <View style={styles.photoLabel}><Text style={styles.photoText}>{item.label}</Text>{active?<Ionicons name="checkmark" size={14} color={colors.textOnAccent} accessible={false}/>:null}</View>
             </Pressable>;
           })}
