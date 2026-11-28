@@ -39,6 +39,7 @@ assert.match(routineList,/ellipsis-vertical/);assert.match(routineList,/fn:onEdi
 assert.match(routineList,/source=\{ROUTINE_PHOTOS\[row.category\]/);
 assert.match(routineList,/LinearGradient/);assert.match(routineList,/minHeight:172/);assert.match(routineList,/\{row.name\}/);
 assert.ok(!routineList.includes('onCreate'));
+assert.match(routineList,/\.\.\.s\.eyebrow,color:c\.secondaryAccent/);assert.match(routineList,/name="time-outline" size=\{15\} color=\{c\.secondaryAccent\}/);assert.match(routineList,/name="calendar-outline" size=\{14\} color=\{c\.secondaryAccent\}/);assert.match(route,/primary\?colors\.textOnAccent:colors\.text/);
 assert.match(route,/library\?<Image source=\{isDark\?darkBrandIcon:lightBrandIcon\}/);
 assert.match(route,/<\/ScrollView>\{library\?<View[^\n]+btn\('Créer une routine',createFromLibrary/);
 const listFilter=new Function('rows','category',routineList.match(/const visible=rows.filter[^;]+;/)[0]+'return visible;');

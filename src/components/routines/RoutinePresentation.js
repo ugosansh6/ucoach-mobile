@@ -86,10 +86,10 @@ export function RoutineList({rows,loading,checkpoint,busy,onOpen,onStart,onEdit,
       <ExpoImage source={ROUTINE_PHOTOS[row.category]??ROUTINE_PHOTOS.MOBILITY} contentFit="cover" style={StyleSheet.absoluteFillObject} accessible={false}/>
       <LinearGradient colors={['rgba(8,13,10,0.12)','rgba(8,13,10,0.62)','rgba(8,13,10,0.95)']} style={StyleSheet.absoluteFillObject} pointerEvents="none"/>
       <View style={{gap:3}}>
-       <Text style={{...s.eyebrow,color:'#D6DED1'}}>{ROUTINE_CATEGORIES[row.category]?.toUpperCase()}</Text>
+       <Text style={{...s.eyebrow,color:c.secondaryAccent}}>{ROUTINE_CATEGORIES[row.category]?.toUpperCase()}</Text>
        <Text style={{...s.heading,fontSize:34,lineHeight:37,color:'#F4F5F1'}}>{row.name}</Text>
        <View style={{flexDirection:'row',alignItems:'center',flexWrap:'wrap',columnGap:9,rowGap:4}}>
-        <View style={{flexDirection:'row',alignItems:'center',gap:4}}><Ionicons name="time-outline" size={15} color="#E0E5DB"/><Text style={{...s.muted,color:'#E0E5DB'}}>{row.planned_minutes} min</Text></View>
+        <View style={{flexDirection:'row',alignItems:'center',gap:4}}><Ionicons name="time-outline" size={15} color={c.secondaryAccent} accessible={false}/><Text style={{...s.muted,color:'#E0E5DB'}}>{row.planned_minutes} min</Text></View>
         <Text style={{...s.muted,color:'#E0E5DB'}}>{row.exercises.length} exercice{row.exercises.length===1?'':'s'}{mechanic?' · '+mechanic:''}</Text>
        </View>
       </View>
@@ -99,7 +99,7 @@ export function RoutineList({rows,loading,checkpoint,busy,onOpen,onStart,onEdit,
     <View style={{padding:12,gap:10}}>
     {menuOpen?<View style={{borderRadius:12,borderWidth:1,borderColor:c.border,backgroundColor:c.surfacePressed,overflow:'hidden'}}>{[{label:'Modifier',icon:'create-outline',fn:onEdit},{label:'Dupliquer',icon:'copy-outline',fn:onCopy},{label:'Supprimer',icon:'trash-outline',fn:onArchive,danger:true}].map((item,i)=><Pressable key={item.label} accessibilityRole="button" disabled={busy} onPress={()=>action(item.fn,row)} style={({pressed})=>({minHeight:46,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:13,borderTopWidth:i?1:0,borderTopColor:c.border,opacity:pressed?0.65:1})}><Ionicons name={item.icon} size={19} color={item.danger?c.error:c.text}/><Text style={{...s.label,color:item.danger?c.error:c.text}}>{item.label}</Text></Pressable>)}</View>:null}
      <View style={{flexDirection:'row',alignItems:'flex-end',flexWrap:'wrap',gap:10}}>
-      {row.recurrence_days?.length?<View style={{flex:1,minWidth:168,gap:4}}><Text style={s.muted}>Jours prévus</Text><DayStrip days={row.recurrence_days}/></View>:<View style={{flex:1,minWidth:110,minHeight:44,justifyContent:'center'}}><Text style={s.muted}>À la demande</Text></View>}
+      {row.recurrence_days?.length?<View style={{flex:1,minWidth:168,gap:4}}><View style={{flexDirection:'row',alignItems:'center',gap:5}}><Ionicons name="calendar-outline" size={14} color={c.secondaryAccent} accessible={false}/><Text style={s.muted}>Jours prévus</Text></View><DayStrip days={row.recurrence_days}/></View>:<View style={{flex:1,minWidth:110,minHeight:44,justifyContent:'center'}}><Text style={s.muted}>À la demande</Text></View>}
       <View style={{minWidth:105}}><Button title={resume?'Reprendre':'Lancer'} icon="play-outline" primary compact disabled={busy} onPress={()=>onStart(row)}/></View>
      </View>
     </View>
