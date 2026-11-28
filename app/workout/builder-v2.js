@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -991,7 +992,7 @@ function ExerciseEditor({ block, item, onPrescription, onRemove }) {
     <View style={styles.exerciseCard}>
       <View style={styles.exerciseHeader}>
         <View style={styles.flex}>
-          <Text style={styles.exerciseName}>{item.exercise_name}</Text>
+          <ExerciseName exercise={item} style={styles.exerciseName}/>
           <Text style={styles.muted}>{[item.body_region, item.movement_pattern].filter(Boolean).join(' · ')}</Text>
         </View>
         <Pressable onPress={onRemove} hitSlop={8}>
@@ -1051,7 +1052,7 @@ function ReviewStep({ validation, blocks, acceptWarnings, onAcceptWarnings, onEd
               <Ionicons name={block.module_code === 'UNLOCK' ? 'body-outline' : 'flame-outline'} size={19} color={colors.primaryLight} />
               <View style={styles.flex}>
                 <Text style={styles.autoTitle}>{block.title.toUpperCase()}</Text>
-                <Text style={styles.muted}>{block.duration_minutes} min · {(block.exercises ?? []).map((e) => e.name).join(' · ')}</Text>
+                <Text style={styles.muted}>{block.duration_minutes} min</Text>{(block.exercises??[]).map((e,index)=><ExerciseName key={e.exercise_id??e.id??index} exercise={e} style={styles.muted}/>)}
               </View>
             </View>
           ))}
@@ -1117,7 +1118,7 @@ function ExercisePicker({ visible, query, onQuery, onSearch, results, loading, o
                 style={[styles.resultCard, !exercise.selectable && styles.resultDisabled]}
               >
                 <View style={styles.flex}>
-                  <Text style={styles.resultTitle}>{exercise.name}</Text>
+                  <ExerciseName exercise={exercise} style={styles.resultTitle}/>
                   <Text style={styles.muted}>{[exercise.body_region, exercise.movement_pattern, exercise.difficulty].filter(Boolean).join(' · ')}</Text>
                   {(exercise.equipment ?? []).length ? (
                     <Text style={styles.resultEquipment}>{exercise.equipment.map((eq) => eq.name).join(' · ')}</Text>

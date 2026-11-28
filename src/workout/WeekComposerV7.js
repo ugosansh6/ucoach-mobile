@@ -339,7 +339,7 @@ function PrimaryButton({ label, onPress, disabled = false, loading = false, styl
   );
 }
 
-function SheetShell({ visible, title, onClose, children, footer, styles, colors }) {
+function SheetShell({ visible, title, exerciseId, onClose, children, footer, styles, colors }) {
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.modalRoot}>
@@ -347,7 +347,7 @@ function SheetShell({ visible, title, onClose, children, footer, styles, colors 
         <View style={styles.sheetCard}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{title}</Text>
+            {exerciseId?<ExerciseName exercise={exerciseId} fallback={title} style={styles.sheetTitle}/>:<Text style={styles.sheetTitle}>{title}</Text>}
             <Pressable onPress={onClose} style={styles.sheetClose}>
               <Ionicons name="close" size={22} color={colors.text} />
             </Pressable>
@@ -2188,7 +2188,7 @@ export default function WeekComposerV7() {
         onPrevious={detailIndex > 0 ? () => setExpandedExerciseId(selectedCandidateObjects[detailIndex - 1].id) : null}
         onNext={detailIndex < selectedCandidateObjects.length - 1 ? () => setExpandedExerciseId(selectedCandidateObjects[detailIndex + 1].id) : null}
       /> : null}
-      {doseEditor?<SheetShell visible title={doseEditor.title} onClose={()=>setDoseEditor(null)} styles={styles} colors={colors}
+      {doseEditor?<SheetShell visible title={doseEditor.title} exerciseId={doseEditor.exerciseId} onClose={()=>setDoseEditor(null)} styles={styles} colors={colors}
         footer={<PrimaryButton label="APPLIQUER" onPress={()=>applyManualEditor()} disabled={!validComposerManualValues(doseEditor.fields,doseEditor.values)} styles={styles} colors={colors}/>}>
         {doseEditor.fields.map(f=><View key={f.key} style={styles.manualDoseField}>
           <Text style={styles.recapExercise}>{f.label}</Text>

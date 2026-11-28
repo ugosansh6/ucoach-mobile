@@ -1,3 +1,4 @@
+import ExerciseName from '../components/exercises/ExerciseName';
 import { composerUsesOutdoorEngine } from '../utils/composerOutdoor';
 import { OUTDOOR_PLACES, selectableOutdoorPlaces, terrainOptionsForPlace } from '../constants/outdoorContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -916,9 +917,7 @@ export default function PreparationCheckinV4() {
             {(todayComposer.draft?.architecture?.blocks ?? []).map((block, index) => (
               <View key={`${block.type}-${index}`} style={styles.composerSavedBlock}>
                 <Text style={styles.composerSavedBlockTitle}>{block.label} · {block.minutes} min</Text>
-                <Text style={styles.composerSavedExercises}>
-                  {(block.exercises ?? []).map((item) => item.name).join(' · ') || 'Aucun mouvement'}
-                </Text>
+                {block.exercises?.length ? <View style={{gap:4}}>{block.exercises.map((item,index)=><ExerciseName key={item.exercise_id??item.id??index} exercise={item} style={styles.composerSavedExercises}/>)}</View> : <Text style={styles.composerSavedExercises}>Aucun mouvement</Text>}
               </View>
             ))}
             {todayComposer.draft?.mechanic?.title ? (

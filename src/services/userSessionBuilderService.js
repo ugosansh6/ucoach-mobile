@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { exerciseSearchMatches } from '../utils/exerciseNames';
 
 const draftVersions = new Map();
 
@@ -152,7 +153,7 @@ export async function getUserSessionBuilderExercises({
   bodyRegion = null,
   includeUnavailable = false,
 }) {
-  const { data, error } = await supabase.rpc('get_user_session_builder_exercises_v2', {
+  const args = {
     p_draft_id: draftId,
     p_module_code: moduleCode,
     p_query: query,
@@ -162,9 +163,17 @@ export async function getUserSessionBuilderExercises({
     p_training_category: trainingCategory,
     p_body_region: bodyRegion,
     p_include_unavailable: Boolean(includeUnavailable),
-  });
+  };
+  const { data, error } = await supabase.rpc('get_user_session_builder_exercises_v2', args);
   throwRpcError(error, 'Impossible de charger les exercices.');
-  return data ?? { results: [] };
+  if (!String(query??'').trim()) return data ?? { results: [] };
+  // Preserve authoritative eligibility, warnings and existing server matches.
+  // The legacy RPC caps the eligible window at 150; no engine or database change.
+  const extra = await supabase.rpc('get_user_session_builder_exercises_v2', {...args,p_query:null,p_limit:150});
+  if(extra.error) return data ?? {results:[]};
+  const rows = new Map((data?.results??[]).map(row=>[row.exercise_id,row]));
+  for(const row of extra.data?.results??[]) if(!rows.has(row.exercise_id)&&exerciseSearchMatches(row,query)) rows.set(row.exercise_id,row);
+  return {...data,results:[...rows.values()].slice(0,limit)};
 }
 
 export async function suggestUserSessionBuilderWodDuration(draftId) {

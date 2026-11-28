@@ -808,9 +808,7 @@ export default function WorkoutDebriefScreen() {
               <Text numberOfLines={2} style={styles.sharePreviewResult}>
                 {performanceItems[0]?.value ?? `${blocks.length} BLOCS`}
               </Text>
-              <Text style={styles.sharePreviewResultMeta}>
-                {performanceItems[0] ? `${performanceItems[0].block} · ${performanceItems[0].name}` : blocks.map((block) => block.label).join(' · ')}
-              </Text>
+              {performanceItems[0]?<ExerciseName exercise={performanceItems[0]} prefix={performanceItems[0].block+' · '} style={styles.sharePreviewResultMeta}/>:<Text style={styles.sharePreviewResultMeta}>{blocks.map(block=>block.label).join(' · ')}</Text>}
             </View>
 
             <View style={styles.sharePreviewCopy}>
