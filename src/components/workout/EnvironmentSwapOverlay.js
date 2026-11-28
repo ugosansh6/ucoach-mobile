@@ -337,7 +337,8 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
               <ActionOption
                 icon="arrow-undo-outline"
                 title="REVENIR AU PRÉCÉDENT"
-                subtitle={item?.undo_exercise_name ? `Restaurer ${item.undo_exercise_name}.` : 'Annuler le dernier remplacement.'}
+                subtitle={item?.undo_exercise_id||item?.undo_exercise_name?null:'Annuler le dernier remplacement.'}
+                subtitleExercise={item?.undo_exercise_id||item?.undo_exercise_name?{exercise_id:item.undo_exercise_id??null,name:item.undo_exercise_name??'Exercice précédent'}:null}
                 onPress={() => applySwap('equivalent', true)}
                 disabled={busy}
                 styles={styles}
@@ -395,13 +396,13 @@ export default function EnvironmentSwapOverlay({ variant = 'floating', targetExe
   );
 }
 
-function ActionOption({ icon, title, subtitle, onPress, disabled, styles, themeColors }) {
+function ActionOption({ icon, title, subtitle, subtitleExercise, onPress, disabled, styles, themeColors }) {
   return (
     <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.option, pressed && styles.pressed]}>
       <Ionicons name={icon} size={20} color={themeColors.accent} />
       <View style={styles.flex}>
         <Text style={styles.optionText}>{title}</Text>
-        {subtitle ? <Text style={styles.optionSubtitle}>{subtitle}</Text> : null}
+        {subtitleExercise?<ExerciseName exercise={subtitleExercise} prefix="Restaurer · " style={styles.optionSubtitle}/>:subtitle ? <Text style={styles.optionSubtitle}>{subtitle}</Text> : null}
       </View>
       <Ionicons name="chevron-forward" size={18} color={themeColors.textMuted} />
     </Pressable>

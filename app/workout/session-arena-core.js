@@ -1334,7 +1334,10 @@ function SwapModal({ visible, exercise, availability, busy, error, onClose, onSe
           {availability?.can_undo === true ? (
             <Pressable onPress={() => onSelect('equivalent', true)} disabled={busy} style={styles.modalOption}>
               <Ionicons name="arrow-undo" size={20} color={colors.accent} />
-              <Text style={styles.modalOptionText}>Revenir au précédent</Text>
+              <View style={{flex:1,minWidth:0,gap:3}}>
+                <Text style={styles.modalOptionText}>Revenir au précédent</Text>
+                {availability.undo_exercise_id||availability.undo_exercise_name?<ExerciseName exercise={availability.undo_exercise_id} fallback={availability.undo_exercise_name??'Exercice précédent'} style={styles.modalOptionText}/>:null}
+              </View>
             </Pressable>
           ) : null}
         </View>

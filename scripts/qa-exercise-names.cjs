@@ -34,6 +34,9 @@ console.log('PASS 356 bilingual catalogue entries, mode switching, detail, no du
 
 // Secondary screen coverage: keep identifiers through the actual render paths.
 const coverage = [
+  ['app/workout/session-focused-core.js','exercise={availability.undo_exercise_id}'],
+  ['app/workout/session-arena-core.js','exercise={availability.undo_exercise_id}'],
+  ['src/components/workout/EnvironmentSwapOverlay.js','<ExerciseName exercise={subtitleExercise}'],
   ['src/components/workout/WodProtocolPlayer.js','<ExerciseName style={styles.deckExercise} exercise={exercise}'],
   ['src/components/workout/WodProtocolPlayer.js','<ExerciseName style={styles.nextExercise} exercise={nextExercise}'],
   ['app/workout/environment-session-core.js','<ExerciseName exercise={machineExercise} fallback="Machine" prefix='],
