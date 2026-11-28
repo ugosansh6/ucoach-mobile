@@ -1,3 +1,4 @@
+import ExerciseName from '../../src/components/exercises/ExerciseName';
 import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -349,7 +350,7 @@ function AdjustmentRow({ exercise, selectedReason, onPress, styles }) {
       </View>
 
       <View style={styles.adjustmentMain}>
-        <Text style={styles.adjustmentName}>{exercise?.name ?? exercise?.id}</Text>
+        <ExerciseName exercise={exercise} fallback={exercise?.name ?? exercise?.id} style={styles.adjustmentName}/>
         <Text style={styles.adjustmentMeta}>
           {selectedLabel ?? (adapted ? 'Adapté' : 'Non réalisé')}
         </Text>
@@ -386,7 +387,7 @@ function ReasonPicker({ exercise, selectedReason, onSelect, onClose, visible, st
               <Text style={styles.reasonSheetEyebrow}>
                 {adapted ? 'EXERCICE ADAPTÉ' : 'EXERCICE NON RÉALISÉ'}
               </Text>
-              <Text style={styles.reasonSheetTitle}>{exercise?.name ?? exercise?.id}</Text>
+              <ExerciseName exercise={exercise} fallback={exercise?.name ?? exercise?.id} style={styles.reasonSheetTitle}/>
               <Text style={styles.reasonSheetSubtitle}>Qu’est-ce qui l’explique le mieux ?</Text>
             </View>
             <Pressable onPress={onClose} style={styles.closeButton} hitSlop={10}>
@@ -747,7 +748,7 @@ export default function CompletionV3Screen() {
                 return (
                   <View key={exerciseKey(exercise)} style={styles.partialRow}>
                     <View style={styles.partialMain}>
-                      <Text style={styles.partialName}>{exercise?.name}</Text>
+                      <ExerciseName exercise={exercise} style={styles.partialName}/>
                       <Text style={styles.partialTarget}>Prévu : {target} reps</Text>
                     </View>
                     <View style={styles.partialInputWrap}>
@@ -822,7 +823,7 @@ export default function CompletionV3Screen() {
                     .filter((exercise) => missingMetricFields(exercise, loads).length > 0)
                     .map((exercise) => (
                       <View key={exerciseKey(exercise)} style={styles.metricExercise}>
-                        <Text style={styles.metricExerciseName}>{exercise.name}</Text>
+                        <ExerciseName exercise={exercise} style={styles.metricExerciseName}/>
                         <View style={styles.metricGrid}>
                           {missingMetricFields(exercise, loads).map((field) => {
                             const meta = FIELD_META[field];

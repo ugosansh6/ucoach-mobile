@@ -21,6 +21,9 @@ function load(file){
   const requireLocal=(id)=>{
     if(id==='react')return React;
     if(id==='react-native')return {...RN,Modal:({visible,children})=>visible?React.createElement('section',null,children):null};
+    if(id.endsWith('ExerciseNameContext'))return {useExerciseNamePreference:()=>({mode:'bilingual'})};
+    if(id.endsWith('UgerodThemeContext'))return {useUgerodTheme:()=>({colors:{text:'#222'}})};
+    if(id.startsWith('.')&&id.endsWith('.json'))return require(path.resolve(path.dirname(filename),id));
     if(id==='expo-status-bar')return {StatusBar:()=>null};
     if(id.endsWith('services/exerciseService'))return {getExerciseMuscles:async()=>[]};
     if(id==='@expo/vector-icons')return {Ionicons:()=>React.createElement('span',{'aria-hidden':true})};
@@ -69,7 +72,7 @@ for(const theme of Object.values(ugerodThemes)){
  const mixed=renderToStaticMarkup(React.createElement(Overview.ComposerMovementTabs,{blocks:[{type:'STRENGTH',label:'Musculation',minutes:20},{type:'WOD',label:'WOD',minutes:15}],selectedIndex:1,colors}));
  assert.match(mixed,/WOD/);assert.match(mixed,/aria-selected="true"/);
  const detail=renderToStaticMarkup(React.createElement(Detail,{exercise:{id:'EX321',name:'Band Row',description:'Tirage',instructions:'1. Fixe l’élastique.\n2. Tire.',tips:'Contrôle',equipmentNames:['Élastiques']},doseLabel:'5 séries × 5 reps · repos 75 s',index:0,count:4,colors,editable:true,onReplace(){},onRemove(){},onClose(){},onNext(){}}));
- assert.match(detail,/Band Row/);assert.match(detail,/5 séries × 5 reps/);assert.match(detail,/Fixe l’élastique/);assert.match(detail,/Élastiques/);assert.match(detail,/Remplacer/);assert.match(detail,/Retirer/);assert.match(detail,/Visuel non disponible/);assert.doesNotMatch(detail,/Commencer l’exercice/);
+ assert.match(detail,/Band Row/);assert.ok(detail.includes("Tirage horizontal avec élastique"));assert.match(detail,/5 séries × 5 reps/);assert.match(detail,/Fixe l’élastique/);assert.match(detail,/Élastiques/);assert.match(detail,/Remplacer/);assert.match(detail,/Retirer/);assert.match(detail,/Visuel non disponible/);assert.doesNotMatch(detail,/Commencer l’exercice/);
  const readonly=renderToStaticMarkup(React.createElement(Detail,{exercise:{id:'cardio',name:'Cardio'},colors,onClose(){}}));assert.doesNotMatch(readonly,/Remplacer|Retirer/);
 }
 console.log('PASS compact movement header, solo/mixed tabs, reusable exercise detail in both themes (SSR, not device)');
