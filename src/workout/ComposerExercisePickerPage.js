@@ -1,17 +1,31 @@
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
+import ExerciseArtwork from '../components/exercises/ExerciseArtwork';
 import { StatusBar } from 'expo-status-bar';
 import { fontFamilies } from '../constants/typography';
 import ExerciseDetail from '../components/exercises/ExerciseDetail';
 import { exerciseRegionLabel, exerciseMovementLabel } from '../utils/exerciseCatalogue';
 import { pickerZones, pickerTypes, filterPickerRows, pickerEquipmentMatches, pickerEquipmentOptions, pickerAddableEquipment } from '../utils/composerPickerPresentation';
 
-export default function ComposerExercisePickerPage({colors,isDark,brandIcon,blockLabel,rows,equipmentIds=[],referenceEquipment=[],equipmentSummary,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose,onAddEquipment,unrestricted=false,selectLabel='Ajouter à la séance'}) {
+// Existing UGEROD editorial assets, used as category illustrations (not exercise demonstrations).
+const ZONE_PHOTOS = {
+  '':require('../../assets/routine-categories/mobility.webp'),
+  Upper:require('../../assets/composer-environments/gym.webp'),
+  Lower:require('../../assets/composer-environments/home.webp'),
+  Back:require('../../assets/branding/D63D5DFF-3FC3-4338-8B37-0394114880F6.jpeg'),
+  Core:require('../../assets/routine-categories/core.webp'),
+  'Full Body':require('../../assets/routine-categories/conditioning.webp'),
+};
+const GENERAL_CATALOGUE_PHOTO=require('../../assets/composer-environments/box.webp');
+
+export default function ComposerExercisePickerPage({colors,isDark,brandIcon,blockLabel,rows,equipmentIds=[],referenceEquipment=[],equipmentSummary,selectedRows,selectedIds,favoriteIds,capacity,replacementId,onReplacement,loading,error,onRetry,onSelect,onClose,onAddEquipment,unrestricted=false,inlineFilters=false,fixedType='',selectLabel='Ajouter à la séance'}) {
   const [zone,setZone]=useState(''),[type,setType]=useState(''),[equipment,setEquipment]=useState(''),[search,setSearch]=useState('');
   const [favoritesOnly,setFavoritesOnly]=useState(false),[view,setView]=useState('hub'),[limit,setLimit]=useState(40);
   const [pendingEquipment,setPendingEquipment]=useState([]);
   const [detailId,setDetailId]=useState(null);
+  const [inlineFacet,setInlineFacet]=useState('');
   const styles=createStyles(colors);
   const available=rows.filter(row=>(unrestricted||pickerEquipmentMatches(row,equipmentIds))&&(unrestricted||!selectedIds.includes(row.id)));
   const equipmentOptions=pickerEquipmentOptions(equipmentIds,referenceEquipment);
@@ -19,7 +33,7 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
   const addingEquipment=view==='add-equipment';
   function openAddEquipment(){setPendingEquipment([]);setView('add-equipment');}
   function confirmEquipment(){onAddEquipment(pendingEquipment);setPendingEquipment([]);setEquipment('');setView('equipment');setLimit(40);}
-  const filters={zone,type,equipment,search,favoritesOnly};
+  const filters={zone,type:fixedType||type,equipment,search,favoritesOnly};
   const filtered=filterPickerRows(available,filters,favoriteIds);
   const selectedZone=pickerZones.find(z=>z.key===zone),selectedType=pickerTypes.find(t=>t.key===type),selectedEquipment=equipmentOptions.find(e=>e.key===equipment);
   const atCapacity=selectedIds.length>=capacity;
@@ -27,9 +41,9 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
   const detailIndex=filtered.findIndex(row=>row.id===detailId);
   const detailExercise=detailIndex>=0?filtered[detailIndex]:null;
   function selectFromDetail(){if(!detailExercise||!canSelect)return;setDetailId(null);onSelect(detailExercise);}
-  const listVisible=view==='results'||Boolean(search.trim())||favoritesOnly;
+  const listVisible=inlineFilters||view==='results'||Boolean(search.trim())||favoritesOnly;
   function results(){setView('results');setLimit(40);}
-  function back(){if(addingEquipment){setPendingEquipment([]);setView('equipment');return;}if(view==='zone'||view==='type'||view==='equipment'||listVisible){setView('hub');setSearch('');setFavoritesOnly(false);}else onClose();}
+  function back(){if(addingEquipment){setPendingEquipment([]);setView('equipment');return;}if(inlineFilters){onClose();return;}if(view==='zone'||view==='type'||view==='equipment'||listVisible){setView('hub');setSearch('');setFavoritesOnly(false);}else onClose();}
   function categoryCard(item,count,onPress,active=false){return <Pressable key={item.key} accessibilityRole="button" onPress={onPress}
       style={[styles.tile,active&&styles.activeTile]}>
       <View style={styles.tileIcon}><Ionicons name={item.icon} size={24} color={colors.accent}/></View>
@@ -41,13 +55,13 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
   const activeFacet=view==='zone'?zone:view==='type'?type:equipment;
   const facetCount=key=>filterPickerRows(available,{...filters,[view]:key},favoriteIds).length;
   function chooseFacet(key){if(view==='zone')setZone(key);else if(view==='type')setType(key);else setEquipment(key);results();}
-  function clearFilters(){setZone('');setType('');setEquipment('');setFavoritesOnly(false);setSearch('');setLimit(40);}
+  function clearFilters(){setZone('');setType('');setEquipment('');setFavoritesOnly(false);setSearch('');setLimit(40);setInlineFacet('');}
   return <SafeAreaView style={styles.screen}>
     <StatusBar style={isDark?'light':'dark'}/>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Retour" onPress={back} style={styles.iconButton}><Ionicons name="arrow-back" size={21} color={colors.text}/></Pressable>
-        <View style={{flex:1}}><Text style={styles.kicker}>{blockLabel.toUpperCase()}</Text><Text style={styles.title}>Choisir les exercices.</Text></View>
+        <View style={{flex:1}}><Text style={styles.kicker}>{blockLabel.toUpperCase()}</Text><Text style={styles.title}>{inlineFilters?'Choisir les exercices':'Choisir les exercices.'}</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={styles.iconButton}><Ionicons name="close" size={22} color={colors.text}/></Pressable>
       </View>
       {!unrestricted?<View style={styles.equipmentScope}><Ionicons name="checkmark-circle-outline" size={17} color={colors.accent}/><Text style={[styles.muted,{flex:1}]}>Matériel de la séance : {equipmentSummary && equipmentSummary !== 'Poids du corps' ? 'Poids du corps · '+equipmentSummary : 'Poids du corps'}</Text></View>:null}
@@ -55,7 +69,29 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
       {atCapacity&&!replacementId?<View style={styles.notice}><Text style={styles.tileTitle}>Bloc complet</Text><Text style={styles.muted}>Choisis le mouvement à remplacer.</Text>
         {selectedRows.map(row=><Pressable key={row.id} onPress={()=>onReplacement(row.id)} style={styles.row}><Text style={styles.rowTitle}>{row.name}</Text><Ionicons name="swap-horizontal-outline" size={20} color={colors.accent}/></Pressable>)}</View>:null}
       {!choosingCategory&&!addingEquipment?<><View style={styles.search}><Ionicons name="search-outline" size={20} color={colors.textSecondary}/><TextInput value={search} onChangeText={v=>{setSearch(v);setLimit(40);if(v.trim())setView('results');}} placeholder="Rechercher un exercice" placeholderTextColor={colors.textMuted} accessibilityLabel="Rechercher un exercice" autoCorrect={false} style={styles.searchInput}/>{search?<Pressable accessibilityLabel="Effacer la recherche" onPress={()=>setSearch('')}><Ionicons name="close-circle" color={colors.textSecondary} size={20}/></Pressable>:null}</View>
-      <View style={styles.filterRow}>
+      {inlineFilters?<>
+        <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.photoStrip}>
+          {[{key:'',label:'Tous'},...pickerZones].map(item=>{
+            const active=zone===item.key;
+            return <Pressable key={item.key||'all'} accessibilityRole="radio" accessibilityState={{checked:active}} accessibilityLabel={item.label} onPress={()=>{setZone(item.key);setLimit(40);}} style={[styles.photoCard,active&&styles.photoCardActive]}>
+              <ExpoImage source={!item.key&&!fixedType?GENERAL_CATALOGUE_PHOTO:ZONE_PHOTOS[item.key]} contentFit="cover" style={styles.photoImage} accessible={false}/>
+              <View style={styles.photoLabel}><Text style={styles.photoText}>{item.label}</Text>{active?<Ionicons name="checkmark" size={14} color={colors.textOnAccent} accessible={false}/>:null}</View>
+            </Pressable>;
+          })}
+        </ScrollView>
+        <View style={styles.actions}>
+          {!fixedType?<Pressable accessibilityRole="button" accessibilityState={{expanded:inlineFacet==='type'}} onPress={()=>setInlineFacet(v=>v==='type'?'':'type')} style={[styles.pill,type&&styles.activeTile]}><Ionicons name="fitness-outline" size={17} color={colors.accent}/><Text style={styles.filterLabel}>{selectedType?.label??'Type'}</Text><Ionicons name={inlineFacet==='type'?'chevron-up':'chevron-down'} size={14} color={colors.textMuted}/></Pressable>:null}
+          <Pressable accessibilityRole="button" accessibilityState={{expanded:inlineFacet==='equipment'}} onPress={()=>setInlineFacet(v=>v==='equipment'?'':'equipment')} style={[styles.pill,equipment&&styles.activeTile]}><Ionicons name="options-outline" size={17} color={colors.accent}/><Text style={styles.filterLabel}>{selectedEquipment?.label??'Matériel'}</Text><Ionicons name={inlineFacet==='equipment'?'chevron-up':'chevron-down'} size={14} color={colors.textMuted}/></Pressable>
+          <Pressable accessibilityRole="checkbox" accessibilityState={{checked:favoritesOnly}} onPress={()=>{setFavoritesOnly(v=>!v);setLimit(40);}} style={[styles.pill,favoritesOnly&&styles.activeTile]}><Ionicons name={favoritesOnly?'heart':'heart-outline'} size={17} color={colors.secondaryAccent}/><Text style={styles.filterLabel}>Favoris</Text></Pressable>
+          {(zone||type||equipment||favoritesOnly||search)?<Pressable accessibilityRole="button" onPress={clearFilters} style={styles.pill}><Text style={styles.filterLabel}>Réinitialiser</Text></Pressable>:null}
+        </View>
+        {inlineFacet==='equipment'||(inlineFacet==='type'&&!fixedType)?<ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.photoStrip}>
+          {[{key:'',label:'Tous'},...(inlineFacet==='equipment'?equipmentOptions:pickerTypes)].map(item=>{
+            const active=(inlineFacet==='equipment'?equipment:type)===item.key;
+            return <Pressable key={item.key||'all'} accessibilityRole="radio" accessibilityState={{checked:active}} onPress={()=>{if(inlineFacet==='equipment')setEquipment(item.key);else setType(item.key);setLimit(40);setInlineFacet('');}} style={[styles.pill,active&&styles.inlinePillActive]}><Text style={[styles.filterLabel,active&&styles.inlinePillText]}>{item.label}</Text></Pressable>;
+          })}
+        </ScrollView>:null}
+      </>:<><View style={styles.filterRow}>
         <Pressable accessibilityRole="button" onPress={()=>setView('zone')} style={styles.filterTile}><Ionicons name="body-outline" size={20} color={colors.accent}/><Text style={styles.filterLabel}>Zone du corps</Text><Text style={styles.muted}>{selectedZone?.label??'Toutes'}</Text><Ionicons name="chevron-forward" size={17} color={colors.textMuted}/></Pressable>
         <Pressable accessibilityRole="button" onPress={()=>setView('type')} style={styles.filterTile}><Ionicons name="fitness-outline" size={20} color={colors.accent}/><Text style={styles.filterLabel}>Type d’entraînement</Text><Text style={styles.muted}>{selectedType?.label??'Tous'}</Text><Ionicons name="chevron-forward" size={17} color={colors.textMuted}/></Pressable>
         <Pressable accessibilityRole="button" onPress={()=>setView('equipment')} style={styles.filterTile}><Ionicons name="barbell-outline" size={20} color={colors.accent}/><Text style={styles.filterLabel}>Matériel</Text><Text style={styles.muted}>{selectedEquipment?.label??'Tous'}</Text><Ionicons name="chevron-forward" size={17} color={colors.textMuted}/></Pressable>
@@ -63,7 +99,7 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" onPress={()=>{setFavoritesOnly(!favoritesOnly);results();}} style={[styles.pill,favoritesOnly&&styles.activeTile]}><Ionicons name={favoritesOnly?'heart':'heart-outline'} size={17} color={colors.accent}/><Text style={styles.filterLabel}>Mes favoris</Text></Pressable>
         {(zone||type||equipment||favoritesOnly||search)?<Pressable accessibilityRole="button" onPress={()=>{clearFilters();setView('hub');}} style={styles.pill}><Text style={styles.filterLabel}>Réinitialiser</Text></Pressable>:null}
-      </View></>:null}
+      </View></>}</>:null}
       {loading?<View style={styles.notice}><ActivityIndicator color={colors.accent}/><Text style={styles.muted}>Chargement du catalogue…</Text></View>:null}
       {error?<Pressable onPress={onRetry} style={styles.notice}><Text style={styles.tileTitle}>Catalogue indisponible · Réessayer</Text></Pressable>:null}
       {addingEquipment?<>
@@ -76,16 +112,16 @@ export default function ComposerExercisePickerPage({colors,isDark,brandIcon,bloc
         {categoryCard({key:'',label:view==='equipment'?(unrestricted?'Tout le matériel':'Tout mon matériel'):'Tous les exercices',icon:'grid-outline'},facetCount(''),()=>chooseFacet(''),!activeFacet)}
         {facetOptions.map(item=>categoryCard(item,facetCount(item.key),()=>chooseFacet(item.key),activeFacet===item.key))}
       </View>{view==='equipment'&&onAddEquipment?<Pressable accessibilityRole="button" onPress={openAddEquipment} style={styles.browse}><Ionicons name="add-circle-outline" size={23} color={colors.accent}/><View style={{flex:1}}><Text style={styles.filterLabel}>Ajouter du matériel</Text><Text style={styles.muted}>Modifier le matériel de cette séance</Text></View><Ionicons name="chevron-forward" size={18} color={colors.accent}/></Pressable>:null}</>:!listVisible?<Pressable accessibilityRole="button" style={styles.browse} onPress={()=>{clearFilters();results();}}><View style={styles.tileIcon}><Ionicons name="grid-outline" size={24} color={colors.accent}/></View><View style={{flex:1}}><Text style={styles.tileTitle}>Tous les exercices</Text><Text style={styles.muted}>{available.length} exercices{unrestricted?' disponibles':' compatibles avec ton matériel'}</Text></View><Ionicons name="chevron-forward" color={colors.accent} size={20}/></Pressable>:<>
-        <Text style={styles.section}>{filtered.length} exercice{filtered.length!==1?'s':''}</Text>
+        <Text style={styles.section}>{inlineFilters&&selectedZone?selectedZone.label+' · ':''}{filtered.length} exercice{filtered.length!==1?'s':''}</Text>
         {!filtered.length&&!loading?<Text style={styles.muted}>{unrestricted?'Aucun exercice trouvé. Modifie tes filtres ou ta recherche.':'Aucun exercice compatible. Modifie tes filtres, ta recherche ou le matériel de la séance.'}</Text>:null}
-        {filtered.slice(0,limit).map(row=><View key={row.id} style={styles.row}>
+        {filtered.slice(0,limit).map(row=><View key={row.id} style={inlineFilters?styles.inlineRow:styles.row}>
           <Pressable accessibilityRole="button" accessibilityLabel={'Détails de '+row.name} onPress={()=>setDetailId(row.id)} style={styles.exerciseInfo}>
-          <View style={styles.thumb}>{/^https?:\/\//i.test(String(row.imagePath??''))?<Image source={{uri:row.imagePath}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>:<Ionicons name="barbell-outline" size={23} color={colors.textSecondary}/>}</View>
+          {inlineFilters?<ExerciseArtwork imagePath={row.imagePath} colors={colors} size={56}/>:<View style={styles.thumb}>{/^https?:\/\//i.test(String(row.imagePath??''))?<Image source={{uri:row.imagePath}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>:<Ionicons name="barbell-outline" size={23} color={colors.textSecondary}/>}</View>}
           <View style={{flex:1,gap:3}}><Text style={styles.rowTitle}>{row.name}</Text><Text style={styles.muted}>{[exerciseRegionLabel(row.bodyRegion),exerciseMovementLabel(row.movementPattern)].filter(Boolean).join(' · ')}</Text>
           <Text style={styles.muted}>{(row.equipmentNames??[]).join(' · ')||'Poids du corps'}</Text>
           {row.missingEquipment?.length?<Text style={styles.warning}>Matériel manquant : {row.missingEquipment.join(' · ')}</Text>:null}
           {row.recommended?<Text style={styles.recommended}>Recommandé</Text>:null}</View><Ionicons name="chevron-forward" size={15} color={colors.textMuted}/></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={(replacementId?'Choisir ':'Ajouter ')+row.name} accessibilityState={{disabled:!canSelect}} disabled={!canSelect} onPress={()=>onSelect(row)} style={[styles.quickAdd,!canSelect&&{opacity:.4}]}><Ionicons name="add-circle-outline" size={27} color={colors.accent}/></Pressable></View>)}
+          <Pressable accessibilityRole="button" accessibilityLabel={(replacementId?'Choisir ':'Ajouter ')+row.name} accessibilityState={{disabled:!canSelect}} disabled={!canSelect} onPress={()=>onSelect(row)} style={[styles.quickAdd,inlineFilters&&styles.inlineAdd,!canSelect&&{opacity:.4}]}><Ionicons name={inlineFilters?'add-outline':'add-circle-outline'} size={inlineFilters?24:27} color={inlineFilters?colors.textOnAccent:colors.accent}/></Pressable></View>)}
         {filtered.length>limit?<Pressable style={styles.browse} onPress={()=>setLimit(v=>v+40)}><Text style={styles.filterLabel}>Afficher plus d’exercices</Text><Ionicons name="chevron-down" size={18} color={colors.accent}/></Pressable>:null}
       </>}
     </ScrollView>
@@ -107,6 +143,8 @@ function createStyles(c){return StyleSheet.create({
   searchInput:{flex:1,fontFamily:fontFamilies.medium,fontSize:15,color:c.text,padding:0,minHeight:28},
   filterRow:{flexDirection:'row',gap:7},filterTile:{flex:1,minWidth:0,borderWidth:1,borderColor:c.border,borderRadius:12,padding:10,gap:5,backgroundColor:c.surface},
   filterLabel:{fontFamily:fontFamilies.semiBold,color:c.text,fontSize:13},actions:{flexDirection:'row',gap:8,flexWrap:'wrap'},pill:{flexDirection:'row',alignItems:'center',gap:6,borderWidth:1,borderColor:c.border,borderRadius:20,paddingHorizontal:12,paddingVertical:9,backgroundColor:c.surface},
+  photoStrip:{gap:8,paddingVertical:2},photoCard:{width:116,borderRadius:12,borderWidth:2,borderColor:c.border,overflow:'hidden',backgroundColor:c.accent},photoCardActive:{borderColor:c.secondaryAccent},photoImage:{height:72,width:'100%'},photoLabel:{minHeight:36,paddingHorizontal:7,paddingVertical:6,flexDirection:'row',alignItems:'center',gap:3},photoText:{flex:1,fontFamily:fontFamilies.semiBold,fontSize:12,lineHeight:15,color:c.textOnAccent},inlinePillActive:{backgroundColor:c.accent,borderColor:c.accent},inlinePillText:{color:c.textOnAccent},
+  inlineRow:{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:8,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:c.border},inlineAdd:{backgroundColor:c.accent,borderRadius:10},
   section:{fontFamily:fontFamilies.bold,fontSize:19,color:c.text},grid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:12},
   tile:{width:'48%',borderWidth:1,borderColor:c.border,borderRadius:16,padding:14,gap:10,backgroundColor:c.surface,minHeight:132},activeTile:{borderColor:c.accent,backgroundColor:c.accentSoft??c.surface},
   tileIcon:{width:42,height:42,borderRadius:12,backgroundColor:c.surfaceElevated??c.background,alignItems:'center',justifyContent:'center'},
